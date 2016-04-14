@@ -24,6 +24,7 @@ import (
 
 	"golang.org/x/crypto/openpgp/elgamal"
 	"golang.org/x/crypto/openpgp/errors"
+	"golang.org/x/crypto/openpgp/internal/encoding"
 )
 
 var (
@@ -35,119 +36,8 @@ var (
 	oidCurveP521 []byte = []byte{0x2B, 0x81, 0x04, 0x00, 0x23}
 )
 
-const maxOIDLength = 8
-
-// ecdsaKey stores the algorithm-specific fields for ECDSA keys.
-// as defined in RFC 6637, Section 9.
-type ecdsaKey struct {
-	// oid contains the OID byte sequence identifying the elliptic curve used
-	oid []byte
-	// p contains the elliptic curve point that represents the public key
-	p parsedMPI
-}
-
-// parseOID reads the OID for the curve as defined in RFC 6637, Section 9.
-func parseOID(r io.Reader) (oid []byte, err error) {
-	buf := make([]byte, maxOIDLength)
-	if _, err = readFull(r, buf[:1]); err != nil {
-		return
-	}
-	oidLen := buf[0]
-	if int(oidLen) > len(buf) {
-		err = errors.UnsupportedError("invalid oid length: " + strconv.Itoa(int(oidLen)))
-		return
-	}
-	oid = buf[:oidLen]
-	_, err = readFull(r, oid)
-	return
-}
-
-func (f *ecdsaKey) parse(r io.Reader) (err error) {
-	if f.oid, err = parseOID(r); err != nil {
-		return err
-	}
-	f.p.bytes, f.p.bitLength, err = readMPI(r)
-	return
-}
-
-func (f *ecdsaKey) serialize(w io.Writer) (err error) {
-	buf := make([]byte, maxOIDLength+1)
-	buf[0] = byte(len(f.oid))
-	copy(buf[1:], f.oid)
-	if _, err = w.Write(buf[:len(f.oid)+1]); err != nil {
-		return
-	}
-	return writeMPIs(w, f.p)
-}
-
-func (f *ecdsaKey) newECDSA() (*ecdsa.PublicKey, error) {
-	var c elliptic.Curve
-	if bytes.Equal(f.oid, oidCurveP256) {
-		c = elliptic.P256()
-	} else if bytes.Equal(f.oid, oidCurveP384) {
-		c = elliptic.P384()
-	} else if bytes.Equal(f.oid, oidCurveP521) {
-		c = elliptic.P521()
-	} else {
-		return nil, errors.UnsupportedError(fmt.Sprintf("unsupported oid: %x", f.oid))
-	}
-	x, y := elliptic.Unmarshal(c, f.p.bytes)
-	if x == nil {
-		return nil, errors.UnsupportedError("failed to parse EC point")
-	}
-	return &ecdsa.PublicKey{Curve: c, X: x, Y: y}, nil
-}
-
-func (f *ecdsaKey) byteLen() int {
-	return 1 + len(f.oid) + 2 + len(f.p.bytes)
-}
-
 type kdfHashFunction byte
 type kdfAlgorithm byte
-
-// ecdhKdf stores key derivation function parameters
-// used for ECDH encryption. See RFC 6637, Section 9.
-type ecdhKdf struct {
-	KdfHash kdfHashFunction
-	KdfAlgo kdfAlgorithm
-}
-
-func (f *ecdhKdf) parse(r io.Reader) (err error) {
-	buf := make([]byte, 1)
-	if _, err = readFull(r, buf); err != nil {
-		return
-	}
-	kdfLen := int(buf[0])
-	if kdfLen < 3 {
-		return errors.UnsupportedError("Unsupported ECDH KDF length: " + strconv.Itoa(kdfLen))
-	}
-	buf = make([]byte, kdfLen)
-	if _, err = readFull(r, buf); err != nil {
-		return
-	}
-	reserved := int(buf[0])
-	f.KdfHash = kdfHashFunction(buf[1])
-	f.KdfAlgo = kdfAlgorithm(buf[2])
-	if reserved != 0x01 {
-		return errors.UnsupportedError("Unsupported KDF reserved field: " + strconv.Itoa(reserved))
-	}
-	return
-}
-
-func (f *ecdhKdf) serialize(w io.Writer) (err error) {
-	buf := make([]byte, 4)
-	// See RFC 6637, Section 9, Algorithm-Specific Fields for ECDH keys.
-	buf[0] = byte(0x03) // Length of the following fields
-	buf[1] = byte(0x01) // Reserved for future extensions, must be 1 for now
-	buf[2] = byte(f.KdfHash)
-	buf[3] = byte(f.KdfAlgo)
-	_, err = w.Write(buf[:])
-	return
-}
-
-func (f *ecdhKdf) byteLen() int {
-	return 4
-}
 
 // PublicKey represents an OpenPGP public key. See RFC 4880, section 5.5.2.
 type PublicKey struct {
@@ -158,11 +48,19 @@ type PublicKey struct {
 	KeyId        uint64
 	IsSubkey     bool
 
-	n, e, p, q, g, y parsedMPI
+	// RFC 4880 fields
+	n, e, p, q, g, y encoding.Field
 
 	// RFC 6637 fields
-	ec   *ecdsaKey
-	ecdh *ecdhKdf
+	// oid contains the OID byte sequence identifying the elliptic curve used
+	oid encoding.Field
+
+	// kdf stores key derivation function parameters
+	// used for ECDH encryption. See RFC 6637, Section 9.
+	kdf encoding.Field
+
+	kdfHash kdfHashFunction
+	kdfAlgo kdfAlgorithm
 }
 
 // signingKey provides a convenient abstraction over signature verification
@@ -172,21 +70,14 @@ type signingKey interface {
 	serializeWithoutHeaders(io.Writer) error
 }
 
-func fromBig(n *big.Int) parsedMPI {
-	return parsedMPI{
-		bytes:     n.Bytes(),
-		bitLength: uint16(n.BitLen()),
-	}
-}
-
 // NewRSAPublicKey returns a PublicKey that wraps the given rsa.PublicKey.
 func NewRSAPublicKey(creationTime time.Time, pub *rsa.PublicKey) *PublicKey {
 	pk := &PublicKey{
 		CreationTime: creationTime,
 		PubKeyAlgo:   PubKeyAlgoRSA,
 		PublicKey:    pub,
-		n:            fromBig(pub.N),
-		e:            fromBig(big.NewInt(int64(pub.E))),
+		n:            new(encoding.MPI).SetBig(pub.N),
+		e:            new(encoding.MPI).SetBig(big.NewInt(int64(pub.E))),
 	}
 
 	pk.setFingerPrintAndKeyId()
@@ -199,10 +90,10 @@ func NewDSAPublicKey(creationTime time.Time, pub *dsa.PublicKey) *PublicKey {
 		CreationTime: creationTime,
 		PubKeyAlgo:   PubKeyAlgoDSA,
 		PublicKey:    pub,
-		p:            fromBig(pub.P),
-		q:            fromBig(pub.Q),
-		g:            fromBig(pub.G),
-		y:            fromBig(pub.Y),
+		p:            new(encoding.MPI).SetBig(pub.P),
+		q:            new(encoding.MPI).SetBig(pub.Q),
+		g:            new(encoding.MPI).SetBig(pub.G),
+		y:            new(encoding.MPI).SetBig(pub.Y),
 	}
 
 	pk.setFingerPrintAndKeyId()
@@ -215,9 +106,9 @@ func NewElGamalPublicKey(creationTime time.Time, pub *elgamal.PublicKey) *Public
 		CreationTime: creationTime,
 		PubKeyAlgo:   PubKeyAlgoElGamal,
 		PublicKey:    pub,
-		p:            fromBig(pub.P),
-		g:            fromBig(pub.G),
-		y:            fromBig(pub.Y),
+		p:            new(encoding.MPI).SetBig(pub.P),
+		g:            new(encoding.MPI).SetBig(pub.G),
+		y:            new(encoding.MPI).SetBig(pub.Y),
 	}
 
 	pk.setFingerPrintAndKeyId()
@@ -229,22 +120,19 @@ func NewECDSAPublicKey(creationTime time.Time, pub *ecdsa.PublicKey) *PublicKey 
 		CreationTime: creationTime,
 		PubKeyAlgo:   PubKeyAlgoECDSA,
 		PublicKey:    pub,
-		ec:           new(ecdsaKey),
+		p:            encoding.NewMPI(elliptic.Marshal(pub.Curve, pub.X, pub.Y)),
 	}
 
 	switch pub.Curve {
 	case elliptic.P256():
-		pk.ec.oid = oidCurveP256
+		pk.oid = encoding.NewOID(oidCurveP256)
 	case elliptic.P384():
-		pk.ec.oid = oidCurveP384
+		pk.oid = encoding.NewOID(oidCurveP384)
 	case elliptic.P521():
-		pk.ec.oid = oidCurveP521
+		pk.oid = encoding.NewOID(oidCurveP521)
 	default:
 		panic("unknown elliptic curve")
 	}
-
-	pk.ec.p.bytes = elliptic.Marshal(pub.Curve, pub.X, pub.Y)
-	pk.ec.p.bitLength = uint16(8 * len(pk.ec.p.bytes))
 
 	pk.setFingerPrintAndKeyId()
 	return pk
@@ -270,22 +158,9 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 	case PubKeyAlgoElGamal:
 		err = pk.parseElGamal(r)
 	case PubKeyAlgoECDSA:
-		pk.ec = new(ecdsaKey)
-		if err = pk.ec.parse(r); err != nil {
-			return err
-		}
-		pk.PublicKey, err = pk.ec.newECDSA()
+		err = pk.parseECDSA(r)
 	case PubKeyAlgoECDH:
-		pk.ec = new(ecdsaKey)
-		if err = pk.ec.parse(r); err != nil {
-			return
-		}
-		pk.ecdh = new(ecdhKdf)
-		if err = pk.ecdh.parse(r); err != nil {
-			return
-		}
-		// The ECDH key is stored in an ecdsa.PublicKey for convenience.
-		pk.PublicKey, err = pk.ec.newECDSA()
+		err = pk.parseECDH(r)
 	default:
 		err = errors.UnsupportedError("public key type: " + strconv.Itoa(int(pk.PubKeyAlgo)))
 	}
@@ -309,26 +184,26 @@ func (pk *PublicKey) setFingerPrintAndKeyId() {
 // parseRSA parses RSA public key material from the given Reader. See RFC 4880,
 // section 5.5.2.
 func (pk *PublicKey) parseRSA(r io.Reader) (err error) {
-	pk.n.bytes, pk.n.bitLength, err = readMPI(r)
-	if err != nil {
+	pk.n = new(encoding.MPI)
+	if _, err = pk.n.ReadFrom(r); err != nil {
 		return
 	}
-	pk.e.bytes, pk.e.bitLength, err = readMPI(r)
-	if err != nil {
+	pk.e = new(encoding.MPI)
+	if _, err = pk.e.ReadFrom(r); err != nil {
 		return
 	}
 
-	if len(pk.e.bytes) > 3 {
+	if len(pk.e.Bytes()) > 3 {
 		err = errors.UnsupportedError("large public exponent")
 		return
 	}
 	rsa := &rsa.PublicKey{
-		N: new(big.Int).SetBytes(pk.n.bytes),
+		N: new(big.Int).SetBytes(pk.n.Bytes()),
 		E: 0,
 	}
-	for i := 0; i < len(pk.e.bytes); i++ {
+	for i := 0; i < len(pk.e.Bytes()); i++ {
 		rsa.E <<= 8
-		rsa.E |= int(pk.e.bytes[i])
+		rsa.E |= int(pk.e.Bytes()[i])
 	}
 	pk.PublicKey = rsa
 	return
@@ -337,28 +212,28 @@ func (pk *PublicKey) parseRSA(r io.Reader) (err error) {
 // parseDSA parses DSA public key material from the given Reader. See RFC 4880,
 // section 5.5.2.
 func (pk *PublicKey) parseDSA(r io.Reader) (err error) {
-	pk.p.bytes, pk.p.bitLength, err = readMPI(r)
-	if err != nil {
+	pk.p = new(encoding.MPI)
+	if _, err = pk.p.ReadFrom(r); err != nil {
 		return
 	}
-	pk.q.bytes, pk.q.bitLength, err = readMPI(r)
-	if err != nil {
+	pk.q = new(encoding.MPI)
+	if _, err = pk.q.ReadFrom(r); err != nil {
 		return
 	}
-	pk.g.bytes, pk.g.bitLength, err = readMPI(r)
-	if err != nil {
+	pk.g = new(encoding.MPI)
+	if _, err = pk.g.ReadFrom(r); err != nil {
 		return
 	}
-	pk.y.bytes, pk.y.bitLength, err = readMPI(r)
-	if err != nil {
+	pk.y = new(encoding.MPI)
+	if _, err = pk.y.ReadFrom(r); err != nil {
 		return
 	}
 
 	dsa := new(dsa.PublicKey)
-	dsa.P = new(big.Int).SetBytes(pk.p.bytes)
-	dsa.Q = new(big.Int).SetBytes(pk.q.bytes)
-	dsa.G = new(big.Int).SetBytes(pk.g.bytes)
-	dsa.Y = new(big.Int).SetBytes(pk.y.bytes)
+	dsa.P = new(big.Int).SetBytes(pk.p.Bytes())
+	dsa.Q = new(big.Int).SetBytes(pk.q.Bytes())
+	dsa.G = new(big.Int).SetBytes(pk.g.Bytes())
+	dsa.Y = new(big.Int).SetBytes(pk.y.Bytes())
 	pk.PublicKey = dsa
 	return
 }
@@ -366,24 +241,76 @@ func (pk *PublicKey) parseDSA(r io.Reader) (err error) {
 // parseElGamal parses ElGamal public key material from the given Reader. See
 // RFC 4880, section 5.5.2.
 func (pk *PublicKey) parseElGamal(r io.Reader) (err error) {
-	pk.p.bytes, pk.p.bitLength, err = readMPI(r)
-	if err != nil {
+	pk.p = new(encoding.MPI)
+	if _, err = pk.p.ReadFrom(r); err != nil {
 		return
 	}
-	pk.g.bytes, pk.g.bitLength, err = readMPI(r)
-	if err != nil {
+	pk.g = new(encoding.MPI)
+	if _, err = pk.g.ReadFrom(r); err != nil {
 		return
 	}
-	pk.y.bytes, pk.y.bitLength, err = readMPI(r)
-	if err != nil {
+	pk.y = new(encoding.MPI)
+	if _, err = pk.y.ReadFrom(r); err != nil {
 		return
 	}
 
 	elgamal := new(elgamal.PublicKey)
-	elgamal.P = new(big.Int).SetBytes(pk.p.bytes)
-	elgamal.G = new(big.Int).SetBytes(pk.g.bytes)
-	elgamal.Y = new(big.Int).SetBytes(pk.y.bytes)
+	elgamal.P = new(big.Int).SetBytes(pk.p.Bytes())
+	elgamal.G = new(big.Int).SetBytes(pk.g.Bytes())
+	elgamal.Y = new(big.Int).SetBytes(pk.y.Bytes())
 	pk.PublicKey = elgamal
+	return
+}
+
+// parseECDSA parses ECDSA public key material from the given Reader. See
+// RFC 6637, Section 9.
+func (pk *PublicKey) parseECDSA(r io.Reader) (err error) {
+	pk.oid = new(encoding.OID)
+	if _, err = pk.oid.ReadFrom(r); err != nil {
+		return
+	}
+	pk.p = new(encoding.MPI)
+	if _, err = pk.p.ReadFrom(r); err != nil {
+		return
+	}
+
+	var c elliptic.Curve
+	if bytes.Equal(pk.oid.Bytes(), oidCurveP256) {
+		c = elliptic.P256()
+	} else if bytes.Equal(pk.oid.Bytes(), oidCurveP384) {
+		c = elliptic.P384()
+	} else if bytes.Equal(pk.oid.Bytes(), oidCurveP521) {
+		c = elliptic.P521()
+	} else {
+		return errors.UnsupportedError(fmt.Sprintf("unsupported oid: %x", pk.oid))
+	}
+	x, y := elliptic.Unmarshal(c, pk.p.Bytes())
+	if x == nil {
+		return errors.UnsupportedError("failed to parse EC point")
+	}
+	pk.PublicKey = &ecdsa.PublicKey{Curve: c, X: x, Y: y}
+	return
+}
+
+// parseECDH parses ECDH public key material from the given Reader. See
+// RFC 6637, Section 9.
+func (pk *PublicKey) parseECDH(r io.Reader) (err error) {
+	if err = pk.parseECDSA(r); err != nil {
+		return
+	}
+
+	pk.kdf = new(encoding.OID)
+	if _, err = pk.kdf.ReadFrom(r); err != nil {
+		return
+	}
+	if kdfLen := len(pk.kdf.Bytes()); kdfLen < 3 {
+		return errors.UnsupportedError("Unsupported ECDH KDF length: " + strconv.Itoa(kdfLen))
+	}
+	if reserved := pk.kdf.Bytes()[0]; reserved != 0x01 {
+		return errors.UnsupportedError("Unsupported KDF reserved field: " + strconv.Itoa(int(reserved)))
+	}
+	pk.kdfHash = kdfHashFunction(pk.kdf.Bytes()[1])
+	pk.kdfAlgo = kdfAlgorithm(pk.kdf.Bytes()[2])
 	return
 }
 
@@ -394,22 +321,24 @@ func (pk *PublicKey) SerializeSignaturePrefix(h io.Writer) {
 	var pLength uint16
 	switch pk.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoRSASignOnly:
-		pLength += 2 + uint16(len(pk.n.bytes))
-		pLength += 2 + uint16(len(pk.e.bytes))
+		pLength += pk.n.EncodedLength()
+		pLength += pk.e.EncodedLength()
 	case PubKeyAlgoDSA:
-		pLength += 2 + uint16(len(pk.p.bytes))
-		pLength += 2 + uint16(len(pk.q.bytes))
-		pLength += 2 + uint16(len(pk.g.bytes))
-		pLength += 2 + uint16(len(pk.y.bytes))
+		pLength += pk.p.EncodedLength()
+		pLength += pk.q.EncodedLength()
+		pLength += pk.g.EncodedLength()
+		pLength += pk.y.EncodedLength()
 	case PubKeyAlgoElGamal:
-		pLength += 2 + uint16(len(pk.p.bytes))
-		pLength += 2 + uint16(len(pk.g.bytes))
-		pLength += 2 + uint16(len(pk.y.bytes))
+		pLength += pk.p.EncodedLength()
+		pLength += pk.g.EncodedLength()
+		pLength += pk.y.EncodedLength()
 	case PubKeyAlgoECDSA:
-		pLength += uint16(pk.ec.byteLen())
+		pLength += pk.oid.EncodedLength()
+		pLength += pk.p.EncodedLength()
 	case PubKeyAlgoECDH:
-		pLength += uint16(pk.ec.byteLen())
-		pLength += uint16(pk.ecdh.byteLen())
+		pLength += pk.oid.EncodedLength()
+		pLength += pk.p.EncodedLength()
+		pLength += pk.kdf.EncodedLength()
 	default:
 		panic("unknown public key algorithm")
 	}
@@ -423,22 +352,24 @@ func (pk *PublicKey) Serialize(w io.Writer) (err error) {
 
 	switch pk.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoRSASignOnly:
-		length += 2 + len(pk.n.bytes)
-		length += 2 + len(pk.e.bytes)
+		length += int(pk.n.EncodedLength())
+		length += int(pk.e.EncodedLength())
 	case PubKeyAlgoDSA:
-		length += 2 + len(pk.p.bytes)
-		length += 2 + len(pk.q.bytes)
-		length += 2 + len(pk.g.bytes)
-		length += 2 + len(pk.y.bytes)
+		length += int(pk.p.EncodedLength())
+		length += int(pk.q.EncodedLength())
+		length += int(pk.g.EncodedLength())
+		length += int(pk.y.EncodedLength())
 	case PubKeyAlgoElGamal:
-		length += 2 + len(pk.p.bytes)
-		length += 2 + len(pk.g.bytes)
-		length += 2 + len(pk.y.bytes)
+		length += int(pk.p.EncodedLength())
+		length += int(pk.g.EncodedLength())
+		length += int(pk.y.EncodedLength())
 	case PubKeyAlgoECDSA:
-		length += pk.ec.byteLen()
+		length += int(pk.oid.EncodedLength())
+		length += int(pk.p.EncodedLength())
 	case PubKeyAlgoECDH:
-		length += pk.ec.byteLen()
-		length += pk.ecdh.byteLen()
+		length += int(pk.oid.EncodedLength())
+		length += int(pk.p.EncodedLength())
+		length += int(pk.kdf.EncodedLength())
 	default:
 		panic("unknown public key algorithm")
 	}
@@ -473,18 +404,47 @@ func (pk *PublicKey) serializeWithoutHeaders(w io.Writer) (err error) {
 
 	switch pk.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoRSASignOnly:
-		return writeMPIs(w, pk.n, pk.e)
-	case PubKeyAlgoDSA:
-		return writeMPIs(w, pk.p, pk.q, pk.g, pk.y)
-	case PubKeyAlgoElGamal:
-		return writeMPIs(w, pk.p, pk.g, pk.y)
-	case PubKeyAlgoECDSA:
-		return pk.ec.serialize(w)
-	case PubKeyAlgoECDH:
-		if err = pk.ec.serialize(w); err != nil {
+		if _, err = w.Write(pk.n.EncodedBytes()); err != nil {
 			return
 		}
-		return pk.ecdh.serialize(w)
+		_, err = w.Write(pk.e.EncodedBytes())
+		return
+	case PubKeyAlgoDSA:
+		if _, err = w.Write(pk.p.EncodedBytes()); err != nil {
+			return
+		}
+		if _, err = w.Write(pk.q.EncodedBytes()); err != nil {
+			return
+		}
+		if _, err = w.Write(pk.g.EncodedBytes()); err != nil {
+			return
+		}
+		_, err = w.Write(pk.y.EncodedBytes())
+		return
+	case PubKeyAlgoElGamal:
+		if _, err = w.Write(pk.p.EncodedBytes()); err != nil {
+			return
+		}
+		if _, err = w.Write(pk.g.EncodedBytes()); err != nil {
+			return
+		}
+		_, err = w.Write(pk.y.EncodedBytes())
+		return
+	case PubKeyAlgoECDSA:
+		if _, err = w.Write(pk.oid.EncodedBytes()); err != nil {
+			return
+		}
+		_, err = w.Write(pk.p.EncodedBytes())
+		return
+	case PubKeyAlgoECDH:
+		if _, err = w.Write(pk.oid.EncodedBytes()); err != nil {
+			return
+		}
+		if _, err = w.Write(pk.p.EncodedBytes()); err != nil {
+			return
+		}
+		_, err = w.Write(pk.kdf.EncodedBytes())
+		return
 	}
 	return errors.InvalidArgumentError("bad public-key algorithm")
 }
@@ -515,7 +475,7 @@ func (pk *PublicKey) VerifySignature(signed hash.Hash, sig *Signature) (err erro
 	switch pk.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly:
 		rsaPublicKey, _ := pk.PublicKey.(*rsa.PublicKey)
-		err = rsa.VerifyPKCS1v15(rsaPublicKey, sig.Hash, hashBytes, sig.RSASignature.bytes)
+		err = rsa.VerifyPKCS1v15(rsaPublicKey, sig.Hash, hashBytes, sig.RSASignature.Bytes())
 		if err != nil {
 			return errors.SignatureError("RSA verification failure")
 		}
@@ -527,13 +487,13 @@ func (pk *PublicKey) VerifySignature(signed hash.Hash, sig *Signature) (err erro
 		if len(hashBytes) > subgroupSize {
 			hashBytes = hashBytes[:subgroupSize]
 		}
-		if !dsa.Verify(dsaPublicKey, hashBytes, new(big.Int).SetBytes(sig.DSASigR.bytes), new(big.Int).SetBytes(sig.DSASigS.bytes)) {
+		if !dsa.Verify(dsaPublicKey, hashBytes, new(big.Int).SetBytes(sig.DSASigR.Bytes()), new(big.Int).SetBytes(sig.DSASigS.Bytes())) {
 			return errors.SignatureError("DSA verification failure")
 		}
 		return nil
 	case PubKeyAlgoECDSA:
 		ecdsaPublicKey := pk.PublicKey.(*ecdsa.PublicKey)
-		if !ecdsa.Verify(ecdsaPublicKey, hashBytes, new(big.Int).SetBytes(sig.ECDSASigR.bytes), new(big.Int).SetBytes(sig.ECDSASigS.bytes)) {
+		if !ecdsa.Verify(ecdsaPublicKey, hashBytes, new(big.Int).SetBytes(sig.ECDSASigR.Bytes()), new(big.Int).SetBytes(sig.ECDSASigS.Bytes())) {
 			return errors.SignatureError("ECDSA verification failure")
 		}
 		return nil
@@ -566,7 +526,7 @@ func (pk *PublicKey) VerifySignatureV3(signed hash.Hash, sig *SignatureV3) (err 
 	switch pk.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly:
 		rsaPublicKey := pk.PublicKey.(*rsa.PublicKey)
-		if err = rsa.VerifyPKCS1v15(rsaPublicKey, sig.Hash, hashBytes, sig.RSASignature.bytes); err != nil {
+		if err = rsa.VerifyPKCS1v15(rsaPublicKey, sig.Hash, hashBytes, sig.RSASignature.Bytes()); err != nil {
 			return errors.SignatureError("RSA verification failure")
 		}
 		return
@@ -577,7 +537,7 @@ func (pk *PublicKey) VerifySignatureV3(signed hash.Hash, sig *SignatureV3) (err 
 		if len(hashBytes) > subgroupSize {
 			hashBytes = hashBytes[:subgroupSize]
 		}
-		if !dsa.Verify(dsaPublicKey, hashBytes, new(big.Int).SetBytes(sig.DSASigR.bytes), new(big.Int).SetBytes(sig.DSASigS.bytes)) {
+		if !dsa.Verify(dsaPublicKey, hashBytes, new(big.Int).SetBytes(sig.DSASigR.Bytes()), new(big.Int).SetBytes(sig.DSASigS.Bytes())) {
 			return errors.SignatureError("DSA verification failure")
 		}
 		return nil
@@ -712,35 +672,15 @@ func (pk *PublicKey) KeyIdShortString() string {
 	return fmt.Sprintf("%X", pk.Fingerprint[16:20])
 }
 
-// A parsedMPI is used to store the contents of a big integer, along with the
-// bit length that was specified in the original input. This allows the MPI to
-// be reserialized exactly.
-type parsedMPI struct {
-	bytes     []byte
-	bitLength uint16
-}
-
-// writeMPIs is a utility function for serializing several big integers to the
-// given Writer.
-func writeMPIs(w io.Writer, mpis ...parsedMPI) (err error) {
-	for _, mpi := range mpis {
-		err = writeMPI(w, mpi.bitLength, mpi.bytes)
-		if err != nil {
-			return
-		}
-	}
-	return
-}
-
 // BitLength returns the bit length for the given public key.
 func (pk *PublicKey) BitLength() (bitLength uint16, err error) {
 	switch pk.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoRSASignOnly:
-		bitLength = pk.n.bitLength
+		bitLength = pk.n.BitLength()
 	case PubKeyAlgoDSA:
-		bitLength = pk.p.bitLength
+		bitLength = pk.p.BitLength()
 	case PubKeyAlgoElGamal:
-		bitLength = pk.p.bitLength
+		bitLength = pk.p.BitLength()
 	default:
 		err = errors.InvalidArgumentError("bad public-key algorithm")
 	}
