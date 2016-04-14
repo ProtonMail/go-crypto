@@ -20,6 +20,7 @@ import (
 
 	"golang.org/x/crypto/openpgp/elgamal"
 	"golang.org/x/crypto/openpgp/errors"
+	"golang.org/x/crypto/openpgp/internal/encoding"
 	"golang.org/x/crypto/openpgp/s2k"
 )
 
@@ -204,31 +205,32 @@ func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 }
 
 func serializeRSAPrivateKey(w io.Writer, priv *rsa.PrivateKey) error {
-	err := writeBig(w, priv.D)
-	if err != nil {
+	if _, err := w.Write(new(encoding.MPI).SetBig(priv.D).EncodedBytes()); err != nil {
 		return err
 	}
-	err = writeBig(w, priv.Primes[1])
-	if err != nil {
+	if _, err := w.Write(new(encoding.MPI).SetBig(priv.Primes[1]).EncodedBytes()); err != nil {
 		return err
 	}
-	err = writeBig(w, priv.Primes[0])
-	if err != nil {
+	if _, err := w.Write(new(encoding.MPI).SetBig(priv.Primes[0]).EncodedBytes()); err != nil {
 		return err
 	}
-	return writeBig(w, priv.Precomputed.Qinv)
+	_, err := w.Write(new(encoding.MPI).SetBig(priv.Precomputed.Qinv).EncodedBytes())
+	return err
 }
 
 func serializeDSAPrivateKey(w io.Writer, priv *dsa.PrivateKey) error {
-	return writeBig(w, priv.X)
+	_, err := w.Write(new(encoding.MPI).SetBig(priv.X).EncodedBytes())
+	return err
 }
 
 func serializeElGamalPrivateKey(w io.Writer, priv *elgamal.PrivateKey) error {
-	return writeBig(w, priv.X)
+	_, err := w.Write(new(encoding.MPI).SetBig(priv.X).EncodedBytes())
+	return err
 }
 
 func serializeECDSAPrivateKey(w io.Writer, priv *ecdsa.PrivateKey) error {
-	return writeBig(w, priv.D)
+	_, err := w.Write(new(encoding.MPI).SetBig(priv.D).EncodedBytes())
+	return err
 }
 
 // Decrypt decrypts an encrypted private key using a passphrase.
@@ -294,23 +296,25 @@ func (pk *PrivateKey) parseRSAPrivateKey(data []byte) (err error) {
 	rsaPriv.PublicKey = *rsaPub
 
 	buf := bytes.NewBuffer(data)
-	d, _, err := readMPI(buf)
-	if err != nil {
-		return
-	}
-	p, _, err := readMPI(buf)
-	if err != nil {
-		return
-	}
-	q, _, err := readMPI(buf)
-	if err != nil {
-		return
+	d := new(encoding.MPI)
+	if _, err := d.ReadFrom(buf); err != nil {
+		return err
 	}
 
-	rsaPriv.D = new(big.Int).SetBytes(d)
+	p := new(encoding.MPI)
+	if _, err := p.ReadFrom(buf); err != nil {
+		return err
+	}
+
+	q := new(encoding.MPI)
+	if _, err := q.ReadFrom(buf); err != nil {
+		return err
+	}
+
+	rsaPriv.D = new(big.Int).SetBytes(d.Bytes())
 	rsaPriv.Primes = make([]*big.Int, 2)
-	rsaPriv.Primes[0] = new(big.Int).SetBytes(p)
-	rsaPriv.Primes[1] = new(big.Int).SetBytes(q)
+	rsaPriv.Primes[0] = new(big.Int).SetBytes(p.Bytes())
+	rsaPriv.Primes[1] = new(big.Int).SetBytes(q.Bytes())
 	if err := rsaPriv.Validate(); err != nil {
 		return err
 	}
@@ -328,12 +332,12 @@ func (pk *PrivateKey) parseDSAPrivateKey(data []byte) (err error) {
 	dsaPriv.PublicKey = *dsaPub
 
 	buf := bytes.NewBuffer(data)
-	x, _, err := readMPI(buf)
-	if err != nil {
-		return
+	x := new(encoding.MPI)
+	if _, err := x.ReadFrom(buf); err != nil {
+		return err
 	}
 
-	dsaPriv.X = new(big.Int).SetBytes(x)
+	dsaPriv.X = new(big.Int).SetBytes(x.Bytes())
 	pk.PrivateKey = dsaPriv
 	pk.Encrypted = false
 	pk.encryptedData = nil
@@ -347,12 +351,12 @@ func (pk *PrivateKey) parseElGamalPrivateKey(data []byte) (err error) {
 	priv.PublicKey = *pub
 
 	buf := bytes.NewBuffer(data)
-	x, _, err := readMPI(buf)
-	if err != nil {
-		return
+	x := new(encoding.MPI)
+	if _, err := x.ReadFrom(buf); err != nil {
+		return err
 	}
 
-	priv.X = new(big.Int).SetBytes(x)
+	priv.X = new(big.Int).SetBytes(x.Bytes())
 	pk.PrivateKey = priv
 	pk.Encrypted = false
 	pk.encryptedData = nil
@@ -362,17 +366,17 @@ func (pk *PrivateKey) parseElGamalPrivateKey(data []byte) (err error) {
 
 func (pk *PrivateKey) parseECDSAPrivateKey(data []byte) (err error) {
 	ecdsaPub := pk.PublicKey.PublicKey.(*ecdsa.PublicKey)
+	ecdsaPriv := new(ecdsa.PrivateKey)
+	ecdsaPriv.PublicKey = *ecdsaPub
 
 	buf := bytes.NewBuffer(data)
-	d, _, err := readMPI(buf)
-	if err != nil {
-		return
+	d := new(encoding.MPI)
+	if _, err := d.ReadFrom(buf); err != nil {
+		return err
 	}
 
-	pk.PrivateKey = &ecdsa.PrivateKey{
-		PublicKey: *ecdsaPub,
-		D:         new(big.Int).SetBytes(d),
-	}
+	ecdsaPriv.D = new(big.Int).SetBytes(d.Bytes())
+	pk.PrivateKey = ecdsaPriv
 	pk.Encrypted = false
 	pk.encryptedData = nil
 
