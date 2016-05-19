@@ -8,13 +8,11 @@ package packet // import "golang.org/x/crypto/openpgp/packet"
 
 import (
 	"bufio"
-	"crypto/aes"
 	"crypto/cipher"
-	"crypto/des"
 	"io"
 
-	"golang.org/x/crypto/cast5"
 	"golang.org/x/crypto/openpgp/errors"
+	"golang.org/x/crypto/openpgp/internal/algorithm"
 )
 
 // readFull is the same as io.ReadFull except that reading zero bytes returns
@@ -434,7 +432,7 @@ func (pka PublicKeyAlgorithm) CanSign() bool {
 
 // CipherFunction represents the different block ciphers specified for OpenPGP. See
 // http://www.iana.org/assignments/pgp-parameters/pgp-parameters.xhtml#pgp-parameters-13
-type CipherFunction uint8
+type CipherFunction algorithm.CipherFunction
 
 const (
 	Cipher3DES   CipherFunction = 2
@@ -446,45 +444,17 @@ const (
 
 // KeySize returns the key size, in bytes, of cipher.
 func (cipher CipherFunction) KeySize() int {
-	switch cipher {
-	case Cipher3DES:
-		return 24
-	case CipherCAST5:
-		return cast5.KeySize
-	case CipherAES128:
-		return 16
-	case CipherAES192:
-		return 24
-	case CipherAES256:
-		return 32
-	}
-	return 0
+	return algorithm.CipherFunction(cipher).KeySize()
 }
 
 // blockSize returns the block size, in bytes, of cipher.
 func (cipher CipherFunction) blockSize() int {
-	switch cipher {
-	case Cipher3DES:
-		return des.BlockSize
-	case CipherCAST5:
-		return 8
-	case CipherAES128, CipherAES192, CipherAES256:
-		return 16
-	}
-	return 0
+	return algorithm.CipherFunction(cipher).BlockSize()
 }
 
 // new returns a fresh instance of the given cipher.
 func (cipher CipherFunction) new(key []byte) (block cipher.Block) {
-	switch cipher {
-	case Cipher3DES:
-		block, _ = des.NewTripleDESCipher(key)
-	case CipherCAST5:
-		block, _ = cast5.NewCipher(key)
-	case CipherAES128, CipherAES192, CipherAES256:
-		block, _ = aes.NewCipher(key)
-	}
-	return
+	return algorithm.CipherFunction(cipher).New(key)
 }
 
 // CompressionAlgo Represents the different compression algorithms
