@@ -11,6 +11,7 @@ import (
 	"math/big"
 	"strconv"
 
+	"golang.org/x/crypto/openpgp/ecdh"
 	"golang.org/x/crypto/openpgp/elgamal"
 	"golang.org/x/crypto/openpgp/errors"
 	"golang.org/x/crypto/openpgp/internal/encoding"
@@ -56,6 +57,16 @@ func (e *EncryptedKey) parse(r io.Reader) (err error) {
 		if _, err = e.encryptedMPI2.ReadFrom(r); err != nil {
 			return
 		}
+	case PubKeyAlgoECDH:
+		e.encryptedMPI1 = new(encoding.MPI)
+		if _, err = e.encryptedMPI1.ReadFrom(r); err != nil {
+			return
+		}
+
+		e.encryptedMPI2 = new(encoding.OID)
+		if _, err = e.encryptedMPI2.ReadFrom(r); err != nil {
+			return
+		}
 	}
 	_, err = consumeAll(r)
 	return
@@ -85,6 +96,11 @@ func (e *EncryptedKey) Decrypt(priv *PrivateKey, config *Config) error {
 		c1 := new(big.Int).SetBytes(e.encryptedMPI1.Bytes())
 		c2 := new(big.Int).SetBytes(e.encryptedMPI2.Bytes())
 		b, err = elgamal.Decrypt(priv.PrivateKey.(*elgamal.PrivateKey), c1, c2)
+	case PubKeyAlgoECDH:
+		vsG := e.encryptedMPI1.Bytes()
+		m := e.encryptedMPI2.Bytes()
+		oid := priv.PublicKey.oid.EncodedBytes()
+		b, err = ecdh.Decrypt(priv.PrivateKey.(*ecdh.PrivateKey), vsG, m, oid, priv.PublicKey.Fingerprint[:])
 	default:
 		err = errors.InvalidArgumentError("cannot decrypted encrypted session key with private key of type " + strconv.Itoa(int(priv.PubKeyAlgo)))
 	}
@@ -112,6 +128,8 @@ func (e *EncryptedKey) Serialize(w io.Writer) error {
 		mpiLen = int(e.encryptedMPI1.EncodedLength())
 	case PubKeyAlgoElGamal:
 		mpiLen = int(e.encryptedMPI1.EncodedLength()) + int(e.encryptedMPI2.EncodedLength())
+	case PubKeyAlgoECDH:
+		mpiLen = int(e.encryptedMPI1.EncodedLength()) + int(e.encryptedMPI2.EncodedLength())
 	default:
 		return errors.InvalidArgumentError("don't know how to serialize encrypted key type " + strconv.Itoa(int(e.Algo)))
 	}
@@ -127,6 +145,12 @@ func (e *EncryptedKey) Serialize(w io.Writer) error {
 		_, err := w.Write(e.encryptedMPI1.EncodedBytes())
 		return err
 	case PubKeyAlgoElGamal:
+		if _, err := w.Write(e.encryptedMPI1.EncodedBytes()); err != nil {
+			return err
+		}
+		_, err := w.Write(e.encryptedMPI2.EncodedBytes())
+		return err
+	case PubKeyAlgoECDH:
 		if _, err := w.Write(e.encryptedMPI1.EncodedBytes()); err != nil {
 			return err
 		}
@@ -160,6 +184,8 @@ func SerializeEncryptedKey(w io.Writer, pub *PublicKey, cipherFunc CipherFunctio
 		return serializeEncryptedKeyRSA(w, config.Random(), buf, pub.PublicKey.(*rsa.PublicKey), keyBlock)
 	case PubKeyAlgoElGamal:
 		return serializeEncryptedKeyElGamal(w, config.Random(), buf, pub.PublicKey.(*elgamal.PublicKey), keyBlock)
+	case PubKeyAlgoECDH:
+		return serializeEncryptedKeyECDH(w, config.Random(), buf, pub.PublicKey.(*ecdh.PublicKey), keyBlock, pub.oid, pub.Fingerprint)
 	case PubKeyAlgoDSA, PubKeyAlgoRSASignOnly:
 		return errors.InvalidArgumentError("cannot encrypt to public key of type " + strconv.Itoa(int(pub.PubKeyAlgo)))
 	}
@@ -209,5 +235,33 @@ func serializeEncryptedKeyElGamal(w io.Writer, rand io.Reader, header [10]byte, 
 		return err
 	}
 	_, err = w.Write(new(encoding.MPI).SetBig(c2).EncodedBytes())
+	return err
+}
+
+func serializeEncryptedKeyECDH(w io.Writer, rand io.Reader, header [10]byte, pub *ecdh.PublicKey, keyBlock []byte, oid encoding.Field, fingerPrint [20]byte) error {
+	vsG, c, err := ecdh.Encrypt(rand, pub, keyBlock, oid.EncodedBytes(), fingerPrint[:])
+	if err != nil {
+		return errors.InvalidArgumentError("ECDH encryption failed: " + err.Error())
+	}
+
+	g := encoding.NewMPI(vsG)
+	m := encoding.NewOID(c)
+
+	packetLen := 10 /* header length */
+	packetLen += int(g.EncodedLength()) + int(m.EncodedLength())
+
+	err = serializeHeader(w, packetTypeEncryptedKey, packetLen)
+	if err != nil {
+		return err
+	}
+
+	_, err = w.Write(header[:])
+	if err != nil {
+		return err
+	}
+	if _, err = w.Write(g.EncodedBytes()); err != nil {
+		return err
+	}
+	_, err = w.Write(m.EncodedBytes())
 	return err
 }

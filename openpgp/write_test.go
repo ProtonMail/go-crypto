@@ -179,6 +179,14 @@ var testEncryptionTests = []struct {
 		dsaElGamalTestKeysHex,
 		true,
 	},
+	{
+		ecdhTestKeysHex,
+		false,
+	},
+	{
+		ecdhTestKeysHex,
+		true,
+	},
 }
 
 func TestEncryption(t *testing.T) {
