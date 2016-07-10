@@ -22,8 +22,10 @@ import (
 	"strconv"
 	"time"
 
+	"golang.org/x/crypto/openpgp/ecdh"
 	"golang.org/x/crypto/openpgp/elgamal"
 	"golang.org/x/crypto/openpgp/errors"
+	"golang.org/x/crypto/openpgp/internal/algorithm"
 	"golang.org/x/crypto/openpgp/internal/encoding"
 )
 
@@ -58,9 +60,6 @@ type PublicKey struct {
 	// kdf stores key derivation function parameters
 	// used for ECDH encryption. See RFC 6637, Section 9.
 	kdf encoding.Field
-
-	kdfHash kdfHashFunction
-	kdfAlgo kdfAlgorithm
 }
 
 // signingKey provides a convenient abstraction over signature verification
@@ -119,6 +118,29 @@ func NewECDSAPublicKey(creationTime time.Time, pub *ecdsa.PublicKey) *PublicKey 
 	pk := &PublicKey{
 		CreationTime: creationTime,
 		PubKeyAlgo:   PubKeyAlgoECDSA,
+		PublicKey:    pub,
+		p:            encoding.NewMPI(elliptic.Marshal(pub.Curve, pub.X, pub.Y)),
+	}
+
+	switch pub.Curve {
+	case elliptic.P256():
+		pk.oid = encoding.NewOID(oidCurveP256)
+	case elliptic.P384():
+		pk.oid = encoding.NewOID(oidCurveP384)
+	case elliptic.P521():
+		pk.oid = encoding.NewOID(oidCurveP521)
+	default:
+		panic("unknown elliptic curve")
+	}
+
+	pk.setFingerPrintAndKeyId()
+	return pk
+}
+
+func NewECDHPublicKey(creationTime time.Time, pub *ecdh.PublicKey) *PublicKey {
+	pk := &PublicKey{
+		CreationTime: creationTime,
+		PubKeyAlgo:   PubKeyAlgoECDH,
 		PublicKey:    pub,
 		p:            encoding.NewMPI(elliptic.Marshal(pub.Curve, pub.X, pub.Y)),
 	}
@@ -295,22 +317,58 @@ func (pk *PublicKey) parseECDSA(r io.Reader) (err error) {
 // parseECDH parses ECDH public key material from the given Reader. See
 // RFC 6637, Section 9.
 func (pk *PublicKey) parseECDH(r io.Reader) (err error) {
-	if err = pk.parseECDSA(r); err != nil {
+	pk.oid = new(encoding.OID)
+	if _, err = pk.oid.ReadFrom(r); err != nil {
 		return
 	}
-
+	pk.p = new(encoding.MPI)
+	if _, err = pk.p.ReadFrom(r); err != nil {
+		return
+	}
 	pk.kdf = new(encoding.OID)
 	if _, err = pk.kdf.ReadFrom(r); err != nil {
 		return
 	}
+
+	var c elliptic.Curve
+	if bytes.Equal(pk.oid.Bytes(), oidCurveP256) {
+		c = elliptic.P256()
+	} else if bytes.Equal(pk.oid.Bytes(), oidCurveP384) {
+		c = elliptic.P384()
+	} else if bytes.Equal(pk.oid.Bytes(), oidCurveP521) {
+		c = elliptic.P521()
+	} else {
+		return errors.UnsupportedError(fmt.Sprintf("unsupported oid: %x", pk.oid))
+	}
+	x, y := elliptic.Unmarshal(c, pk.p.Bytes())
+	if x == nil {
+		return errors.UnsupportedError("failed to parse EC point")
+	}
+
 	if kdfLen := len(pk.kdf.Bytes()); kdfLen < 3 {
-		return errors.UnsupportedError("Unsupported ECDH KDF length: " + strconv.Itoa(kdfLen))
+		return errors.UnsupportedError("unsupported ECDH KDF length: " + strconv.Itoa(kdfLen))
 	}
 	if reserved := pk.kdf.Bytes()[0]; reserved != 0x01 {
-		return errors.UnsupportedError("Unsupported KDF reserved field: " + strconv.Itoa(int(reserved)))
+		return errors.UnsupportedError("unsupported KDF reserved field: " + strconv.Itoa(int(reserved)))
 	}
-	pk.kdfHash = kdfHashFunction(pk.kdf.Bytes()[1])
-	pk.kdfAlgo = kdfAlgorithm(pk.kdf.Bytes()[2])
+	kdfHash, ok := algorithm.HashById[pk.kdf.Bytes()[1]]
+	if !ok {
+		return errors.UnsupportedError("unsupported ECDH KDF hash: " + strconv.Itoa(int(pk.kdf.Bytes()[1])))
+	}
+	kdfCipher, ok := algorithm.CipherById[pk.kdf.Bytes()[2]]
+	if !ok {
+		return errors.UnsupportedError("unsupported ECDH KDF cipher: " + strconv.Itoa(int(pk.kdf.Bytes()[2])))
+	}
+
+	pk.PublicKey = &ecdh.PublicKey{
+		Curve: c,
+		X:     x,
+		Y:     y,
+		KDF: ecdh.KDF{
+			Hash:   kdfHash,
+			Cipher: kdfCipher,
+		},
+	}
 	return
 }
 
@@ -451,7 +509,7 @@ func (pk *PublicKey) serializeWithoutHeaders(w io.Writer) (err error) {
 
 // CanSign returns true iff this public key can generate signatures
 func (pk *PublicKey) CanSign() bool {
-	return pk.PubKeyAlgo != PubKeyAlgoRSAEncryptOnly && pk.PubKeyAlgo != PubKeyAlgoElGamal
+	return pk.PubKeyAlgo != PubKeyAlgoRSAEncryptOnly && pk.PubKeyAlgo != PubKeyAlgoElGamal && pk.PubKeyAlgo != PubKeyAlgoECDH
 }
 
 // VerifySignature returns nil iff sig is a valid signature, made by this
@@ -680,6 +738,10 @@ func (pk *PublicKey) BitLength() (bitLength uint16, err error) {
 	case PubKeyAlgoDSA:
 		bitLength = pk.p.BitLength()
 	case PubKeyAlgoElGamal:
+		bitLength = pk.p.BitLength()
+	case PubKeyAlgoECDSA:
+		bitLength = pk.p.BitLength()
+	case PubKeyAlgoECDH:
 		bitLength = pk.p.BitLength()
 	default:
 		err = errors.InvalidArgumentError("bad public-key algorithm")
