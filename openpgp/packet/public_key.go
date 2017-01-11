@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"time"
 
+	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/openpgp/ecdh"
 	"golang.org/x/crypto/openpgp/elgamal"
 	"golang.org/x/crypto/openpgp/errors"
@@ -36,6 +37,9 @@ var (
 	oidCurveP384 []byte = []byte{0x2B, 0x81, 0x04, 0x00, 0x22}
 	// NIST curve P-521
 	oidCurveP521 []byte = []byte{0x2B, 0x81, 0x04, 0x00, 0x23}
+
+	// Ed25519
+	oidEd25519 = []byte{0x2b, 0x06, 0x01, 0x04, 0x01, 0xda, 0x47, 0x0f, 0x01}
 )
 
 type kdfHashFunction byte
@@ -160,6 +164,20 @@ func NewECDHPublicKey(creationTime time.Time, pub *ecdh.PublicKey) *PublicKey {
 	return pk
 }
 
+func NewEdDSAPublicKey(creationTime time.Time, pub ed25519.PublicKey) *PublicKey {
+	pk := &PublicKey{
+		CreationTime: creationTime,
+		PubKeyAlgo:   PubKeyAlgoEdDSA,
+		PublicKey:    pub,
+		oid:          encoding.NewOID(oidEd25519),
+		// Native point format, see draft-koch-eddsa-for-openpgp-04, Appendix B
+		p: encoding.NewMPI(append([]byte{0x40}, pub...)),
+	}
+
+	pk.setFingerPrintAndKeyId()
+	return pk
+}
+
 func (pk *PublicKey) parse(r io.Reader) (err error) {
 	// RFC 4880, section 5.5.2
 	var buf [6]byte
@@ -183,6 +201,8 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 		err = pk.parseECDSA(r)
 	case PubKeyAlgoECDH:
 		err = pk.parseECDH(r)
+	case PubKeyAlgoEdDSA:
+		err = pk.parseEdDSA(r)
 	default:
 		err = errors.UnsupportedError("public key type: " + strconv.Itoa(int(pk.PubKeyAlgo)))
 	}
@@ -372,6 +392,31 @@ func (pk *PublicKey) parseECDH(r io.Reader) (err error) {
 	return
 }
 
+func (pk *PublicKey) parseEdDSA(r io.Reader) (err error) {
+	pk.oid = new(encoding.OID)
+	if _, err = pk.oid.ReadFrom(r); err != nil {
+		return
+	}
+	pk.p = new(encoding.MPI)
+	if _, err = pk.p.ReadFrom(r); err != nil {
+		return
+	}
+
+	eddsa := make(ed25519.PublicKey, ed25519.PublicKeySize)
+	switch flag := pk.p.Bytes()[0]; flag {
+	case 0x04:
+		// TODO: see _grcy_ecc_eddsa_ensure_compact in grcypt
+		return errors.UnsupportedError("unsupported EdDSA compression: " + strconv.Itoa(int(flag)))
+	case 0x40:
+		copy(eddsa[:], pk.p.Bytes()[1:])
+	default:
+		return errors.UnsupportedError("unsupported EdDSA compression: " + strconv.Itoa(int(flag)))
+	}
+
+	pk.PublicKey = eddsa
+	return
+}
+
 // SerializeSignaturePrefix writes the prefix for this public key to the given Writer.
 // The prefix is used when calculating a signature over this public key. See
 // RFC 4880, section 5.2.4.
@@ -397,6 +442,9 @@ func (pk *PublicKey) SerializeSignaturePrefix(h io.Writer) {
 		pLength += pk.oid.EncodedLength()
 		pLength += pk.p.EncodedLength()
 		pLength += pk.kdf.EncodedLength()
+	case PubKeyAlgoEdDSA:
+		pLength += pk.oid.EncodedLength()
+		pLength += pk.p.EncodedLength()
 	default:
 		panic("unknown public key algorithm")
 	}
@@ -428,6 +476,9 @@ func (pk *PublicKey) Serialize(w io.Writer) (err error) {
 		length += int(pk.oid.EncodedLength())
 		length += int(pk.p.EncodedLength())
 		length += int(pk.kdf.EncodedLength())
+	case PubKeyAlgoEdDSA:
+		length += int(pk.oid.EncodedLength())
+		length += int(pk.p.EncodedLength())
 	default:
 		panic("unknown public key algorithm")
 	}
@@ -503,6 +554,12 @@ func (pk *PublicKey) serializeWithoutHeaders(w io.Writer) (err error) {
 		}
 		_, err = w.Write(pk.kdf.EncodedBytes())
 		return
+	case PubKeyAlgoEdDSA:
+		if _, err = w.Write(pk.oid.EncodedBytes()); err != nil {
+			return
+		}
+		_, err = w.Write(pk.p.EncodedBytes())
+		return
 	}
 	return errors.InvalidArgumentError("bad public-key algorithm")
 }
@@ -553,6 +610,20 @@ func (pk *PublicKey) VerifySignature(signed hash.Hash, sig *Signature) (err erro
 		ecdsaPublicKey := pk.PublicKey.(*ecdsa.PublicKey)
 		if !ecdsa.Verify(ecdsaPublicKey, hashBytes, new(big.Int).SetBytes(sig.ECDSASigR.Bytes()), new(big.Int).SetBytes(sig.ECDSASigS.Bytes())) {
 			return errors.SignatureError("ECDSA verification failure")
+		}
+		return nil
+	case PubKeyAlgoEdDSA:
+		eddsaPublicKey := pk.PublicKey.(ed25519.PublicKey)
+
+		sigR := sig.EdDSASigR.Bytes()
+		sigS := sig.EdDSASigS.Bytes()
+
+		eddsaSig := make([]byte, ed25519.SignatureSize)
+		copy(eddsaSig[:32], sigR)
+		copy(eddsaSig[32:], sigS)
+
+		if !ed25519.Verify(eddsaPublicKey, hashBytes, eddsaSig) {
+			return errors.SignatureError("EdDSA verification failure")
 		}
 		return nil
 	default:
@@ -742,6 +813,8 @@ func (pk *PublicKey) BitLength() (bitLength uint16, err error) {
 	case PubKeyAlgoECDSA:
 		bitLength = pk.p.BitLength()
 	case PubKeyAlgoECDH:
+		bitLength = pk.p.BitLength()
+	case PubKeyAlgoEdDSA:
 		bitLength = pk.p.BitLength()
 	default:
 		err = errors.InvalidArgumentError("bad public-key algorithm")

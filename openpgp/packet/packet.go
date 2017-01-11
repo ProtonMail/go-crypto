@@ -408,6 +408,8 @@ const (
 	// RFC 6637, Section 5.
 	PubKeyAlgoECDH  PublicKeyAlgorithm = 18
 	PubKeyAlgoECDSA PublicKeyAlgorithm = 19
+	// https://www.ietf.org/archive/id/draft-koch-eddsa-for-openpgp-04.txt
+	PubKeyAlgoEdDSA PublicKeyAlgorithm = 22
 )
 
 // CanEncrypt returns true if it's possible to encrypt a message to a public
@@ -424,7 +426,7 @@ func (pka PublicKeyAlgorithm) CanEncrypt() bool {
 // sign a message.
 func (pka PublicKeyAlgorithm) CanSign() bool {
 	switch pka {
-	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA:
+	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA:
 		return true
 	}
 	return false
