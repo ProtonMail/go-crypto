@@ -19,6 +19,7 @@ var (
 	testFingerprint = make([]byte, 20)
 )
 
+
 func TestEncryptDecrypt(t *testing.T) {
 	kdf := KDF{
 		Hash:   algorithm.SHA512,

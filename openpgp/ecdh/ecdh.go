@@ -22,9 +22,18 @@ type KDF struct {
 	Cipher algorithm.Cipher
 }
 
-type PublicKey struct {
-	elliptic.Curve
+type CurveType uint8
 
+const (
+	NISTCurve CurveType = 1
+	Curve25519 CurveType = 2
+	BitCurve CurveType = 3
+	BrainpoolCurve CurveType = 4
+)
+
+type PublicKey struct {
+	CurveType
+	elliptic.Curve
 	X, Y *big.Int
 	KDF
 }
@@ -46,7 +55,6 @@ func Encrypt(random io.Reader, pub *PublicKey, msg, curveOID, fingerprint []byte
 	if len(msg) > 40 {
 		return nil, nil, errors.New("ecdh: message too long")
 	}
-
 	// the sender MAY use 21, 13, and 5 bytes of padding for AES-128,
 	// AES-192, and AES-256, respectively, to provide the same number of
 	// octets, 40 total, as an input to the key wrapping method.
@@ -55,6 +63,10 @@ func Encrypt(random io.Reader, pub *PublicKey, msg, curveOID, fingerprint []byte
 		padding[i] = byte(40 - len(msg))
 	}
 	m := append(msg, padding...)
+
+	if pub.CurveType == Curve25519 {
+		return X25519Encrypt(random, pub, m, curveOID, fingerprint)
+	}
 
 	d, x, y, err := elliptic.GenerateKey(pub.Curve, random)
 	if err != nil {
@@ -78,6 +90,9 @@ func Encrypt(random io.Reader, pub *PublicKey, msg, curveOID, fingerprint []byte
 }
 
 func Decrypt(priv *PrivateKey, vsG, m, curveOID, fingerprint []byte) (msg []byte, err error) {
+	if priv.PublicKey.CurveType == Curve25519 {
+		return X25519Decrypt(priv, vsG, m, curveOID, fingerprint)
+	}
 	x, y := elliptic.Unmarshal(priv.Curve, vsG)
 	zb, _ := priv.Curve.ScalarMult(x, y, priv.D)
 
@@ -112,7 +127,7 @@ func buildKey(pub *PublicKey, zb *big.Int, curveOID, fingerprint []byte) ([]byte
 	if _, err := param.Write(fingerprint); err != nil {
 		return nil, err
 	}
-	if param.Len() != 54 && param.Len() != 51 {
+	if param.Len() - len(curveOID) != 45 {
 		return nil, errors.New("ecdh: malformed KDF Param")
 	}
 
