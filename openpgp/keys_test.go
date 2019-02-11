@@ -641,3 +641,228 @@ func TestEntityPrivateSerialization(t *testing.T) {
 		}
 	}
 }
+
+func TestAddSubkey(t *testing.T) {
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = entity.AddSubkey(false, false, nil)
+	if err == nil {
+		t.Fatal("Generated subkey that supports neither signing not encryption")
+	}
+
+	err = entity.AddSubkey(true, true, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(entity.Subkeys) != 2 {
+		t.Fatalf("Expected 2 subkeys, got %d", len(entity.Subkeys))
+	}
+
+	for _, sk := range entity.Subkeys {
+		err = entity.PrimaryKey.VerifyKeySignature(sk.PublicKey, sk.Sig)
+		if err != nil {
+			t.Errorf("Invalid subkey signature: %v", err)
+		}
+	}
+
+	serializedEntity := bytes.NewBuffer(nil)
+	entity.SerializePrivate(serializedEntity, nil)
+
+	_, err = ReadEntity(packet.NewReader(bytes.NewBuffer(serializedEntity.Bytes())))
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAddSubkeyWithConfig(t *testing.T) {
+	c := &packet.Config{
+		DefaultHash: crypto.SHA512,
+	}
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", c)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = entity.AddSubkey(true, true, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(entity.Subkeys) != 2 {
+		t.Fatalf("Expected 2 subkeys, got %d", len(entity.Subkeys))
+	}
+
+	if entity.Subkeys[1].Sig.Hash != c.DefaultHash {
+		t.Fatalf("Expected subkey hash method: %v, got: %v", c.DefaultHash,
+			entity.Subkeys[1].Sig.Hash)
+	}
+
+	for _, sk := range entity.Subkeys {
+		err = entity.PrimaryKey.VerifyKeySignature(sk.PublicKey, sk.Sig)
+		if err != nil {
+			t.Errorf("Invalid subkey signature: %v", err)
+		}
+	}
+
+}
+
+func TestRevokeKey(t *testing.T) {
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = entity.RevokeKey(0, "Key revocation", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(entity.Revocations) == 0 {
+		t.Fatal("Revocation signature missing from entity")
+	}
+
+	for _, r := range entity.Revocations {
+		err = entity.PrimaryKey.VerifyRevocationSignature(r)
+		if err != nil {
+			t.Errorf("Invalid revocation: %v", err)
+		}
+	}
+}
+
+func TestRevokeKeyWithConfig(t *testing.T) {
+	c := &packet.Config{
+		DefaultHash: crypto.SHA512,
+	}
+
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = entity.RevokeKey(0, "Key revocation", c)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(entity.Revocations) == 0 {
+		t.Fatal("Revocation signature missing from entity")
+	}
+
+	if entity.Revocations[0].Hash != c.DefaultHash {
+		t.Fatalf("Expected signature hash method: %v, got: %v", c.DefaultHash,
+			entity.Revocations[0].Hash)
+	}
+
+	for _, r := range entity.Revocations {
+		err = entity.PrimaryKey.VerifyRevocationSignature(r)
+		if err != nil {
+			t.Errorf("Invalid revocation: %v", err)
+		}
+	}
+}
+
+func TestRevokeSubkey(t *testing.T) {
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sk := &entity.Subkeys[0]
+	err = entity.RevokeSubkey(sk, 0, "Key revocation", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = sk.PublicKey.VerifySubkeyRevocationSignature(sk.Sig, entity.PrimaryKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if entity.Subkeys[0].Sig.RevocationReason == nil {
+		t.Fatal("Revocation reason was not set")
+	}
+	if entity.Subkeys[0].Sig.RevocationReasonText == "" {
+		t.Fatal("Revocation reason text was not set")
+	}
+
+	serializedEntity := bytes.NewBuffer(nil)
+	entity.SerializePrivate(serializedEntity, nil)
+
+	// Make sure revocation reason subpackets are not lost during serialization.
+	newEntity, err := ReadEntity(packet.NewReader(bytes.NewBuffer(serializedEntity.Bytes())))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if newEntity.Subkeys[0].Sig.RevocationReason == nil {
+		t.Fatal("Revocation reason lost after serialization of entity")
+	}
+	if newEntity.Subkeys[0].Sig.RevocationReasonText == "" {
+		t.Fatal("Revocation reason text lost after serialization of entity")
+	}
+}
+
+func TestRevokeSubkeyWithAnotherEntity(t *testing.T) {
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sk := entity.Subkeys[0]
+
+	newEntity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = newEntity.RevokeSubkey(&sk, 0, "Key revocation", nil)
+	if err == nil {
+		t.Fatal("Entity was able to revoke a subkey owned by a different entity")
+	}
+}
+
+func TestRevokeSubkeyWithInvalidSignature(t *testing.T) {
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sk := entity.Subkeys[0]
+	sk.Sig = &packet.Signature{}
+
+	err = entity.RevokeSubkey(&sk, 0, "Key revocation", nil)
+	if err == nil {
+		t.Fatal("Entity was able to revoke a subkey with invalid signature")
+	}
+}
+
+func TestRevokeSubkeyWithConfig(t *testing.T) {
+	c := &packet.Config{
+		DefaultHash: crypto.SHA512,
+	}
+
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sk := entity.Subkeys[0]
+	err = entity.RevokeSubkey(&sk, 0, "Key revocation", c)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if sk.Sig.Hash != c.DefaultHash {
+		t.Fatalf("Expected signature hash method: %v, got: %v", c.DefaultHash,
+			sk.Sig.Hash)
+	}
+
+	err = sk.PublicKey.VerifySubkeyRevocationSignature(sk.Sig, entity.PrimaryKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+}

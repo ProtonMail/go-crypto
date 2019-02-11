@@ -555,6 +555,14 @@ func (e *Entity) serializePrivate(w io.Writer, config *packet.Config, reSign boo
 				return
 			}
 		}
+		// Re-sign the embedded signature as well if it exists.
+		if reSign && subkey.Sig.EmbeddedSignature != nil {
+			err = subkey.Sig.EmbeddedSignature.CrossSignKey(subkey.PublicKey, e.PrimaryKey,
+				subkey.PrivateKey, config)
+			if err != nil {
+				return err
+			}
+		}
 		err = subkey.Sig.Serialize(w)
 		if err != nil {
 			return
@@ -623,5 +631,76 @@ func (e *Entity) SignIdentity(identity string, signer *Entity, config *packet.Co
 		return err
 	}
 	ident.Signatures = append(ident.Signatures, sig)
+	return nil
+}
+
+// validRevocationReason reports whether the given revocation reason code is valid
+// as per RFC4880 section-5.2.3.23.
+func validRevocationReason(r uint8) bool {
+	switch r {
+	// Defined in RFC4880 section-5.2.3.23
+	case 0, 1, 2, 3, 32:
+		return true
+	default:
+		// Private use (RFC4880 section-5.2.3.23)
+		if 100 <= r && r <= 110 {
+			return true
+		}
+		return false
+	}
+}
+
+// RevokeKey generates a key revocation signature (packet.SigTypeKeyRevocation) with the
+// specified reason code and text (RFC4880 section-5.2.3.23).
+// If config is nil, sensible defaults will be used.
+func (e *Entity) RevokeKey(reason uint8, reasonText string, config *packet.Config) error {
+	if !validRevocationReason(reason) {
+		return errors.InvalidArgumentError("invalid reason code")
+	}
+
+	revSig := &packet.Signature{
+		CreationTime:         config.Now(),
+		SigType:              packet.SigTypeKeyRevocation,
+		PubKeyAlgo:           packet.PubKeyAlgoRSA,
+		Hash:                 config.Hash(),
+		RevocationReason:     &reason,
+		RevocationReasonText: reasonText,
+		IssuerKeyId:          &e.PrimaryKey.KeyId,
+	}
+
+	if err := revSig.RevokeKey(e.PrimaryKey, e.PrivateKey, config); err != nil {
+		return err
+	}
+	e.Revocations = append(e.Revocations, revSig)
+	return nil
+}
+
+// RevokeSubkey generates a subkey revocation signature (packet.SigTypeSubkeyRevocation) for
+// a subkey with the specified reason code and text (RFC4880 section-5.2.3.23).
+// If config is nil, sensible defaults will be used.
+func (e *Entity) RevokeSubkey(sk *Subkey, reason uint8, reasonText string, config *packet.Config) error {
+	if !validRevocationReason(reason) {
+		return errors.InvalidArgumentError("invalid reason code")
+	}
+
+	if err := e.PrimaryKey.VerifyKeySignature(sk.PublicKey, sk.Sig); err != nil {
+		return errors.InvalidArgumentError("given subkey is not associated with this key")
+	}
+
+	revSig := &packet.Signature{
+		CreationTime:         config.Now(),
+		SigType:              packet.SigTypeSubkeyRevocation,
+		PubKeyAlgo:           packet.PubKeyAlgoRSA,
+		Hash:                 config.Hash(),
+		RevocationReason:     &reason,
+		RevocationReasonText: reasonText,
+		IssuerKeyId:          &e.PrimaryKey.KeyId,
+	}
+
+	if err := revSig.RevokeKey(sk.PublicKey, e.PrivateKey, config); err != nil {
+		return err
+	}
+
+	sk.Sig = revSig
 	return nil
 }

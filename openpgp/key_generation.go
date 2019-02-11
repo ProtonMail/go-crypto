@@ -120,6 +120,62 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 	}, nil
 }
 
+// AddSubkey adds a RSA/RSA keypair as a subkey to the Entity. If canSign is true, then
+// the subkey will support signing. If canEncrypt is true, then the subkey supports encryption.
+// If config is nil, sensible defaults will be used.
+func (e *Entity) AddSubkey(canSign bool, canEncrypt bool, config *packet.Config) error {
+	if !canSign && !canEncrypt {
+		return errors.InvalidArgumentError("subkey must support encryption and/or signing")
+	}
+	creationTime := config.Now()
+
+	bits := config.RSAModulusBits()
+	key, err := rsa.GenerateKey(config.Random(), bits)
+	if err != nil {
+		return err
+	}
+
+	subkey := Subkey{
+		PublicKey:  packet.NewRSAPublicKey(creationTime, &key.PublicKey),
+		PrivateKey: packet.NewRSAPrivateKey(creationTime, key),
+		Sig: &packet.Signature{
+			CreationTime:              creationTime,
+			SigType:                   packet.SigTypeSubkeyBinding,
+			PubKeyAlgo:                packet.PubKeyAlgoRSA,
+			Hash:                      config.Hash(),
+			FlagsValid:                true,
+			FlagEncryptStorage:        canEncrypt,
+			FlagEncryptCommunications: canEncrypt,
+			FlagSign:                  canSign,
+			IssuerKeyId:               &e.PrimaryKey.KeyId,
+		},
+	}
+
+	if canSign {
+		embeddedSig := &packet.Signature{
+			CreationTime: creationTime,
+			SigType:      packet.SigTypePrimaryKeyBinding,
+			PubKeyAlgo:   packet.PubKeyAlgoRSA,
+			Hash:         config.Hash(),
+			IssuerKeyId:  &e.PrimaryKey.KeyId,
+		}
+		err = embeddedSig.CrossSignKey(subkey.PublicKey, e.PrimaryKey, subkey.PrivateKey, config)
+		if err != nil {
+			return err
+		}
+		subkey.Sig.EmbeddedSignature = embeddedSig
+	}
+
+	subkey.PublicKey.IsSubkey = true
+	subkey.PrivateKey.IsSubkey = true
+	if err = subkey.Sig.SignKey(subkey.PublicKey, e.PrivateKey, config); err != nil {
+		return err
+	}
+
+	e.Subkeys = append(e.Subkeys, subkey)
+	return nil
+}
+
 // Generates a signing key
 func newSigner(config *packet.Config) (signer crypto.Signer, err error) {
 	switch config.PublicKeyAlgorithm() {
