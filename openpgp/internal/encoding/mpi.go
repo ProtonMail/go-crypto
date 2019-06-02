@@ -7,6 +7,7 @@ package encoding
 import (
 	"io"
 	"math/big"
+	"math/bits"
 )
 
 // An MPI is used to store the contents of a big integer, along with the bit
@@ -21,7 +22,7 @@ type MPI struct {
 func NewMPI(bytes []byte) *MPI {
 	return &MPI{
 		bytes:     bytes,
-		bitLength: 8 * uint16(len(bytes)) - 1,
+		bitLength: 8 * uint16(len(bytes) - 1) + uint16(bits.Len(uint(bytes[0]))),
 	}
 }
 
