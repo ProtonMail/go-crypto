@@ -21,7 +21,7 @@ type MPI struct {
 func NewMPI(bytes []byte) *MPI {
 	return &MPI{
 		bytes:     bytes,
-		bitLength: 8 * uint16(len(bytes)),
+		bitLength: 8 * uint16(len(bytes)) - 1,
 	}
 }
 
