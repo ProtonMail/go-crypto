@@ -27,14 +27,6 @@ func NewMPI(bytes []byte) *MPI {
 	return &MPI{bytes, bitLength}
 }
 
-// NewMPIWithBitLength returns a MPI initialized with bytes and bitLength.
-func NewMPIWithBitLength(bytes []byte, bitLength uint16) *MPI {
-	return &MPI{
-		bytes:     bytes,
-		bitLength: bitLength,
-	}
-}
-
 // Bytes returns the decoded data.
 func (m *MPI) Bytes() []byte {
 	return m.bytes
