@@ -611,8 +611,8 @@ func (pk *PublicKey) VerifySignature(signed hash.Hash, sig *Signature) (err erro
 		sigS := sig.EdDSASigS.Bytes()
 
 		eddsaSig := make([]byte, ed25519.SignatureSize)
-		copy(eddsaSig[:32], sigR)
-		copy(eddsaSig[32:], sigS)
+		copy(eddsaSig[32-len(sigR):32], sigR)
+		copy(eddsaSig[64-len(sigS):], sigS)
 
 		if !ed25519.Verify(eddsaPublicKey, hashBytes, eddsaSig) {
 			return errors.SignatureError("EdDSA verification failure")
