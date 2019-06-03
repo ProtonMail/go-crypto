@@ -20,7 +20,7 @@ type MPI struct {
 
 // NewMPI returns a MPI initialized with bytes.
 func NewMPI(bytes []byte) *MPI {
-	bitLength := 8*uint16(len(bytes)-1) + uint16(bits.Len(uint(bytes[0])))
+	bitLength := 8*uint16(len(bytes)-1) + uint16(bits.Len8(bytes[0]))
 	if bytes[0] == 0 {
 		bitLength++
 	}
