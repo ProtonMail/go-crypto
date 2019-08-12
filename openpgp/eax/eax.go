@@ -32,8 +32,7 @@ func Encrypt(key, plaintext, nonce, adata []byte) []byte {
 	omacCiphertext := omacT(2, key, ciphertext)
 
 	// Compute tag
-	tag := make([]byte, tagLength)
-	copy(tag, omacCiphertext)
+	tag := make([]byte, tagLength); copy(tag, omacCiphertext)
 	for i := 0; i < len(tag); i++ {
 		tag[i] ^= omacNonce[i] ^ omacAdata[i]
 	}
@@ -58,8 +57,7 @@ func Decrypt(key, ciphertext, nonce, adata []byte) []byte {
 	omacAdata := omacT(1, key, adata)
 	omacCiphertext := omacT(2, key, ct)
 
-	tag := make([]byte, tagLength)
-	copy(tag, omacCiphertext)
+	tag := make([]byte, tagLength); copy(tag, omacCiphertext)
 	for i := 0; i < tagLength; i++ {
 		tag[i] ^= omacNonce[i] ^ omacAdata[i]
 	}
@@ -80,8 +78,7 @@ func Decrypt(key, ciphertext, nonce, adata []byte) []byte {
 
 // Tweaked OMAC - Calls OMAC_K([t]_n || plaintext)
 func omacT(t byte, key, plaintext []byte) []byte {
-	byteT := make([]byte, blockLength)
-	byteT[blockLength-1] = t
+	byteT := make([]byte, blockLength); byteT[blockLength-1] = t
 	concat := append(byteT, plaintext...)
 	return omac(key, concat)
 }
