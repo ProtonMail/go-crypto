@@ -29,8 +29,6 @@ func Encrypt(key, plaintext, nonce, adata []byte) []byte {
 	ciphertext := make([]byte, len(plaintext))
 	ctrAes.XORKeyStream(ciphertext, plaintext)
 
-	two := make([]byte, blockLength)
-	two[blockLength-1] = 2
 	omacCiphertext := omacT(2, key, ciphertext)
 
 	// Compute tag
