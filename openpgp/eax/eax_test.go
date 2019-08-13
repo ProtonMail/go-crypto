@@ -209,3 +209,34 @@ func TestParameters(t *testing.T) {
 
 	});
 }
+
+func BenchmarkEncrypt(b *testing.B) {
+	// OpenPGP.js defaults plaintext chunks at 256 KiB
+	plaintextLength := 262144
+	headerLength := 16
+	pt := make([]byte, plaintextLength)
+	header := make([]byte, headerLength)
+	key := make([]byte, blockLength)
+	nonce := make([]byte, blockLength)
+	rand.Read(pt); rand.Read(header); rand.Read(key); rand.Read(nonce);
+	eax := NewEAX(key)
+	for i := 0; i < b.N; i++ {
+		eax.Encrypt(pt, nonce, header)
+	}
+}
+
+func BenchmarkDecrypt(b *testing.B) {
+	// OpenPGP.js defaults plaintext chunks at 256 KiB
+	plaintextLength :=  262144
+	headerLength := 16
+	pt := make([]byte, plaintextLength)
+	header := make([]byte, headerLength)
+	key := make([]byte, blockLength)
+	nonce := make([]byte, blockLength)
+	rand.Read(pt); rand.Read(header); rand.Read(key); rand.Read(nonce);
+	eax := NewEAX(key)
+	ct := eax.Encrypt(pt, nonce, header)
+	for i := 0; i < b.N; i++ {
+		eax.Decrypt(ct, nonce, header)
+	}
+}
