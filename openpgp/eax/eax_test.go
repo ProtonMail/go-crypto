@@ -185,17 +185,6 @@ func TestParameters(t *testing.T) {
 		}()
 		NewEAX(key)
 	});
-	t.Run("Should panic with too short tagSize", func (st *testing.T) {
-		tagSize := mathrand.Intn(12)
-		nonceSize := mathrand.Intn(16) + 1
-		key := make([]byte, blockLength)
-		defer func() {
-			if r := recover(); r == nil {
-				st.Errorf("EAX didn't panic")
-			}
-		}()
-		NewEAXWithNonceAndTagSize(key, nonceSize, tagSize)
-	});
 	t.Run("Should panic with too long tagSize", func (st *testing.T) {
 		tagSize := blockLength + 1 + mathrand.Intn(12)
 		nonceSize := 1 + mathrand.Intn(16)
