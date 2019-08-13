@@ -10,29 +10,81 @@ import (
 )
 
 const (
-	blockLength = 16
-	tagLength   = 16
+	defaultTagSize   = 16
+	defaultNonceSize = 16
 )
 
-// Encrypt function (see [1]). Returns Ciphertext || Tag
-func Encrypt(key, plaintext, nonce, adata []byte) []byte {
+type eax struct {
+	block     cipher.Block // Only AES-128 supported
+	tagSize   int          // NIST SP 800-38D recommends 12 or more bytes.
+	nonceSize int
+}
 
-	omacNonce := omacT(0, key, nonce)
-	omacAdata := omacT(1, key, adata)
-
-	// Encrypt message using AES-128 in CTR mode and omacNonce as IV
+// NewEAX returns an EAX instance with AES-128 and default parameters.
+// Input key length must equal 128 bits
+func NewEAX(key []byte) eax {
+	if len(key) != 16 {
+		panic(
+			`Error: EAX only supports AES-128, currently. Please supply a
+			 128-bit key`)
+	}
 	aesCipher, err := aes.NewCipher(key)
 	if err != nil {
 		panic(err)
 	}
-	ctrAes := cipher.NewCTR(aesCipher, omacNonce)
+
+	return eax{
+		block:     aesCipher,
+		tagSize:   defaultTagSize,
+		nonceSize: defaultNonceSize,
+	}
+}
+
+// NewEAXWithNonceAndTagSize returns an EAX instance with AES-128 and given
+// nonce and tag lengths in bytes. Panics on zero nonceSize and exceedingly
+// long or short tags.
+//
+// Only to be used for compatibility with existing cryptosystems with
+// non-standard parameters. For all other cases, prefer NewEAX.
+func NewEAXWithNonceAndTagSize(key []byte, nonceSize, tagSize int) eax {
+	if nonceSize == 0 {
+		panic(`Error: Can't initialize EAX instance with nonceSize = 0`)
+	}
+	eaxInstance := NewEAX(key)
+	if tagSize > eaxInstance.block.BlockSize() {
+		panic(`Error: Custom tag length exceeds blocksize`)
+	}
+	if tagSize < 12 {
+		panic(`Error: Insecure tag length`)
+	}
+	eaxInstance.nonceSize = nonceSize
+	eaxInstance.tagSize = tagSize
+	return eaxInstance
+}
+
+func (e *eax) NonceSize() int {
+	return e.nonceSize
+}
+
+func (e *eax) TagSize() int {
+	return e.tagSize
+}
+
+// Encrypt function (see [1]). Returns Ciphertext || Tag
+func (e *eax) Encrypt(plaintext, nonce, adata []byte) []byte {
+
+	omacNonce := e.omacT(0, nonce)
+	omacAdata := e.omacT(1, adata)
+
+	// Encrypt message using CTR mode and omacNonce as IV
+	ctr := cipher.NewCTR(e.block, omacNonce)
 	ciphertext := make([]byte, len(plaintext))
-	ctrAes.XORKeyStream(ciphertext, plaintext)
+	ctr.XORKeyStream(ciphertext, plaintext)
 
-	omacCiphertext := omacT(2, key, ciphertext)
+	omacCiphertext := e.omacT(2, ciphertext)
 
-	// Compute tag
-	tag := make([]byte, tagLength); copy(tag, omacCiphertext)
+	tag := make([]byte, e.tagSize)
+	copy(tag, omacCiphertext)
 	for i := 0; i < len(tag); i++ {
 		tag[i] ^= omacNonce[i] ^ omacAdata[i]
 	}
@@ -41,75 +93,73 @@ func Encrypt(key, plaintext, nonce, adata []byte) []byte {
 }
 
 // Decrypt function (see [1]). If tag is invalid, returns nil
-func Decrypt(key, ciphertext, nonce, adata []byte) []byte {
-	if len(ciphertext) < tagLength {
+func (e *eax) Decrypt(ciphertext, nonce, adata []byte) []byte {
+	if len(ciphertext) < e.TagSize() {
 		return nil
 	}
-	aesCipher, err := aes.NewCipher(key)
-	if err != nil {
-		panic(err)
-	}
 
-	ct := ciphertext[:len(ciphertext)-tagLength]
+	ct := ciphertext[:len(ciphertext)-e.tagSize]
 
 	// Compute tag
-	omacNonce := omacT(0, key, nonce)
-	omacAdata := omacT(1, key, adata)
-	omacCiphertext := omacT(2, key, ct)
+	omacNonce := e.omacT(0, nonce)
+	omacAdata := e.omacT(1, adata)
+	omacCiphertext := e.omacT(2, ct)
 
-	tag := make([]byte, tagLength); copy(tag, omacCiphertext)
-	for i := 0; i < tagLength; i++ {
+	tag := make([]byte, e.tagSize)
+	copy(tag, omacCiphertext)
+	for i := 0; i < e.tagSize; i++ {
 		tag[i] ^= omacNonce[i] ^ omacAdata[i]
 	}
 
 	// Compare tags
-	inputTag := ciphertext[len(ciphertext)-tagLength:]
+	inputTag := ciphertext[len(ciphertext)-e.tagSize:]
 	if !bytes.Equal(tag, inputTag) {
 		return nil
 	}
 
 	// Decrypt ciphertext
-	ctrAes := cipher.NewCTR(aesCipher, omacNonce)
+	ctr := cipher.NewCTR(e.block, omacNonce)
 	plaintext := make([]byte, len(ct))
-	ctrAes.XORKeyStream(plaintext, ct)
+	ctr.XORKeyStream(plaintext, ct)
 
 	return plaintext
 }
 
-// Tweaked OMAC - Calls OMAC_K([t]_n || plaintext)
-func omacT(t byte, key, plaintext []byte) []byte {
-	byteT := make([]byte, blockLength); byteT[blockLength-1] = t
+// Tweakable OMAC - Calls OMAC_K([t]_n || plaintext)
+func (e *eax) omacT(t byte, plaintext []byte) []byte {
+	blockSize := e.block.BlockSize()
+	byteT := make([]byte, blockSize)
+	byteT[blockSize-1] = t
 	concat := append(byteT, plaintext...)
-	return omac(key, concat)
+	return e.omac(concat)
 }
 
-func omac(key, plaintext []byte) []byte {
-	aesCipher, errAes := aes.NewCipher(key)
-	if errAes != nil {
-		panic(errAes)
-	}
-
+func (e *eax) omac(plaintext []byte) []byte {
 	// L ← E_K(0^n); B ← 2L; P ← 4L
-	L := make([]byte, blockLength)
-	aesCipher.Encrypt(L, L); B := gfnDouble(L); P := gfnDouble(B)
+	L := make([]byte, e.block.BlockSize())
+	e.block.Encrypt(L, L)
+	B := gfnDouble(L)
+	P := gfnDouble(B)
 
 	// CBC with IV = 0
-	cbcEncrypter := cipher.NewCBCEncrypter(aesCipher, make([]byte, blockLength))
-	padded := pad(plaintext, B, P)
+	blockSize := e.block.BlockSize()
+	cbc := cipher.NewCBCEncrypter(e.block, make([]byte, blockSize))
+	padded := e.pad(plaintext, B, P)
 	cbcCiphertext := make([]byte, len(padded))
-	cbcEncrypter.CryptBlocks(cbcCiphertext, padded)
+	cbc.CryptBlocks(cbcCiphertext, padded)
 
-	return cbcCiphertext[len(cbcCiphertext)-blockLength:]
+	return cbcCiphertext[len(cbcCiphertext)-blockSize:]
 }
 
-func pad(plaintext, B, P []byte) []byte {
+func (e *eax) pad(plaintext, B, P []byte) []byte {
 	// if |M| in {n, 2n, 3n, ...}
-	if len(plaintext)%blockLength == 0 {
+	blockSize := e.block.BlockSize()
+	if len(plaintext)%blockSize == 0 {
 		return rightXorMut(plaintext, B)
 	}
 
-	// else return (M || 10^(n−1−(|M| mod n))) xor→ P
-	ending := make([]byte, blockLength-len(plaintext)%blockLength)
+	// else return (M || 1 || 0^(n−1−(|M| % n))) xor→ P
+	ending := make([]byte, blockSize-len(plaintext)%blockSize)
 	ending[0] = 0x80
 	padded := append(plaintext, ending...)
 	return rightXorMut(padded, P)

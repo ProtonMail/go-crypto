@@ -1,5 +1,8 @@
 // Copyright (C) 2019 ProtonTech AG
 // This file contains necessary tools for the eax package.
+//
+// These functions are not meant to be exported, since they
+// are optimized for specific input nature.
 
 package eax
 
@@ -17,6 +20,8 @@ func gfnDouble(input []byte) []byte {
 	return shifted
 }
 
+// For any bytes array L, outputs the byte array corresponding to L << 1 in
+// binary.
 func shiftBytesLeft(x []byte) (dst []byte) {
 	l := len(x)
 	dst = make([]byte, l)

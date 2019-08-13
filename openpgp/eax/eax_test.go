@@ -1,4 +1,7 @@
 // Copyright 2019 ProtonTech AG.
+//
+// This file only tests EAX mode when instantiated with AES-128.
+// Add more tests if eax.go allows other block ciphers.
 
 package eax
 
@@ -10,6 +13,9 @@ import (
 	mathrand "math/rand"
 )
 
+const (
+	blockLength = 16
+)
 // Test vectors from
 // https://web.cs.ucdavis.edu/~rogaway/papers/eax.pdf
 var testVectors = [] struct {
@@ -74,8 +80,9 @@ func TestEncryptTestVectors(t *testing.T) {
 		pt, _ := hex.DecodeString(test.msg)
 		nonce, _ := hex.DecodeString(test.nonce)
 		targetCt, _ := hex.DecodeString(test.ciphertext)
+		eax := NewEAX(key)
 
-		ct := Encrypt(key, pt, nonce, adata)
+		ct := eax.Encrypt(pt, nonce, adata)
 		if !bytes.Equal(ct, targetCt){
 			t.Errorf(
 				`Test vectors Encrypt error (ciphertexts don't match):
@@ -92,7 +99,8 @@ func TestDecryptTestVectors(t *testing.T) {
 		targetPt, _ := hex.DecodeString(test.msg)
 		nonce, _ := hex.DecodeString(test.nonce)
 		ct, _ := hex.DecodeString(test.ciphertext)
-		pt := Decrypt(key, ct, nonce, adata)
+		eax := NewEAX(key)
+		pt := eax.Decrypt(ct, nonce, adata)
 		if pt == nil {
 			t.Errorf(
 			`Decrypt refused valid tag:
@@ -116,13 +124,13 @@ func TestEncryptDecryptRandVectors(t *testing.T) {
 		pt := make([]byte, mathrand.Intn(maxLength))
 		header := make([]byte, mathrand.Intn(maxLength))
 		key := make([]byte, blockLength)
-		nonce := make([]byte, blockLength)
-		rand.Read(pt)
-		rand.Read(header)
-		rand.Read(key)
-		rand.Read(nonce)
-		ct := Encrypt(key, pt, nonce, header)
-		decrypted := Decrypt(key, ct, nonce, header)
+		nonce := make([]byte, 1 + mathrand.Intn(maxLength))
+		// Populate items with crypto/rand
+		rand.Read(pt); rand.Read(header); rand.Read(key); rand.Read(nonce)
+
+		eax := NewEAX(key)
+		ct := eax.Encrypt(pt, nonce, header)
+		decrypted := eax.Decrypt(ct, nonce, header)
 		if !bytes.Equal(pt, decrypted) {
 			t.Errorf(
 			`Random vectors Encrypt/Decrypt error (plaintexts don't match):
@@ -132,8 +140,8 @@ func TestEncryptDecryptRandVectors(t *testing.T) {
 	}
 }
 
-func TestRejectTamperedTag(t *testing.T) {
-	iterations := 25
+func TestRejectTamperedCiphertext(t *testing.T) {
+	iterations := 100
 	maxLength := 1024
 	for i := 0; i < iterations; i++ {
 		pt := make([]byte, mathrand.Intn(maxLength))
@@ -144,13 +152,16 @@ func TestRejectTamperedTag(t *testing.T) {
 		rand.Read(header)
 		rand.Read(key)
 		rand.Read(nonce)
-		ct := Encrypt(key, pt, nonce, header)
-		// Change any byte of ct (could affect either the tag or the ciphertext)
+		eax := NewEAX(key)
+		ct := eax.Encrypt(pt, nonce, header)
+		// Change one byte of ct (could affect either the tag or the ciphertext)
 		tampered := make([]byte, len(ct))
 		copy(tampered, ct)
-		tampered[mathrand.Intn(len(ct))] = byte(mathrand.Intn(len(ct)))
+		for bytes.Equal(tampered, ct){
+			tampered[mathrand.Intn(len(ct))] = byte(mathrand.Intn(len(ct)))
+		}
 
-		decryptedTampered:= Decrypt(key, tampered, nonce, header)
+		decryptedTampered:= eax.Decrypt(tampered, nonce, header)
 		if decryptedTampered != nil {
 			t.Errorf(
 				`Tampered ciphertext was not refused decryption:
@@ -158,4 +169,54 @@ func TestRejectTamperedTag(t *testing.T) {
 				tampered %x`, ct, tampered)
 		}
 	}
+}
+
+func TestParameters(t *testing.T) {
+	t.Run("Should panic with unsupported keySize/blockSize", func (st *testing.T) {
+		keySize := mathrand.Intn(32)
+		for keySize == 16 {
+			keySize = mathrand.Intn(32)
+		}
+		key := make([]byte, keySize)
+		defer func() {
+			if r := recover(); r == nil {
+				st.Errorf("EAX didn't panic")
+			}
+		}()
+		NewEAX(key)
+	});
+	t.Run("Should panic with too short tagSize", func (st *testing.T) {
+		tagSize := mathrand.Intn(12)
+		nonceSize := mathrand.Intn(16) + 1
+		key := make([]byte, blockLength)
+		defer func() {
+			if r := recover(); r == nil {
+				st.Errorf("EAX didn't panic")
+			}
+		}()
+		NewEAXWithNonceAndTagSize(key, nonceSize, tagSize)
+	});
+	t.Run("Should panic with too long tagSize", func (st *testing.T) {
+		tagSize := blockLength + 1 + mathrand.Intn(12)
+		nonceSize := 1 + mathrand.Intn(16)
+		key := make([]byte, blockLength)
+		defer func() {
+			if r := recover(); r == nil {
+				st.Errorf("EAX didn't panic")
+			}
+		}()
+		NewEAXWithNonceAndTagSize(key, nonceSize, tagSize)
+	});
+	t.Run("Should not panic with allowed custom parameters", func(st *testing.T) {
+		key := make([]byte, blockLength)
+		nonceSize := mathrand.Intn(32) + 1
+		tagSize := 12 + mathrand.Intn(blockLength - 11)
+		defer func() {
+			if r := recover(); r != nil {
+				st.Errorf("EAX did panic with allowed parameters")
+			}
+		}()
+		NewEAXWithNonceAndTagSize(key, nonceSize, tagSize)
+
+	});
 }
