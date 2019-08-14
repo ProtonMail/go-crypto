@@ -15,7 +15,7 @@ const (
 )
 
 type eax struct {
-	block     cipher.Block // Only AES-128 supported
+	block     cipher.Block // Only AES-{128, 192, 256} supported
 	tagSize   int          // At least 12 bytes recommended
 	nonceSize int
 }
@@ -34,9 +34,9 @@ func NewEAX(key []byte) eax {
 	}
 }
 
-// NewEAXWithNonceAndTagSize returns an EAX instance with AES-128 and given
-// nonce and tag lengths in bytes. Panics on zero nonceSize and exceedingly
-// long tags.
+// NewEAXWithNonceAndTagSize returns an EAX instance with AES-{keyLength} and
+// given nonce and tag lengths in bytes. Panics on zero nonceSize and
+// exceedingly long tags.
 //
 // We recommend to use at least 12 bytes as tag length (see, for instance,
 // NIST SP 800-38D).
