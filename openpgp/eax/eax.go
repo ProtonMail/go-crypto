@@ -20,14 +20,8 @@ type eax struct {
 	nonceSize int
 }
 
-// NewEAX returns an EAX instance with AES-128 and default parameters.
-// Input key length must equal 128 bits
+// NewEAX returns an EAX instance with AES-{keyLength} and default parameters.
 func NewEAX(key []byte) eax {
-	if len(key) != 16 {
-		panic(
-			`Error: EAX only supports AES-128, currently. Please supply a
-			 128-bit key`)
-	}
 	aesCipher, err := aes.NewCipher(key)
 	if err != nil {
 		panic(err)
@@ -84,9 +78,8 @@ func (e *eax) Encrypt(plaintext, nonce, adata []byte) []byte {
 	omacCiphertext := e.omacT(2, ciphertext)
 
 	tag := make([]byte, e.tagSize)
-	copy(tag, omacCiphertext)
 	for i := 0; i < len(tag); i++ {
-		tag[i] ^= omacNonce[i] ^ omacAdata[i]
+		tag[i] = omacCiphertext[i] ^ omacNonce[i] ^ omacAdata[i]
 	}
 
 	return append(ciphertext, tag...)
@@ -154,13 +147,13 @@ func (e *eax) omac(plaintext []byte) []byte {
 func (e *eax) pad(plaintext, B, P []byte) []byte {
 	// if |M| in {n, 2n, 3n, ...}
 	blockSize := e.block.BlockSize()
-	if len(plaintext)%blockSize == 0 {
-		return rightXorMut(plaintext, B)
+	if len(plaintext) != 0 && len(plaintext)%blockSize == 0  {
+		return rightXor(plaintext, B)
 	}
 
 	// else return (M || 1 || 0^(n−1−(|M| % n))) xor→ P
 	ending := make([]byte, blockSize-len(plaintext)%blockSize)
 	ending[0] = 0x80
 	padded := append(plaintext, ending...)
-	return rightXorMut(padded, P)
+	return rightXor(padded, P)
 }

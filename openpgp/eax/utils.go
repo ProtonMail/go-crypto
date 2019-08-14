@@ -22,9 +22,9 @@ func gfnDouble(input []byte) []byte {
 
 // For any bytes array L, outputs the byte array corresponding to L << 1 in
 // binary.
-func shiftBytesLeft(x []byte) (dst []byte) {
+func shiftBytesLeft(x []byte) []byte {
 	l := len(x)
-	dst = make([]byte, l)
+	dst := make([]byte, l)
 	for i := 0; i < l-1; i++ {
 		dst[i] = x[i] << 1
 		dst[i] = (dst[i] & 0xfe) | (x[i+1] >> 7)
@@ -33,28 +33,13 @@ func shiftBytesLeft(x []byte) (dst []byte) {
 	return dst
 }
 
-// Assume same length of inputs (else see rightXorMut)
-func xorBytes(dst, X, Y []byte) {
-	if len(X) != len(Y) {
-		panic("Different argument length in xorBytes")
-	}
+// XORs smaller input (assumed Y) at the right of the larger input (assumed X)
+func rightXor(X, Y []byte) []byte {
+	offset := len(X) - len(Y)
+	xored := make([]byte, len(X));
+	copy(xored, X)
 	for i := 0; i < len(Y); i++ {
-		dst[i] = X[i] ^ Y[i]
+		xored[offset + i] ^= Y[i]
 	}
-}
-
-// XORs the smaller input at the right of the larger input
-func rightXorMut(X, Y []byte) []byte {
-	offset := len(Y) - len(X)
-	if offset < 0 {
-		return rightXorMut(Y, X)
-	}
-
-	xored := make([]byte, len(Y));
-	copy(xored, Y)
-	for i := 0; i < len(X); i++ {
-		xored[offset + i] ^= X[i]
-	}
-
 	return xored
 }

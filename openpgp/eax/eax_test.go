@@ -120,22 +120,26 @@ func TestDecryptTestVectors(t *testing.T) {
 func TestEncryptDecryptRandVectors(t *testing.T) {
 	iterations := 25
 	maxLength := 1024
-	for i := 0; i < iterations; i++ {
-		pt := make([]byte, mathrand.Intn(maxLength))
-		header := make([]byte, mathrand.Intn(maxLength))
-		key := make([]byte, blockLength)
-		nonce := make([]byte, 1 + mathrand.Intn(maxLength))
-		// Populate items with crypto/rand
-		rand.Read(pt); rand.Read(header); rand.Read(key); rand.Read(nonce)
+	// Considering AES
+	allowedKeyLengths := []int{16, 24, 32}
+	for _, keyLength := range allowedKeyLengths {
+		for i := 0; i < iterations; i++ {
+			pt := make([]byte, mathrand.Intn(maxLength))
+			header := make([]byte, mathrand.Intn(maxLength))
+			key := make([]byte, keyLength)
+			nonce := make([]byte, 1 + mathrand.Intn(maxLength))
+			// Populate items with crypto/rand
+			rand.Read(pt); rand.Read(header); rand.Read(key); rand.Read(nonce)
 
-		eax := NewEAX(key)
-		ct := eax.Encrypt(pt, nonce, header)
-		decrypted := eax.Decrypt(ct, nonce, header)
-		if !bytes.Equal(pt, decrypted) {
-			t.Errorf(
-			`Random vectors Encrypt/Decrypt error (plaintexts don't match):
-			Got:  %x
-			Want: %x`, pt, decrypted)
+			eax := NewEAX(key)
+			ct := eax.Encrypt(pt, nonce, header)
+			decrypted := eax.Decrypt(ct, nonce, header)
+			if !bytes.Equal(pt, decrypted) {
+				t.Errorf(
+				`Random vectors Encrypt/Decrypt error (plaintexts don't match):
+				Got:  %x
+				Want: %x`, pt, decrypted)
+			}
 		}
 	}
 }
