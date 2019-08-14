@@ -1,5 +1,10 @@
 // Copyright (C) 2019 ProtonTech AG
-// [1]  https://web.cs.ucdavis.edu/~rogaway/papers/eax.pdf
+
+// Package eax provides an implementation of the EAX
+// (encrypt-authenticate-translate) mode of operation, as described in
+// [1] Bellare, Rogaway, and Wagner. "The EAX mode of operation: A two-pass
+// authenticated-encryption scheme optimized for simplicity and efficiency."
+// In FSE'04, volume 3017 of LNCS, 2004.
 
 package eax
 
@@ -20,7 +25,8 @@ type eax struct {
 	nonceSize int
 }
 
-// NewEAX returns an EAX instance with AES-{keyLength} and default parameters.
+// NewEAX returns an EAX instance with AES-{keyLength} and default tag and
+// nonce lengths.
 func NewEAX(key []byte) eax {
 	aesCipher, err := aes.NewCipher(key)
 	if err != nil {
@@ -38,7 +44,7 @@ func NewEAX(key []byte) eax {
 // given nonce and tag lengths in bytes. Panics on zero nonceSize and
 // exceedingly long tags.
 //
-// We recommend to use at least 12 bytes as tag length (see, for instance,
+// It is recommended to use at least 12 bytes as tag length (see, for instance,
 // NIST SP 800-38D).
 //
 // Only to be used for compatibility with existing cryptosystems with
@@ -64,7 +70,8 @@ func (e *eax) TagSize() int {
 	return e.tagSize
 }
 
-// Encrypt function (see [1]). Returns Ciphertext || Tag
+// Encrypt function (see [1]). Returns a byte array containing the concatenation
+// of the ciphertext and the validation tag.
 func (e *eax) Encrypt(plaintext, nonce, adata []byte) []byte {
 
 	omacNonce := e.omacT(0, nonce)
@@ -85,7 +92,8 @@ func (e *eax) Encrypt(plaintext, nonce, adata []byte) []byte {
 	return append(ciphertext, tag...)
 }
 
-// Decrypt function (see [1]). If tag is invalid, returns nil
+// Decrypt function (see [1]). If the input tag (contained at the end of the
+// ciphertext) is invalid, returns nil.
 func (e *eax) Decrypt(ciphertext, nonce, adata []byte) []byte {
 	if len(ciphertext) < e.TagSize() {
 		return nil
