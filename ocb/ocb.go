@@ -87,7 +87,7 @@ func (o *ocb) TagSize() int {
 }
 
 // Seal (AEAD interface) returns a byte array containing the concatenation of
-// the ciphertext and the validation tag.
+// the ciphertext and the validation tag. It appends the result to dst.
 func (o *ocb) Seal(dst, nonce, plaintext, adata []byte) []byte {
 	if len(nonce) > o.nonceSize {
 		panic("crypto/ocb: Incorrect nonce length given to OCB")
@@ -97,10 +97,8 @@ func (o *ocb) Seal(dst, nonce, plaintext, adata []byte) []byte {
 	return ret
 }
 
-// Open (AEAD interface) returns a byte array containing the plaintext, and an
-// error. If the input tag (contained at the end of the ciphertext) is valid,
-// it returns the pair (plaintext, nil). If the tag is invalid, it returns
-// (nil, error).
+// Open (AEAD interface) returns a byte array containing the plaintext and the
+// eventual error. It appends the result to dst.
 func (o *ocb) Open(dst, nonce, ciphertext, adata []byte) ([]byte, error) {
 	if len(nonce) > o.nonceSize {
 		panic("Nonce too long for this instance")
@@ -180,7 +178,6 @@ func (o *ocb) crypt(instruction string, Y, nonce, adata, X []byte) []byte {
 			byteutil.XorBytesMut(checksum, blockY)
 		}
 	}
-
 	//
 	// Process any final partial block and compute raw tag
 	//

@@ -69,8 +69,8 @@ func NewEAXWithNonceAndTagSize(
 	}, nil
 }
 
-// Seal (AEAD interface) returns a byte array containing the
-// concatenation of the ciphertext and the validation tag.
+// Seal (AEAD interface) returns a byte array containing the concatenation of
+// the ciphertext and the validation tag. It appends the result to dst.
 func (e *eax) Seal(dst, nonce, plaintext, adata []byte) []byte {
 	if len(nonce) > e.nonceSize {
 		panic("crypto/eax: Nonce too long for this instance")
@@ -94,7 +94,7 @@ func (e *eax) Seal(dst, nonce, plaintext, adata []byte) []byte {
 }
 
 // Open (the AEAD interface) returns a byte array containing the plaintext and
-// the eventual authentication error.
+// the eventual authentication error. Appends the result to dst.
 func (e* eax) Open(dst, nonce, ciphertext, adata []byte) ([]byte, error) {
 	if len(nonce) > e.nonceSize {
 		panic("crypto/eax: Nonce too long for this instance")
@@ -103,13 +103,11 @@ func (e* eax) Open(dst, nonce, ciphertext, adata []byte) ([]byte, error) {
 		return nil, errors.New("crypto/ocb: Ciphertext shorter than tag length")
 	}
 	sep := len(ciphertext) - e.tagSize
-	ciphertextData := ciphertext[:sep]
-	inputTag := ciphertext[sep:]
 
 	// Compute tag
 	omacNonce := e.omacT(0, nonce)
 	omacAdata := e.omacT(1, adata)
-	omacCiphertext := e.omacT(2, ciphertextData)
+	omacCiphertext := e.omacT(2, ciphertext[:sep])
 
 	tag := make([]byte, e.tagSize)
 	for i := 0; i < e.tagSize; i++ {
@@ -117,14 +115,14 @@ func (e* eax) Open(dst, nonce, ciphertext, adata []byte) ([]byte, error) {
 	}
 
 	// Compare tags
-	if !bytes.Equal(tag, inputTag) {
+	if !bytes.Equal(tag, ciphertext[sep:]) {
 		return nil, errors.New("crypto/ocb: Tag authentication failed")
 	}
 
 	// Decrypt ciphertext
 	ret, out := byteutil.SliceForAppend(dst, len(ciphertext))
 	ctr := cipher.NewCTR(e.block, omacNonce)
-	ctr.XORKeyStream(out, ciphertextData)
+	ctr.XORKeyStream(out, ciphertext[:sep])
 
 	return ret[:sep], nil
 }
