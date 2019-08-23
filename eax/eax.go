@@ -53,14 +53,14 @@ func NewEAX(key []byte) (cipher.AEAD, error) {
 func NewEAXWithNonceAndTagSize(
 	key []byte, nonceSize, tagSize int) (cipher.AEAD, error) {
 	if nonceSize < 1 {
-		return nil, eaxError("Cannot initialize EAX with nonceSize = 0")
+		return nil, errors.New("crypto/ocb: Cannot initialize EAX with nonceSize = 0")
 	}
 	aesCipher, err := aes.NewCipher(key)
 	if err != nil {
 		panic(err)
 	}
 	if tagSize > aesCipher.BlockSize() {
-		return nil, eaxError("Custom tag length exceeds blocksize")
+		return nil, errors.New("crypto/ocb: Custom tag length exceeds blocksize")
 	}
 	return &eax{
 		block:     aesCipher,
@@ -75,22 +75,22 @@ func (e *eax) Seal(dst, nonce, plaintext, adata []byte) []byte {
 	if len(nonce) > e.nonceSize {
 		panic("crypto/eax: Nonce too long for this instance")
 	}
+	ret, out := byteutil.SliceForAppend(dst, len(plaintext) + e.tagSize)
 	omacNonce := e.omacT(0, nonce)
 	omacAdata := e.omacT(1, adata)
 
 	// Encrypt message using CTR mode and omacNonce as IV
 	ctr := cipher.NewCTR(e.block, omacNonce)
-	ciphertext := make([]byte, len(plaintext))
-	ctr.XORKeyStream(ciphertext, plaintext)
+	ciphertextData := out[:len(plaintext)]
+	ctr.XORKeyStream(ciphertextData, plaintext)
 
-	omacCiphertext := e.omacT(2, ciphertext)
+	omacCiphertext := e.omacT(2, ciphertextData)
 
-	tag := make([]byte, e.tagSize)
+	tag := out[len(plaintext):]
 	for i := 0; i < e.tagSize; i++ {
 		tag[i] = omacCiphertext[i] ^ omacNonce[i] ^ omacAdata[i]
 	}
-
-	return append(ciphertext, tag...)
+	return ret
 }
 
 // Open (the AEAD interface) returns a byte array containing the plaintext and
@@ -100,15 +100,16 @@ func (e* eax) Open(dst, nonce, ciphertext, adata []byte) ([]byte, error) {
 		panic("crypto/eax: Nonce too long for this instance")
 	}
 	if len(ciphertext) < e.tagSize {
-		return nil, eaxError("EAX: Ciphertext shorter than tag length")
+		return nil, errors.New("crypto/ocb: Ciphertext shorter than tag length")
 	}
-
-	ct := ciphertext[:len(ciphertext)-e.tagSize]
+	sep := len(ciphertext) - e.tagSize
+	ciphertextData := ciphertext[:sep]
+	inputTag := ciphertext[sep:]
 
 	// Compute tag
 	omacNonce := e.omacT(0, nonce)
 	omacAdata := e.omacT(1, adata)
-	omacCiphertext := e.omacT(2, ct)
+	omacCiphertext := e.omacT(2, ciphertextData)
 
 	tag := make([]byte, e.tagSize)
 	for i := 0; i < e.tagSize; i++ {
@@ -116,17 +117,16 @@ func (e* eax) Open(dst, nonce, ciphertext, adata []byte) ([]byte, error) {
 	}
 
 	// Compare tags
-	inputTag := ciphertext[len(ciphertext)-e.tagSize:]
 	if !bytes.Equal(tag, inputTag) {
-		return nil, eaxError("EAX: Tag authentication failed")
+		return nil, errors.New("crypto/ocb: Tag authentication failed")
 	}
 
 	// Decrypt ciphertext
+	ret, out := byteutil.SliceForAppend(dst, len(ciphertext))
 	ctr := cipher.NewCTR(e.block, omacNonce)
-	plaintext := make([]byte, len(ct))
-	ctr.XORKeyStream(plaintext, ct)
+	ctr.XORKeyStream(out, ciphertextData)
 
-	return plaintext, nil
+	return ret[:sep], nil
 }
 
 // Tweakable OMAC - Calls OMAC_K([t]_n || plaintext)
@@ -167,8 +167,4 @@ func (e *eax) pad(plaintext, B, P []byte) []byte {
 	ending[0] = 0x80
 	padded := append(plaintext, ending...)
 	return byteutil.RightXor(padded, P)
-}
-
-func eaxError(err string) error {
-	return errors.New("crypto/eax: " + err)
 }
