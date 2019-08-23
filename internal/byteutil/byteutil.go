@@ -59,13 +59,12 @@ func XorBytesMut(X, Y []byte) {
 	}
 }
 
-// XorBytes assumes equal input length, returns X XOR Y
-func XorBytes(X, Y []byte) []byte {
-	Z := make([]byte, len(X))
+
+// XorBytes assumes equal input length, puts X XOR Y into Z
+func XorBytes(Z, X, Y []byte) {
 	for i := 0; i < len(X); i++ {
 		Z[i] = X[i] ^ Y[i]
 	}
-	return Z
 }
 
 // XORs smaller input (assumed Y) at the right of the larger input (assumed X)
@@ -78,3 +77,19 @@ func RightXor(X, Y []byte) []byte {
 	}
 	return xored
 }
+
+// SliceForAppend takes a slice and a requested number of bytes. It returns a
+// slice with the contents of the given slice followed by that many bytes and a
+// second slice that aliases into it and contains only the extra bytes. If the
+// original slice has sufficient capacity then no allocation is performed.
+func SliceForAppend(in []byte, n int) (head, tail []byte) {
+	if total := len(in) + n; cap(in) >= total {
+		head = in[:total]
+	} else {
+		head = make([]byte, total)
+		copy(head, in)
+	}
+	tail = head[len(in):]
+	return
+}
+

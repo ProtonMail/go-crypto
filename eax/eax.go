@@ -73,7 +73,7 @@ func NewEAXWithNonceAndTagSize(
 // concatenation of the ciphertext and the validation tag.
 func (e *eax) Seal(dst, nonce, plaintext, adata []byte) []byte {
 	if len(nonce) > e.nonceSize {
-		panic("crypto/eax: Incorrect nonce length given to EAX")
+		panic("crypto/eax: Nonce too long for this instance")
 	}
 	omacNonce := e.omacT(0, nonce)
 	omacAdata := e.omacT(1, adata)
@@ -96,11 +96,11 @@ func (e *eax) Seal(dst, nonce, plaintext, adata []byte) []byte {
 // Open (the AEAD interface) returns a byte array containing the plaintext and
 // the eventual authentication error.
 func (e* eax) Open(dst, nonce, ciphertext, adata []byte) ([]byte, error) {
+	if len(nonce) > e.nonceSize {
+		panic("crypto/eax: Nonce too long for this instance")
+	}
 	if len(ciphertext) < e.tagSize {
 		return nil, eaxError("EAX: Ciphertext shorter than tag length")
-	}
-	if len(nonce) > e.nonceSize {
-		return nil, eaxError("EAX: Nonce too long for this EAX instance")
 	}
 
 	ct := ciphertext[:len(ciphertext)-e.tagSize]
