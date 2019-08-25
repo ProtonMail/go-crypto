@@ -1,7 +1,7 @@
 package ocb
 
 // Second set of test vectors from https://tools.ietf.org/html/rfc7253
-var rfc7253TestVector_taglen96 = struct {
+var rfc7253TestVectorTaglen96 = struct {
 	key, nonce, header, plaintext, ciphertext string
 }{"0F0E0D0C0B0A09080706050403020100",
 		"BBAA9988776655443322110D",

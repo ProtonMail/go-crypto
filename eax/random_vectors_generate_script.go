@@ -12,7 +12,6 @@ import (
 
 // The following scripts create random test vectors for the eax package
 // and writes them to a file.
-
 func generateRandomVectors(t *testing.T) {
 	fmt.Println("Generating new test vectors")
 	mathrand.Seed(time.Now().UnixNano())
@@ -45,10 +44,10 @@ func generateRandomVectors(t *testing.T) {
 		}
 	}
 	str += "}"
-	WriteToFile("random_vectors.go", str)
+	writeToFile("random_vectors.go", str)
 }
 
-func WriteToFile(filename string, data string) error {
+func writeToFile(filename string, data string) error {
 	file, err := os.Create(filename)
 	if err != nil {
 		return err

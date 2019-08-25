@@ -11,7 +11,6 @@
 // lengths. Nonces need not be secret, but MUST NOT be reused.
 // This package only supports underlying block ciphers with 128-bit blocks,
 // such as AES-{128, 192, 256}, but may be extended to other sizes.
-
 package ocb
 
 import (
@@ -31,8 +30,8 @@ type ocb struct {
 
 type mask struct {
 	// L_*, L_$, (L_i)_{i ∈ N}
-	L_ast []byte
-	L_dol []byte
+	lAst []byte
+	lDol []byte
 	L     [][]byte
 }
 
@@ -187,7 +186,7 @@ func (o *ocb) crypt(instruction int, Y, nonce, adata, X []byte) []byte {
 	//
 	tag := make([]byte, blockSize)
 	if len(X)%blockSize != 0 {
-		byteutil.XorBytesMut(offset, o.mask.L_ast)
+		byteutil.XorBytesMut(offset, o.mask.lAst)
 		pad := make([]byte, blockSize)
 		o.block.Encrypt(pad, offset)
 		chunkX := X[blockSize*m:]
@@ -205,13 +204,13 @@ func (o *ocb) crypt(instruction int, Y, nonce, adata, X []byte) []byte {
 			byteutil.XorBytesMut(checksum, paddedX)
 		}
 		byteutil.XorBytes(tag, checksum, offset)
-		byteutil.XorBytesMut(tag, o.mask.L_dol)
+		byteutil.XorBytesMut(tag, o.mask.lDol)
 		o.block.Encrypt(tag, tag)
 		byteutil.XorBytesMut(tag, o.hash(adata))
 		copy(Y[blockSize*m + len(chunkY):], tag[:o.tagSize])
 	} else {
 		byteutil.XorBytes(tag, checksum, offset)
-		byteutil.XorBytesMut(tag, o.mask.L_dol)
+		byteutil.XorBytesMut(tag, o.mask.lDol)
 		o.block.Encrypt(tag, tag)
 		byteutil.XorBytesMut(tag, o.hash(adata))
 		copy(Y[blockSize*m:], tag[:o.tagSize])
@@ -253,7 +252,7 @@ func (o *ocb) hash(adata []byte) []byte {
 	// Process any final partial block; compute final hash value
 	//
 	if len(A)%blockSize != 0 {
-		byteutil.XorBytesMut(offset, o.mask.L_ast)
+		byteutil.XorBytesMut(offset, o.mask.lAst)
 		// Pad block with 1 || 0 ^ 127 - bitlength(a)
 		ending := make([]byte, blockSize-len(A)%blockSize)
 		ending[0] = 0x80
@@ -269,15 +268,15 @@ func initializeMaskTable(block cipher.Block) mask {
 	//
 	// Key-dependent variables
 	//
-	L_ast := make([]byte, block.BlockSize())
-	block.Encrypt(L_ast, L_ast)
-	L_dol := byteutil.GfnDouble(L_ast)
+	lAst := make([]byte, block.BlockSize())
+	block.Encrypt(lAst, lAst)
+	lDol := byteutil.GfnDouble(lAst)
 	L := make([][]byte, 1)
-	L[0] = byteutil.GfnDouble(L_dol)
+	L[0] = byteutil.GfnDouble(lDol)
 
 	return mask{
-		L_ast: L_ast,
-		L_dol: L_dol,
+		lAst: lAst,
+		lDol: lDol,
 		L:     L,
 	}
 }

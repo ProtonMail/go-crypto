@@ -1,4 +1,5 @@
 // This file was automatically generated.
+
 package eax
 
 var randomVectors = []struct {

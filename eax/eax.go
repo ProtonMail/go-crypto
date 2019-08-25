@@ -5,7 +5,6 @@
 // Bellare, Rogaway, and Wagner "THE EAX MODE OF OPERATION: A TWO-PASS
 // AUTHENTICATED-ENCRYPTION SCHEME OPTIMIZED FOR SIMPLICITY AND EFFICIENCY."
 // In FSE'04, volume 3017 of LNCS, 2004
-
 package eax
 
 import (
@@ -35,6 +34,8 @@ func (e *eax) Overhead() int {
 	return e.tagSize
 }
 
+// NewEAX returns an EAX instance with AES-{KEYLENGTH} and default nonce and
+// tag lengths. Supports {128, 192, 256}- bit key length.
 func NewEAX(key []byte) (cipher.AEAD, error) {
 	return NewEAXWithNonceAndTagSize(key, defaultNonceSize, defaultTagSize)
 }
