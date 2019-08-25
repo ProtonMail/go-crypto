@@ -70,7 +70,7 @@ func NewOCBWithNonceAndTagSize(
 		return nil, ocbError("Block cipher must have 128-bit blocks")
 	}
 	if nonceSize < 1 {
-		return nil, ocbError("Incorrect nonce error")
+		return nil, ocbError("Incorrect nonce length")
 	}
 	if nonceSize >= block.BlockSize() {
 		return nil, ocbError("Nonce length exceeds blocksize - 1")

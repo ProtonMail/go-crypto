@@ -6,6 +6,7 @@ package eax
 
 import (
 	"bytes"
+	"crypto/aes"
 	"crypto/rand"
 	"crypto/cipher"
 	"encoding/hex"
@@ -36,7 +37,11 @@ func TestEncryptDecryptEAXTestVectors(t *testing.T) {
 		nonce, _ := hex.DecodeString(test.nonce)
 		targetPt, _ := hex.DecodeString(test.msg)
 		targetCt, _ := hex.DecodeString(test.ciphertext)
-		eax, errEax := NewEAX(key)
+		aesCipher, err := aes.NewCipher(key)
+		if err != nil {
+			panic(err)
+		}
+		eax, errEax := NewEAX(aesCipher)
 		if errEax != nil {
 			panic(errEax)
 		}
@@ -74,7 +79,11 @@ func TestEncryptDecryptGoTestVectors(t *testing.T) {
 		nonce, _ := hex.DecodeString(test.nonce)
 		targetPt, _ := hex.DecodeString(test.plaintext)
 		targetCt, _ := hex.DecodeString(test.ciphertext)
-		eax, errEax := NewEAX(key)
+		aesCipher, err := aes.NewCipher(key)
+		if err != nil {
+			panic(err)
+		}
+		eax, errEax := NewEAX(aesCipher)
 		if errEax != nil {
 			panic(errEax)
 		}
@@ -122,7 +131,11 @@ func TestEncryptDecryptRandomVectorsWithPreviousData(t *testing.T) {
 			rand.Read(nonce)
 			rand.Read(previousData)
 
-			eax, errEax := NewEAX(key)
+			aesCipher, err := aes.NewCipher(key)
+			if err != nil {
+				panic(err)
+			}
+			eax, errEax := NewEAX(aesCipher)
 			if errEax != nil {
 				panic(errEax)
 			}
@@ -153,7 +166,11 @@ func TestRejectTamperedCiphertext(t *testing.T) {
 		rand.Read(header)
 		rand.Read(key)
 		rand.Read(nonce)
-		eax, errEax := NewEAX(key)
+		aesCipher, errAes := aes.NewCipher(key)
+		if errAes != nil {
+			panic(errAes)
+		}
+		eax, errEax := NewEAX(aesCipher)
 		if errEax != nil {
 			panic(errEax)
 		}
@@ -184,13 +201,21 @@ func TestParameters(t *testing.T) {
 				st.Errorf("EAX didn't panic")
 			}
 		}()
-		NewEAX(key)
+		aesCipher, errAes := aes.NewCipher(key)
+		if errAes != nil {
+			panic(errAes)
+		}
+		NewEAX(aesCipher)
 	})
 	t.Run("Should return error on too long tagSize", func(st *testing.T) {
 		tagSize := blockLength + 1 + mathrand.Intn(12)
 		nonceSize := 1 + mathrand.Intn(16)
 		key := make([]byte, blockLength)
-		_, err := NewEAXWithNonceAndTagSize(key, nonceSize, tagSize)
+		aesCipher, errAes := aes.NewCipher(key)
+		if errAes != nil {
+			panic(errAes)
+		}
+		_, err := NewEAXWithNonceAndTagSize(aesCipher, nonceSize, tagSize)
 		if err == nil {
 			st.Errorf("No error was given")
 		}
@@ -199,7 +224,11 @@ func TestParameters(t *testing.T) {
 		key := make([]byte, blockLength)
 		nonceSize := mathrand.Intn(32) + 1
 		tagSize := 12 + mathrand.Intn(blockLength-11)
-		_, err := NewEAXWithNonceAndTagSize(key, nonceSize, tagSize)
+		aesCipher, errAes := aes.NewCipher(key)
+		if errAes != nil {
+			panic(errAes)
+		}
+		_, err := NewEAXWithNonceAndTagSize(aesCipher, nonceSize, tagSize)
 		if err != nil {
 			st.Errorf("An error was returned")
 		}
@@ -218,7 +247,11 @@ func BenchmarkEncrypt(b *testing.B) {
 	rand.Read(header)
 	rand.Read(key)
 	rand.Read(nonce)
-	eax, errEax:= NewEAX(key)
+	aesCipher, errAes := aes.NewCipher(key)
+	if errAes != nil {
+		panic(errAes)
+	}
+	eax, errEax:= NewEAX(aesCipher)
 	if errEax != nil {
 		panic(errEax)
 	}
@@ -239,7 +272,11 @@ func BenchmarkDecrypt(b *testing.B) {
 	rand.Read(header)
 	rand.Read(key)
 	rand.Read(nonce)
-	eax, errEax:= NewEAX(key)
+	aesCipher, errAes := aes.NewCipher(key)
+	if errAes != nil {
+		panic(errAes)
+	}
+	eax, errEax:= NewEAX(aesCipher)
 	if errEax != nil {
 		panic(errEax)
 	}

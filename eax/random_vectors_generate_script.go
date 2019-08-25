@@ -1,6 +1,7 @@
 package eax
 
 import (
+	"crypto/aes"
 	"crypto/rand"
 	"fmt"
 	"io"
@@ -32,7 +33,11 @@ func generateRandomVectors(t *testing.T) {
 			rand.Read(header)
 			rand.Read(key)
 			rand.Read(nonce)
-			eax, errEax := NewEAX(key)
+			aesCipher, err := aes.NewCipher(key)
+			if err != nil {
+				panic(err)
+			}
+			eax, errEax := NewEAX(aesCipher)
 			if errEax != nil {
 				panic(errEax)
 			}

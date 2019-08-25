@@ -8,7 +8,6 @@
 package eax
 
 import (
-	"crypto/aes"
 	"crypto/cipher"
 	"crypto/subtle"
 	"errors"
@@ -36,8 +35,8 @@ func (e *eax) Overhead() int {
 
 // NewEAX returns an EAX instance with AES-{KEYLENGTH} and default nonce and
 // tag lengths. Supports {128, 192, 256}- bit key length.
-func NewEAX(key []byte) (cipher.AEAD, error) {
-	return NewEAXWithNonceAndTagSize(key, defaultNonceSize, defaultTagSize)
+func NewEAX(block cipher.Block) (cipher.AEAD, error) {
+	return NewEAXWithNonceAndTagSize(block, defaultNonceSize, defaultTagSize)
 }
 
 // NewEAXWithNonceAndTagSize returns an EAX instance with AES-{keyLength} and
@@ -50,19 +49,18 @@ func NewEAX(key []byte) (cipher.AEAD, error) {
 // Only to be used for compatibility with existing cryptosystems with
 // non-standard parameters. For all other cases, prefer NewEAX.
 func NewEAXWithNonceAndTagSize(
-	key []byte, nonceSize, tagSize int) (cipher.AEAD, error) {
+	block cipher.Block, nonceSize, tagSize int) (cipher.AEAD, error) {
+	if block.BlockSize() != 16 {
+		return nil, eaxError("Block cipher must have 128-bit blocks")
+	}
 	if nonceSize < 1 {
 		return nil, eaxError("Cannot initialize EAX with nonceSize = 0")
 	}
-	aesCipher, err := aes.NewCipher(key)
-	if err != nil {
-		panic(err)
-	}
-	if tagSize > aesCipher.BlockSize() {
+	if tagSize > block.BlockSize() {
 		return nil, eaxError("Custom tag length exceeds blocksize")
 	}
 	return &eax{
-		block:     aesCipher,
+		block:     block,
 		tagSize:   tagSize,
 		nonceSize: nonceSize,
 	}, nil
