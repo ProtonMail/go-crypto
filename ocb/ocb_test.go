@@ -94,7 +94,7 @@ func TestEncryptDecryptRFC7253TestVectors(t *testing.T) {
 }
 
 func TestEncryptDecryptRFC7253TagLen96(t *testing.T) {
-	test := rfc7253TestVector_taglen96
+	test := rfc7253TestVectorTaglen96
 	key, _ := hex.DecodeString(test.key)
 	nonce, _ := hex.DecodeString(test.nonce)
 	adata, _ := hex.DecodeString(test.header)
