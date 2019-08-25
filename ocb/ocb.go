@@ -15,8 +15,8 @@
 package ocb
 
 import (
-	"bytes"
 	"crypto/cipher"
+	"crypto/subtle"
 	"errors"
 	"golang.org/x/crypto/internal/byteutil"
 	"math/bits"
@@ -116,9 +116,12 @@ func (o *ocb) Open(dst, nonce, ciphertext, adata []byte) ([]byte, error) {
 	ciphertextData := ciphertext[:sep]
 	tag := ciphertext[sep:]
 	o.crypt(dec, out, nonce, adata, ciphertextData)
-	if bytes.Equal(tag, ret[sep:]) {
+	if subtle.ConstantTimeCompare(ret[sep:], tag) == 1 {
 		ret = ret[:sep]
 		return ret, nil
+	}
+	for i := range out {
+		out[i] = 0
 	}
 	return nil, ocbError("Tag authentication failed")
 }

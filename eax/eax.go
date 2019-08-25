@@ -9,9 +9,9 @@
 package eax
 
 import (
-	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/subtle"
 	"errors"
 	"golang.org/x/crypto/internal/byteutil"
 )
@@ -113,7 +113,7 @@ func (e* eax) Open(dst, nonce, ciphertext, adata []byte) ([]byte, error) {
 	}
 
 	// Compare tags
-	if !bytes.Equal(tag, ciphertext[sep:]) {
+	if subtle.ConstantTimeCompare(ciphertext[sep:], tag) != 1 {
 		return nil, eaxError("Tag authentication failed")
 	}
 
