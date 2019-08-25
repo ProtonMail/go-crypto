@@ -67,8 +67,6 @@ func NewEAXWithNonceAndTagSize(
 	}, nil
 }
 
-// Seal (AEAD interface) returns a byte array containing the concatenation of
-// the ciphertext and the validation tag. It appends the result to dst.
 func (e *eax) Seal(dst, nonce, plaintext, adata []byte) []byte {
 	if len(nonce) > e.nonceSize {
 		panic("crypto/eax: Nonce too long for this instance")
@@ -91,8 +89,6 @@ func (e *eax) Seal(dst, nonce, plaintext, adata []byte) []byte {
 	return ret
 }
 
-// Open (the AEAD interface) returns a byte array containing the plaintext and
-// the eventual authentication error. Appends the result to dst.
 func (e* eax) Open(dst, nonce, ciphertext, adata []byte) ([]byte, error) {
 	if len(nonce) > e.nonceSize {
 		panic("crypto/eax: Nonce too long for this instance")

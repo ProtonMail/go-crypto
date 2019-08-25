@@ -230,7 +230,7 @@ func TestEncryptDecryptGoTestVectors(t *testing.T) {
 	}
 }
 
-func TestEncryptDecryptRandVectors(t *testing.T) {
+func TestEncryptDecryptRandVectorsWithPreviousData(t *testing.T) {
 	mathrand.Seed(time.Now().UnixNano())
 	allowedKeyLengths := []int{16, 24, 32}
 	for _, keyLength := range allowedKeyLengths {
@@ -240,12 +240,13 @@ func TestEncryptDecryptRandVectors(t *testing.T) {
 			key := make([]byte, keyLength)
 			// Testing for short nonces but take notice they are not recommended
 			nonce := make([]byte, 1+mathrand.Intn(blockLength-1))
+			previousData := make([]byte, mathrand.Intn(maxLength)-2*blockLength)
 			// Populate items with crypto/rand
 			rand.Read(pt)
 			rand.Read(header)
 			rand.Read(key)
 			rand.Read(nonce)
-			// Considering AES
+			rand.Read(previousData)
 			aesCipher, err := aes.NewCipher(key)
 			if err != nil {
 				panic(err)
@@ -254,15 +255,18 @@ func TestEncryptDecryptRandVectors(t *testing.T) {
 			if errO != nil {
 				panic(errO)
 			}
-			ct := ocb.Seal(nil, nonce, pt, header)
+			newData := ocb.Seal(previousData, nonce, pt, header)
+			ct := newData[len(previousData):]
 			decrypted, err := ocb.Open(nil, nonce, ct, header)
 			if err != nil {
 				t.Errorf(
-					`Decrypt refused valid tag (not displaying very long output)`)
+					`Decrypt refused valid tag (not displaying long output)`)
+					break
 			}
 			if !bytes.Equal(pt, decrypted) {
 				t.Errorf(
 					`Random Encrypt/Decrypt error (plaintexts don't match)`)
+					break
 			}
 		}
 	}

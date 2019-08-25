@@ -105,7 +105,7 @@ func TestEncryptDecryptGoTestVectors(t *testing.T) {
 }
 
 // Generates random examples and tests correctness
-func TestEncryptDecryptRandomVectors(t *testing.T) {
+func TestEncryptDecryptRandomVectorsWithPreviousData(t *testing.T) {
 	// Considering AES
 	allowedKeyLengths := []int{16, 24, 32}
 	for _, keyLength := range allowedKeyLengths {
@@ -114,25 +114,30 @@ func TestEncryptDecryptRandomVectors(t *testing.T) {
 			header := make([]byte, mathrand.Intn(maxLength))
 			key := make([]byte, keyLength)
 			nonce := make([]byte, 1+mathrand.Intn(blockLength))
+			previousData := make([]byte, mathrand.Intn(maxLength)-2*blockLength)
 			// Populate items with crypto/rand
 			rand.Read(pt)
 			rand.Read(header)
 			rand.Read(key)
 			rand.Read(nonce)
+			rand.Read(previousData)
 
 			eax, errEax := NewEAX(key)
 			if errEax != nil {
 				panic(errEax)
 			}
-			ct := eax.Seal(nil, nonce, pt, header)
+			newData := eax.Seal(previousData, nonce, pt, header)
+			ct := newData[len(previousData):]
 			decrypted, err := eax.Open(nil, nonce, ct, header)
 			if err != nil {
 				t.Errorf(
-					`Decrypt refused valid tag (not displaying very long output)`)
+					`Decrypt refused valid tag (not displaying long output)`)
+					break
 			}
 			if !bytes.Equal(pt, decrypted) {
 				t.Errorf(
 					`Random Encrypt/Decrypt error (plaintexts don't match)`)
+					break
 			}
 		}
 	}
@@ -162,6 +167,7 @@ func TestRejectTamperedCiphertext(t *testing.T) {
 		_, err := eax.Open(nil, nonce, tampered, header)
 		if err == nil {
 			t.Errorf(`Tampered ciphertext was not refused decryption`)
+			break
 		}
 	}
 }
