@@ -41,6 +41,11 @@ const (
 	defaultNonceSize = 15
 )
 
+const (
+	enc = iota
+	dec
+)
+
 func (o *ocb) NonceSize() int {
 	return o.nonceSize
 }
@@ -63,16 +68,16 @@ func NewOCB(block cipher.Block) (cipher.AEAD, error) {
 func NewOCBWithNonceAndTagSize(
 	block cipher.Block, nonceSize, tagSize int) (cipher.AEAD, error) {
 	if block.BlockSize() != 16 {
-		return nil, errors.New("crypto/ocb: Block cipher must have 128-bit blocks")
+		return nil, ocbError("Block cipher must have 128-bit blocks")
 	}
 	if nonceSize < 1 {
-		return nil, errors.New("crypto/ocb: Incorrect nonce error")
+		return nil, ocbError("Incorrect nonce error")
 	}
 	if nonceSize >= block.BlockSize() {
-		return nil, errors.New("crypto/ocb: Nonce length exceeds blocksize - 1")
+		return nil, ocbError("Nonce length exceeds blocksize - 1")
 	}
 	if tagSize > block.BlockSize() {
-		return nil, errors.New("crypto/ocb: Custom tag length exceeds blocksize")
+		return nil, ocbError("Custom tag length exceeds blocksize")
 	}
 	return &ocb{
 		block:     block,
@@ -93,7 +98,7 @@ func (o *ocb) Seal(dst, nonce, plaintext, adata []byte) []byte {
 		panic("crypto/ocb: Incorrect nonce length given to OCB")
 	}
 	ret, out := byteutil.SliceForAppend(dst, len(plaintext) + o.tagSize)
-	o.crypt("enc", out, nonce, adata, plaintext)
+	o.crypt(enc, out, nonce, adata, plaintext)
 	return ret
 }
 
@@ -104,28 +109,28 @@ func (o *ocb) Open(dst, nonce, ciphertext, adata []byte) ([]byte, error) {
 		panic("Nonce too long for this instance")
 	}
 	if len(ciphertext) < o.tagSize {
-		return nil, errors.New("crypto/ocb: Ciphertext shorter than tag length")
+		return nil, ocbError("Ciphertext shorter than tag length")
 	}
 	sep := len(ciphertext) - o.tagSize
 	ret, out := byteutil.SliceForAppend(dst, len(ciphertext))
 	ciphertextData := ciphertext[:sep]
 	tag := ciphertext[sep:]
-	o.crypt("dec", out, nonce, adata, ciphertextData)
+	o.crypt(dec, out, nonce, adata, ciphertextData)
 	if bytes.Equal(tag, ret[sep:]) {
 		ret = ret[:sep]
 		return ret, nil
 	}
-	return nil, errors.New("crypto/ocb: Tag authentication failed")
+	return nil, ocbError("Tag authentication failed")
 }
 
-// On instruction == "enc" (resp. "dec"), crypt is the encrypt (resp. decrypt)
+// On instruction enc (resp. dec), crypt is the encrypt (resp. decrypt)
 // function. It returns the resulting plain/ciphertext with the tag appended.
-func (o *ocb) crypt(instruction string, Y, nonce, adata, X []byte) []byte {
+func (o *ocb) crypt(instruction int, Y, nonce, adata, X []byte) []byte {
 	//
 	// Consider X as a sequence of 128-bit blocks
 	//
-	// Note: For encryption X is the plaintext, for decryption X is the
-	// ciphertext without the tag.
+	// Note: For encryption (resp. decryption), X is the plaintext (resp., the
+	// ciphertext without the tag).
 	blockSize := o.block.BlockSize()
 
 	//
@@ -168,11 +173,11 @@ func (o *ocb) crypt(instruction string, Y, nonce, adata, X []byte) []byte {
 		blockY := Y[i*blockSize : (i+1)*blockSize]
 		byteutil.XorBytes(blockY, blockX, offset)
 		switch instruction {
-		case "enc":
+		case enc:
 			o.block.Encrypt(blockY, blockY)
 			byteutil.XorBytesMut(blockY, offset)
 			byteutil.XorBytesMut(checksum, blockX)
-		case "dec":
+		case dec:
 			o.block.Decrypt(blockY, blockY)
 			byteutil.XorBytesMut(blockY, offset)
 			byteutil.XorBytesMut(checksum, blockY)
@@ -187,16 +192,15 @@ func (o *ocb) crypt(instruction string, Y, nonce, adata, X []byte) []byte {
 		pad := make([]byte, blockSize)
 		o.block.Encrypt(pad, offset)
 		chunkX := X[blockSize*m:]
-		chunkY := Y[blockSize*m:blockSize*m + len(X)%blockSize]
+		chunkY := Y[blockSize*m: len(X)]
 		byteutil.XorBytes(chunkY, chunkX, pad[:len(chunkX)])
-		// chunkY := byteutil.XorBytes(chunkX, pad[:len(chunkX)])
 		// P_* || bit(1) || zeroes(127) - len(P_*)
 		switch instruction {
-		case "enc":
+		case enc:
 			paddedY := append(chunkX, byte(128))
 			paddedY = append(paddedY, make([]byte, blockSize-len(chunkX)-1)...)
 			byteutil.XorBytesMut(checksum, paddedY)
-		case "dec":
+		case dec:
 			paddedX := append(chunkY, byte(128))
 			paddedX = append(paddedX, make([]byte, blockSize-len(chunkY)-1)...)
 			byteutil.XorBytesMut(checksum, paddedX)
@@ -284,4 +288,8 @@ func (m *mask) extendTable(limit int) {
 	for i := len(m.L); i <= limit; i++ {
 		m.L = append(m.L, byteutil.GfnDouble(m.L[i-1]))
 	}
+}
+
+func ocbError(err string) error {
+	return errors.New("crypto/ocb: " + err)
 }

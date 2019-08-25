@@ -35,8 +35,6 @@ func (e *eax) Overhead() int {
 	return e.tagSize
 }
 
-// NewEAX returns an EAX instance with AES-{keyLength} and default tag and
-// nonce lengths.
 func NewEAX(key []byte) (cipher.AEAD, error) {
 	return NewEAXWithNonceAndTagSize(key, defaultNonceSize, defaultTagSize)
 }
@@ -53,14 +51,14 @@ func NewEAX(key []byte) (cipher.AEAD, error) {
 func NewEAXWithNonceAndTagSize(
 	key []byte, nonceSize, tagSize int) (cipher.AEAD, error) {
 	if nonceSize < 1 {
-		return nil, errors.New("crypto/ocb: Cannot initialize EAX with nonceSize = 0")
+		return nil, eaxError("Cannot initialize EAX with nonceSize = 0")
 	}
 	aesCipher, err := aes.NewCipher(key)
 	if err != nil {
 		panic(err)
 	}
 	if tagSize > aesCipher.BlockSize() {
-		return nil, errors.New("crypto/ocb: Custom tag length exceeds blocksize")
+		return nil, eaxError("Custom tag length exceeds blocksize")
 	}
 	return &eax{
 		block:     aesCipher,
@@ -100,7 +98,7 @@ func (e* eax) Open(dst, nonce, ciphertext, adata []byte) ([]byte, error) {
 		panic("crypto/eax: Nonce too long for this instance")
 	}
 	if len(ciphertext) < e.tagSize {
-		return nil, errors.New("crypto/ocb: Ciphertext shorter than tag length")
+		return nil, eaxError("Ciphertext shorter than tag length")
 	}
 	sep := len(ciphertext) - e.tagSize
 
@@ -116,7 +114,7 @@ func (e* eax) Open(dst, nonce, ciphertext, adata []byte) ([]byte, error) {
 
 	// Compare tags
 	if !bytes.Equal(tag, ciphertext[sep:]) {
-		return nil, errors.New("crypto/ocb: Tag authentication failed")
+		return nil, eaxError("Tag authentication failed")
 	}
 
 	// Decrypt ciphertext
@@ -165,4 +163,8 @@ func (e *eax) pad(plaintext, B, P []byte) []byte {
 	ending[0] = 0x80
 	padded := append(plaintext, ending...)
 	return byteutil.RightXor(padded, P)
+}
+
+func eaxError(err string) error {
+	return errors.New("crypto/eax: " + err)
 }
