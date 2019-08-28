@@ -113,6 +113,69 @@ func TestEncryptDecryptGoTestVectors(t *testing.T) {
 	}
 }
 
+func TestNewEaxIncorrectNonceLength(t *testing.T) {
+	aesCipher, err := aes.NewCipher(make([]byte, 16))
+	if err != nil {
+		panic(err)
+	}
+	e, errEax := NewEAXWithNonceAndTagSize(aesCipher, 0, 16)
+	if errEax == nil || e != nil {
+		t.Errorf("EAX with nonceLength 0 was not rejected")
+	}
+}
+
+func TestSealIncorrectNonceLength(t *testing.T) {
+	aesCipher, err := aes.NewCipher(make([]byte, 16))
+	if err != nil {
+		panic(err)
+	}
+	e, errEax := NewEAXWithNonceAndTagSize(aesCipher, 16, 16)
+	if errEax != nil {
+		panic(errEax)
+	}
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("Eax.Seal didn't panic on exceedingly long nonce")
+		}
+	}()
+	longNonce := make([]byte, e.NonceSize() + 1)
+	e.Seal(nil, longNonce, nil, nil)
+}
+
+func TestOpenIncorrectNonceLength(t *testing.T) {
+	aesCipher, err := aes.NewCipher(make([]byte, 16))
+	if err != nil {
+		panic(err)
+	}
+	e, errEax := NewEAXWithNonceAndTagSize(aesCipher, 16, 16)
+	if errEax != nil {
+		panic(errEax)
+	}
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("Eax.Open didn't panic on exceedingly long nonce")
+		}
+	}()
+	longNonce := make([]byte, e.NonceSize() + 1)
+	e.Open(nil, longNonce, nil, nil)
+}
+
+func TestOpenShortCiphertext(t *testing.T) {
+	aesCipher, err := aes.NewCipher(make([]byte, 16))
+	if err != nil {
+		panic(err)
+	}
+	e, errEax := NewEAXWithNonceAndTagSize(aesCipher, 16, 16)
+	if errEax != nil {
+		panic(errEax)
+	}
+	shortCt := make([]byte, e.Overhead()-1)
+	pt, err := e.Open(nil, nil, nil, shortCt)
+	if pt != nil || err == nil {
+		t.Errorf("Eax.Open processed an exceedingly short ciphertext")
+	}
+}
+
 // Generates random examples and tests correctness
 func TestEncryptDecryptRandomVectorsWithPreviousData(t *testing.T) {
 	// Considering AES
@@ -202,7 +265,7 @@ func TestParameters(t *testing.T) {
 		key := make([]byte, keySize)
 		defer func() {
 			if r := recover(); r == nil {
-				st.Errorf("EAX didn't panic")
+				st.Errorf("Eax didn't panic")
 			}
 		}()
 		aesCipher, errAes := aes.NewCipher(key)
