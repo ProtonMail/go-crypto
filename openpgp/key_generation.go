@@ -110,7 +110,7 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 		PrivateKey: privPrimary,
 		Identities: make(map[string]*Identity),
 	}
-	isPrimaryId := true
+	isPrimaryID := true
 	e.Identities[uid.Id] = &Identity{
 		Name:   uid.Id,
 		UserId: uid,
@@ -119,7 +119,7 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 			SigType:      packet.SigTypePositiveCert,
 			PubKeyAlgo:   primarykeyAlgorithm,
 			Hash:         config.Hash(),
-			IsPrimaryId:  &isPrimaryId,
+			IsPrimaryId:  &isPrimaryID,
 			FlagsValid:   true,
 			FlagSign:     true,
 			FlagCertify:  true,

@@ -102,7 +102,7 @@ func TestDSAHashTruncatation(t *testing.T) {
 	}
 }
 
-func TestGetKeyById(t *testing.T) {
+func TestGetKeyByID(t *testing.T) {
 	kring, _ := ReadKeyRing(readerFromHex(testKeys1And2Hex))
 
 	keys := kring.KeysById(0xa34d7e18c20c31bb)
@@ -297,7 +297,7 @@ func TestSymmetricallyEncrypted(t *testing.T) {
 	}
 }
 
-func testDetachedSignature(t *testing.T, kring KeyRing, signature io.Reader, sigInput, tag string, expectedSignerKeyId uint64) {
+func testDetachedSignature(t *testing.T, kring KeyRing, signature io.Reader, sigInput, tag string, expectedSignerKeyID uint64) {
 	signed := bytes.NewBufferString(sigInput)
 	config := &packet.Config{}
 	signer, err := CheckDetachedSignature(kring, signed, signature, config)
@@ -309,16 +309,16 @@ func testDetachedSignature(t *testing.T, kring KeyRing, signature io.Reader, sig
 		t.Errorf("%s: signer is nil", tag)
 		return
 	}
-	if signer.PrimaryKey.KeyId != expectedSignerKeyId {
-		t.Errorf("%s: wrong signer got:%x want:%x", tag, signer.PrimaryKey.KeyId, expectedSignerKeyId)
+	if signer.PrimaryKey.KeyId != expectedSignerKeyID {
+		t.Errorf("%s: wrong signer got:%x want:%x", tag, signer.PrimaryKey.KeyId, expectedSignerKeyID)
 	}
 }
 
 func TestDetachedSignature(t *testing.T) {
 	kring, _ := ReadKeyRing(readerFromHex(testKeys1And2Hex))
-	testDetachedSignature(t, kring, readerFromHex(detachedSignatureHex), signedInput, "binary", testKey1KeyId)
-	testDetachedSignature(t, kring, readerFromHex(detachedSignatureTextHex), signedInput, "text", testKey1KeyId)
-	testDetachedSignature(t, kring, readerFromHex(detachedSignatureV3TextHex), signedInput, "v3", testKey1KeyId)
+	testDetachedSignature(t, kring, readerFromHex(detachedSignatureHex), signedInput, "binary", testKey1KeyID)
+	testDetachedSignature(t, kring, readerFromHex(detachedSignatureTextHex), signedInput, "text", testKey1KeyID)
+	testDetachedSignature(t, kring, readerFromHex(detachedSignatureV3TextHex), signedInput, "v3", testKey1KeyID)
 
 	incorrectSignedInput := signedInput + "X"
 	config := &packet.Config{}
@@ -333,17 +333,17 @@ func TestDetachedSignature(t *testing.T) {
 
 func TestDetachedSignatureDSA(t *testing.T) {
 	kring, _ := ReadKeyRing(readerFromHex(dsaTestKeyHex))
-	testDetachedSignature(t, kring, readerFromHex(detachedSignatureDSAHex), signedInput, "binary", testKey3KeyId)
+	testDetachedSignature(t, kring, readerFromHex(detachedSignatureDSAHex), signedInput, "binary", testKey3KeyID)
 }
 
 func TestMultipleSignaturePacketsDSA(t *testing.T) {
 	kring, _ := ReadKeyRing(readerFromHex(dsaTestKeyHex))
-	testDetachedSignature(t, kring, readerFromHex(missingHashFunctionHex+detachedSignatureDSAHex), signedInput, "binary", testKey3KeyId)
+	testDetachedSignature(t, kring, readerFromHex(missingHashFunctionHex+detachedSignatureDSAHex), signedInput, "binary", testKey3KeyID)
 }
 
 func TestDetachedSignatureP256(t *testing.T) {
 	kring, _ := ReadKeyRing(readerFromHex(p256TestKeyHex))
-	testDetachedSignature(t, kring, readerFromHex(detachedSignatureP256Hex), signedInput, "binary", testKeyP256KeyId)
+	testDetachedSignature(t, kring, readerFromHex(detachedSignatureP256Hex), signedInput, "binary", testKeyP256KeyID)
 }
 
 func testHashFunctionError(t *testing.T, signatureHex string) {
@@ -483,9 +483,9 @@ func TestSignatureV3Message(t *testing.T) {
 	return
 }
 
-const testKey1KeyId = 0xA34D7E18C20C31BB
-const testKey3KeyId = 0x338934250CCC0360
-const testKeyP256KeyId = 0xd44a2c495918513e
+const testKey1KeyID = 0xA34D7E18C20C31BB
+const testKey3KeyID = 0x338934250CCC0360
+const testKeyP256KeyID = 0xd44a2c495918513e
 
 const signedInput = "Signed message\nline 2\nline 3\n"
 const signedTextInput = "Signed message\r\nline 2\r\nline 3\r\n"

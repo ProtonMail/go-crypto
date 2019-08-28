@@ -87,7 +87,6 @@ func (l *lineBreaker) Close() (err error) {
 			return
 		}
 	}
-
 	return
 }
 
@@ -115,7 +114,11 @@ func (e *encoding) Close() (err error) {
 	if err != nil {
 		return
 	}
-	e.breaker.Close()
+	closeErr := e.breaker.Close()
+	if closeErr != nil {
+		return
+	}
+
 
 	var checksumBytes [3]byte
 	checksumBytes[0] = byte(e.crc >> 16)

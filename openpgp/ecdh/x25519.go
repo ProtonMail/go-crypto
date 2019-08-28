@@ -16,6 +16,8 @@ import (
 	"golang.org/x/crypto/openpgp/internal/ecc"
 )
 
+// X25519GenerateParams generates and returns the parameters specified in RFC
+// 6637, section 8, with the given random reader.
 func X25519GenerateParams(rand io.Reader) (priv [32]byte, x [32]byte, err error) {
 	var n, helper = new (big.Int), new (big.Int)
 	n.SetUint64(1)
@@ -43,6 +45,8 @@ func X25519GenerateParams(rand io.Reader) (priv [32]byte, x [32]byte, err error)
 	return
 }
 
+// X25519GenerateKey generates and returns a private key from the given random
+// reader and KDF, along with an eventual error.
 func X25519GenerateKey(rand io.Reader, kdf KDF) (priv *PrivateKey, err error) {
 	ci := ecc.FindByName("Curve25519")
 	priv = new(PrivateKey)

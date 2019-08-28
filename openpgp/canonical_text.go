@@ -30,16 +30,21 @@ func writeCanonical(cw io.Writer, buf []byte, s *int) (int, error) {
 			if c == '\r' {
 				*s = 1
 			} else if c == '\n' {
-				cw.Write(buf[start:i])
-				cw.Write(newline)
+				_, err1 := cw.Write(buf[start:i])
+				_, err2 := cw.Write(newline)
+				if err1 != nil || err2 != nil {
+					panic("Error writing to io.Writer instance")
+				}
 				start = i + 1
 			}
 		case 1:
 			*s = 0
 		}
 	}
-
-	cw.Write(buf[start:])
+	_, err := cw.Write(buf[start:])
+	if err != nil {
+		panic("Error writing to io.Writer instance")
+	}
 	return len(buf), nil
 }
 

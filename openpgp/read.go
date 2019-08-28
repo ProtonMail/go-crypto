@@ -7,11 +7,9 @@ package openpgp // import "golang.org/x/crypto/openpgp"
 
 import (
 	"crypto"
-	_ "crypto/sha256"
 	"hash"
 	"io"
 	"strconv"
-
 	"golang.org/x/crypto/openpgp/armor"
 	"golang.org/x/crypto/openpgp/errors"
 	"golang.org/x/crypto/openpgp/packet"
@@ -158,7 +156,10 @@ FindKey:
 			}
 			if !pk.key.PrivateKey.Encrypted {
 				if len(pk.encryptedKey.Key) == 0 {
-					pk.encryptedKey.Decrypt(pk.key.PrivateKey, config)
+					err := pk.encryptedKey.Decrypt(pk.key.PrivateKey, config)
+					if err != nil {
+						return nil, err
+					}
 				}
 				if len(pk.encryptedKey.Key) == 0 {
 					continue
@@ -281,11 +282,11 @@ FindLiteralData:
 // should be preprocessed (i.e. to normalize line endings). Thus this function
 // returns two hashes. The second should be used to hash the message itself and
 // performs any needed preprocessing.
-func hashForSignature(hashId crypto.Hash, sigType packet.SignatureType) (hash.Hash, hash.Hash, error) {
-	if !hashId.Available() {
-		return nil, nil, errors.UnsupportedError("hash not available: " + strconv.Itoa(int(hashId)))
+func hashForSignature(hashID crypto.Hash, sigType packet.SignatureType) (hash.Hash, hash.Hash, error) {
+	if !hashID.Available() {
+		return nil, nil, errors.UnsupportedError("hash not available: " + strconv.Itoa(int(hashID)))
 	}
-	h := hashId.New()
+	h := hashID.New()
 
 	switch sigType {
 	case packet.SigTypeBinary:
@@ -372,7 +373,7 @@ func CheckDetachedSignature(keyring KeyRing, signed, signature io.Reader, config
 // CheckDetachedSignatureAndHash performs the same actions as
 // CheckDetachedSignature and checks that the expected hash functions were used.
 func CheckDetachedSignatureAndHash(keyring KeyRing, signed, signature io.Reader, expectedHashes []crypto.Hash, config *packet.Config) (signer *Entity, err error) {
-	var issuerKeyId uint64
+	var issuerKeyID uint64
 	var hashFunc crypto.Hash
 	var sigType packet.SignatureType
 	var keys []Key
@@ -394,11 +395,11 @@ func CheckDetachedSignatureAndHash(keyring KeyRing, signed, signature io.Reader,
 			if sig.IssuerKeyId == nil {
 				return nil, errors.StructuralError("signature doesn't have an issuer")
 			}
-			issuerKeyId = *sig.IssuerKeyId
+			issuerKeyID = *sig.IssuerKeyId
 			hashFunc = sig.Hash
 			sigType = sig.SigType
 		case *packet.SignatureV3:
-			issuerKeyId = sig.IssuerKeyId
+			issuerKeyID = sig.IssuerKeyId
 			hashFunc = sig.Hash
 			sigType = sig.SigType
 		default:
@@ -414,7 +415,7 @@ func CheckDetachedSignatureAndHash(keyring KeyRing, signed, signature io.Reader,
 			}
 		}
 
-		keys = keyring.KeysByIdUsage(issuerKeyId, packet.KeyFlagSign)
+		keys = keyring.KeysByIdUsage(issuerKeyID, packet.KeyFlagSign)
 		if len(keys) > 0 {
 			break
 		}

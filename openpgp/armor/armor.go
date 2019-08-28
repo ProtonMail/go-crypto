@@ -35,6 +35,7 @@ type Block struct {
 	oReader openpgpReader
 }
 
+// ArmorCorrupt is returned if an armor is invalid.
 var ArmorCorrupt error = errors.StructuralError("armor invalid")
 
 const crc24Init = 0xb704ce

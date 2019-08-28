@@ -78,7 +78,10 @@ func detachSign(w io.Writer, signer *Entity, message io.Reader, sigType packet.S
 	if err != nil {
 		return
 	}
-	io.Copy(wrappedHash, message)
+	_, err = io.Copy(wrappedHash, message)
+	if err != nil {
+		return
+	}
 
 	err = sig.Sign(h, signer.PrivateKey, config)
 	if err != nil {
@@ -164,7 +167,7 @@ func hashToHashId(h crypto.Hash) uint8 {
 	return v
 }
 
-// Encrypt encrypts a message to a number of recipients and, optionally, signs
+// EncryptText encrypts a message to a number of recipients and, optionally, signs
 // it. hints contains optional information, that is also encrypted, that aids
 // the recipients in processing the message. The resulting WriteCloser must
 // be closed after the contents of the file have been written.
@@ -205,8 +208,8 @@ func writeAndSign(payload io.WriteCloser, candidateHashes []uint8, signed *Entit
 	}
 
 	var hash crypto.Hash
-	for _, hashId := range candidateHashes {
-		if h, ok := s2k.HashIdToHash(hashId); ok && h.Available() {
+	for _, hashID := range candidateHashes {
+		if h, ok := s2k.HashIdToHash(hashID); ok && h.Available() {
 			hash = h
 			break
 		}
@@ -214,8 +217,8 @@ func writeAndSign(payload io.WriteCloser, candidateHashes []uint8, signed *Entit
 
 	// If the hash specified by config is a candidate, we'll use that.
 	if configuredHash := config.Hash(); configuredHash.Available() {
-		for _, hashId := range candidateHashes {
-			if h, ok := s2k.HashIdToHash(hashId); ok && h == configuredHash {
+		for _, hashID := range candidateHashes {
+			if h, ok := s2k.HashIdToHash(hashID); ok && h == configuredHash {
 				hash = h
 				break
 			}
@@ -223,10 +226,10 @@ func writeAndSign(payload io.WriteCloser, candidateHashes []uint8, signed *Entit
 	}
 
 	if hash == 0 {
-		hashId := candidateHashes[0]
-		name, ok := s2k.HashIdToString(hashId)
+		hashID := candidateHashes[0]
+		name, ok := s2k.HashIdToString(hashID)
 		if !ok {
-			name = "#" + strconv.Itoa(int(hashId))
+			name = "#" + strconv.Itoa(int(hashID))
 		}
 		return nil, errors.InvalidArgumentError("cannot encrypt because no candidate hash functions are compiled in. (Wanted " + name + " in this case.)")
 	}

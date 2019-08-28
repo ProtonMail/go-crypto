@@ -23,7 +23,7 @@ func TestSignDetached(t *testing.T) {
 		t.Error(err)
 	}
 
-	testDetachedSignature(t, kring, out, signedInput, "check", testKey1KeyId)
+	testDetachedSignature(t, kring, out, signedInput, "check", testKey1KeyID)
 }
 
 func TestSignTextDetached(t *testing.T) {
@@ -35,7 +35,7 @@ func TestSignTextDetached(t *testing.T) {
 		t.Error(err)
 	}
 
-	testDetachedSignature(t, kring, out, signedInput, "check", testKey1KeyId)
+	testDetachedSignature(t, kring, out, signedInput, "check", testKey1KeyID)
 }
 
 func TestSignDetachedDSA(t *testing.T) {
@@ -47,7 +47,7 @@ func TestSignDetachedDSA(t *testing.T) {
 		t.Error(err)
 	}
 
-	testDetachedSignature(t, kring, out, signedInput, "check", testKey3KeyId)
+	testDetachedSignature(t, kring, out, signedInput, "check", testKey3KeyID)
 }
 
 func TestSignDetachedP256(t *testing.T) {
@@ -61,7 +61,7 @@ func TestSignDetachedP256(t *testing.T) {
 		t.Error(err)
 	}
 
-	testDetachedSignature(t, kring, out, signedInput, "check", testKeyP256KeyId)
+	testDetachedSignature(t, kring, out, signedInput, "check", testKeyP256KeyID)
 }
 
 func TestNewEntity(t *testing.T) {
@@ -236,9 +236,9 @@ func TestEncryption(t *testing.T) {
 		testTime, _ := time.Parse("2006-01-02", "2013-07-01")
 		if test.isSigned {
 			signKey, _ := kring[0].SigningKey(testTime)
-			expectedKeyId := signKey.PublicKey.KeyId
-			if md.SignedByKeyId != expectedKeyId {
-				t.Errorf("#%d: message signed by wrong key id, got: %v, want: %v", i, *md.SignedBy, expectedKeyId)
+			expectedKeyID := signKey.PublicKey.KeyId
+			if md.SignedByKeyId != expectedKeyID {
+				t.Errorf("#%d: message signed by wrong key id, got: %v, want: %v", i, *md.SignedBy, expectedKeyID)
 			}
 			if md.SignedBy == nil {
 				t.Errorf("#%d: failed to find the signing Entity", i)
@@ -252,9 +252,9 @@ func TestEncryption(t *testing.T) {
 		}
 
 		encryptKey, _ := kring[0].EncryptionKey(testTime)
-		expectedKeyId := encryptKey.PublicKey.KeyId
-		if len(md.EncryptedToKeyIds) != 1 || md.EncryptedToKeyIds[0] != expectedKeyId {
-			t.Errorf("#%d: expected message to be encrypted to %v, but got %#v", i, expectedKeyId, md.EncryptedToKeyIds)
+		expectedKeyID := encryptKey.PublicKey.KeyId
+		if len(md.EncryptedToKeyIds) != 1 || md.EncryptedToKeyIds[0] != expectedKeyID {
+			t.Errorf("#%d: expected message to be encrypted to %v, but got %#v", i, expectedKeyID, md.EncryptedToKeyIds)
 		}
 
 		if string(plaintext) != message {
@@ -334,9 +334,9 @@ func TestSigning(t *testing.T) {
 
 		testTime, _ := time.Parse("2006-01-02", "2013-07-01")
 		signKey, _ := kring[0].SigningKey(testTime)
-		expectedKeyId := signKey.PublicKey.KeyId
-		if md.SignedByKeyId != expectedKeyId {
-			t.Errorf("#%d: message signed by wrong key id, got: %v, want: %v", i, *md.SignedBy, expectedKeyId)
+		expectedKeyID := signKey.PublicKey.KeyId
+		if md.SignedByKeyId != expectedKeyID {
+			t.Errorf("#%d: message signed by wrong key id, got: %v, want: %v", i, *md.SignedBy, expectedKeyID)
 		}
 		if md.SignedBy == nil {
 			t.Errorf("#%d: failed to find the signing Entity", i)
