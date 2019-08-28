@@ -94,7 +94,8 @@ func Encrypt(random io.Reader, pub *PublicKey, msg, curveOID, fingerprint []byte
 
 }
 
-// Decrypt decrypts the given message with the given private key.
+// Decrypt decrypts the given message with the given private key. It returns a
+// plaintext and an eventual error.
 func Decrypt(priv *PrivateKey, vsG, m, curveOID, fingerprint []byte) (msg []byte, err error) {
 	if priv.PublicKey.CurveType == ecc.Curve25519 {
 		return X25519Decrypt(priv, vsG, m, curveOID, fingerprint)

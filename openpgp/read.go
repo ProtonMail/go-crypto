@@ -10,6 +10,7 @@ import (
 	"hash"
 	"io"
 	"strconv"
+
 	"golang.org/x/crypto/openpgp/armor"
 	"golang.org/x/crypto/openpgp/errors"
 	"golang.org/x/crypto/openpgp/packet"

@@ -489,9 +489,6 @@ func TestNewEntityPublicSerialization(t *testing.T) {
 	}
 	serializedEntity := bytes.NewBuffer(nil)
 	err = entity.Serialize(serializedEntity)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	_, err = ReadEntity(packet.NewReader(bytes.NewBuffer(serializedEntity.Bytes())))
 	if err != nil {

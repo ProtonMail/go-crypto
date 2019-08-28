@@ -47,10 +47,7 @@ func TestDecodeEncode(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	errClose := w.Close()
-	if errClose != nil {
-		t.Errorf("error closing the io.WriteCloser instance")
-	}
+	w.Close()
 
 	if !bytes.Equal(buf.Bytes(), []byte(armorExample1)) {
 		t.Errorf("got: %s\nwant: %s", string(buf.Bytes()), armorExample1)
