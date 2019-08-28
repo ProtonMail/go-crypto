@@ -20,7 +20,7 @@ const (
 	maxLength   = 262144
 )
 
-func TestEAXImplementsAEADInterface(t *testing.T) {
+func TestOCBImplementsAEADInterface(t *testing.T) {
 	var ocbInstance ocb
 	var aux interface{} = &ocbInstance
 	_, ok := aux.(cipher.AEAD)
@@ -44,6 +44,71 @@ func TestZeroHash(t *testing.T) {
 	blockSize := o.block.BlockSize()
 	if !bytes.Equal(o.hash(make([]byte, 0)), make([]byte, blockSize)) {
 		t.Errorf("Error: Hash() did not return a correct amount of zero bytes")
+	}
+}
+
+func TestNewOCBIncorrectNonceLength(t *testing.T) {
+	aesCipher, err := aes.NewCipher(make([]byte, 16))
+	if err != nil {
+		panic(err)
+	}
+	e, errOcb := NewOCBWithNonceAndTagSize(aesCipher, 0, 16)
+	if errOcb == nil || e != nil {
+		t.Errorf("OCB with nonceLength 0 was not rejected")
+	}
+}
+
+func TestSealIncorrectNonceLength(t *testing.T) {
+	aesCipher, err := aes.NewCipher(make([]byte, 16))
+	if err != nil {
+		panic(err)
+	}
+	o, errOcb := NewOCBWithNonceAndTagSize(aesCipher, 15, 16)
+	if errOcb != nil {
+		panic(errOcb)
+	}
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("Ocb.Seal didn't panic on exceedingly long nonce")
+		}
+	}()
+	longNonce := make([]byte, o.NonceSize() + 1)
+	o.Seal(nil, longNonce, nil, nil)
+}
+
+func TestOpenIncorrectNonceLength(t *testing.T) {
+	aesCipher, err := aes.NewCipher(make([]byte, 16))
+	if err != nil {
+		panic(err)
+	}
+	o, errOcb := NewOCBWithNonceAndTagSize(aesCipher, 15, 16)
+	if errOcb != nil {
+		panic(errOcb)
+	}
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("Ocb.Open didn't panic on exceedingly long nonce")
+		}
+	}()
+	longNonce := make([]byte, o.NonceSize() + 1)
+	_, err = o.Open(nil, longNonce, nil, nil)
+	// Let the Open procedure panic
+	if err != nil {}
+}
+
+func TestOpenShortCiphertext(t *testing.T) {
+	aesCipher, err := aes.NewCipher(make([]byte, 16))
+	if err != nil {
+		panic(err)
+	}
+	o, errOcb := NewOCBWithNonceAndTagSize(aesCipher, 15, 16)
+	if errOcb != nil {
+		panic(errOcb)
+	}
+	shortCt := make([]byte, o.Overhead()-1)
+	pt, err := o.Open(nil, nil, nil, shortCt)
+	if pt != nil || err == nil {
+		t.Errorf("Ocb.Open processed an exceedingly short ciphertext")
 	}
 }
 

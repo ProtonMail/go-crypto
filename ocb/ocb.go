@@ -86,10 +86,6 @@ func NewOCBWithNonceAndTagSize(
 	}, nil
 }
 
-func (o *ocb) TagSize() int {
-	return o.tagSize
-}
-
 func (o *ocb) Seal(dst, nonce, plaintext, adata []byte) []byte {
 	if len(nonce) > o.nonceSize {
 		panic("crypto/ocb: Incorrect nonce length given to OCB")

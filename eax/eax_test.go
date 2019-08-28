@@ -157,7 +157,9 @@ func TestOpenIncorrectNonceLength(t *testing.T) {
 		}
 	}()
 	longNonce := make([]byte, e.NonceSize() + 1)
-	e.Open(nil, longNonce, nil, nil)
+	_, err = e.Open(nil, longNonce, nil, nil)
+	// Let the Open procedure panic
+	if err != nil {}
 }
 
 func TestOpenShortCiphertext(t *testing.T) {
