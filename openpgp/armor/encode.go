@@ -119,7 +119,6 @@ func (e *encoding) Close() (err error) {
 		return
 	}
 
-
 	var checksumBytes [3]byte
 	checksumBytes[0] = byte(e.crc >> 16)
 	checksumBytes[1] = byte(e.crc >> 8)
