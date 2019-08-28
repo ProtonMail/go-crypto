@@ -73,6 +73,8 @@ func X25519GenerateKey(rand io.Reader, kdf KDF) (priv *PrivateKey, err error) {
 	return priv, nil
 }
 
+// X25519Encrypt is the Encrypt procedure of the ecdh package when the public
+// key is set with curve 25519.
 func X25519Encrypt(random io.Reader, pub *PublicKey, msg, curveOID, fingerprint []byte) (vsG, c []byte, err error) {
 	d, ephemeralKey, err := X25519GenerateParams(random)
 	if err != nil {
@@ -105,6 +107,8 @@ func X25519Encrypt(random io.Reader, pub *PublicKey, msg, curveOID, fingerprint 
 	return vsg[:], c, nil
 }
 
+// X25519Decrypt is the Encrypt procedure of the ecdh package when the public
+// key is set with curve 25519.
 func X25519Decrypt(priv *PrivateKey, vsG, m, curveOID, fingerprint []byte) (msg []byte, err error) {
 	var zb, d, ephemeralKey[32]byte
 	if len(vsG) != 33 || vsG[0] != 0x40 {
