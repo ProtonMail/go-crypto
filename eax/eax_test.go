@@ -125,12 +125,13 @@ func TestEncryptDecryptRandomVectorsWithPreviousData(t *testing.T) {
 			nonce := make([]byte, 1+mathrand.Intn(blockLength))
 			previousData := make([]byte, mathrand.Intn(maxLength)-2*blockLength)
 			// Populate items with crypto/rand
-			rand.Read(pt)
-			rand.Read(header)
-			rand.Read(key)
-			rand.Read(nonce)
-			rand.Read(previousData)
-
+			itemsToRandomize := [][]byte{pt, header, key, nonce, previousData}
+			for _, item := range itemsToRandomize {
+				_, err := rand.Read(item)
+				if err != nil {
+					panic(err)
+				}
+			}
 			aesCipher, err := aes.NewCipher(key)
 			if err != nil {
 				panic(err)
@@ -162,10 +163,13 @@ func TestRejectTamperedCiphertext(t *testing.T) {
 		header := make([]byte, mathrand.Intn(maxLength))
 		key := make([]byte, blockLength)
 		nonce := make([]byte, blockLength)
-		rand.Read(pt)
-		rand.Read(header)
-		rand.Read(key)
-		rand.Read(nonce)
+		itemsToRandomize := [][]byte{pt, header, key, nonce}
+		for _, item := range itemsToRandomize {
+			_, err := rand.Read(item)
+			if err != nil {
+				panic(err)
+			}
+		}
 		aesCipher, errAes := aes.NewCipher(key)
 		if errAes != nil {
 			panic(errAes)
@@ -205,7 +209,9 @@ func TestParameters(t *testing.T) {
 		if errAes != nil {
 			panic(errAes)
 		}
-		NewEAX(aesCipher)
+		_, errEax := NewEAX(aesCipher)
+		// Don't panic here, let the New* procedure panic
+		if errEax != nil { }
 	})
 	t.Run("Should return error on too long tagSize", func(st *testing.T) {
 		tagSize := blockLength + 1 + mathrand.Intn(12)
@@ -243,10 +249,13 @@ func BenchmarkEncrypt(b *testing.B) {
 	header := make([]byte, headerLength)
 	key := make([]byte, blockLength)
 	nonce := make([]byte, blockLength)
-	rand.Read(pt)
-	rand.Read(header)
-	rand.Read(key)
-	rand.Read(nonce)
+	itemsToRandomize := [][]byte{pt, header, key, nonce}
+	for _, item := range itemsToRandomize {
+		_, err := rand.Read(item)
+		if err != nil {
+			panic(err)
+		}
+	}
 	aesCipher, errAes := aes.NewCipher(key)
 	if errAes != nil {
 		panic(errAes)
@@ -268,10 +277,13 @@ func BenchmarkDecrypt(b *testing.B) {
 	header := make([]byte, headerLength)
 	key := make([]byte, blockLength)
 	nonce := make([]byte, blockLength)
-	rand.Read(pt)
-	rand.Read(header)
-	rand.Read(key)
-	rand.Read(nonce)
+	itemsToRandomize := [][]byte{pt, header, key, nonce}
+	for _, item := range itemsToRandomize {
+		_, err := rand.Read(item)
+		if err != nil {
+			panic(err)
+		}
+	}
 	aesCipher, errAes := aes.NewCipher(key)
 	if errAes != nil {
 		panic(errAes)
@@ -282,6 +294,9 @@ func BenchmarkDecrypt(b *testing.B) {
 	}
 	ct := eax.Seal(nil, nonce, pt, header)
 	for i := 0; i < b.N; i++ {
-		eax.Open(nil, nonce, ct, header)
+		_, err := eax.Open(nil, nonce, ct, header)
+		if err != nil {
+			panic(err)
+		}
 	}
 }

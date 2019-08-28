@@ -242,11 +242,12 @@ func TestEncryptDecryptRandVectorsWithPreviousData(t *testing.T) {
 			nonce := make([]byte, 1+mathrand.Intn(blockLength-1))
 			previousData := make([]byte, mathrand.Intn(maxLength)-2*blockLength)
 			// Populate items with crypto/rand
-			rand.Read(pt)
-			rand.Read(header)
-			rand.Read(key)
-			rand.Read(nonce)
-			rand.Read(previousData)
+			itemsToPopulate := [][]byte{pt, header, key, nonce, previousData}
+			for _, item := range itemsToPopulate {
+				_, err := rand.Read(item)
+				if err != nil {
+				}
+			}
 			aesCipher, err := aes.NewCipher(key)
 			if err != nil {
 				panic(err)
@@ -279,10 +280,12 @@ func TestRejectTamperedCiphertext(t *testing.T) {
 		key := make([]byte, blockLength)
 		// Note: Nonce cannot equal blockLength
 		nonce := make([]byte, blockLength-1)
-		rand.Read(pt)
-		rand.Read(header)
-		rand.Read(key)
-		rand.Read(nonce)
+		itemsToPopulate := [][]byte{pt, header, key, nonce}
+		for _, item := range itemsToPopulate {
+			_, err := rand.Read(item)
+			if err != nil {
+			}
+		}
 		aesCipher, err := aes.NewCipher(key)
 		if err != nil {
 			panic(err)
@@ -351,10 +354,12 @@ func BenchmarkEncrypt(b *testing.B) {
 	header := make([]byte, headerLength)
 	key := make([]byte, blockLength)
 	nonce := make([]byte, blockLength-1)
-	rand.Read(pt)
-	rand.Read(header)
-	rand.Read(key)
-	rand.Read(nonce)
+	itemsToPopulate := [][]byte{pt, header, key, nonce}
+	for _, item := range itemsToPopulate {
+		_, err := rand.Read(item)
+		if err != nil {
+		}
+	}
 	aesCipher, err := aes.NewCipher(key)
 	if err != nil {
 		panic(err)
@@ -376,10 +381,12 @@ func BenchmarkDecrypt(b *testing.B) {
 	header := make([]byte, headerLength)
 	key := make([]byte, blockLength)
 	nonce := make([]byte, blockLength-1)
-	rand.Read(pt)
-	rand.Read(header)
-	rand.Read(key)
-	rand.Read(nonce)
+	itemsToPopulate := [][]byte{pt, header, key, nonce}
+	for _, item := range itemsToPopulate {
+		_, err := rand.Read(item)
+		if err != nil {
+		}
+	}
 	aesCipher, err := aes.NewCipher(key)
 	if err != nil {
 		panic(err)
@@ -390,6 +397,9 @@ func BenchmarkDecrypt(b *testing.B) {
 	}
 	ct := ocb.Seal(nil, nonce, pt, header)
 	for i := 0; i < b.N; i++ {
-		ocb.Open(nil, nonce, ct, header)
+		_, err := ocb.Open(nil, nonce, ct, header)
+		if err != nil {
+			panic(err)
+		}
 	}
 }

@@ -50,9 +50,6 @@ func NewEAX(block cipher.Block) (cipher.AEAD, error) {
 // non-standard parameters. For all other cases, prefer NewEAX.
 func NewEAXWithNonceAndTagSize(
 	block cipher.Block, nonceSize, tagSize int) (cipher.AEAD, error) {
-	if block.BlockSize() != 16 {
-		return nil, eaxError("Block cipher must have 128-bit blocks")
-	}
 	if nonceSize < 1 {
 		return nil, eaxError("Cannot initialize EAX with nonceSize = 0")
 	}

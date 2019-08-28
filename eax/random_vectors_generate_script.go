@@ -29,10 +29,13 @@ func generateRandomVectors(t *testing.T) {
 			// Testing for short nonces but take notice they are not recommended
 			nonce := make([]byte, blockLength)
 			// Populate items with crypto/rand
-			rand.Read(pt)
-			rand.Read(header)
-			rand.Read(key)
-			rand.Read(nonce)
+			itemsToRandomize := [][]byte{pt, header, key, nonce}
+			for _, item := range itemsToRandomize {
+				_, err := rand.Read(item)
+				if err != nil {
+					panic(err)
+				}
+			}
 			aesCipher, err := aes.NewCipher(key)
 			if err != nil {
 				panic(err)
@@ -49,7 +52,10 @@ func generateRandomVectors(t *testing.T) {
 		}
 	}
 	str += "}"
-	writeToFile("random_vectors.go", str)
+	err := writeToFile("random_vectors.go", str)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func writeToFile(filename string, data string) error {
@@ -57,7 +63,12 @@ func writeToFile(filename string, data string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func () {
+		err := file.Close()
+		if err != nil {
+			panic(err)
+		}
+	}()
 
 	_, err = io.WriteString(file, data)
 	if err != nil {
