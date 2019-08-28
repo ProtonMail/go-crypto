@@ -47,6 +47,8 @@ func (se signatureExpiredError) Error() string {
 	return "openpgp: signature expired"
 }
 
+// ErrSignatureExpired indicates that a signature has expired, regardless of
+// its syntactic validity.
 var ErrSignatureExpired error = signatureExpiredError(0)
 
 type keyIncorrectError int
@@ -55,6 +57,7 @@ func (ki keyIncorrectError) Error() string {
 	return "openpgp: incorrect key"
 }
 
+// ErrKeyIncorrect indicates that the passed key is incorrect (see openpgp/read.go).
 var ErrKeyIncorrect error = keyIncorrectError(0)
 
 type unknownIssuerError int
@@ -63,6 +66,7 @@ func (unknownIssuerError) Error() string {
 	return "openpgp: signature made by unknown entity"
 }
 
+// ErrUnknownIssuer indicates that a signature was made by an unknown entity.
 var ErrUnknownIssuer error = unknownIssuerError(0)
 
 type keyRevokedError int
@@ -71,8 +75,10 @@ func (keyRevokedError) Error() string {
 	return "openpgp: signature made by revoked key"
 }
 
+// ErrKeyRevoked indicates that a signature was made by a revoked key.
 var ErrKeyRevoked error = keyRevokedError(0)
 
+// UnknownPacketTypeError indicates that the packet ID is not recognized.
 type UnknownPacketTypeError uint8
 
 func (upte UnknownPacketTypeError) Error() string {
