@@ -60,7 +60,7 @@ func (sig *SignatureV3) parse(r io.Reader) (err error) {
 	t := binary.BigEndian.Uint32(buf[1:5])
 	sig.CreationTime = time.Unix(int64(t), 0)
 
-	// Eight-octet Key ID of signer.
+	// Eight-octet Key Id of signer.
 	if _, err = readFull(r, buf[:8]); err != nil {
 		return
 	}
@@ -117,13 +117,13 @@ func (sig *SignatureV3) Serialize(w io.Writer) (err error) {
 		return
 	}
 
-	// Write the issuer long key ID
+	// Write the issuer long key Id
 	binary.BigEndian.PutUint64(buf[:8], sig.IssuerKeyId)
 	if _, err = w.Write(buf[:8]); err != nil {
 		return
 	}
 
-	// Write public key algorithm, hash ID, and hash value
+	// Write public key algorithm, hash Id, and hash value
 	buf[0] = byte(sig.PubKeyAlgo)
 	hashId, ok := s2k.HashToHashId(sig.Hash)
 	if !ok {

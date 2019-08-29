@@ -164,7 +164,7 @@ func hashToHashId(h crypto.Hash) uint8 {
 	return v
 }
 
-// Encrypt encrypts a message to a number of recipients and, optionally, signs
+// EncryptText encrypts a message to a number of recipients and, optionally, signs
 // it. hints contains optional information, that is also encrypted, that aids
 // the recipients in processing the message. The resulting WriteCloser must
 // be closed after the contents of the file have been written.

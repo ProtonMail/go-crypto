@@ -20,18 +20,33 @@ type canonicalTextHash struct {
 	s int
 }
 
+// Auxiliary struct to optimize error checking (from
+// https://blog.golang.org/errors-are-values)
+type errWriter struct {
+	w   io.Writer
+	err error
+}
+
+func (ew *errWriter) write(buf []byte) {
+	if ew.err != nil {
+		return
+	}
+	_, ew.err = ew.w.Write(buf)
+}
+
 var newline = []byte{'\r', '\n'}
 
 func writeCanonical(cw io.Writer, buf []byte, s *int) (int, error) {
 	start := 0
+	ew := &errWriter{w: cw}
 	for i, c := range buf {
 		switch *s {
 		case 0:
 			if c == '\r' {
 				*s = 1
 			} else if c == '\n' {
-				cw.Write(buf[start:i])
-				cw.Write(newline)
+				ew.write(buf[start:i])
+				ew.write(newline)
 				start = i + 1
 			}
 		case 1:
@@ -39,7 +54,10 @@ func writeCanonical(cw io.Writer, buf []byte, s *int) (int, error) {
 		}
 	}
 
-	cw.Write(buf[start:])
+	ew.write(buf[start:])
+	if ew.err != nil {
+		return 0, ew.err
+	}
 	return len(buf), nil
 }
 

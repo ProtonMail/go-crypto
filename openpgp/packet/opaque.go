@@ -63,11 +63,12 @@ type OpaqueReader struct {
 	r io.Reader
 }
 
+// NewOpaqueReader returns a new OpaqueReader from the given io.Reader.
 func NewOpaqueReader(r io.Reader) *OpaqueReader {
 	return &OpaqueReader{r: r}
 }
 
-// Read the next OpaquePacket.
+// Next reads the next OpaquePacket.
 func (or *OpaqueReader) Next() (op *OpaquePacket, err error) {
 	tag, _, contents, err := readHeader(or.r)
 	if err != nil {
@@ -76,7 +77,7 @@ func (or *OpaqueReader) Next() (op *OpaquePacket, err error) {
 	op = &OpaquePacket{Tag: uint8(tag), Reason: err}
 	err = op.parse(contents)
 	if err != nil {
-		consumeAll(contents)
+		_, err = consumeAll(contents)
 	}
 	return
 }
@@ -150,6 +151,8 @@ Truncated:
 	return
 }
 
+// Serialize writes the serialized contents of the OpaqueSubpacket into the
+// given io.Writer.
 func (osp *OpaqueSubpacket) Serialize(w io.Writer) (err error) {
 	buf := make([]byte, 6)
 	n := serializeSubpacketLength(buf, len(osp.Contents)+1)

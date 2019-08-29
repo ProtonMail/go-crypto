@@ -133,6 +133,7 @@ func (pk *PublicKeyV3) SerializeSignaturePrefix(w io.Writer) {
 	return
 }
 
+// Serialize writes the serialized PublicKeyV3 to the given writer.
 func (pk *PublicKeyV3) Serialize(w io.Writer) (err error) {
 	length := 8 // 8 byte header
 

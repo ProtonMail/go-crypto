@@ -423,6 +423,7 @@ const (
 // http://www.iana.org/assignments/pgp-parameters/pgp-parameters.xhtml#pgp-parameters-12
 type PublicKeyAlgorithm uint8
 
+// Public key algorithms supported by OpenPGP.
 const (
 	PubKeyAlgoRSA     PublicKeyAlgorithm = 1
 	PubKeyAlgoElGamal PublicKeyAlgorithm = 16
@@ -462,6 +463,7 @@ func (pka PublicKeyAlgorithm) CanSign() bool {
 // http://www.iana.org/assignments/pgp-parameters/pgp-parameters.xhtml#pgp-parameters-13
 type CipherFunction algorithm.CipherFunction
 
+// Block ciphers specified for OpenPGP.
 const (
 	Cipher3DES   CipherFunction = 2
 	CipherCAST5  CipherFunction = 3
@@ -502,6 +504,7 @@ func padToKeySize(pub *rsa.PublicKey, b []byte) []byte {
 // supported). See Section 9.3 of RFC 4880.
 type CompressionAlgo uint8
 
+// Compression algorithms supported by OpenPGP.
 const (
 	CompressionNone CompressionAlgo = 0
 	CompressionZIP  CompressionAlgo = 1

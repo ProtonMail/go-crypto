@@ -16,14 +16,14 @@ import (
 	"encoding/binary"
 )
 
-// The rc2 block size in bytes
+// BlockSize is the RC2 block size in bytes
 const BlockSize = 8
 
 type rc2Cipher struct {
 	k [64]uint16
 }
 
-// New returns a new rc2 cipher with the given key and effective key length t1
+// New returns a new RC2 cipher with the given key and effective key length t1
 func New(key []byte, t1 int) (cipher.Block, error) {
 	// TODO(dgryski): error checking for key length
 	return &rc2Cipher{

@@ -33,6 +33,7 @@ type BitCurve struct {
 	BitSize int      // the size of the underlying field
 }
 
+// Params returns an elliptic.CurveParams with the given BitCurve parameters.
 func (BitCurve *BitCurve) Params() (cp *elliptic.CurveParams) {
 	cp = new (elliptic.CurveParams)
 	cp.Name = BitCurve.Name
@@ -44,7 +45,7 @@ func (BitCurve *BitCurve) Params() (cp *elliptic.CurveParams) {
 	return cp
 }
 
-// IsOnBitCurve returns true if the given (x,y) lies on the BitCurve.
+// IsOnCurve returns true if the given (x,y) lies on the BitCurve.
 func (BitCurve *BitCurve) IsOnCurve(x, y *big.Int) bool {
 	// y² = x³ + b
 	y2 := new(big.Int).Mul(y, y)//y²
@@ -185,8 +186,8 @@ func (BitCurve *BitCurve) doubleJacobian(x, y, z *big.Int) (*big.Int, *big.Int, 
 	return x3, y3, z3
 }
 
-//TODO: double check if it is okay
 // ScalarMult returns k*(Bx,By) where k is a number in big-endian form.
+//TODO: double check if it is okay
 func (BitCurve *BitCurve) ScalarMult(Bx, By *big.Int, k []byte) (*big.Int, *big.Int) {
 	// We have a slight problem in that the identity of the group (the
 	// point at infinity) cannot be represented in (x, y) form on a finite
@@ -233,9 +234,9 @@ func (BitCurve *BitCurve) ScalarBaseMult(k []byte) (*big.Int, *big.Int) {
 
 var mask = []byte{0xff, 0x1, 0x3, 0x7, 0xf, 0x1f, 0x3f, 0x7f}
 
-//TODO: double check if it is okay
 // GenerateKey returns a public/private key pair. The private key is generated
 // using the given reader, which must return random data.
+//TODO: double check if it is okay
 func (BitCurve *BitCurve) GenerateKey(rand io.Reader) (priv []byte, x, y *big.Int, err error) {
 	byteLen := (BitCurve.BitSize + 7) >> 3
 	priv = make([]byte, byteLen)

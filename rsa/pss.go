@@ -235,11 +235,11 @@ func (pssOpts *PSSOptions) HashFunc() crypto.Hash {
 	return pssOpts.Hash
 }
 
-func (opts *PSSOptions) saltLength() int {
-	if opts == nil {
+func (pssOpts *PSSOptions) saltLength() int {
+	if pssOpts == nil {
 		return PSSSaltLengthAuto
 	}
-	return opts.SaltLength
+	return pssOpts.SaltLength
 }
 
 // SignPSS calculates the signature of hashed using RSASSA-PSS [1].

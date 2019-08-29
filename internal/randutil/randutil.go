@@ -33,6 +33,9 @@ func MaybeReadByte(r io.Reader) {
 		return
 	case <-closedChan:
 		var buf [1]byte
-		r.Read(buf[:])
+		_, err := r.Read(buf[:])
+		if err != nil {
+			panic(err)
+		}
 	}
 }

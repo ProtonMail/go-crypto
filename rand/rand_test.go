@@ -24,8 +24,12 @@ func TestRead(t *testing.T) {
 
 	var z bytes.Buffer
 	f, _ := flate.NewWriter(&z, 5)
-	f.Write(b)
-	f.Close()
+	if _, err = f.Write(b); err != nil {
+		panic(err)
+	}
+	if err = f.Close(); err != nil {
+		panic(err)
+	}
 	if z.Len() < len(b)*99/100 {
 		t.Fatalf("Compressed %d -> %d", len(b), z.Len())
 	}

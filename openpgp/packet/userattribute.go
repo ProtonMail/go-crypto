@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 )
 
+// UserAttrImageSubpacket is used to encode an image. See RFC 4880, 5.12.1.
 const UserAttrImageSubpacket = 1
 
 // UserAttribute is capable of storing other types of data about a user

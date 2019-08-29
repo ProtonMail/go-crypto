@@ -136,15 +136,16 @@ func (priv *PrivateKey) Decrypt(rand io.Reader, ciphertext []byte, opts crypto.D
 				return nil, err
 			}
 			return plaintext, nil
-		} else {
-			return DecryptPKCS1v15(rand, priv, ciphertext)
 		}
+		return DecryptPKCS1v15(rand, priv, ciphertext)
 
 	default:
 		return nil, errors.New("crypto/rsa: invalid options for Decrypt")
 	}
 }
 
+// PrecomputedValues holds big.Int values that are computed before
+// encryption/decryption rounds.
 type PrecomputedValues struct {
 	Dp, Dq *big.Int // D mod (P-1) (or mod Q-1)
 	Qinv   *big.Int // Q^-1 mod P
@@ -567,7 +568,6 @@ func decryptAndCheck(random io.Reader, priv *PrivateKey, c *big.Int) (m *big.Int
 }
 
 // DecryptOAEP decrypts ciphertext using RSA-OAEP.
-
 // OAEP is parameterised by a hash function that is used as a random oracle.
 // Encryption and decryption of a given message must use the same hash function
 // and sha256.New() is a reasonable choice.

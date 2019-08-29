@@ -182,7 +182,7 @@ func (el EntityList) KeysById(id uint64) (keys []Key) {
 	return
 }
 
-// KeysByIdAndUsage returns the set of keys with the given id that also meet
+// KeysByIdUsage returns the set of keys with the given id that also meet
 // the key usage given by requiredUsage.  The requiredUsage is expressed as
 // the bitwise-OR of packet.KeyFlag* values.
 func (el EntityList) KeysByIdUsage(id uint64, requiredUsage byte) (keys []Key) {
@@ -539,7 +539,7 @@ func (e *Entity) SerializePrivate(w io.Writer, config *packet.Config) (err error
 	return nil
 }
 
-// SerializePrivate serializes an Entity, including private key material, to
+// SerializePrivateNoSign serializes an Entity, including private key material, to
 // the given Writer. For now, it must only be used on an Entity returned from
 // NewEntity.
 // If config is nil, sensible defaults will be used.

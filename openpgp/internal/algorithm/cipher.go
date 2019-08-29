@@ -44,11 +44,12 @@ var CipherById = map[uint8]Cipher{
 	AES256.Id():    AES256,
 }
 
+// CipherFunction determines the block cipher algorithm.
 type CipherFunction uint8
 
-// ID returns the algorithm Id, as a byte, of cipher.
-func (sk CipherFunction) Id() uint8 {
-	return uint8(sk)
+// Id returns the algorithm Id, as a byte, of cipher.
+func (cipher CipherFunction) Id() uint8 {
+	return uint8(cipher)
 }
 
 var keySizeByID = map[uint8]int{

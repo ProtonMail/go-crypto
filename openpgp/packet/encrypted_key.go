@@ -142,11 +142,20 @@ func (e *EncryptedKey) Serialize(w io.Writer) error {
 		return errors.InvalidArgumentError("don't know how to serialize encrypted key type " + strconv.Itoa(int(e.Algo)))
 	}
 
-	serializeHeader(w, packetTypeEncryptedKey, 1 /* version */ +8 /* key id */ +1 /* algo */ +mpiLen)
+	err := serializeHeader(w, packetTypeEncryptedKey, 1 /* version */ +8 /* key id */ +1 /* algo */ +mpiLen)
+	if err != nil {
+		return err
+	}
 
-	w.Write([]byte{encryptedKeyVersion})
-	binary.Write(w, binary.BigEndian, e.KeyId)
-	w.Write([]byte{byte(e.Algo)})
+	if _, err = w.Write([]byte{encryptedKeyVersion}); err != nil {
+		return err
+	}
+	if err = binary.Write(w, binary.BigEndian, e.KeyId); err != nil {
+		return err
+	}
+	if _, err = w.Write([]byte{byte(e.Algo)}); err != nil {
+		return err
+	}
 
 	switch e.Algo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly:
@@ -167,8 +176,6 @@ func (e *EncryptedKey) Serialize(w io.Writer) error {
 	default:
 		panic("internal error")
 	}
-
-	return nil
 }
 
 // SerializeEncryptedKey serializes an encrypted key packet to w that contains

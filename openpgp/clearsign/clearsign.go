@@ -214,7 +214,22 @@ type dashEscaper struct {
 	config      *packet.Config
 }
 
+// Auxiliary struct to optimize error checking (from
+// https://blog.golang.org/errors-are-values)
+type errWriter struct {
+	w   io.Writer
+	err error
+}
+
+func (ew *errWriter) write(buf []byte) {
+	if ew.err != nil {
+		return
+	}
+	_, ew.err = ew.w.Write(buf)
+}
+
 func (d *dashEscaper) Write(data []byte) (n int, err error) {
+	ew := &errWriter{w: d.toHash}
 	for _, b := range data {
 		d.byteBuf[0] = b
 
@@ -222,7 +237,7 @@ func (d *dashEscaper) Write(data []byte) (n int, err error) {
 			// The final CRLF isn't included in the hash so we have to wait
 			// until this point (the start of the next line) before writing it.
 			if !d.isFirstLine {
-				d.toHash.Write(crlf)
+				ew.write(crlf)
 			}
 			d.isFirstLine = false
 		}
@@ -243,12 +258,12 @@ func (d *dashEscaper) Write(data []byte) (n int, err error) {
 				if _, err = d.buffered.Write(dashEscape); err != nil {
 					return
 				}
-				d.toHash.Write(d.byteBuf)
+				ew.write(d.byteBuf)
 				d.atBeginningOfLine = false
 			} else if b == '\n' {
 				// Nothing to do because we delay writing CRLF to the hash.
 			} else {
-				d.toHash.Write(d.byteBuf)
+				ew.write(d.byteBuf)
 				d.atBeginningOfLine = false
 			}
 			if err = d.buffered.WriteByte(b); err != nil {
@@ -269,13 +284,13 @@ func (d *dashEscaper) Write(data []byte) (n int, err error) {
 				// Any buffered whitespace wasn't at the end of the line so
 				// we need to write it out.
 				if len(d.whitespace) > 0 {
-					d.toHash.Write(d.whitespace)
+					ew.write(d.whitespace)
 					if _, err = d.buffered.Write(d.whitespace); err != nil {
 						return
 					}
 					d.whitespace = d.whitespace[:0]
 				}
-				d.toHash.Write(d.byteBuf)
+				ew.write(d.byteBuf)
 				if err = d.buffered.WriteByte(b); err != nil {
 					return
 				}
@@ -284,6 +299,9 @@ func (d *dashEscaper) Write(data []byte) (n int, err error) {
 	}
 
 	n = len(data)
+	if err == nil {
+		err = ew.err
+	}
 	return
 }
 

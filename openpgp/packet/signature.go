@@ -22,8 +22,8 @@ import (
 	"golang.org/x/crypto/openpgp/s2k"
 )
 
+// See RFC 4880, section 5.2.3.21 for details.
 const (
-	// See RFC 4880, section 5.2.3.21 for details.
 	KeyFlagCertify = 1 << iota
 	KeyFlagSign
 	KeyFlagEncryptCommunications
@@ -331,7 +331,7 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		sig.PreferredCompression = make([]byte, len(subpacket))
 		copy(sig.PreferredCompression, subpacket)
 	case primaryUserIdSubpacket:
-		// Primary User ID, section 5.2.3.19
+		// Primary User Id, section 5.2.3.19
 		if !isHashed {
 			return
 		}
@@ -452,7 +452,7 @@ func subpacketsLength(subpackets []outputSubpacket, hashed bool) (length int) {
 	for _, subpacket := range subpackets {
 		if subpacket.hashed == hashed {
 			length += subpacketLengthLength(len(subpacket.contents) + 1)
-			length += 1 // type byte
+			length ++ // type byte
 			length += len(subpacket.contents)
 		}
 	}

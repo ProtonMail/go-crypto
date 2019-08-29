@@ -8,6 +8,7 @@ import (
 	"golang.org/x/crypto/brainpool"
 )
 
+// SignatureAlgorithm indicates the cryptographic signing algorithm.
 type SignatureAlgorithm uint8
 
 const (
@@ -15,6 +16,7 @@ const (
 	EdDSA SignatureAlgorithm = 2
 )
 
+// CurveInfo holds information about the chosen elliptic curve.
 type CurveInfo struct {
 	Name string
 	Oid *encoding.OID
@@ -89,6 +91,8 @@ var curves = []CurveInfo{
 	},
 }
 
+// FindByCurve returns the information of the given elliptic.Curve, or nil if
+// the curve is not available.
 func FindByCurve(curve elliptic.Curve) *CurveInfo {
 	for _, curveInfo := range curves {
 		if curveInfo.Curve == curve {
@@ -98,6 +102,7 @@ func FindByCurve(curve elliptic.Curve) *CurveInfo {
 	return nil
 }
 
+// FindByOid returns the information of the curve holding the given oid.
 func FindByOid(oid encoding.Field) *CurveInfo {
 	var rawBytes = oid.Bytes()
 	for _, curveInfo := range curves {
@@ -108,6 +113,7 @@ func FindByOid(oid encoding.Field) *CurveInfo {
 	return nil
 }
 
+// FindByName returns the information of the curve holding the given name.
 func FindByName(name string) *CurveInfo {
 	for _, curveInfo := range curves {
 		if curveInfo.Name == name {

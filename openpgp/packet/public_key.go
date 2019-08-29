@@ -106,6 +106,7 @@ func NewElGamalPublicKey(creationTime time.Time, pub *elgamal.PublicKey) *Public
 	return pk
 }
 
+// NewECDSAPublicKey returns a PublicKey that wraps the given ecdsa.PublicKey.
 func NewECDSAPublicKey(creationTime time.Time, pub *ecdsa.PublicKey) *PublicKey {
 	pk := &PublicKey{
 		CreationTime: creationTime,
@@ -123,6 +124,7 @@ func NewECDSAPublicKey(creationTime time.Time, pub *ecdsa.PublicKey) *PublicKey 
 	return pk
 }
 
+// NewECDHPublicKey returns a PublicKey that wraps the given ecdh.PublicKey.
 func NewECDHPublicKey(creationTime time.Time, pub *ecdh.PublicKey) *PublicKey {
 	var pk *PublicKey
 	var curveInfo *ecc.CurveInfo
@@ -154,6 +156,7 @@ func NewECDHPublicKey(creationTime time.Time, pub *ecdh.PublicKey) *PublicKey {
 	return pk
 }
 
+// NewEdDSAPublicKey returns a PublicKey that wraps the given ed25519.PublicKey.
 func NewEdDSAPublicKey(creationTime time.Time, pub ed25519.PublicKey) *PublicKey {
 	curveInfo := ecc.FindByName("Ed25519")
 	pk := &PublicKey{
@@ -445,6 +448,8 @@ func (pk *PublicKey) SerializeSignaturePrefix(h io.Writer) {
 	return
 }
 
+// Serialize writes the serialized contents of the given PublicKey into the
+// given io.Reader.
 func (pk *PublicKey) Serialize(w io.Writer) (err error) {
 	length := 6 // 6 byte header
 
