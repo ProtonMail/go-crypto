@@ -125,11 +125,11 @@ func (sig *SignatureV3) Serialize(w io.Writer) (err error) {
 
 	// Write public key algorithm, hash ID, and hash value
 	buf[0] = byte(sig.PubKeyAlgo)
-	hashId, ok := s2k.HashToHashId(sig.Hash)
+	hashID, ok := s2k.HashToHashId(sig.Hash)
 	if !ok {
 		return errors.UnsupportedError(fmt.Sprintf("hash function %v", sig.Hash))
 	}
-	buf[1] = hashId
+	buf[1] = hashID
 	copy(buf[2:4], sig.HashTag[:])
 	if _, err = w.Write(buf[:4]); err != nil {
 		return

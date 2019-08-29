@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-var userIdTests = []struct {
+var userIDTests = []struct {
 	id                   string
 	name, comment, email string
 }{
@@ -26,9 +26,9 @@ var userIdTests = []struct {
 	{"René Descartes (العربي)", "René Descartes", "العربي", ""},
 }
 
-func TestParseUserId(t *testing.T) {
-	for i, test := range userIdTests {
-		name, comment, email := parseUserId(test.id)
+func TestParseUserID(t *testing.T) {
+	for i, test := range userIDTests {
+		name, comment, email := parseUserID(test.id)
 		if name != test.name {
 			t.Errorf("%d: name mismatch got:%s want:%s", i, name, test.name)
 		}
@@ -41,7 +41,7 @@ func TestParseUserId(t *testing.T) {
 	}
 }
 
-var newUserIdTests = []struct {
+var newUserIDTests = []struct {
 	name, comment, email, id string
 }{
 	{"foo", "", "", "foo"},
@@ -53,8 +53,8 @@ var newUserIdTests = []struct {
 	{"foo", "bar", "baz", "foo (bar) <baz>"},
 }
 
-func TestNewUserId(t *testing.T) {
-	for i, test := range newUserIdTests {
+func TestNewUserID(t *testing.T) {
+	for i, test := range newUserIDTests {
 		uid := NewUserId(test.name, test.comment, test.email)
 		if uid == nil {
 			t.Errorf("#%d: returned nil", i)
@@ -66,7 +66,7 @@ func TestNewUserId(t *testing.T) {
 	}
 }
 
-var invalidNewUserIdTests = []struct {
+var invalidNewUserIDTests = []struct {
 	name, comment, email string
 }{
 	{"foo(", "", ""},
@@ -78,8 +78,8 @@ var invalidNewUserIdTests = []struct {
 	{"", "", "baz\x00"},
 }
 
-func TestNewUserIdWithInvalidInput(t *testing.T) {
-	for i, test := range invalidNewUserIdTests {
+func TestNewUserIDWithInvalidInput(t *testing.T) {
+	for i, test := range invalidNewUserIDTests {
 		if uid := NewUserId(test.name, test.comment, test.email); uid != nil {
 			t.Errorf("#%d: returned non-nil value: %#v", i, uid)
 		}

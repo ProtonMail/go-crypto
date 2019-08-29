@@ -7,6 +7,7 @@ package openpgp // import "golang.org/x/crypto/openpgp"
 
 import (
 	"crypto"
+	_ "crypto/sha256"
 	"hash"
 	"io"
 	"strconv"

@@ -22,8 +22,8 @@ import (
 	"golang.org/x/crypto/openpgp/s2k"
 )
 
+// See RFC 4880, section 5.2.3.21 for details.
 const (
-	// See RFC 4880, section 5.2.3.21 for details.
 	KeyFlagCertify = 1 << iota
 	KeyFlagSign
 	KeyFlagEncryptCommunications
@@ -219,7 +219,7 @@ const (
 	issuerSubpacket              signatureSubpacketType = 16
 	prefHashAlgosSubpacket       signatureSubpacketType = 21
 	prefCompressionSubpacket     signatureSubpacketType = 22
-	primaryUserIdSubpacket       signatureSubpacketType = 25
+	primaryUserIDSubpacket       signatureSubpacketType = 25
 	keyFlagsSubpacket            signatureSubpacketType = 27
 	reasonForRevocationSubpacket signatureSubpacketType = 29
 	featuresSubpacket            signatureSubpacketType = 30
@@ -330,7 +330,7 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		}
 		sig.PreferredCompression = make([]byte, len(subpacket))
 		copy(sig.PreferredCompression, subpacket)
-	case primaryUserIdSubpacket:
+	case primaryUserIDSubpacket:
 		// Primary User ID, section 5.2.3.19
 		if !isHashed {
 			return
@@ -452,7 +452,7 @@ func subpacketsLength(subpackets []outputSubpacket, hashed bool) (length int) {
 	for _, subpacket := range subpackets {
 		if subpacket.hashed == hashed {
 			length += subpacketLengthLength(len(subpacket.contents) + 1)
-			length += 1 // type byte
+			length ++ // type byte
 			length += len(subpacket.contents)
 		}
 	}
@@ -604,7 +604,7 @@ func unwrapECDSASig(b []byte) (r, s *big.Int, err error) {
 // Serialize to write it out.
 // If config is nil, sensible defaults will be used.
 func (sig *Signature) SignUserId(id string, pub *PublicKey, priv *PrivateKey, config *Config) error {
-	h, err := userIdSignatureHash(id, pub, sig.Hash)
+	h, err := userIDSignatureHash(id, pub, sig.Hash)
 	if err != nil {
 		return err
 	}
@@ -715,9 +715,9 @@ func (sig *Signature) buildSubpackets() (subpackets []outputSubpacket) {
 	subpackets = append(subpackets, outputSubpacket{true, creationTimeSubpacket, false, creationTime})
 
 	if sig.IssuerKeyId != nil {
-		keyId := make([]byte, 8)
-		binary.BigEndian.PutUint64(keyId, *sig.IssuerKeyId)
-		subpackets = append(subpackets, outputSubpacket{true, issuerSubpacket, false, keyId})
+		keyID := make([]byte, 8)
+		binary.BigEndian.PutUint64(keyID, *sig.IssuerKeyId)
+		subpackets = append(subpackets, outputSubpacket{true, issuerSubpacket, false, keyID})
 	}
 
 	if sig.SigLifetimeSecs != nil && *sig.SigLifetimeSecs != 0 {
@@ -754,7 +754,7 @@ func (sig *Signature) buildSubpackets() (subpackets []outputSubpacket) {
 	}
 
 	if sig.IsPrimaryId != nil && *sig.IsPrimaryId {
-		subpackets = append(subpackets, outputSubpacket{true, primaryUserIdSubpacket, false, []byte{1}})
+		subpackets = append(subpackets, outputSubpacket{true, primaryUserIDSubpacket, false, []byte{1}})
 	}
 
 	if len(sig.PreferredSymmetric) > 0 {

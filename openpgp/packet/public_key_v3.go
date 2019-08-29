@@ -47,7 +47,7 @@ func newRSAPublicKeyV3(creationTime time.Time, pub *rsa.PublicKey) *PublicKeyV3 
 		e:            new(encoding.MPI).SetBig(big.NewInt(int64(pub.E))),
 	}
 
-	pk.setFingerPrintAndKeyId()
+	pk.setFingerprintAndKeyID()
 	return pk
 }
 
@@ -73,11 +73,11 @@ func (pk *PublicKeyV3) parse(r io.Reader) (err error) {
 		return
 	}
 
-	pk.setFingerPrintAndKeyId()
+	pk.setFingerprintAndKeyID()
 	return
 }
 
-func (pk *PublicKeyV3) setFingerPrintAndKeyId() {
+func (pk *PublicKeyV3) setFingerprintAndKeyID() {
 	// RFC 4880, section 12.2
 	fingerPrint := md5.New()
 	fingerPrint.Write(pk.n.Bytes())
@@ -133,6 +133,7 @@ func (pk *PublicKeyV3) SerializeSignaturePrefix(w io.Writer) {
 	return
 }
 
+// Serialize writes the serialized PublicKeyV3 to the given writer.
 func (pk *PublicKeyV3) Serialize(w io.Writer) (err error) {
 	length := 8 // 8 byte header
 
@@ -228,7 +229,7 @@ func (pk *PublicKeyV3) VerifySignatureV3(signed hash.Hash, sig *SignatureV3) (er
 // VerifyUserIdSignatureV3 returns nil iff sig is a valid signature, made by this
 // public key, that id is the identity of pub.
 func (pk *PublicKeyV3) VerifyUserIdSignatureV3(id string, pub *PublicKeyV3, sig *SignatureV3) (err error) {
-	h, err := userIdSignatureV3Hash(id, pk, sig.Hash)
+	h, err := userIDSignatureV3Hash(id, pk, sig.Hash)
 	if err != nil {
 		return err
 	}
@@ -245,9 +246,9 @@ func (pk *PublicKeyV3) VerifyKeySignatureV3(signed *PublicKeyV3, sig *SignatureV
 	return pk.VerifySignatureV3(h, sig)
 }
 
-// userIdSignatureV3Hash returns a Hash of the message that needs to be signed
+// userIDSignatureV3Hash returns a Hash of the message that needs to be signed
 // to assert that pk is a valid key for id.
-func userIdSignatureV3Hash(id string, pk signingKey, hfn crypto.Hash) (h hash.Hash, err error) {
+func userIDSignatureV3Hash(id string, pk signingKey, hfn crypto.Hash) (h hash.Hash, err error) {
 	if !hfn.Available() {
 		return nil, errors.UnsupportedError("hash function")
 	}

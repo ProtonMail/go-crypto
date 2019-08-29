@@ -15,9 +15,9 @@ var pubKeyV3Test = struct {
 	hexFingerprint string
 	creationTime   time.Time
 	pubKeyAlgo     PublicKeyAlgorithm
-	keyId          uint64
-	keyIdString    string
-	keyIdShort     string
+	keyID          uint64
+	keyIDString    string
+	keyIDShort     string
 }{
 	"103BECF5BD1E837C89D19E98487767F7",
 	time.Unix(779753634, 0),
@@ -46,13 +46,13 @@ func TestPublicKeyV3Read(t *testing.T) {
 	if !bytes.Equal(expectedFingerprint, pk.Fingerprint[:]) {
 		t.Errorf("#%d: bad fingerprint got:%x want:%x", i, pk.Fingerprint[:], expectedFingerprint)
 	}
-	if pk.KeyId != test.keyId {
-		t.Errorf("#%d: bad keyid got:%x want:%x", i, pk.KeyId, test.keyId)
+	if pk.KeyId != test.keyID {
+		t.Errorf("#%d: bad keyid got:%x want:%x", i, pk.KeyId, test.keyID)
 	}
-	if g, e := pk.KeyIdString(), test.keyIdString; g != e {
+	if g, e := pk.KeyIdString(), test.keyIDString; g != e {
 		t.Errorf("#%d: bad KeyIdString got:%q want:%q", i, g, e)
 	}
-	if g, e := pk.KeyIdShortString(), test.keyIdShort; g != e {
+	if g, e := pk.KeyIdShortString(), test.keyIDShort; g != e {
 		t.Errorf("#%d: bad KeyIdShortString got:%q want:%q", i, g, e)
 	}
 }

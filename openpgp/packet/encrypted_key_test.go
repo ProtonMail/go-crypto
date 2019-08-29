@@ -85,11 +85,11 @@ func TestDecryptingEncryptedKey(t *testing.T) {
 func TestEncryptingEncryptedKey(t *testing.T) {
 	key := []byte{1, 2, 3, 4}
 	const expectedKeyHex = "01020304"
-	const keyId = 0x2a67d68660df41c7
+	const keyID = 0x2a67d68660df41c7
 
 	pub := &PublicKey{
 		PublicKey:  &encryptedKeyPub,
-		KeyId:      keyId,
+		KeyId:      keyID,
 		PubKeyAlgo: PubKeyAlgoRSA,
 	}
 
@@ -110,7 +110,7 @@ func TestEncryptingEncryptedKey(t *testing.T) {
 		return
 	}
 
-	if ek.KeyId != keyId || ek.Algo != PubKeyAlgoRSA {
+	if ek.KeyId != keyID || ek.Algo != PubKeyAlgoRSA {
 		t.Errorf("unexpected EncryptedKey contents: %#v", ek)
 		return
 	}

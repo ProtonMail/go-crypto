@@ -71,7 +71,7 @@ func NewRSAPublicKey(creationTime time.Time, pub *rsa.PublicKey) *PublicKey {
 		e:            new(encoding.MPI).SetBig(big.NewInt(int64(pub.E))),
 	}
 
-	pk.setFingerPrintAndKeyId()
+	pk.setFingerprintAndKeyID()
 	return pk
 }
 
@@ -87,7 +87,7 @@ func NewDSAPublicKey(creationTime time.Time, pub *dsa.PublicKey) *PublicKey {
 		y:            new(encoding.MPI).SetBig(pub.Y),
 	}
 
-	pk.setFingerPrintAndKeyId()
+	pk.setFingerprintAndKeyID()
 	return pk
 }
 
@@ -102,10 +102,11 @@ func NewElGamalPublicKey(creationTime time.Time, pub *elgamal.PublicKey) *Public
 		y:            new(encoding.MPI).SetBig(pub.Y),
 	}
 
-	pk.setFingerPrintAndKeyId()
+	pk.setFingerprintAndKeyID()
 	return pk
 }
 
+// NewECDSAPublicKey returns a PublicKey that wraps the given ecdsa.PublicKey.
 func NewECDSAPublicKey(creationTime time.Time, pub *ecdsa.PublicKey) *PublicKey {
 	pk := &PublicKey{
 		CreationTime: creationTime,
@@ -119,10 +120,11 @@ func NewECDSAPublicKey(creationTime time.Time, pub *ecdsa.PublicKey) *PublicKey 
 		panic("unknown elliptic curve")
 	}
 	pk.oid = curveInfo.Oid
-	pk.setFingerPrintAndKeyId()
+	pk.setFingerprintAndKeyID()
 	return pk
 }
 
+// NewECDHPublicKey returns a PublicKey that wraps the given ecdh.PublicKey.
 func NewECDHPublicKey(creationTime time.Time, pub *ecdh.PublicKey) *PublicKey {
 	var pk *PublicKey
 	var curveInfo *ecc.CurveInfo
@@ -150,10 +152,11 @@ func NewECDHPublicKey(creationTime time.Time, pub *ecdh.PublicKey) *PublicKey {
 		panic("unknown elliptic curve")
 	}
 	pk.oid = curveInfo.Oid
-	pk.setFingerPrintAndKeyId()
+	pk.setFingerprintAndKeyID()
 	return pk
 }
 
+// NewEdDSAPublicKey returns a PublicKey that wraps the given ed25519.PublicKey.
 func NewEdDSAPublicKey(creationTime time.Time, pub ed25519.PublicKey) *PublicKey {
 	curveInfo := ecc.FindByName("Ed25519")
 	pk := &PublicKey{
@@ -165,7 +168,7 @@ func NewEdDSAPublicKey(creationTime time.Time, pub ed25519.PublicKey) *PublicKey
 		p: encoding.NewMPI(append([]byte{0x40}, pub...)),
 	}
 
-	pk.setFingerPrintAndKeyId()
+	pk.setFingerprintAndKeyID()
 	return pk
 }
 
@@ -201,11 +204,11 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 		return
 	}
 
-	pk.setFingerPrintAndKeyId()
+	pk.setFingerprintAndKeyID()
 	return
 }
 
-func (pk *PublicKey) setFingerPrintAndKeyId() {
+func (pk *PublicKey) setFingerprintAndKeyID() {
 	// RFC 4880, section 12.2
 	fingerPrint := sha1.New()
 	pk.SerializeSignaturePrefix(fingerPrint)
@@ -445,6 +448,8 @@ func (pk *PublicKey) SerializeSignaturePrefix(h io.Writer) {
 	return
 }
 
+// Serialize writes the serialized contents of the given PublicKey into the
+// given io.Reader.
 func (pk *PublicKey) Serialize(w io.Writer) (err error) {
 	length := 6 // 6 byte header
 
@@ -737,9 +742,9 @@ func (pk *PublicKey) VerifyRevocationSignature(sig *Signature) (err error) {
 	return pk.VerifySignature(h, sig)
 }
 
-// userIdSignatureHash returns a Hash of the message that needs to be signed
+// userIDSignatureHash returns a Hash of the message that needs to be signed
 // to assert that pk is a valid key for id.
-func userIdSignatureHash(id string, pk *PublicKey, hashFunc crypto.Hash) (h hash.Hash, err error) {
+func userIDSignatureHash(id string, pk *PublicKey, hashFunc crypto.Hash) (h hash.Hash, err error) {
 	if !hashFunc.Available() {
 		return nil, errors.UnsupportedError("hash function")
 	}
@@ -764,7 +769,7 @@ func userIdSignatureHash(id string, pk *PublicKey, hashFunc crypto.Hash) (h hash
 // VerifyUserIdSignature returns nil iff sig is a valid signature, made by this
 // public key, that id is the identity of pub.
 func (pk *PublicKey) VerifyUserIdSignature(id string, pub *PublicKey, sig *Signature) (err error) {
-	h, err := userIdSignatureHash(id, pub, sig.Hash)
+	h, err := userIDSignatureHash(id, pub, sig.Hash)
 	if err != nil {
 		return err
 	}
@@ -774,7 +779,7 @@ func (pk *PublicKey) VerifyUserIdSignature(id string, pub *PublicKey, sig *Signa
 // VerifyUserIdSignatureV3 returns nil iff sig is a valid signature, made by this
 // public key, that id is the identity of pub.
 func (pk *PublicKey) VerifyUserIdSignatureV3(id string, pub *PublicKey, sig *SignatureV3) (err error) {
-	h, err := userIdSignatureV3Hash(id, pub, sig.Hash)
+	h, err := userIDSignatureV3Hash(id, pub, sig.Hash)
 	if err != nil {
 		return err
 	}

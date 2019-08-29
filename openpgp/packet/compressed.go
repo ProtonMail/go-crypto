@@ -19,6 +19,7 @@ type Compressed struct {
 	Body io.Reader
 }
 
+// Compressions from the flate package see RFC 1951)
 const (
 	NoCompression      = flate.NoCompression
 	BestSpeed          = flate.BestSpeed

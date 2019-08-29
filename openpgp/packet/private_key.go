@@ -57,6 +57,8 @@ const (
 	S2KCHECKSUM S2KType = 255
 )
 
+// NewRSAPrivateKey returns a new PrivateKey object with the given creationTime
+// and private key from the crypto/rsa package.
 func NewRSAPrivateKey(creationTime time.Time, priv *rsa.PrivateKey) *PrivateKey {
 	pk := new(PrivateKey)
 	pk.PublicKey = *NewRSAPublicKey(creationTime, &priv.PublicKey)
@@ -64,6 +66,8 @@ func NewRSAPrivateKey(creationTime time.Time, priv *rsa.PrivateKey) *PrivateKey 
 	return pk
 }
 
+// NewDSAPrivateKey returns a new PrivateKey object with the given creationTime
+// and private key from the crypto/dsa package.
 func NewDSAPrivateKey(creationTime time.Time, priv *dsa.PrivateKey) *PrivateKey {
 	pk := new(PrivateKey)
 	pk.PublicKey = *NewDSAPublicKey(creationTime, &priv.PublicKey)
@@ -71,6 +75,8 @@ func NewDSAPrivateKey(creationTime time.Time, priv *dsa.PrivateKey) *PrivateKey 
 	return pk
 }
 
+// NewElGamalPrivateKey returns a new PrivateKey object with the given creationTime
+// and private key from the crypto/openpgp/elgamal package.
 func NewElGamalPrivateKey(creationTime time.Time, priv *elgamal.PrivateKey) *PrivateKey {
 	pk := new(PrivateKey)
 	pk.PublicKey = *NewElGamalPublicKey(creationTime, &priv.PublicKey)
@@ -78,6 +84,8 @@ func NewElGamalPrivateKey(creationTime time.Time, priv *elgamal.PrivateKey) *Pri
 	return pk
 }
 
+// NewECDSAPrivateKey returns a new PrivateKey object with the given creationTime
+// and private key from the crypto/ecdsa package.
 func NewECDSAPrivateKey(creationTime time.Time, priv *ecdsa.PrivateKey) *PrivateKey {
 	pk := new(PrivateKey)
 	pk.PublicKey = *NewECDSAPublicKey(creationTime, &priv.PublicKey)
@@ -109,6 +117,8 @@ func NewSignerPrivateKey(creationTime time.Time, signer crypto.Signer) *PrivateK
 	return pk
 }
 
+// NewECDHPrivateKey returns a new PrivateKey object with the given creationTime
+// and private key from the crypto/openpgp/ecdh package.
 func NewECDHPrivateKey(creationTime time.Time, priv *ecdh.PrivateKey) *PrivateKey {
 	pk := new(PrivateKey)
 	pk.PublicKey = *NewECDHPublicKey(creationTime, &priv.PublicKey)
@@ -116,6 +126,8 @@ func NewECDHPrivateKey(creationTime time.Time, priv *ecdh.PrivateKey) *PrivateKe
 	return pk
 }
 
+// NewEdDSAPrivateKey returns a new PrivateKey object with the given creationTime
+// and private key from the crypto/ed25519 package.
 func NewEdDSAPrivateKey(creationTime time.Time, priv ed25519.PrivateKey) *PrivateKey {
 	pk := new(PrivateKey)
 	pk.PublicKey = *NewEdDSAPublicKey(creationTime, priv.Public().(ed25519.PublicKey))
@@ -190,6 +202,8 @@ func mod64kHash(d []byte) uint16 {
 	return h
 }
 
+// Serialize writes the contents of the serialized given private key into the
+// given io.Writer.
 func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 	buf := bytes.NewBuffer(nil)
 	err = pk.PublicKey.serializeWithoutHeaders(buf)

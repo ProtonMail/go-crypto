@@ -71,14 +71,14 @@ func (uid *UserId) parse(r io.Reader) (err error) {
 		return
 	}
 	uid.Id = string(b)
-	uid.Name, uid.Comment, uid.Email = parseUserId(uid.Id)
+	uid.Name, uid.Comment, uid.Email = parseUserID(uid.Id)
 	return
 }
 
 // Serialize marshals uid to w in the form of an OpenPGP packet, including
 // header.
 func (uid *UserId) Serialize(w io.Writer) error {
-	err := serializeHeader(w, packetTypeUserId, len(uid.Id))
+	err := serializeHeader(w, packetTypeUserID, len(uid.Id))
 	if err != nil {
 		return err
 	}
@@ -86,9 +86,9 @@ func (uid *UserId) Serialize(w io.Writer) error {
 	return err
 }
 
-// parseUserId extracts the name, comment and email from a user id string that
+// parseUserID extracts the name, comment and email from a user id string that
 // is formatted as "Full Name (Comment) <email@example.com>".
-func parseUserId(id string) (name, comment, email string) {
+func parseUserID(id string) (name, comment, email string) {
 	var n, c, e struct {
 		start, end int
 	}
