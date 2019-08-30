@@ -14,6 +14,7 @@
 package ocb
 
 import (
+	"bytes"
 	"crypto/cipher"
 	"crypto/subtle"
 	"errors"
@@ -26,13 +27,26 @@ type ocb struct {
 	tagSize   int
 	nonceSize int
 	mask      mask
+	// Optimized en/decrypt: For each nonce N used to en/decrypt, the 'Ktop'
+	// internal variable can be reused for en/decrypting with nonces sharing
+	// all but the last 6 bits with N. The prefix of the first nonce used to
+	// compute the new Ktop, and the Ktop value itself, are stored in
+	// reusableKtop. If using incremental nonces, this saves one block cipher
+	// call every 63 out of 64 OCB encryptions, and stores one nonce and one
+	// output of the block cipher in memory only.
+	reusableKtop reusableKtop
 }
 
 type mask struct {
 	// L_*, L_$, (L_i)_{i ∈ N}
 	lAst []byte
 	lDol []byte
-	L     [][]byte
+	L    [][]byte
+}
+
+type reusableKtop struct {
+	noncePrefix []byte
+	Ktop        []byte
 }
 
 const (
@@ -79,10 +93,14 @@ func NewOCBWithNonceAndTagSize(
 		return nil, ocbError("Custom tag length exceeds blocksize")
 	}
 	return &ocb{
-		block:     block,
-		tagSize:   tagSize,
-		nonceSize: nonceSize,
-		mask:      initializeMaskTable(block),
+		block:        block,
+		tagSize:      tagSize,
+		nonceSize:    nonceSize,
+		mask:         initializeMaskTable(block),
+		reusableKtop: reusableKtop{
+			noncePrefix: nil,
+			Ktop: nil,
+		},
 	}, nil
 }
 
@@ -90,7 +108,7 @@ func (o *ocb) Seal(dst, nonce, plaintext, adata []byte) []byte {
 	if len(nonce) > o.nonceSize {
 		panic("crypto/ocb: Incorrect nonce length given to OCB")
 	}
-	ret, out := byteutil.SliceForAppend(dst, len(plaintext) + o.tagSize)
+	ret, out := byteutil.SliceForAppend(dst, len(plaintext)+o.tagSize)
 	o.crypt(enc, out, nonce, adata, plaintext)
 	return ret
 }
@@ -130,30 +148,42 @@ func (o *ocb) crypt(instruction int, Y, nonce, adata, X []byte) []byte {
 	//
 	// Nonce-dependent and per-encryption variables
 	//
-	// From RFC 7253:
-	// Nonce = num2str(TAGLEN mod 128, 7) || zeros(120 - bitlen(N)) || 1 || N
-	paddedNonce := append(make([]byte, blockSize-1-len(nonce)), 1)
-	paddedNonce = append(paddedNonce, nonce...)
-	paddedNonce[0] |= byte(((8 * o.tagSize) % (8 * blockSize)) << 1)
-	bottom := int(paddedNonce[blockSize-1] & 63)
-	// Zero out last 6 bits of paddedNonce and encrypt into Ktop
-	paddedNonce[blockSize-1] &= 192
-	Ktop := paddedNonce
-	o.block.Encrypt(Ktop, Ktop)
+	// Zero out the last 6 bits of the nonce into truncatedNonce to see if Ktop
+	// is already computed.
+	truncatedNonce := make([]byte, len(nonce))
+	copy(truncatedNonce, nonce)
+	truncatedNonce[len(truncatedNonce)-1] &= 192
+	Ktop := make([]byte, blockSize)
+	if bytes.Equal(truncatedNonce, o.reusableKtop.noncePrefix) {
+		Ktop = o.reusableKtop.Ktop
+	} else {
+		// Nonce = num2str(TAGLEN mod 128, 7) || zeros(120 - bitlen(N)) || 1 || N
+		paddedNonce := append(make([]byte, blockSize-1-len(nonce)), 1)
+		paddedNonce = append(paddedNonce, truncatedNonce...)
+		paddedNonce[0] |= byte(((8 * o.tagSize) % (8 * blockSize)) << 1)
+		// Last 6 bits of paddedNonce are already zero. Encrypt into Ktop
+		paddedNonce[blockSize-1] &= 192
+		Ktop = paddedNonce
+		o.block.Encrypt(Ktop, Ktop)
+		o.reusableKtop.noncePrefix = truncatedNonce
+		o.reusableKtop.Ktop = Ktop
+	}
 
 	// Stretch = Ktop || ((lower half of Ktop) XOR (lower half of Ktop << 8))
 	xorHalves := make([]byte, blockSize/2)
 	byteutil.XorBytes(xorHalves, Ktop[:blockSize/2], Ktop[1:1+blockSize/2])
 	stretch := append(Ktop, xorHalves...)
-	offset := byteutil.ShiftNBytesLeft(stretch, bottom)
+	bottom := int(nonce[len(nonce)-1] & 63)
+	offset := make([]byte, len(stretch))
+	byteutil.ShiftNBytesLeft(offset, stretch, bottom)
 	offset = offset[:blockSize]
-	checksum := make([]byte, blockSize)
 
 	//
 	// Process any whole blocks
 	//
 	// Note: For encryption Y is ciphertext || tag, for decryption Y is
 	// plaintext || tag.
+	checksum := make([]byte, blockSize)
 	m := len(X) / blockSize
 	for i := 0; i < m; i++ {
 		index := bits.TrailingZeros(uint(i + 1))
@@ -184,7 +214,7 @@ func (o *ocb) crypt(instruction int, Y, nonce, adata, X []byte) []byte {
 		pad := make([]byte, blockSize)
 		o.block.Encrypt(pad, offset)
 		chunkX := X[blockSize*m:]
-		chunkY := Y[blockSize*m: len(X)]
+		chunkY := Y[blockSize*m : len(X)]
 		byteutil.XorBytes(chunkY, chunkX, pad[:len(chunkX)])
 		// P_* || bit(1) || zeroes(127) - len(P_*)
 		switch instruction {
@@ -201,7 +231,7 @@ func (o *ocb) crypt(instruction int, Y, nonce, adata, X []byte) []byte {
 		byteutil.XorBytesMut(tag, o.mask.lDol)
 		o.block.Encrypt(tag, tag)
 		byteutil.XorBytesMut(tag, o.hash(adata))
-		copy(Y[blockSize*m + len(chunkY):], tag[:o.tagSize])
+		copy(Y[blockSize*m+len(chunkY):], tag[:o.tagSize])
 	} else {
 		byteutil.XorBytes(tag, checksum, offset)
 		byteutil.XorBytesMut(tag, o.mask.lDol)
@@ -271,7 +301,7 @@ func initializeMaskTable(block cipher.Block) mask {
 	return mask{
 		lAst: lAst,
 		lDol: lDol,
-		L:     L,
+		L:    L,
 	}
 }
 
