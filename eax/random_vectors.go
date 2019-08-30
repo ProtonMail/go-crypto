@@ -1,3 +1,6 @@
+// These vectors include key length in {128, 192, 256}, tag size 128, and
+// random nonce, header, and plaintext lengths.
+
 // This file was automatically generated.
 
 package eax

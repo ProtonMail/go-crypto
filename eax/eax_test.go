@@ -17,7 +17,7 @@ import (
 const (
 	blockLength = 16
 	iterations  = 20
-	maxLength   = 262144
+	maxLength   = 1 << 12
 )
 
 func TestEAXImplementsAEADInterface(t *testing.T) {
@@ -307,10 +307,8 @@ func TestParameters(t *testing.T) {
 }
 
 func BenchmarkEncrypt(b *testing.B) {
-	// OpenPGP.js defaults plaintext chunks at 256 KiB
-	plaintextLength := 262144
 	headerLength := 16
-	pt := make([]byte, plaintextLength)
+	pt := make([]byte, maxLength)
 	header := make([]byte, headerLength)
 	key := make([]byte, blockLength)
 	nonce := make([]byte, blockLength)
@@ -335,10 +333,8 @@ func BenchmarkEncrypt(b *testing.B) {
 }
 
 func BenchmarkDecrypt(b *testing.B) {
-	// OpenPGP.js defaults plaintext chunks at 256 KiB
-	plaintextLength := 262144
 	headerLength := 16
-	pt := make([]byte, plaintextLength)
+	pt := make([]byte, maxLength)
 	header := make([]byte, headerLength)
 	key := make([]byte, blockLength)
 	nonce := make([]byte, blockLength)

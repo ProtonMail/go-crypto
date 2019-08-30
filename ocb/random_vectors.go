@@ -1,3 +1,10 @@
+// In the test vectors provided by RFC 7253, the "bottom"
+// internal variable, which defines "offset" for the first time, does not
+// exceed 15. However, it can attain values up to 63.
+
+// These vectors include key length in {128, 192, 256}, tag size 128, and
+// random nonce, header, and plaintext lengths.
+
 // This file was automatically generated.
 
 package ocb
