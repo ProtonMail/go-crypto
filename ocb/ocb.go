@@ -138,16 +138,14 @@ func (o *ocb) crypt(instruction int, Y, nonce, adata, X []byte) []byte {
 	bottom := int(paddedNonce[blockSize-1] & 63)
 	// Zero out last 6 bits of paddedNonce and encrypt into Ktop
 	paddedNonce[blockSize-1] &= 192
-	Ktop := make([]byte, blockSize)
-	o.block.Encrypt(Ktop, paddedNonce)
+	Ktop := paddedNonce
+	o.block.Encrypt(Ktop, Ktop)
 
 	// Stretch = Ktop || ((lower half of Ktop) XOR (lower half of Ktop << 8))
 	xorHalves := make([]byte, blockSize/2)
 	byteutil.XorBytes(xorHalves, Ktop[:blockSize/2], Ktop[1:1+blockSize/2])
 	stretch := append(Ktop, xorHalves...)
-	offset := make([]byte, len(stretch))
-	copy(offset, stretch)
-	offset = byteutil.ShiftNBytesLeft(offset, bottom)
+	offset := byteutil.ShiftNBytesLeft(stretch, bottom)
 	offset = offset[:blockSize]
 	checksum := make([]byte, blockSize)
 
