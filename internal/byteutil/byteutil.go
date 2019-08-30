@@ -21,8 +21,7 @@ func GfnDouble(input []byte) []byte {
 	return shifted
 }
 
-// For any bytes array L, outputs the byte array corresponding to L << 1 in
-// binary.
+// ShiftBytesLeft outputs the byte array corresponding to x << 1 in binary.
 func ShiftBytesLeft(x []byte) []byte {
 	l := len(x)
 	dst := make([]byte, l)
@@ -33,11 +32,10 @@ func ShiftBytesLeft(x []byte) []byte {
 	return dst
 }
 
-// For any bytes array L, outputs the byte array corresponding to L << n in
-// binary.
-func ShiftNBytesLeft(x []byte, n int) []byte {
+// ShiftNBytesLeft puts in dst the byte array corresponding to x << n in binary.
+func ShiftNBytesLeft(dst, x []byte, n int) {
 	// Erase first n / 8 bytes
-	dst := x[n/8:]
+	copy(dst, x[n/8:])
 
 	// Shift the remaining n % 8 bits
 	bits := uint(n % 8)
@@ -49,7 +47,6 @@ func ShiftNBytesLeft(x []byte, n int) []byte {
 
 	// Append trailing zeroes
 	dst = append(dst, make([]byte, n/8)...)
-	return dst
 }
 
 // XorBytesMut assumes equal input length, replaces X with X XOR Y
@@ -67,7 +64,7 @@ func XorBytes(Z, X, Y []byte) {
 	}
 }
 
-// XORs smaller input (assumed Y) at the right of the larger input (assumed X)
+// RightXor XORs smaller input (assumed Y) at the right of the larger input (assumed X)
 func RightXor(X, Y []byte) []byte {
 	offset := len(X) - len(Y)
 	xored := make([]byte, len(X));
