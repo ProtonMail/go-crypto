@@ -305,7 +305,7 @@ func TestEncryptDecryptRandVectorsWithPreviousData(t *testing.T) {
 			key := make([]byte, keyLength)
 			// Testing for short nonces but take notice they are not recommended
 			nonce := make([]byte, 1+mathrand.Intn(blockLength-1))
-			previousData := make([]byte, mathrand.Intn(maxLength)-2*blockLength)
+			previousData := make([]byte, mathrand.Intn(maxLength))
 			// Populate items with crypto/rand
 			itemsToPopulate := [][]byte{pt, header, key, nonce, previousData}
 			for _, item := range itemsToPopulate {
