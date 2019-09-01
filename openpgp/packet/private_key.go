@@ -35,7 +35,7 @@ type PrivateKey struct {
 	encryptedData []byte
 	cipher        CipherFunction
 	s2k           func(out, in []byte)
-	PrivateKey    interface{} // An *{rsa|dsa|ecdsa}.PrivateKey or a crypto.Signer.
+	PrivateKey    interface{} // An *{rsa|dsa|elgamal|ecdh|ecdsa|ed25519}.PrivateKey or a crypto.Signer.
 	sha1Checksum  bool
 	iv            []byte
 
@@ -324,8 +324,6 @@ func serializeECDHPrivateKey(w io.Writer, priv *ecdh.PrivateKey) error {
 	_, err := w.Write(encoding.NewMPI(priv.D).EncodedBytes())
 	return err
 }
-
-
 
 // Decrypt decrypts an encrypted private key using a passphrase.
 func (pk *PrivateKey) Decrypt(passphrase []byte) error {

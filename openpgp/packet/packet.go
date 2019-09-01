@@ -395,7 +395,9 @@ func Read(r io.Reader) (p Packet, err error) {
 		err = p.parse(contents)
 	}
 	if err != nil {
-		consumeAll(contents)
+		if _, errConsume := consumeAll(contents); errConsume != nil {
+			err = errConsume
+		}
 	}
 	return
 }

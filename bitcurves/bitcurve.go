@@ -18,6 +18,7 @@ package bitcurves
 import (
 	"io"
 	"sync"
+	"errors"
 	"math/big"
 	"crypto/elliptic"
 )
@@ -33,6 +34,7 @@ type BitCurve struct {
 	BitSize int      // the size of the underlying field
 }
 
+// Params returns the parameters of the given BitCurve (see BitCurve struct)
 func (BitCurve *BitCurve) Params() (cp *elliptic.CurveParams) {
 	cp = new (elliptic.CurveParams)
 	cp.Name = BitCurve.Name
@@ -44,7 +46,7 @@ func (BitCurve *BitCurve) Params() (cp *elliptic.CurveParams) {
 	return cp
 }
 
-// IsOnBitCurve returns true if the given (x,y) lies on the BitCurve.
+// IsOnCurve returns true if the given (x,y) lies on the BitCurve.
 func (BitCurve *BitCurve) IsOnCurve(x, y *big.Int) bool {
 	// y² = x³ + b
 	y2 := new(big.Int).Mul(y, y)//y²
@@ -59,25 +61,34 @@ func (BitCurve *BitCurve) IsOnCurve(x, y *big.Int) bool {
 	return x3.Cmp(y2) == 0
 }
 
-//TODO: double check if the function is okay
 // affineFromJacobian reverses the Jacobian transform. See the comment at the
 // top of the file.
-func (BitCurve *BitCurve) affineFromJacobian(x, y, z *big.Int) (xOut, yOut *big.Int) {
-	zinv := new(big.Int).ModInverse(z, BitCurve.P)
+func (BitCurve *BitCurve) affineFromJacobian(X, Y, Z *big.Int) (xOut, yOut *big.Int, err error) {
+	if Z.Cmp(big.NewInt(0)) == 0 {
+		err := errors.New("bitcurve: Can't convert to affine with Jacobian Z = 0")
+		return nil, nil, err
+	}
+	// x = YZ^2 mod P
+	zinv := new(big.Int).ModInverse(Z, BitCurve.P)
 	zinvsq := new(big.Int).Mul(zinv, zinv)
 
-	xOut = new(big.Int).Mul(x, zinvsq)
+	xOut = new(big.Int).Mul(X, zinvsq)
 	xOut.Mod(xOut, BitCurve.P)
+	// y = YZ^3 mod P
 	zinvsq.Mul(zinvsq, zinv)
-	yOut = new(big.Int).Mul(y, zinvsq)
+	yOut = new(big.Int).Mul(Y, zinvsq)
 	yOut.Mod(yOut, BitCurve.P)
-	return
+	return xOut, yOut, nil
 }
 
 // Add returns the sum of (x1,y1) and (x2,y2)
 func (BitCurve *BitCurve) Add(x1, y1, x2, y2 *big.Int) (*big.Int, *big.Int) {
 	z := new(big.Int).SetInt64(1)
-	return BitCurve.affineFromJacobian(BitCurve.addJacobian(x1, y1, z, x2, y2, z))
+	addedX, addedY, err := BitCurve.affineFromJacobian(BitCurve.addJacobian(x1, y1, z, x2, y2, z))
+	if err != nil {
+		panic(err)
+	}
+	return addedX, addedY
 }
 
 // addJacobian takes two points in Jacobian coordinates, (x1, y1, z1) and
@@ -148,7 +159,11 @@ func (BitCurve *BitCurve) addJacobian(x1, y1, z1, x2, y2, z2 *big.Int) (*big.Int
 // Double returns 2*(x,y)
 func (BitCurve *BitCurve) Double(x1, y1 *big.Int) (*big.Int, *big.Int) {
 	z1 := new(big.Int).SetInt64(1)
-	return BitCurve.affineFromJacobian(BitCurve.doubleJacobian(x1, y1, z1))
+	doubledX, doubledY, err := BitCurve.affineFromJacobian(BitCurve.doubleJacobian(x1, y1, z1))
+	if err != nil {
+		panic(err)
+	}
+	return doubledX, doubledY
 }
 
 // doubleJacobian takes a point in Jacobian coordinates, (x, y, z), and
@@ -222,7 +237,11 @@ func (BitCurve *BitCurve) ScalarMult(Bx, By *big.Int, k []byte) (*big.Int, *big.
 		return nil, nil
 	}
 
-	return BitCurve.affineFromJacobian(x, y, z)
+	xOut, yOut, err := BitCurve.affineFromJacobian(x, y, z)
+	if err != nil {
+		panic(err)
+	}
+	return xOut, yOut
 }
 
 // ScalarBaseMult returns k*G, where G is the base point of the group and k is
