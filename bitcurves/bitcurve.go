@@ -200,34 +200,35 @@ func (BitCurve *BitCurve) doubleJacobian(x, y, z *big.Int) (*big.Int, *big.Int, 
 	return x3, y3, z3
 }
 
-//TODO: double check if it is okay
-// ScalarMult returns k*(Bx,By) where k is a number in big-endian form.
+// ScalarMult returns k*(Bx,By) where k is a number in big-endian form. If k=0,
+// the function returns nil, nil. This method is implemented for constant-time
+// execution, since it reads the bits of k.
 func (BitCurve *BitCurve) ScalarMult(Bx, By *big.Int, k []byte) (*big.Int, *big.Int) {
-	// We have a slight problem in that the identity of the group (the
-	// point at infinity) cannot be represented in (x, y) form on a finite
-	// machine. Thus the standard add/double algorithm has to be tweaked
-	// slightly: our initial state is not the identity, but x, and we
-	// ignore the first true bit in |k|.  If we don't find any true bits in
-	// |k|, then we return nil, nil, because we cannot return the identity
-	// element.
+	// Since the point at infinity cannot be represented, the standard
+	// add/double algorithm is tweaked: the initial state is not the
+	// identity, but the input point (Bx, By).
 
 	Bz := new(big.Int).SetInt64(1)
-	x := Bx
-	y := By
-	z := Bz
+	x, y, z := Bx, By, Bz
+	xDum, yDum, zDum := Bx, By, Bz
 
 	seenFirstTrue := false
 	for _, byte := range k {
 		for bitNum := 0; bitNum < 8; bitNum++ {
 			if seenFirstTrue {
 				x, y, z = BitCurve.doubleJacobian(x, y, z)
+			} else {
+				xDum, yDum, zDum = BitCurve.doubleJacobian(xDum, yDum, zDum)
 			}
 			if byte&0x80 == 0x80 {
-				if !seenFirstTrue {
-					seenFirstTrue = true
-				} else {
+				if seenFirstTrue {
 					x, y, z = BitCurve.addJacobian(Bx, By, Bz, x, y, z)
+				} else {
+					seenFirstTrue = true
+					xDum, yDum, zDum = BitCurve.addJacobian(Bx, By, Bz, xDum, yDum, zDum)
 				}
+			} else {
+					xDum, yDum, zDum = BitCurve.addJacobian(Bx, By, Bz, xDum, yDum, zDum)
 			}
 			byte <<= 1
 		}
@@ -252,7 +253,6 @@ func (BitCurve *BitCurve) ScalarBaseMult(k []byte) (*big.Int, *big.Int) {
 
 var mask = []byte{0xff, 0x1, 0x3, 0x7, 0xf, 0x1f, 0x3f, 0x7f}
 
-//TODO: double check if it is okay
 // GenerateKey returns a public/private key pair. The private key is generated
 // using the given reader, which must return random data.
 func (BitCurve *BitCurve) GenerateKey(rand io.Reader) (priv []byte, x, y *big.Int, err error) {
@@ -267,9 +267,6 @@ func (BitCurve *BitCurve) GenerateKey(rand io.Reader) (priv []byte, x, y *big.In
 		// We have to mask off any excess bits in the case that the size of the
 		// underlying field is not a whole number of bytes.
 		priv[0] &= mask[BitCurve.BitSize%8]
-		// This is because, in tests, rand will return all zeros and we don't
-		// want to get the point at infinity and loop forever.
-		priv[1] ^= 0x42
 		x, y = BitCurve.ScalarBaseMult(priv)
 	}
 	return
