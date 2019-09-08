@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	// For randomized tests (low algorithms)
+	// For randomized tests (slow algorithms)
 	iterationsShort = 1 << 3
 	maxPasswordLength = 80
 )
