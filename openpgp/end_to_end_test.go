@@ -225,7 +225,10 @@ func encryptDecryptTest(t *testing.T, testSetFrom algorithmSet, testSetTo algori
 		return nil, nil
 	}
 	signed = privateKeyFrom[0]
-	signed.PrivateKey.Decrypt([]byte(testSetFrom.password))
+	errDec := signed.PrivateKey.Decrypt([]byte(testSetFrom.password))
+	if errDec != nil {
+		panic(errDec)
+	}
 
 	buf := new(bytes.Buffer)
 	w, err := Encrypt(buf, publicKeyTo[:1], signed, nil /* no hints */, nil)

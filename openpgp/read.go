@@ -158,7 +158,10 @@ FindKey:
 			}
 			if !pk.key.PrivateKey.Encrypted {
 				if len(pk.encryptedKey.Key) == 0 {
-					pk.encryptedKey.Decrypt(pk.key.PrivateKey, config)
+					errDec := pk.encryptedKey.Decrypt(pk.key.PrivateKey, config)
+					if errDec != nil {
+						return nil, errDec
+					}
 				}
 				if len(pk.encryptedKey.Key) == 0 {
 					continue

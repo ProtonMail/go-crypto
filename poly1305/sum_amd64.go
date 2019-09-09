@@ -20,7 +20,10 @@ func finalize(tag *[TagSize]byte, state *[7]uint64)
 // key allows an attacker to forge messages at will.
 func Sum(out *[16]byte, m []byte, key *[32]byte) {
 	h := newMAC(key)
-	h.Write(m)
+	_, err := h.Write(m)
+	if err != nil {
+		panic(err)
+	}
 	h.Sum(out)
 }
 

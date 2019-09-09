@@ -16,7 +16,10 @@ const (
 // Sum and should be called if no assembly implementation is available.
 func sumGeneric(out *[TagSize]byte, msg []byte, key *[32]byte) {
 	h := newMACGeneric(key)
-	h.Write(msg)
+	_, err := h.Write(msg)
+	if err != nil {
+		panic(err)
+	}
 	h.Sum(out)
 }
 

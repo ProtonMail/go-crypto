@@ -199,9 +199,15 @@ func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 
 	privateKeyBuf := bytes.NewBuffer(nil)
 	if pk.Encrypted {
-		pk.SerializeEncrypted(privateKeyBuf)
+		err = pk.SerializeEncrypted(privateKeyBuf)
+		if err != nil {
+			panic(err)
+		}
 	} else {
-		pk.SerializeUnEncrypted(privateKeyBuf)
+		err = pk.SerializeUnEncrypted(privateKeyBuf)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	ptype := packetTypePrivateKey
