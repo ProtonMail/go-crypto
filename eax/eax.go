@@ -19,18 +19,22 @@ const (
 	defaultNonceSize = 16
 )
 
-type eax struct {
+type Eax struct {
 	block     cipher.Block // Only AES-{128, 192, 256} supported
 	tagSize   int          // At least 12 bytes recommended
 	nonceSize int
 }
 
-func (e *eax) NonceSize() int {
+func (e *Eax) NonceSize() int {
 	return e.nonceSize
 }
 
-func (e *eax) Overhead() int {
+func (e *Eax) Overhead() int {
 	return e.tagSize
+}
+
+func (e *Eax) Cipher() cipher.Block {
+	return e.block
 }
 
 // NewEAX returns an EAX instance with AES-{KEYLENGTH} and default nonce and
@@ -56,14 +60,14 @@ func NewEAXWithNonceAndTagSize(
 	if tagSize > block.BlockSize() {
 		return nil, eaxError("Custom tag length exceeds blocksize")
 	}
-	return &eax{
+	return &Eax{
 		block:     block,
 		tagSize:   tagSize,
 		nonceSize: nonceSize,
 	}, nil
 }
 
-func (e *eax) Seal(dst, nonce, plaintext, adata []byte) []byte {
+func (e *Eax) Seal(dst, nonce, plaintext, adata []byte) []byte {
 	if len(nonce) > e.nonceSize {
 		panic("crypto/eax: Nonce too long for this instance")
 	}
@@ -85,7 +89,7 @@ func (e *eax) Seal(dst, nonce, plaintext, adata []byte) []byte {
 	return ret
 }
 
-func (e* eax) Open(dst, nonce, ciphertext, adata []byte) ([]byte, error) {
+func (e* Eax) Open(dst, nonce, ciphertext, adata []byte) ([]byte, error) {
 	if len(nonce) > e.nonceSize {
 		panic("crypto/eax: Nonce too long for this instance")
 	}
@@ -118,7 +122,7 @@ func (e* eax) Open(dst, nonce, ciphertext, adata []byte) ([]byte, error) {
 }
 
 // Tweakable OMAC - Calls OMAC_K([t]_n || plaintext)
-func (e *eax) omacT(t byte, plaintext []byte) []byte {
+func (e *Eax) omacT(t byte, plaintext []byte) []byte {
 	blockSize := e.block.BlockSize()
 	byteT := make([]byte, blockSize)
 	byteT[blockSize-1] = t
@@ -126,7 +130,7 @@ func (e *eax) omacT(t byte, plaintext []byte) []byte {
 	return e.omac(concat)
 }
 
-func (e *eax) omac(plaintext []byte) []byte {
+func (e *Eax) omac(plaintext []byte) []byte {
 	blockSize := e.block.BlockSize()
 	// L ← E_K(0^n); B ← 2L; P ← 4L
 	L := make([]byte, blockSize)
@@ -143,7 +147,7 @@ func (e *eax) omac(plaintext []byte) []byte {
 	return cbcCiphertext[len(cbcCiphertext)-blockSize:]
 }
 
-func (e *eax) pad(plaintext, B, P []byte) []byte {
+func (e *Eax) pad(plaintext, B, P []byte) []byte {
 	// if |M| in {n, 2n, 3n, ...}
 	blockSize := e.block.BlockSize()
 	if len(plaintext) != 0 && len(plaintext)%blockSize == 0 {

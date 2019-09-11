@@ -316,6 +316,7 @@ const (
 	packetTypePublicSubkey              packetType = 14
 	packetTypeUserAttribute             packetType = 17
 	packetTypeSymmetricallyEncryptedMDC packetType = 18
+	packetTypeAEADEncrypted             packetType = 20
 )
 
 // peekVersion detects the version of a public key packet about to

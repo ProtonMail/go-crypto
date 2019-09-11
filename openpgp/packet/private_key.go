@@ -258,7 +258,7 @@ func (pk *PrivateKey) SerializeUnEncrypted(w io.Writer) (err error) {
 	return
 }
 
-//SerializeEncrypted serialize encrypted privatekey
+//SerializeEncrypted serializes an encrypted privatekey
 func (pk *PrivateKey) SerializeEncrypted(w io.Writer) error {
 	privateKeyBuf := bytes.NewBuffer(nil)
 	encodedKeyBuf := bytes.NewBuffer(nil)
