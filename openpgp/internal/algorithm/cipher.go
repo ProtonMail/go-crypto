@@ -90,6 +90,7 @@ func (cipher CipherFunction) BlockSize() int {
 }
 
 // New returns a fresh instance of the given cipher.
+// TODO(fvial): This should return the received cipher error.
 func (cipher CipherFunction) New(key []byte) (block cipher.Block) {
 	switch cipher {
 	case TripleDES:

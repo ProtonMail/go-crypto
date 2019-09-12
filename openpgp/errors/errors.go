@@ -79,10 +79,10 @@ func (upte UnknownPacketTypeError) Error() string {
 	return "openpgp: unknown packet type: " + strconv.Itoa(int(upte))
 }
 
-// NonceError indicates a failure when using a nonce value.
-type NonceError string
+// AEAD error indicates that there is a problem when initializing or using a
+// AEAD instance, configuration struct, nonces or index values.
+type AEADError string
 
-func (ne NonceError) Error() string {
-	return "openpgp: nonce error: " + string(ne)
+func (ae AEADError) Error() string {
+	return "openpgp: aead error: " + string(ae)
 }
-

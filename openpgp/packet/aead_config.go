@@ -3,10 +3,13 @@
 package packet
 
 import (
-	"io"
 	"crypto/rand"
 	"golang.org/x/crypto/openpgp/errors"
+	"golang.org/x/crypto/openpgp/internal/algorithm"
 )
+
+// Only currently defined version
+const aeadEncryptedVersion = 0x01
 
 type AEADMode uint8
 
@@ -14,59 +17,114 @@ type AEADMode uint8
 const (
 	EaxID = AEADMode(1)
 	OcbID = AEADMode(2)
-	defaultChunkSize = 1 << 12 // 4 Kb
 )
 
 // AEADConfig collects a number of AEAD parameters along with sensible defaults.
-// A nil *Config is valid and results in all default values.
+// A nil AEADConfig is valid and results in all default values.
 type AEADConfig struct {
-	// The used AEAD algorithm.
-	Mode AEADMode
-	// Rand provides the source of entropy.
-	// If nil, the crypto/rand Reader is used.
-	Rand io.Reader
-	// DefaultCipher is the cipher to be used. Its value needs to be consistent
+	version byte
+	// The block cipher algorithm to be used. Its value needs to be consistent
 	// with the intended AEAD instance to configure.
-	DefaultCipher CipherFunction
-	// The size of data chunks to encrypt and authenticate.
-	DefaultChunkSize uint32
-	// If set to true, the first nonce is read from Rand and the subsequent
-	// nonces are incremental. If set to false, all nonces are read from the
-	// random reader. The default value is true.
-	IncrementalNonces bool
+	cipher CipherFunction
+	// The AEAD mode of operation.
+	mode AEADMode
+	// Amount of octets in each chunk of data, according to the formula
+	// chunkSize = ((uint64_t)1 << (chunkSizeByte + 6))
+	chunkSizeByte byte
+	initialNonce []byte  // Optional
 }
 
-func (c *AEADConfig) Algorithm() (AEADMode, error) {
-	if c == nil || c.Mode == 0 {
-		return 0, errors.StructuralError("AEAD error: mode of operation is not set for this instance.")
-	}
-	return c.Mode, nil
+var defaultConfig = &AEADConfig{
+	version:       aeadEncryptedVersion,
+	cipher:        CipherAES128,
+	mode:          EaxID,
+	chunkSizeByte: 0x01,  // 1<<(1+6) = 128 bytes
 }
 
-func (c *AEADConfig) Random() io.Reader {
-	if c == nil || c.Rand == nil {
-		return rand.Reader
-	}
-	return c.Rand
+// Version returns the AEAD version implemented, and is currently defined as
+// 0x01.
+func (conf *AEADConfig) Version() byte {
+	return defaultConfig.version
 }
 
-func (c *AEADConfig) Cipher() CipherFunction {
-	if c == nil || uint8(c.DefaultCipher) == 0 {
-		return CipherAES128
+// Cipher returns the underlying block cipher used by the AEAD algorithm.
+func (conf *AEADConfig) Cipher() CipherFunction {
+	if conf == nil || conf.cipher == 0 {
+		return defaultConfig.cipher
 	}
-	return c.DefaultCipher
+	return conf.cipher
 }
 
-func (c *AEADConfig) ChunkSize() uint32 {
-	if c == nil || c.DefaultChunkSize == 0 {
-		return defaultChunkSize
+// Mode returns the AEAD mode of operation.
+func (conf *AEADConfig) Mode() AEADMode {
+	if conf == nil || conf.mode == 0 {
+		return EaxID
 	}
-	return c.DefaultChunkSize
+	return conf.mode
 }
 
-func (c *AEADConfig) AreNoncesIncremental() bool {
-	if c == nil {
-		return true
+// ChunkSizeByte returns the byte indicating the chunk size. The effective
+// chunk size is computed with the formula uint64(1) << (chunkSizeByte + 6)
+func (conf *AEADConfig) ChunkSizeByte() byte {
+	if conf == nil || conf.chunkSizeByte == 0 {
+		return defaultConfig.chunkSizeByte
 	}
-	return c.IncrementalNonces
+	return conf.chunkSizeByte
+}
+
+// ChunkSize returns the maximum number of body octets in each chunk of data.
+func (conf *AEADConfig) ChunkSize() uint64 {
+	return uint64(1) << (conf.ChunkSizeByte() + 6)
+}
+
+// InitialNonce returns the nonce for the first chunk. If nonce is nil, it is
+// sampled with crypto/rand.
+func (conf *AEADConfig) InitialNonce() []byte {
+	if conf == nil || conf.initialNonce == nil {
+		var nonceLen int
+		switch conf.Mode() {
+		case EaxID:
+			nonceLen = 16
+		case OcbID:
+			nonceLen = 15
+		default:
+			panic("unsupported aead mode")  // Should never occur
+			return nil
+		}
+		conf.initialNonce = make([]byte, nonceLen)
+		n, err := rand.Read(conf.initialNonce)
+		if n < nonceLen || err != nil {
+			panic("Could not sample random nonce")
+		}
+	}
+	return conf.initialNonce
+}
+
+// TagLength returns the length in bytes of authentication tags.
+func (conf *AEADConfig) TagLength() int {
+	switch conf.Mode() {
+	case EaxID:
+		return 16
+	case OcbID:
+		return 16
+	}
+	return 0
+}
+
+// Check verifies that the receiver configuration is correct and supported.
+func (conf *AEADConfig) Check() error {
+	if conf.Version() != aeadEncryptedVersion {
+		return errors.UnsupportedError("Unsupported AEAD version")
+	}
+	_, ok := algorithm.CipherById[uint8(conf.Cipher())]
+	if !ok {
+		return errors.UnsupportedError("aead: Unknown block cipher algorithm")
+	}
+	if conf.Mode() != AEADMode(1) && conf.Mode() != AEADMode(2) {
+		return errors.AEADError("AEAD mode unsupported")
+	}
+	if conf.ChunkSizeByte() > 0x56 {
+		return errors.StructuralError("Too long chunk size")
+	}
+	return nil
 }

@@ -21,7 +21,7 @@ const (
 )
 
 func TestEAXImplementsAEADInterface(t *testing.T) {
-	var eaxInstance Eax
+	var eaxInstance eax
 	var aux interface{} = &eaxInstance
 	_, ok := aux.(cipher.AEAD)
 	if !ok {
