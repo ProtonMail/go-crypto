@@ -150,6 +150,9 @@ func (ae *AEADEncrypted) GetStreamReader(key []byte) (io.ReadCloser, error) {
 // caches extra decrypted bytes. It returns the number of bytes copied into dst
 // and an error.
 func (ar *streamReader) Read(dst []byte) (n int, err error) {
+	if len(dst) == 0 {
+		return 0, errors.AEADError("argument of Read must have positive length")
+	}
 	chunkLen := int(ar.config.ChunkSize())
 	tagLen := ar.config.TagLength()
 	if len(dst) <= len(ar.cache) {
