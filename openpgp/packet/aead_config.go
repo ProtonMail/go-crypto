@@ -3,7 +3,7 @@
 package packet
 
 import (
-	"crypto/rand"
+	// "crypto/rand"
 	"golang.org/x/crypto/openpgp/errors"
 	"golang.org/x/crypto/openpgp/internal/algorithm"
 )
@@ -31,7 +31,6 @@ type AEADConfig struct {
 	// Amount of octets in each chunk of data, according to the formula
 	// chunkSize = ((uint64_t)1 << (chunkSizeByte + 6))
 	chunkSizeByte byte
-	initialNonce []byte  // Optional
 }
 
 var defaultConfig = &AEADConfig{
@@ -44,7 +43,10 @@ var defaultConfig = &AEADConfig{
 // Version returns the AEAD version implemented, and is currently defined as
 // 0x01.
 func (conf *AEADConfig) Version() byte {
-	return defaultConfig.version
+	if conf == nil || conf.version == 0 {
+		return defaultConfig.version
+	}
+	return conf.version
 }
 
 // Cipher returns the underlying block cipher used by the AEAD algorithm.
@@ -77,29 +79,6 @@ func (conf *AEADConfig) ChunkSize() uint64 {
 	return uint64(1) << (conf.ChunkSizeByte() + 6)
 }
 
-// InitialNonce returns the nonce for the first chunk. If nonce is nil, it is
-// sampled with crypto/rand.
-func (conf *AEADConfig) InitialNonce() []byte {
-	if conf == nil || conf.initialNonce == nil {
-		var nonceLen int
-		switch conf.Mode() {
-		case EaxID:
-			nonceLen = 16
-		case OcbID:
-			nonceLen = 15
-		default:
-			panic("unsupported aead mode")  // Should never occur
-			return nil
-		}
-		conf.initialNonce = make([]byte, nonceLen)
-		n, err := rand.Read(conf.initialNonce)
-		if n < nonceLen || err != nil {
-			panic("Could not sample random nonce")
-		}
-	}
-	return conf.initialNonce
-}
-
 // TagLength returns the length in bytes of authentication tags.
 func (conf *AEADConfig) TagLength() int {
 	switch conf.Mode() {
@@ -108,6 +87,18 @@ func (conf *AEADConfig) TagLength() int {
 	case OcbID:
 		return 16
 	}
+	return 0
+}
+
+// NonceLength returns the length in bytes of nonces.
+func (conf *AEADConfig) NonceLength() int {
+	switch conf.Mode() {
+	case EaxID:
+		return 16
+	case OcbID:
+		return 15
+	}
+	panic("unsupported aead mode")
 	return 0
 }
 

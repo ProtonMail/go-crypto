@@ -24,11 +24,12 @@ type AEADEncrypted struct {
 
 // An AEAD opener/sealer, its configuration, and data for en/decryption.
 type worker struct {
-	aead   cipher.AEAD
-	config *AEADConfig
-	header []byte // Chunk-independent associated data
-	index  []byte // Chunk counter
-	cache  []byte
+	aead         cipher.AEAD
+	config       *AEADConfig
+	header       []byte // Chunk-independent associated data
+	index        []byte // Chunk counter
+	initialNonce []byte
+	cache        []byte
 }
 
 // streamWriter encrypts and writes bytes. It encrypts when necessary according
@@ -49,26 +50,18 @@ type streamReader struct {
 }
 
 func (ae *AEADEncrypted) parse(buf io.Reader) error {
-	// 'contentsReader' is a partialLengthReader
 	ptype, _, contentsReader, err := readHeader(buf)
 	if ptype != packetTypeAEADEncrypted || err != nil {
 		return errors.AEADError("Error reading packet header")
 	}
+	// Information needed for opening chunks
 	header := make([]byte, 5)
-	header[0] = 0x80 | 0x40 | byte(ptype)  // Should equal 212
+	header[0] = 0x80 | 0x40 | byte(ptype) // Should equal 212
 	if n, err := contentsReader.Read(header[1:5]); err != nil || n < 4 {
 		return errors.AEADError("could not read aead header")
 	}
 	// Read initial nonce
-	var nonceLength uint8
-	switch AEADMode(header[3]) {
-	case EaxID:
-		nonceLength = 16
-	case OcbID:
-		nonceLength = 15
-	default:
-		return errors.AEADError("Unsupported mode")
-	}
+	nonceLength := (&AEADConfig{mode: AEADMode(header[3])}).NonceLength()
 	initialNonce := make([]byte, nonceLength)
 	if _, err := contentsReader.Read(initialNonce); err != nil {
 		return err
@@ -79,41 +72,6 @@ func (ae *AEADEncrypted) parse(buf io.Reader) error {
 	return nil
 }
 
-// GetStreamWriter initializes the worker and returns a writer. This writer
-// encrypts and writes bytes (see streamWriter.Write()).
-func GetStreamWriter(w io.Writer, key []byte, config *AEADConfig) (io.WriteCloser, error) {
-	writeCloser := noOpCloser{w}
-	writer, err := serializeStreamHeader(writeCloser, packetTypeAEADEncrypted)
-	if err != nil {
-		return nil, err
-	}
-	n, err := writer.Write([]byte{
-		config.Version(),
-		byte(config.Cipher()),
-		byte(config.Mode()),
-		config.ChunkSizeByte()})
-	if err != nil || n < 4 {
-		return nil, errors.AEADError("could not write AEAD headers")
-	}
-	_, err = writer.Write(config.InitialNonce())
-	if err != nil {
-		return nil, err
-	}
-	alg, header, err := initAlgorithm(key, config)
-	if err != nil {
-		return nil, err
-	}
-
-	return &streamWriter{
-		worker: worker{
-			aead:   alg,
-			config: config,
-			header: header,
-			index:  make([]byte, 8),
-		},
-		writer: writer}, nil
-}
-
 // GetStreamReader prepares a worker and returns a ReadCloser from which
 // decrypted bytes can be read (see streamReader.Read()).
 func (ae *AEADEncrypted) GetStreamReader(key []byte) (io.ReadCloser, error) {
@@ -122,7 +80,6 @@ func (ae *AEADEncrypted) GetStreamReader(key []byte) (io.ReadCloser, error) {
 		cipher:        CipherFunction(ae.prefix[2]),
 		mode:          AEADMode(ae.prefix[3]),
 		chunkSizeByte: byte(ae.prefix[4]),
-		initialNonce:  ae.initialNonce,
 	}
 	aead, _, err := initAlgorithm(key, config)
 	if err != nil {
@@ -136,10 +93,11 @@ func (ae *AEADEncrypted) GetStreamReader(key []byte) (io.ReadCloser, error) {
 	}
 	return &streamReader{
 		worker: worker{
-			aead:   aead,
-			config: config,
-			header: ae.prefix,
-			index:  make([]byte, 8),
+			aead:         aead,
+			config:       config,
+			initialNonce: ae.initialNonce,
+			header:       ae.prefix,
+			index:        make([]byte, 8),
 		},
 		reader: ae.Contents,
 		carry:  carry}, nil
@@ -165,10 +123,11 @@ func (ar *streamReader) Read(dst []byte) (n int, err error) {
 	// Decrypt the necessary amount of chunks
 	for i := 0; i <= (len(dst)-len(ar.cache))/chunkLen; i++ {
 		cipherChunk := make([]byte, chunkLen+tagLen)
-		readBytes, errRead := io.ReadFull(ar.reader, cipherChunk)
-		if errRead != nil && errRead != io.EOF && errRead != io.ErrUnexpectedEOF {
-			return 0, errRead
+		readBytes, err := io.ReadFull(ar.reader, cipherChunk)
+		if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+			return 0, err
 		}
+		err = err
 		if readBytes == 0 {
 			break
 		}
@@ -178,7 +137,7 @@ func (ar *streamReader) Read(dst []byte) (n int, err error) {
 			return 0, errChunk
 		}
 		decrypted = append(decrypted, plainChunk...)
-		if errRead == io.EOF || errRead == io.ErrUnexpectedEOF {
+		if err == io.EOF || err == io.ErrUnexpectedEOF {
 			break
 		}
 	}
@@ -199,6 +158,48 @@ func (ar *streamReader) Close() (err error) {
 	ar.worker = worker{}
 	ar.carry = nil
 	return nil
+}
+
+// GetStreamWriter initializes the worker and returns a writer. This writer
+// encrypts and writes bytes (see streamWriter.Write()).
+func GetStreamWriter(w io.Writer, key []byte, config *AEADConfig) (io.WriteCloser, error) {
+	writeCloser := noOpCloser{w}
+	writer, err := serializeStreamHeader(writeCloser, packetTypeAEADEncrypted)
+	if err != nil {
+		return nil, err
+	}
+	n, err := writer.Write([]byte{
+		config.Version(),
+		byte(config.Cipher()),
+		byte(config.Mode()),
+		config.ChunkSizeByte()})
+	if err != nil || n < 4 {
+		return nil, errors.AEADError("could not write AEAD headers")
+	}
+	// Sample nonce if not set already
+	nonce := make([]byte, config.NonceLength())
+	n, err = rand.Read(nonce)
+	if n < config.NonceLength() || err != nil {
+		panic("Could not sample random nonce")
+	}
+	_, err = writer.Write(nonce)
+	if err != nil {
+		return nil, err
+	}
+	alg, header, err := initAlgorithm(key, config)
+	if err != nil {
+		return nil, err
+	}
+
+	return &streamWriter{
+		worker: worker{
+			aead:         alg,
+			config:       config,
+			header:       header,
+			index:        make([]byte, 8),
+			initialNonce: nonce,
+		},
+		writer: writer}, nil
 }
 
 // Write encrypts and writes bytes. It encrypts when necessary and caches extra
@@ -267,8 +268,8 @@ func (aw *streamWriter) Close() (err error) {
 }
 
 // initAlgorithm sets up the AEAD algorithm with the given key according
-// to the given AEADConfig. If the configuration does not hold a nonce, it is
-// sampled from rand.Reader. It returns the AEAD instance TODO: remove second return
+// to the given AEADConfig. It returns the AEAD instance 
+// TODO: remove second return
 func initAlgorithm(key []byte, conf *AEADConfig) (cipher.AEAD, []byte, error) {
 	// Check configuration
 	if err := conf.Check(); err != nil {
@@ -300,11 +301,6 @@ func initAlgorithm(key []byte, conf *AEADConfig) (cipher.AEAD, []byte, error) {
 			byte(conf.Cipher()),
 			byte(conf.Mode()),
 			conf.ChunkSizeByte()})
-	// If not set, set nonce
-	if conf.initialNonce == nil {
-		conf.initialNonce = make([]byte, alg.NonceSize())
-		rand.Read(conf.initialNonce)
-	}
 	return alg, prefix.Bytes(), nil
 }
 
@@ -385,14 +381,13 @@ func (ar *streamReader) validateFinalTag(tag []byte) error {
 	return nil
 }
 
-// TODO: Both functions should be merged
-// computeNonce takes the incremental packet index and computes an eXclusive OR
-// with the least significant 8 bytes of the receivers' initial nonce (see sec.
+// computeNonce takes the incremental index and computes an eXclusive OR with
+// the least significant 8 bytes of the receivers' initial nonce (see sec.
 // 5.16.1 and 5.16.2). It returns the resulting nonce.
 func (wo *worker) computeNextNonce() (nonce []byte) {
-	nonce = make([]byte, len(wo.config.InitialNonce()))
-	copy(nonce, wo.config.InitialNonce())
-	offset := len(wo.config.InitialNonce()) - 8
+	nonce = make([]byte, len(wo.initialNonce))
+	copy(nonce, wo.initialNonce)
+	offset := len(wo.initialNonce) - 8
 	for i := 0; i < 8; i++ {
 		nonce[i+offset] ^= wo.index[i]
 	}

@@ -64,7 +64,7 @@ func TestAeadRFCParse(t *testing.T) {
 		var got []byte
 		for {
 			// Read some bytes at a time
-			decryptedChunk,:= make([]byte, mathrand.Intn(6)+1)
+			decryptedChunk := make([]byte, mathrand.Intn(6)+1)
 			n, errRead := rc.Read(decryptedChunk)
 			got = append(got, decryptedChunk[:n]...)
 			if n == 0 || err != nil {
@@ -81,45 +81,6 @@ func TestAeadRFCParse(t *testing.T) {
 			t.Errorf("Error opening:\ngot\n%s\nwant\n%s", got, want)
 		}
 	}
-}
-
-// Verifies that the ciphertext stream is at least the same length than the
-// plaintext plus tags
-func TestAeadLength(t *testing.T) {
-	for i := 0; i < iterations; i++ {
-		key := make([]byte, 16)
-		rand.Read(key)
-
-		chunkSizeByte := byte(mathrand.Intn(int(maxChunkSizeByte)))
-		config := &AEADConfig{chunkSizeByte: chunkSizeByte}
-
-		// Plaintext
-		randomLength := mathrand.Intn(maxChunks * int(config.ChunkSize()))
-		plaintext := make([]byte, randomLength)
-		rand.Read(plaintext)
-
-		// 'writeCloser' encrypts and writes the plaintext bytes.
-		raw := bytes.NewBuffer(nil)
-		writeCloser, err := GetStreamWriter(raw, key, config)
-		if err != nil {
-			t.Error(err)
-		}
-		// Write the partial lengths packet into 'raw'
-		if _, err = writeCloser.Write(plaintext); err != nil {
-			t.Error(err)
-		}
-		// Close MUST be called - it appends the final auth. tag
-		if err = writeCloser.Close(); err != nil {
-			t.Error(err)
-		}
-		// Packet is ready.
-		encryptedBytes := len(raw.Bytes()) - len(config.InitialNonce())
-		encryptedBytes -= (1 + len(plaintext)/int(config.ChunkSize()))*config.TagLength()
-		if encryptedBytes < len(plaintext) {
-			t.Error("Ciphertext stream shorter than plaintext")
-		}
-	}
-
 }
 
 func TestAeadRandomStream(t *testing.T) {
@@ -187,8 +148,6 @@ func TestAeadRandomStream(t *testing.T) {
 
 func TestAeadRandomCorruptStream(t *testing.T) {
 	for i := 0; i < iterations; i++ {
-		print(i)
-		print("\n")
 		key := make([]byte, 16)
 		rand.Read(key)
 
