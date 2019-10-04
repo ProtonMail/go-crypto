@@ -32,15 +32,11 @@ func TestAeadNewAEADInstanceWithDefaultConfig(t *testing.T) {
 		EaxID: []byte{0xd4, 0x01, 0x07, 0x01, 0x01},
 		OcbID: []byte{0xd4, 0x01, 0x07, 0x02, 0x01},
 	}
-	for mode, prefix := range modesToPrefix {
+	for mode := range modesToPrefix {
 		conf := &AEADConfig{mode: AEADMode(mode)}
-		_, header, err := initAlgorithm(key, conf)
+		_, err := initAlgorithm(key, conf)
 		if err != nil {
 			t.Errorf("Error creating valid AEAD from default: %s", err)
-		}
-		if !bytes.Equal(header, prefix) {
-			t.Errorf("Packet Tag error in AEAD-EAX instance: got\n%X\nwant\n%X",
-				header, prefix)
 		}
 	}
 }

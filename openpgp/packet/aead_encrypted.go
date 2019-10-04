@@ -81,7 +81,7 @@ func (ae *AEADEncrypted) GetStreamReader(key []byte) (io.ReadCloser, error) {
 		mode:          AEADMode(ae.prefix[3]),
 		chunkSizeByte: byte(ae.prefix[4]),
 	}
-	aead, _, err := initAlgorithm(key, config)
+	aead, err := initAlgorithm(key, config)
 	if err != nil {
 		return nil, err
 	}
@@ -168,15 +168,22 @@ func GetStreamWriter(w io.Writer, key []byte, config *AEADConfig) (io.WriteClose
 	if err != nil {
 		return nil, err
 	}
-	n, err := writer.Write([]byte{
+	// Set packet tag
+	buf := bytes.NewBuffer(nil)
+	if err := serializeType(buf, packetTypeAEADEncrypted); err != nil {
+		return nil, err
+	}
+	// Data for en/decryption: tag, version, cipher, aead mode, chunk size
+	header := []byte{
 		config.Version(),
 		byte(config.Cipher()),
 		byte(config.Mode()),
-		config.ChunkSizeByte()})
+		config.ChunkSizeByte()}
+	n, err := writer.Write(header)
 	if err != nil || n < 4 {
 		return nil, errors.AEADError("could not write AEAD headers")
 	}
-	// Sample nonce if not set already
+	// Sample nonce
 	nonce := make([]byte, config.NonceLength())
 	n, err = rand.Read(nonce)
 	if n < config.NonceLength() || err != nil {
@@ -186,7 +193,7 @@ func GetStreamWriter(w io.Writer, key []byte, config *AEADConfig) (io.WriteClose
 	if err != nil {
 		return nil, err
 	}
-	alg, header, err := initAlgorithm(key, config)
+	alg, err := initAlgorithm(key, config)
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +202,7 @@ func GetStreamWriter(w io.Writer, key []byte, config *AEADConfig) (io.WriteClose
 		worker: worker{
 			aead:         alg,
 			config:       config,
-			header:       header,
+			header:       append(buf.Bytes(), header...),
 			index:        make([]byte, 8),
 			initialNonce: nonce,
 		},
@@ -268,12 +275,11 @@ func (aw *streamWriter) Close() (err error) {
 }
 
 // initAlgorithm sets up the AEAD algorithm with the given key according
-// to the given AEADConfig. It returns the AEAD instance 
-// TODO: remove second return
-func initAlgorithm(key []byte, conf *AEADConfig) (cipher.AEAD, []byte, error) {
+// to the given AEADConfig. It returns the AEAD instance and an error.
+func initAlgorithm(key []byte, conf *AEADConfig) (cipher.AEAD, error) {
 	// Check configuration
 	if err := conf.Check(); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	// Set up cipher
 	ciph := algorithm.CipherFunction(conf.Cipher()).New(key)
@@ -285,23 +291,13 @@ func initAlgorithm(key []byte, conf *AEADConfig) (cipher.AEAD, []byte, error) {
 	case OcbID:
 		newFunc = ocb.NewOCB
 	default:
-		return nil, nil, errors.UnsupportedError("unsupported AEAD mode")
+		return nil, errors.UnsupportedError("unsupported AEAD mode")
 	}
 	alg, err := newFunc(ciph)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	// Data for en/decryption: tag, version, cipher, aead mode, chunk size
-	prefix := bytes.NewBuffer(nil)
-	if err := serializeType(prefix, packetTypeAEADEncrypted); err != nil {
-		return nil, nil, err
-	}
-	prefix.Write(
-		[]byte{conf.Version(),
-			byte(conf.Cipher()),
-			byte(conf.Mode()),
-			conf.ChunkSizeByte()})
-	return alg, prefix.Bytes(), nil
+	return alg, nil
 }
 
 // sealChunk Encrypts and authenticates the given chunk.
