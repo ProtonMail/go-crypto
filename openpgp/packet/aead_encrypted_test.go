@@ -13,7 +13,7 @@ import (
 
 const (
 	keyLength  = 16
-	iterations = 400
+	iterations = 1
 )
 
 var (
@@ -129,7 +129,8 @@ func TestAeadRandomStream(t *testing.T) {
 		config := &AEADConfig{chunkSizeByte: chunkSizeByte}
 
 		// Plaintext
-		randomLength := mathrand.Intn(int(config.ChunkSize()))
+		randomLength := mathrand.Intn(13*int(config.ChunkSize()))
+		// randomLength := 4*int(config.ChunkSize())
 		plaintext := make([]byte, randomLength)
 		rand.Read(plaintext)
 
@@ -177,8 +178,9 @@ func TestAeadRandomStream(t *testing.T) {
 		}
 		want := plaintext
 		if !bytes.Equal(got, want) {
-			t.Errorf("Error encrypting/decrypting random stream: got\n%X\nwant\n%X",
-				got, want)
+			t.Errorf("Error encrypting/decrypting random stream")
+			// t.Errorf("Error encrypting/decrypting random stream: got\n%X\nwant\n%X",
+			// 	got, want)
 		}
 	}
 }

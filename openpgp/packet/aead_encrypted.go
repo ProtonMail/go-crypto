@@ -27,7 +27,6 @@ type worker struct {
 	aead   cipher.AEAD
 	config *AEADConfig
 	header []byte // Chunk-independent associated data
-	nonce  []byte // Incremented after each chunk
 	index  []byte // Chunk counter
 	cache  []byte
 }
@@ -104,13 +103,13 @@ func GetStreamWriter(w io.Writer, key []byte, config *AEADConfig) (io.WriteClose
 	if err != nil {
 		return nil, err
 	}
+
 	return &streamWriter{
 		worker: worker{
 			aead:   alg,
 			config: config,
 			header: header,
 			index:  make([]byte, 8),
-			nonce:  config.initialNonce,
 		},
 		writer: writer}, nil
 }
@@ -123,6 +122,7 @@ func (ae *AEADEncrypted) GetStreamReader(key []byte) (io.ReadCloser, error) {
 		cipher:        CipherFunction(ae.prefix[2]),
 		mode:          AEADMode(ae.prefix[3]),
 		chunkSizeByte: byte(ae.prefix[4]),
+		initialNonce:  ae.initialNonce,
 	}
 	aead, _, err := initAlgorithm(key, config)
 	if err != nil {
@@ -139,7 +139,6 @@ func (ae *AEADEncrypted) GetStreamReader(key []byte) (io.ReadCloser, error) {
 			aead:   aead,
 			config: config,
 			header: ae.prefix,
-			nonce:  ae.initialNonce,
 			index:  make([]byte, 8),
 		},
 		reader: ae.Contents,
@@ -260,8 +259,8 @@ func (aw *streamWriter) Close() (err error) {
 	binary.BigEndian.PutUint64(amountBytes, uint64(aw.writtenEncryptedBytes))
 	adata := append(aw.header[:], aw.index[:]...)
 	adata = append(adata, amountBytes...)
-	aw.refreshNonce()
-	finalTag := aw.aead.Seal(nil, aw.nonce, nil, adata)
+	nonce := aw.computeNextNonce()
+	finalTag := aw.aead.Seal(nil, nonce, nil, adata)
 	n, err := aw.writer.Write(finalTag)
 	if err != nil {
 		return err
@@ -324,8 +323,8 @@ func (aw *streamWriter) sealChunk(data []byte) ([]byte, error) {
 		return nil, errors.AEADError("can't seal without headers")
 	}
 	adata := append(aw.header, aw.index...)
-	aw.refreshNonce()
-	encrypted := aw.aead.Seal(nil, aw.nonce, data, adata)
+	nonce := aw.computeNextNonce()
+	encrypted := aw.aead.Seal(nil, nonce, data, adata)
 	if err := aw.worker.incrementIndex(); err != nil {
 		return nil, err
 	}
@@ -354,8 +353,8 @@ func (ar *streamReader) processChunk(data []byte) ([]byte, error) {
 	}
 	// Decrypt and authenticate chunk
 	adata := append(ar.header, ar.index...)
-	ar.refreshNonce()
-	plainChunk, err := ar.aead.Open(nil, ar.nonce, chunk, adata)
+	nonce := ar.computeNextNonce()
+	plainChunk, err := ar.aead.Open(nil, nonce, chunk, adata)
 	if err != nil {
 		return nil, err
 	}
@@ -384,8 +383,8 @@ func (ar *streamReader) validateFinalTag(tag []byte) error {
 	binary.BigEndian.PutUint64(amountBytes, uint64(ar.readPlaintextBytes))
 	adata := append(ar.header, ar.index...)
 	adata = append(adata, amountBytes...)
-	ar.refreshNonce()
-	_, err := ar.aead.Open(nil, ar.nonce, tag, adata)
+	nonce := ar.computeNextNonce()
+	_, err := ar.aead.Open(nil, nonce, tag, adata)
 	if err != nil {
 		return err
 	}
@@ -396,11 +395,14 @@ func (ar *streamReader) validateFinalTag(tag []byte) error {
 // computeNonce takes the incremental packet index and computes an eXclusive OR
 // with the least significant 8 bytes of the receivers' initial nonce (see sec.
 // 5.16.1 and 5.16.2). It returns the resulting nonce.
-func (wo *worker) refreshNonce() {
-	offset := len(wo.nonce) - 8
+func (wo *worker) computeNextNonce() (nonce []byte) {
+	nonce = make([]byte, len(wo.config.InitialNonce()))
+	copy(nonce, wo.config.InitialNonce())
+	offset := len(wo.config.InitialNonce()) - 8
 	for i := 0; i < 8; i++ {
-		wo.nonce[i+offset] ^= wo.index[i]
+		nonce[i+offset] ^= wo.index[i]
 	}
+	return
 }
 
 // incrementIndex perfoms an integer increment by 1 of the integer represented by the
