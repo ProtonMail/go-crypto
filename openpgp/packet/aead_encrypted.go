@@ -159,35 +159,28 @@ func (ar *streamReader) Read(dst []byte) (n int, err error) {
 		ar.cache = ar.cache[n:]
 		return
 	}
-
 	// Retrieve cached plaintext bytes from previous calls
 	decrypted := ar.cache
 
+	// Decrypt the necessary amount of chunks
 	for i := 0; i <= (len(dst)-len(ar.cache))/chunkLen; i++ {
 		cipherChunk := make([]byte, chunkLen+tagLen)
-		readBytes, errRead := ar.reader.Read(cipherChunk)
-		// Since partialLengthReader reads only 'remaining' bytes, try to pass
-		// to next partial read and complete the chunk, or end stream.
-		readBytes2, errRead2 := ar.reader.Read(cipherChunk[readBytes:])
-		cipherChunk = cipherChunk[:readBytes+readBytes2]
-		if errRead == io.EOF && errRead2 == io.EOF {
-			err = errRead2
+		readBytes, errRead := io.ReadFull(ar.reader, cipherChunk)
+		if errRead != nil && errRead != io.EOF && errRead != io.ErrUnexpectedEOF {
+			return 0, errRead
+		}
+		if readBytes == 0 {
 			break
 		}
-		if errRead != nil {
-			if errRead == io.EOF {
-				err = errRead
-				// End of the stream
-				break
-			} else {
-				return 0, errRead
-			}
-		}
+		cipherChunk = cipherChunk[:readBytes]
 		plainChunk, errChunk := ar.processChunk(cipherChunk)
 		if errChunk != nil {
-			return n, errChunk
+			return 0, errChunk
 		}
 		decrypted = append(decrypted, plainChunk...)
+		if errRead == io.EOF || errRead == io.ErrUnexpectedEOF {
+			break
+		}
 	}
 	// Append necessary bytes, and cache the rest
 	if len(dst) < len(decrypted) {
@@ -198,6 +191,7 @@ func (ar *streamReader) Read(dst []byte) (n int, err error) {
 		ar.cache = nil
 	}
 	return
+
 }
 
 // Close wipes the worker, along with the reader, cached, and carried bytes.

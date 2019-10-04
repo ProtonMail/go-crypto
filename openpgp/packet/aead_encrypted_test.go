@@ -11,13 +11,15 @@ import (
 	"testing"
 )
 
-const (
-	keyLength  = 16
-	iterations = 1
+var (
+	maxChunkSizeByte = byte(0x09) // 1<<(7+9) = 65536 bytes
 )
 
-var (
-	maxChunkSizeByte = byte(0x06) // 1<<(7+6) = 8192 bytes
+const (
+	keyLength  = 16
+	iterations = 100
+	// Approx. plaintext length, in amount of chunks
+	maxChunks = 200
 )
 
 func TestAeadNewAEADInstanceWithDefaultConfig(t *testing.T) {
@@ -92,7 +94,7 @@ func TestAeadLength(t *testing.T) {
 		config := &AEADConfig{chunkSizeByte: chunkSizeByte}
 
 		// Plaintext
-		randomLength := mathrand.Intn(int(config.ChunkSize()))
+		randomLength := mathrand.Intn(maxChunks * int(config.ChunkSize()))
 		plaintext := make([]byte, randomLength)
 		rand.Read(plaintext)
 
@@ -129,8 +131,7 @@ func TestAeadRandomStream(t *testing.T) {
 		config := &AEADConfig{chunkSizeByte: chunkSizeByte}
 
 		// Plaintext
-		randomLength := mathrand.Intn(13*int(config.ChunkSize()))
-		// randomLength := 4*int(config.ChunkSize())
+		randomLength := mathrand.Intn(maxChunks*int(config.ChunkSize()))
 		plaintext := make([]byte, randomLength)
 		rand.Read(plaintext)
 
@@ -171,7 +172,6 @@ func TestAeadRandomStream(t *testing.T) {
 				// Finished reading
 				break
 			}
-			i++
 		}
 		if err != nil && err != io.EOF {
 			t.Error("decrypting random stream failed:", err)
@@ -187,6 +187,8 @@ func TestAeadRandomStream(t *testing.T) {
 
 func TestAeadRandomCorruptStream(t *testing.T) {
 	for i := 0; i < iterations; i++ {
+		print(i)
+		print("\n")
 		key := make([]byte, 16)
 		rand.Read(key)
 
@@ -194,7 +196,7 @@ func TestAeadRandomCorruptStream(t *testing.T) {
 		config := &AEADConfig{chunkSizeByte: chunkSizeByte}
 
 		// Plaintext
-		randomLength := 1 + mathrand.Intn(10 * int(config.ChunkSize()))
+		randomLength := 1 + mathrand.Intn(maxChunks * int(config.ChunkSize()))
 		plaintext := make([]byte, randomLength)
 		rand.Read(plaintext)
 
@@ -246,7 +248,6 @@ func TestAeadRandomCorruptStream(t *testing.T) {
 					break
 				}
 			}
-			i++
 		}
 		if bytes.Equal(got, plaintext) {
 			t.Errorf("Error: Succesfully decrypted corrupt stream")
