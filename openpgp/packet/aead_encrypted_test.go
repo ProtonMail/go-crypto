@@ -63,8 +63,8 @@ func TestAeadRFCParse(t *testing.T) {
 		// Start opening
 		var got []byte
 		for {
-			// Read 10 bytes at a time
-			decryptedChunk := make([]byte, 5)
+			// Read some bytes at a time
+			decryptedChunk,:= make([]byte, mathrand.Intn(6)+1)
 			n, errRead := rc.Read(decryptedChunk)
 			got = append(got, decryptedChunk[:n]...)
 			if n == 0 || err != nil {
@@ -261,4 +261,3 @@ func TestAeadRandomCorruptStream(t *testing.T) {
 func DontTestAeadEmptyStream(t *testing.T) {
 	t.Error("Write me")
 }
-
