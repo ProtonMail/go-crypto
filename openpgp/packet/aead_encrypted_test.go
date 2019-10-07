@@ -113,7 +113,13 @@ func TestAeadRandomStream(t *testing.T) {
 
 		// Start decrypting stream
 		packet := new(AEADEncrypted)
-		if err = packet.parse(raw); err != nil {
+
+		ptype, _, contentsReader, err := readHeader(raw)
+		if ptype != packetTypeAEADEncrypted || err != nil {
+			t.Error("Error reading packet header")
+		}
+
+		if err = packet.parse(contentsReader); err != nil {
 			t.Error(err)
 		}
 		// decrypted plaintext can be read from 'rc'
@@ -187,7 +193,12 @@ func TestAeadRandomCorruptStream(t *testing.T) {
 			raw.Bytes()[index] = 255 - raw.Bytes()[index]
 		}
 		packet := new(AEADEncrypted)
-		if err = packet.parse(raw); err != nil {
+		ptype, _, contentsReader, err := readHeader(raw)
+		if ptype != packetTypeAEADEncrypted || err != nil {
+			t.Error("Error reading packet header")
+		}
+
+		if err = packet.parse(contentsReader); err != nil {
 			// Header was corrupted
 			continue
 		}

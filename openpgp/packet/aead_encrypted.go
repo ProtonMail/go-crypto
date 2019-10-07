@@ -48,23 +48,19 @@ type streamReader struct {
 }
 
 func (ae *AEADEncrypted) parse(buf io.Reader) error {
-	ptype, _, contentsReader, err := readHeader(buf)
-	if ptype != packetTypeAEADEncrypted || err != nil {
-		return errors.AEADError("Error reading packet header")
-	}
 	// Information needed for opening chunks
 	prefix := make([]byte, 5)
-	prefix[0] = 0x80 | 0x40 | byte(ptype) // Should equal 212
-	if n, err := contentsReader.Read(prefix[1:5]); err != nil || n < 4 {
+	prefix[0] = 0xD4
+	if n, err := buf.Read(prefix[1:5]); err != nil || n < 4 {
 		return errors.AEADError("could not read aead header")
 	}
 	// Read initial nonce
 	nonceLen := (&AEADConfig{mode: AEADMode(prefix[3])}).NonceLength()
 	initialNonce := make([]byte, nonceLen)
-	if n, err := contentsReader.Read(initialNonce); err != nil || n < nonceLen {
+	if n, err := buf.Read(initialNonce); err != nil || n < nonceLen {
 		return err
 	}
-	ae.Contents = contentsReader
+	ae.Contents = buf
 	ae.prefix = prefix
 	ae.initialNonce = initialNonce
 	return nil
