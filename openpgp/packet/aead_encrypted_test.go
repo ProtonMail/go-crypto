@@ -1,4 +1,4 @@
-// Copyright (C) 2019 ProtonTech AG
+// Copyright (C) 2018 ProtonTech AG
 
 package packet
 
@@ -47,8 +47,11 @@ func TestAeadRFCParse(t *testing.T) {
 		packetBytes, _ := hex.DecodeString(sample.full)
 		packetReader := bytes.NewBuffer(packetBytes)
 		packet := new(AEADEncrypted)
-		err := packet.parse(packetReader)
-		if err != nil {
+		ptype, _, contentsReader, err := readHeader(packetReader)
+		if ptype != packetTypeAEADEncrypted || err != nil {
+			t.Error("Error reading packet header")
+		}
+		if err = packet.parse(contentsReader); err != nil {
 			t.Error(err)
 		}
 		// decrypted plaintext can be read from 'rc'
