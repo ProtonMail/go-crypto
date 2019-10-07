@@ -4,6 +4,7 @@ package packet
 
 import (
 	// "crypto/rand"
+	"golang.org/x/crypto/openpgp/errors"
 	"golang.org/x/crypto/openpgp/internal/algorithm"
 )
 
@@ -103,3 +104,4 @@ func (conf *AEADConfig) NonceLength() int {
 	panic("unsupported aead mode")
 	return 0
 }
+

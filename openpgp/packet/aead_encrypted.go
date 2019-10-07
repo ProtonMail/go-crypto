@@ -271,10 +271,6 @@ func (aw *streamWriter) Close() (err error) {
 // initAlgorithm sets up the AEAD algorithm with the given key according
 // to the given AEADConfig. It returns the AEAD instance and an error.
 func initAlgorithm(key []byte, conf *AEADConfig) (cipher.AEAD, error) {
-	// Check configuration
-	if err := conf.Check(); err != nil {
-		return nil, err
-	}
 	// Set up cipher
 	ciph := algorithm.CipherFunction(conf.Cipher()).New(key)
 	// Set up cipher.AEAD
