@@ -29,6 +29,7 @@ type aeadCrypter struct {
 	chunkIndex     []byte // Chunk counter
 	initialNonce   []byte
 	cache          []byte
+	bytesProcessed int // Amount of (plain/cipher)-text bytes read/written
 }
 
 // streamWriter encrypts and writes bytes. It encrypts when necessary according
@@ -36,7 +37,6 @@ type aeadCrypter struct {
 type streamWriter struct {
 	aeadCrypter                               // Embedded plaintext sealer
 	writer                io.WriteCloser // 'writer' is a partialLengthWriter
-	writtenEncryptedBytes int
 }
 
 // streamReader reads and decrypts bytes. It caches extra decrypted bytes when
@@ -45,7 +45,6 @@ type streamReader struct {
 	aeadCrypter                       // Embedded ciphertext opener
 	reader             io.Reader // 'reader' is a partialLengthReader
 	peekedBytes        []byte    // Used to detect last chunk
-	readPlaintextBytes int
 }
 
 func (ae *AEADEncrypted) parse(buf io.Reader) error {
@@ -227,7 +226,7 @@ func (aw *streamWriter) Write(plaintextBytes []byte) (n int, err error) {
 		if err != nil || n < tagLen {
 			return n, errors.AEADError("error writing encrypted chunk")
 		}
-		aw.writtenEncryptedBytes += n - tagLen
+		aw.bytesProcessed += n - tagLen
 	}
 	// Cache remaining plaintext for next chunk
 	aw.cache = plaintextBytes[chunkLen*i:]
@@ -252,12 +251,12 @@ func (aw *streamWriter) Close() (err error) {
 		if n < tagLen {
 			return errors.AEADError("close chunk without tag")
 		}
-		aw.writtenEncryptedBytes += n - tagLen
+		aw.bytesProcessed += n - tagLen
 	}
 	// Compute final tag (associated data: packet tag, version, cipher, aead,
 	// chunk size, index, total number of encrypted octets).
 	amountBytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(amountBytes, uint64(aw.writtenEncryptedBytes))
+	binary.BigEndian.PutUint64(amountBytes, uint64(aw.bytesProcessed))
 	adata := append(aw.associatedData[:], aw.chunkIndex[:]...)
 	adata = append(adata, amountBytes...)
 	nonce := aw.computeNextNonce()
@@ -266,7 +265,7 @@ func (aw *streamWriter) Close() (err error) {
 	if err != nil {
 		return err
 	}
-	aw.writtenEncryptedBytes += n
+	aw.bytesProcessed += n
 	if err = aw.writer.Close(); err != nil {
 		return err
 	}
@@ -344,7 +343,7 @@ func (ar *streamReader) processChunk(data []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	ar.readPlaintextBytes += len(plainChunk)
+	ar.bytesProcessed += len(plainChunk)
 	if err = ar.aeadCrypter.incrementIndex(); err != nil {
 		return nil, err
 	}
@@ -366,7 +365,7 @@ func (ar *streamReader) processChunk(data []byte) ([]byte, error) {
 func (ar *streamReader) validateFinalTag(tag []byte) error {
 	// Associated: tag, version, cipher, aead, chunk size, index, and octets
 	amountBytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(amountBytes, uint64(ar.readPlaintextBytes))
+	binary.BigEndian.PutUint64(amountBytes, uint64(ar.bytesProcessed))
 	adata := append(ar.associatedData, ar.chunkIndex...)
 	adata = append(adata, amountBytes...)
 	nonce := ar.computeNextNonce()
