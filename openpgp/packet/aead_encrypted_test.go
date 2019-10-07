@@ -29,8 +29,8 @@ func TestAeadNewAEADInstanceWithDefaultConfig(t *testing.T) {
 	}
 	var modesToPrefix = map[AEADMode][]byte{
 		// Packet tags in new format
-		EaxID: []byte{0xd4, 0x01, 0x07, 0x01, 0x01},
-		OcbID: []byte{0xd4, 0x01, 0x07, 0x02, 0x01},
+		AEADModeEAX: []byte{0xd4, 0x01, 0x07, 0x01, 0x01},
+		AEADModeOCB: []byte{0xd4, 0x01, 0x07, 0x02, 0x01},
 	}
 	for mode := range modesToPrefix {
 		conf := &AEADConfig{mode: AEADMode(mode)}

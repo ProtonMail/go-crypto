@@ -76,7 +76,6 @@ func (ae *AEADEncrypted) parse(buf io.Reader) error {
 // decrypted bytes can be read (see streamReader.Read()).
 func (ae *AEADEncrypted) GetStreamReader(key []byte) (io.ReadCloser, error) {
 	config := &AEADConfig{
-		version:       ae.prefix[1],
 		cipher:        CipherFunction(ae.prefix[2]),
 		mode:          AEADMode(ae.prefix[3]),
 		chunkSizeByte: byte(ae.prefix[4]),
@@ -286,9 +285,9 @@ func initAlgorithm(key []byte, conf *AEADConfig) (cipher.AEAD, error) {
 	// Set up cipher.AEAD
 	var newFunc func(cipher.Block) (cipher.AEAD, error)
 	switch conf.Mode() {
-	case EaxID:
+	case AEADModeEAX:
 		newFunc = eax.NewEAX
-	case OcbID:
+	case AEADModeOCB:
 		newFunc = ocb.NewOCB
 	default:
 		return nil, errors.UnsupportedError("unsupported AEAD mode")

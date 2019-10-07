@@ -15,16 +15,13 @@ type AEADMode uint8
 
 // Supported modes of operation (see RFC4880bis [EAX] and RFC7253)
 const (
-	EaxID = AEADMode(1)
-	OcbID = AEADMode(2)
+	AEADModeEAX = AEADMode(1)
+	AEADModeOCB = AEADMode(2)
 )
 
 // AEADConfig collects a number of AEAD parameters along with sensible defaults.
 // A nil AEADConfig is valid and results in all default values.
 type AEADConfig struct {
-	version byte
-	// The block cipher algorithm to be used. Its value needs to be consistent
-	// with the intended AEAD instance to configure.
 	cipher CipherFunction
 	// The AEAD mode of operation.
 	mode AEADMode
@@ -34,19 +31,15 @@ type AEADConfig struct {
 }
 
 var defaultConfig = &AEADConfig{
-	version:       aeadEncryptedVersion,
 	cipher:        CipherAES128,
-	mode:          EaxID,
+	mode:          AEADModeEAX,
 	chunkSizeByte: 0x01,  // 1<<(1+6) = 128 bytes
 }
 
 // Version returns the AEAD version implemented, and is currently defined as
 // 0x01.
 func (conf *AEADConfig) Version() byte {
-	if conf == nil || conf.version == 0 {
-		return defaultConfig.version
-	}
-	return conf.version
+	return aeadEncryptedVersion
 }
 
 // Cipher returns the underlying block cipher used by the AEAD algorithm.
@@ -60,7 +53,7 @@ func (conf *AEADConfig) Cipher() CipherFunction {
 // Mode returns the AEAD mode of operation.
 func (conf *AEADConfig) Mode() AEADMode {
 	if conf == nil || conf.mode == 0 {
-		return EaxID
+		return AEADModeEAX
 	}
 	return conf.mode
 }
@@ -82,9 +75,9 @@ func (conf *AEADConfig) ChunkSize() uint64 {
 // TagLength returns the length in bytes of authentication tags.
 func (conf *AEADConfig) TagLength() int {
 	switch conf.Mode() {
-	case EaxID:
+	case AEADModeEAX:
 		return 16
-	case OcbID:
+	case AEADModeOCB:
 		return 16
 	}
 	return 0
@@ -93,9 +86,9 @@ func (conf *AEADConfig) TagLength() int {
 // NonceLength returns the length in bytes of nonces.
 func (conf *AEADConfig) NonceLength() int {
 	switch conf.Mode() {
-	case EaxID:
+	case AEADModeEAX:
 		return 16
-	case OcbID:
+	case AEADModeOCB:
 		return 15
 	}
 	panic("unsupported aead mode")
