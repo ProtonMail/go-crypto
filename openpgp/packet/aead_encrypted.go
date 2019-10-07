@@ -24,12 +24,12 @@ type AEADEncrypted struct {
 
 // An AEAD opener/sealer, its configuration, and data for en/decryption.
 type worker struct {
-	aead         cipher.AEAD
-	config       *AEADConfig
-	header       []byte // Chunk-independent associated data
-	index        []byte // Chunk counter
-	initialNonce []byte
-	cache        []byte
+	aead           cipher.AEAD
+	config         *AEADConfig
+	associatedData []byte // Chunk-independent associated data
+	index          []byte // Chunk counter
+	initialNonce   []byte
+	cache          []byte
 }
 
 // streamWriter encrypts and writes bytes. It encrypts when necessary according
@@ -55,19 +55,19 @@ func (ae *AEADEncrypted) parse(buf io.Reader) error {
 		return errors.AEADError("Error reading packet header")
 	}
 	// Information needed for opening chunks
-	header := make([]byte, 5)
-	header[0] = 0x80 | 0x40 | byte(ptype) // Should equal 212
-	if n, err := contentsReader.Read(header[1:5]); err != nil || n < 4 {
+	prefix := make([]byte, 5)
+	prefix[0] = 0x80 | 0x40 | byte(ptype) // Should equal 212
+	if n, err := contentsReader.Read(prefix[1:5]); err != nil || n < 4 {
 		return errors.AEADError("could not read aead header")
 	}
 	// Read initial nonce
-	nonceLength := (&AEADConfig{mode: AEADMode(header[3])}).NonceLength()
-	initialNonce := make([]byte, nonceLength)
-	if _, err := contentsReader.Read(initialNonce); err != nil {
+	nonceLen := (&AEADConfig{mode: AEADMode(prefix[3])}).NonceLength()
+	initialNonce := make([]byte, nonceLen)
+	if n, err := contentsReader.Read(initialNonce); err != nil || n < nonceLen {
 		return err
 	}
 	ae.Contents = contentsReader
-	ae.prefix = header
+	ae.prefix = prefix
 	ae.initialNonce = initialNonce
 	return nil
 }
@@ -86,17 +86,16 @@ func (ae *AEADEncrypted) GetStreamReader(key []byte) (io.ReadCloser, error) {
 	}
 	// Carry the first tagLen bytes
 	carry := make([]byte, config.TagLength())
-	n, err := ae.Contents.Read(carry)
-	if err != nil || n < config.TagLength() {
+	if n, err := ae.Contents.Read(carry); err != nil || n < config.TagLength() {
 		return nil, errors.AEADError("Not enough data to decrypt")
 	}
 	return &streamReader{
 		worker: worker{
-			aead:         aead,
-			config:       config,
-			initialNonce: ae.initialNonce,
-			header:       ae.prefix,
-			index:        make([]byte, 8),
+			aead:           aead,
+			config:         config,
+			initialNonce:   ae.initialNonce,
+			associatedData: ae.prefix,
+			index:          make([]byte, 8),
 		},
 		reader: ae.Contents,
 		carry:  carry}, nil
@@ -173,12 +172,12 @@ func GetStreamWriter(w io.Writer, key []byte, config *AEADConfig) (io.WriteClose
 		return nil, err
 	}
 	// Data for en/decryption: tag, version, cipher, aead mode, chunk size
-	header := []byte{
+	prefix := []byte{
 		config.Version(),
 		byte(config.Cipher()),
 		byte(config.Mode()),
 		config.ChunkSizeByte()}
-	n, err := writer.Write(header)
+	n, err := writer.Write(prefix)
 	if err != nil || n < 4 {
 		return nil, errors.AEADError("could not write AEAD headers")
 	}
@@ -201,7 +200,7 @@ func GetStreamWriter(w io.Writer, key []byte, config *AEADConfig) (io.WriteClose
 		worker: worker{
 			aead:         alg,
 			config:       config,
-			header:       append(buf.Bytes(), header...),
+			associatedData:       append(buf.Bytes(), prefix...),
 			index:        make([]byte, 8),
 			initialNonce: nonce,
 		},
@@ -258,7 +257,7 @@ func (aw *streamWriter) Close() (err error) {
 	// chunk size, index, total number of encrypted octets).
 	amountBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(amountBytes, uint64(aw.writtenEncryptedBytes))
-	adata := append(aw.header[:], aw.index[:]...)
+	adata := append(aw.associatedData[:], aw.index[:]...)
 	adata = append(adata, amountBytes...)
 	nonce := aw.computeNextNonce()
 	finalTag := aw.aead.Seal(nil, nonce, nil, adata)
@@ -304,10 +303,10 @@ func (aw *streamWriter) sealChunk(data []byte) ([]byte, error) {
 	if len(data) > int(aw.config.ChunkSize()) {
 		return nil, errors.AEADError("chunk exceeds maximum length")
 	}
-	if aw.header == nil {
+	if aw.associatedData == nil {
 		return nil, errors.AEADError("can't seal without headers")
 	}
-	adata := append(aw.header, aw.index...)
+	adata := append(aw.associatedData, aw.index...)
 	nonce := aw.computeNextNonce()
 	encrypted := aw.aead.Seal(nil, nonce, data, adata)
 	if err := aw.worker.incrementIndex(); err != nil {
@@ -337,7 +336,7 @@ func (ar *streamReader) processChunk(data []byte) ([]byte, error) {
 		ar.carry = chunkExtra[len(chunkExtra)-tagLen:]
 	}
 	// Decrypt and authenticate chunk
-	adata := append(ar.header, ar.index...)
+	adata := append(ar.associatedData, ar.index...)
 	nonce := ar.computeNextNonce()
 	plainChunk, err := ar.aead.Open(nil, nonce, chunk, adata)
 	if err != nil {
@@ -366,7 +365,7 @@ func (ar *streamReader) validateFinalTag(tag []byte) error {
 	// Associated: tag, version, cipher, aead, chunk size, index, and octets
 	amountBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(amountBytes, uint64(ar.readPlaintextBytes))
-	adata := append(ar.header, ar.index...)
+	adata := append(ar.associatedData, ar.index...)
 	adata = append(adata, amountBytes...)
 	nonce := ar.computeNextNonce()
 	_, err := ar.aead.Open(nil, nonce, tag, adata)
