@@ -12,14 +12,14 @@ import (
 )
 
 var (
-	maxChunkSizeByte = byte(0x09) // 1<<(7+9) = 65536 bytes
+	maxChunkSizeByte = 12
 )
 
 const (
 	keyLength  = 16
 	iterations = 100
 	// Approx. plaintext length, in amount of chunks
-	maxChunks = 200
+	maxChunks = 20
 )
 
 func TestAeadNewAEADInstanceWithDefaultConfig(t *testing.T) {
@@ -84,8 +84,11 @@ func TestAeadRandomStream(t *testing.T) {
 		key := make([]byte, 16)
 		rand.Read(key)
 
-		chunkSizeByte := byte(mathrand.Intn(int(maxChunkSizeByte)))
-		config := &AEADConfig{chunkSizeByte: chunkSizeByte}
+		var chunkSizeByte int
+		for chunkSizeByte == 0 {
+			chunkSizeByte = mathrand.Intn(maxChunkSizeByte)
+		}
+		config := &AEADConfig{chunkSizeByte: byte(chunkSizeByte)}
 
 		// Plaintext
 		randomLength := mathrand.Intn(maxChunks*int(config.ChunkSize()))
@@ -147,8 +150,11 @@ func TestAeadRandomCorruptStream(t *testing.T) {
 		key := make([]byte, 16)
 		rand.Read(key)
 
-		chunkSizeByte := byte(mathrand.Intn(int(maxChunkSizeByte)))
-		config := &AEADConfig{chunkSizeByte: chunkSizeByte}
+		var chunkSizeByte int
+		for chunkSizeByte == 0 {
+			chunkSizeByte = mathrand.Intn(maxChunkSizeByte)
+		}
+		config := &AEADConfig{chunkSizeByte: byte(chunkSizeByte)}
 
 		// Plaintext
 		randomLength := 1 + mathrand.Intn(maxChunks * int(config.ChunkSize()))

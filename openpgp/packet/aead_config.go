@@ -33,7 +33,7 @@ type AEADConfig struct {
 var defaultConfig = &AEADConfig{
 	cipher:        CipherAES128,
 	mode:          AEADModeEAX,
-	chunkSizeByte: 0x01,  // 1<<(1+6) = 128 bytes
+	chunkSizeByte: 0x12,  // 1<<(6 + 12) = 262144 bytes
 }
 
 // Version returns the AEAD version implemented, and is currently defined as

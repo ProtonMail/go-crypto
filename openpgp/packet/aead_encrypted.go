@@ -22,11 +22,11 @@ type AEADEncrypted struct {
 }
 
 // An AEAD opener/sealer, its configuration, and data for en/decryption.
-type worker struct {
+type aeadCrypter struct {
 	aead           cipher.AEAD
 	config         *AEADConfig
 	associatedData []byte // Chunk-independent associated data
-	chunkIndex          []byte // Chunk counter
+	chunkIndex     []byte // Chunk counter
 	initialNonce   []byte
 	cache          []byte
 }
@@ -34,7 +34,7 @@ type worker struct {
 // streamWriter encrypts and writes bytes. It encrypts when necessary according
 // to the AEAD block size, and caches the extra encrypted bytes for next write.
 type streamWriter struct {
-	worker                               // Embedded plaintext sealer
+	aeadCrypter                               // Embedded plaintext sealer
 	writer                io.WriteCloser // 'writer' is a partialLengthWriter
 	writtenEncryptedBytes int
 }
@@ -42,9 +42,9 @@ type streamWriter struct {
 // streamReader reads and decrypts bytes. It caches extra decrypted bytes when
 // necessary, similar to streamWriter.
 type streamReader struct {
-	worker                       // Embedded ciphertext opener
+	aeadCrypter                       // Embedded ciphertext opener
 	reader             io.Reader // 'reader' is a partialLengthReader
-	carry              []byte    // Used to detect last chunk
+	peekedBytes        []byte    // Used to detect last chunk
 	readPlaintextBytes int
 }
 
@@ -71,7 +71,7 @@ func (ae *AEADEncrypted) parse(buf io.Reader) error {
 	return nil
 }
 
-// GetStreamReader prepares a worker and returns a ReadCloser from which
+// GetStreamReader prepares a aeadCrypter and returns a ReadCloser from which
 // decrypted bytes can be read (see streamReader.Read()).
 func (ae *AEADEncrypted) GetStreamReader(key []byte) (io.ReadCloser, error) {
 	config := &AEADConfig{
@@ -84,20 +84,20 @@ func (ae *AEADEncrypted) GetStreamReader(key []byte) (io.ReadCloser, error) {
 		return nil, err
 	}
 	// Carry the first tagLen bytes
-	carry := make([]byte, config.TagLength())
-	if n, err := ae.Contents.Read(carry); err != nil || n < config.TagLength() {
+	peekedBytes := make([]byte, config.TagLength())
+	if n, err := ae.Contents.Read(peekedBytes); err != nil || n < config.TagLength() {
 		return nil, errors.AEADError("Not enough data to decrypt")
 	}
 	return &streamReader{
-		worker: worker{
+		aeadCrypter: aeadCrypter{
 			aead:           aead,
 			config:         config,
 			initialNonce:   ae.initialNonce,
 			associatedData: ae.prefix,
-			chunkIndex:          make([]byte, 8),
+			chunkIndex:     make([]byte, 8),
 		},
-		reader: ae.Contents,
-		carry:  carry}, nil
+		reader:      ae.Contents,
+		peekedBytes: peekedBytes}, nil
 }
 
 // Read decrypts bytes and reads them into dst. It decrypts when necessary and
@@ -150,14 +150,14 @@ func (ar *streamReader) Read(dst []byte) (n int, err error) {
 
 }
 
-// Close wipes the worker, along with the reader, cached, and carried bytes.
+// Close wipes the aeadCrypter, along with the reader, cached, and carried bytes.
 func (ar *streamReader) Close() (err error) {
-	ar.worker = worker{}
-	ar.carry = nil
+	ar.aeadCrypter = aeadCrypter{}
+	ar.peekedBytes = nil
 	return nil
 }
 
-// GetStreamWriter initializes the worker and returns a writer. This writer
+// GetStreamWriter initializes the aeadCrypter and returns a writer. This writer
 // encrypts and writes bytes (see streamWriter.Write()).
 func GetStreamWriter(w io.Writer, key []byte, config *AEADConfig) (io.WriteCloser, error) {
 	writeCloser := noOpCloser{w}
@@ -198,12 +198,12 @@ func GetStreamWriter(w io.Writer, key []byte, config *AEADConfig) (io.WriteClose
 	}
 
 	return &streamWriter{
-		worker: worker{
-			aead:         alg,
-			config:       config,
-			associatedData:       prefix,
-			chunkIndex:        make([]byte, 8),
-			initialNonce: nonce,
+		aeadCrypter: aeadCrypter{
+			aead:           alg,
+			config:         config,
+			associatedData: prefix,
+			chunkIndex:     make([]byte, 8),
+			initialNonce:   nonce,
 		},
 		writer: writer}, nil
 }
@@ -310,7 +310,7 @@ func (aw *streamWriter) sealChunk(data []byte) ([]byte, error) {
 	adata := append(aw.associatedData, aw.chunkIndex...)
 	nonce := aw.computeNextNonce()
 	encrypted := aw.aead.Seal(nil, nonce, data, adata)
-	if err := aw.worker.incrementIndex(); err != nil {
+	if err := aw.aeadCrypter.incrementIndex(); err != nil {
 		return nil, err
 	}
 	return encrypted, nil
@@ -325,16 +325,17 @@ func (ar *streamReader) processChunk(data []byte) ([]byte, error) {
 	chunkLen := int(ar.config.ChunkSize())
 	ctLen := tagLen + chunkLen
 	// Restore carried bytes from last call
-	chunkExtra := append(ar.carry, data...)
+	chunkExtra := append(ar.peekedBytes, data...)
 	chunk := chunkExtra[:len(chunkExtra)-tagLen]
 	// 'chunk' contains encrypted bytes, followed by an authentication tag.
 	var finalTag []byte
-	if len(chunk) < ctLen || (len(chunk) == ctLen && len(ar.carry) < tagLen) {
+	if len(chunk) < ctLen ||
+		(len(chunk) == ctLen && len(ar.peekedBytes) < tagLen) {
 		// Case final chunk
 		finalTag = chunkExtra[len(chunkExtra)-tagLen:]
 	} else {
 		// Case Regular chunk
-		ar.carry = chunkExtra[len(chunkExtra)-tagLen:]
+		ar.peekedBytes = chunkExtra[len(chunkExtra)-tagLen:]
 	}
 	// Decrypt and authenticate chunk
 	adata := append(ar.associatedData, ar.chunkIndex...)
@@ -344,7 +345,7 @@ func (ar *streamReader) processChunk(data []byte) ([]byte, error) {
 		return nil, err
 	}
 	ar.readPlaintextBytes += len(plainChunk)
-	if err = ar.worker.incrementIndex(); err != nil {
+	if err = ar.aeadCrypter.incrementIndex(); err != nil {
 		return nil, err
 	}
 
@@ -379,7 +380,7 @@ func (ar *streamReader) validateFinalTag(tag []byte) error {
 // computeNonce takes the incremental index and computes an eXclusive OR with
 // the least significant 8 bytes of the receivers' initial nonce (see sec.
 // 5.16.1 and 5.16.2). It returns the resulting nonce.
-func (wo *worker) computeNextNonce() (nonce []byte) {
+func (wo *aeadCrypter) computeNextNonce() (nonce []byte) {
 	nonce = make([]byte, len(wo.initialNonce))
 	copy(nonce, wo.initialNonce)
 	offset := len(wo.initialNonce) - 8
@@ -391,7 +392,7 @@ func (wo *worker) computeNextNonce() (nonce []byte) {
 
 // incrementIndex perfoms an integer increment by 1 of the integer represented by the
 // slice, modifying it accordingly.
-func (wo *worker) incrementIndex() error {
+func (wo *aeadCrypter) incrementIndex() error {
 	index := wo.chunkIndex
 	if len(index) == 0 {
 		return errors.AEADError("Index has length 0")
