@@ -179,8 +179,8 @@ func GetStreamWriter(w io.Writer, key []byte, config *AEADConfig) (io.WriteClose
 	}
 	// Sample nonce
 	nonce := make([]byte, config.NonceLength())
-	n, err = rand.Read(nonce)
-	if n < config.NonceLength() || err != nil {
+	n, err = io.ReadFull(rand.Reader, nonce)
+	if err != nil {
 		panic("Could not sample random nonce")
 	}
 	_, err = writer.Write(nonce)
