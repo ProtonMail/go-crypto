@@ -3,7 +3,6 @@
 package packet
 
 import (
-	"bytes"
 	"crypto/cipher"
 	"crypto/rand"
 	"encoding/binary"
@@ -27,7 +26,7 @@ type worker struct {
 	aead           cipher.AEAD
 	config         *AEADConfig
 	associatedData []byte // Chunk-independent associated data
-	index          []byte // Chunk counter
+	chunkIndex          []byte // Chunk counter
 	initialNonce   []byte
 	cache          []byte
 }
@@ -95,7 +94,7 @@ func (ae *AEADEncrypted) GetStreamReader(key []byte) (io.ReadCloser, error) {
 			config:         config,
 			initialNonce:   ae.initialNonce,
 			associatedData: ae.prefix,
-			index:          make([]byte, 8),
+			chunkIndex:          make([]byte, 8),
 		},
 		reader: ae.Contents,
 		carry:  carry}, nil
@@ -167,17 +166,19 @@ func GetStreamWriter(w io.Writer, key []byte, config *AEADConfig) (io.WriteClose
 		return nil, err
 	}
 	// Set packet tag
-	buf := bytes.NewBuffer(nil)
-	if err := serializeType(buf, packetTypeAEADEncrypted); err != nil {
-		return nil, err
-	}
+	// buf := bytes.NewBuffer(nil)
+	// if err := serializeType(buf, packetTypeAEADEncrypted); err != nil {
+	// 	return nil, err
+	// }
 	// Data for en/decryption: tag, version, cipher, aead mode, chunk size
 	prefix := []byte{
+		0xD4,
 		config.Version(),
 		byte(config.Cipher()),
 		byte(config.Mode()),
-		config.ChunkSizeByte()}
-	n, err := writer.Write(prefix)
+		config.ChunkSizeByte(),
+	}
+	n, err := writer.Write(prefix[1:])
 	if err != nil || n < 4 {
 		return nil, errors.AEADError("could not write AEAD headers")
 	}
@@ -200,8 +201,8 @@ func GetStreamWriter(w io.Writer, key []byte, config *AEADConfig) (io.WriteClose
 		worker: worker{
 			aead:         alg,
 			config:       config,
-			associatedData:       append(buf.Bytes(), prefix...),
-			index:        make([]byte, 8),
+			associatedData:       prefix,
+			chunkIndex:        make([]byte, 8),
 			initialNonce: nonce,
 		},
 		writer: writer}, nil
@@ -257,7 +258,7 @@ func (aw *streamWriter) Close() (err error) {
 	// chunk size, index, total number of encrypted octets).
 	amountBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(amountBytes, uint64(aw.writtenEncryptedBytes))
-	adata := append(aw.associatedData[:], aw.index[:]...)
+	adata := append(aw.associatedData[:], aw.chunkIndex[:]...)
 	adata = append(adata, amountBytes...)
 	nonce := aw.computeNextNonce()
 	finalTag := aw.aead.Seal(nil, nonce, nil, adata)
@@ -306,7 +307,7 @@ func (aw *streamWriter) sealChunk(data []byte) ([]byte, error) {
 	if aw.associatedData == nil {
 		return nil, errors.AEADError("can't seal without headers")
 	}
-	adata := append(aw.associatedData, aw.index...)
+	adata := append(aw.associatedData, aw.chunkIndex...)
 	nonce := aw.computeNextNonce()
 	encrypted := aw.aead.Seal(nil, nonce, data, adata)
 	if err := aw.worker.incrementIndex(); err != nil {
@@ -336,7 +337,7 @@ func (ar *streamReader) processChunk(data []byte) ([]byte, error) {
 		ar.carry = chunkExtra[len(chunkExtra)-tagLen:]
 	}
 	// Decrypt and authenticate chunk
-	adata := append(ar.associatedData, ar.index...)
+	adata := append(ar.associatedData, ar.chunkIndex...)
 	nonce := ar.computeNextNonce()
 	plainChunk, err := ar.aead.Open(nil, nonce, chunk, adata)
 	if err != nil {
@@ -365,7 +366,7 @@ func (ar *streamReader) validateFinalTag(tag []byte) error {
 	// Associated: tag, version, cipher, aead, chunk size, index, and octets
 	amountBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(amountBytes, uint64(ar.readPlaintextBytes))
-	adata := append(ar.associatedData, ar.index...)
+	adata := append(ar.associatedData, ar.chunkIndex...)
 	adata = append(adata, amountBytes...)
 	nonce := ar.computeNextNonce()
 	_, err := ar.aead.Open(nil, nonce, tag, adata)
@@ -383,7 +384,7 @@ func (wo *worker) computeNextNonce() (nonce []byte) {
 	copy(nonce, wo.initialNonce)
 	offset := len(wo.initialNonce) - 8
 	for i := 0; i < 8; i++ {
-		nonce[i+offset] ^= wo.index[i]
+		nonce[i+offset] ^= wo.chunkIndex[i]
 	}
 	return
 }
@@ -391,7 +392,7 @@ func (wo *worker) computeNextNonce() (nonce []byte) {
 // incrementIndex perfoms an integer increment by 1 of the integer represented by the
 // slice, modifying it accordingly.
 func (wo *worker) incrementIndex() error {
-	index := wo.index
+	index := wo.chunkIndex
 	if len(index) == 0 {
 		return errors.AEADError("Index has length 0")
 	}
