@@ -9,7 +9,7 @@ import (
 )
 
 // Only currently defined version
-const aeadEncryptedVersion = 0x01
+const aeadEncryptedVersion = 1
 
 type AEADMode uint8
 
