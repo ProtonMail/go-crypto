@@ -112,27 +112,21 @@ func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 	// Retrieve cached plaintext bytes from previous calls
 	decrypted := ar.cache
 
-	// Decrypt the necessary amount of chunks
-	for i := 0; i <= (len(dst)-len(ar.cache))/chunkLen; i++ {
-		cipherChunk := make([]byte, chunkLen+tagLen)
-		readBytes, err := io.ReadFull(ar.reader, cipherChunk)
-		if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
-			return 0, err
-		}
-		err = err
-		if readBytes == 0 {
-			break
-		}
-		cipherChunk = cipherChunk[:readBytes]
+	// Read a chunk
+	cipherChunk := make([]byte, chunkLen+tagLen)
+	bytesRead, errRead := io.ReadFull(ar.reader, cipherChunk)
+	if errRead != nil && errRead != io.EOF && errRead != io.ErrUnexpectedEOF {
+		return 0, errRead
+	}
+	if bytesRead > 0 {
+		cipherChunk = cipherChunk[:bytesRead]
 		plainChunk, errChunk := ar.processChunk(cipherChunk)
 		if errChunk != nil {
 			return 0, errChunk
 		}
 		decrypted = append(decrypted, plainChunk...)
-		if err == io.EOF || err == io.ErrUnexpectedEOF {
-			break
-		}
 	}
+
 	// Append necessary bytes, and cache the rest
 	if len(dst) < len(decrypted) {
 		n = copy(dst, decrypted[:len(dst)])
@@ -141,8 +135,8 @@ func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 		n = copy(dst, decrypted)
 		ar.cache = nil
 	}
+	err = errRead
 	return
-
 }
 
 // Close wipes the aeadCrypter, along with the reader, cached, and carried bytes.

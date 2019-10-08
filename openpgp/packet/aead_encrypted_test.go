@@ -17,9 +17,9 @@ var (
 
 const (
 	keyLength  = 16
-	iterations = 100
+	iterations = 200
 	// Approx. plaintext length, in amount of chunks
-	maxChunks = 20
+	maxChunks = 15
 )
 
 func TestAeadNewAEADInstanceWithDefaultConfig(t *testing.T) {
@@ -137,13 +137,16 @@ func TestAeadRandomStream(t *testing.T) {
 			err = errRead
 			decrypted = decrypted[:n]
 			got = append(got, decrypted...)
-			if n == 0 || err != nil {
-				// Finished reading
-				break
+			if err != nil {
+				if err == io.EOF {
+					// Finished reading
+					break
+				} else if err != io.ErrUnexpectedEOF {
+					// Something happened
+					t.Error("decrypting random stream failed:", err)
+					break
+				}
 			}
-		}
-		if err != nil && err != io.EOF {
-			t.Error("decrypting random stream failed:", err)
 		}
 		want := plaintext
 		if !bytes.Equal(got, want) {
@@ -206,7 +209,6 @@ func TestAeadRandomCorruptStream(t *testing.T) {
 			continue
 		}
 		rc, err := packet.Decrypt(key)
-
 		maxRead := 3 * int(config.ChunkSize())
 		var got []byte
 		for {
@@ -214,21 +216,41 @@ func TestAeadRandomCorruptStream(t *testing.T) {
 			decrypted := make([]byte, 1 + mathrand.Intn(maxRead))
 			n, errRead := rc.Read(decrypted)
 			err = errRead
-
 			decrypted = decrypted[:n]
-			// got = append(got, decrypted...)
-			if n == 0 || err != nil {
-				if err != nil {
+			got = append(got, decrypted...)
+			if err != nil {
+				if err == io.EOF {
 					// Finished reading
+					break
+				} else if err != io.ErrUnexpectedEOF {
+					// Something happened
 					break
 				}
 			}
 		}
+
+		// maxRead := 3 * int(config.ChunkSize())
+		// var got []byte
+		// for {
+		// 	// Read a random number of bytes, until the end of the packet.
+		// 	decrypted := make([]byte, 1 + mathrand.Intn(maxRead))
+		// 	n, errRead := rc.Read(decrypted)
+		// 	err = errRead
+        //
+		// 	decrypted = decrypted[:n]
+		// 	// got = append(got, decrypted...)
+		// 	if n == 0 || err != nil {
+		// 		if err != nil {
+		// 			// Finished reading
+		// 			break
+		// 		}
+		// 	}
+		// }
 		if bytes.Equal(got, plaintext) {
 			t.Errorf("Error: Succesfully decrypted corrupt stream")
 		}
 		if err == nil || err == io.EOF {
-			t.Fatal("No error raised when decrypting corrupt stream")
+			t.Errorf("No error raised when decrypting corrupt stream")
 		}
 	}
 }
