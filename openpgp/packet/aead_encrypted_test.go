@@ -6,7 +6,9 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/base64"
 	"io"
+	"io/ioutil"
 	mathrand "math/rand"
 	"testing"
 )
@@ -79,6 +81,60 @@ func TestAeadRFCParse(t *testing.T) {
 		if !bytes.Equal(got, want) {
 			t.Errorf("Error opening:\ngot\n%s\nwant\n%s", got, want)
 		}
+	}
+}
+
+func WIPTestAeadOpenPGPJSParse(t *testing.T) {
+	data, err := ioutil.ReadFile("openpgpjs_samples/aead-packet.b64")
+	rawPlaintext, err := ioutil.ReadFile("openpgpjs_samples/plaintext.txt")
+	buf := bytes.NewBuffer(nil)
+	w := noOpCloser{buf}
+	wc, err := SerializeLiteral(w, false, "msg.txt", 100)
+	wc.Write(rawPlaintext)
+	wc.Close()
+	want := buf.Bytes()
+
+    // Decode
+    raw, err := base64.StdEncoding.DecodeString(string(data))
+    if err != nil {
+        panic(err)
+    }
+	key := []byte{79, 41, 206, 112, 224, 133, 140, 223, 27, 61, 227, 57, 114, 118, 64, 60, 177, 26, 42, 174, 151, 5, 186, 74, 226, 97, 214, 63, 114, 77, 215, 121}
+
+	packetReader := bytes.NewBuffer(raw)
+	packet := new(AEADEncrypted)
+	ptype, _, contentsReader, err := readHeader(packetReader)
+	if ptype != packetTypeAEADEncrypted || err != nil {
+		t.Error("Error reading packet header")
+	}
+	if err = packet.parse(contentsReader); err != nil {
+		t.Error(err)
+	}
+	// decrypted plaintext can be read from 'rc'
+	rc, err := packet.Decrypt(key)
+	if err != nil {
+		t.Error(err)
+	}
+	// Start opening
+	var got []byte
+	for {
+		// Read some bytes at a time
+		decryptedChunk := make([]byte, mathrand.Intn(6)+1)
+		n, errRead := rc.Read(decryptedChunk)
+		got = append(got, decryptedChunk[:n]...)
+		if n == 0 || err != nil {
+			err = errRead
+			break
+		}
+	}
+	if err != io.EOF && err != io.ErrUnexpectedEOF && err != nil {
+		t.Error(err)
+	}
+	literalPacket := new(LiteralData)
+	literalPacket.parse(bytes.NewBuffer(got))
+	io.ReadFull(literalPacket.Body, got)
+	if !bytes.Equal(got, want) {
+		t.Errorf("Could not decrypt properly")
 	}
 }
 
