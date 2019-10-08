@@ -55,7 +55,7 @@ func TestAeadRFCParse(t *testing.T) {
 			t.Error(err)
 		}
 		// decrypted plaintext can be read from 'rc'
-		rc, err := packet.GetStreamReader(key)
+		rc, err := packet.Decrypt(key)
 		if err != nil {
 			t.Error(err)
 		}
@@ -100,7 +100,7 @@ func TestAeadRandomStream(t *testing.T) {
 
 		// 'writeCloser' encrypts and writes the plaintext bytes.
 		raw := bytes.NewBuffer(nil)
-		writeCloser, err := GetStreamWriter(raw, key, config)
+		writeCloser, err := SerializeAEADEncrypted(raw, key, config)
 		if err != nil {
 			t.Error(err)
 		}
@@ -126,7 +126,7 @@ func TestAeadRandomStream(t *testing.T) {
 			t.Error(err)
 		}
 		// decrypted plaintext can be read from 'rc'
-		rc, err := packet.GetStreamReader(key)
+		rc, err := packet.Decrypt(key)
 
 		maxRead := 3 * int(config.ChunkSize())
 		var got []byte
@@ -172,7 +172,7 @@ func TestAeadRandomCorruptStream(t *testing.T) {
 
 		// 'writeCloser' encrypts and writes the plaintext bytes.
 		raw := bytes.NewBuffer(nil)
-		writeCloser, err := GetStreamWriter(raw, key, config)
+		writeCloser, err := SerializeAEADEncrypted(raw, key, config)
 		if err != nil {
 			t.Error(err)
 		}
@@ -205,7 +205,7 @@ func TestAeadRandomCorruptStream(t *testing.T) {
 			// Header was corrupted
 			continue
 		}
-		rc, err := packet.GetStreamReader(key)
+		rc, err := packet.Decrypt(key)
 
 		maxRead := 3 * int(config.ChunkSize())
 		var got []byte

@@ -32,16 +32,16 @@ type aeadCrypter struct {
 	bytesProcessed int // Amount of (plain/cipher)-text bytes read/written
 }
 
-// streamWriter encrypts and writes bytes. It encrypts when necessary according
+// aeadEncrypter encrypts and writes bytes. It encrypts when necessary according
 // to the AEAD block size, and caches the extra encrypted bytes for next write.
-type streamWriter struct {
+type aeadEncrypter struct {
 	aeadCrypter                               // Embedded plaintext sealer
 	writer                io.WriteCloser // 'writer' is a partialLengthWriter
 }
 
-// streamReader reads and decrypts bytes. It caches extra decrypted bytes when
-// necessary, similar to streamWriter.
-type streamReader struct {
+// aeadDecrypter reads and decrypts bytes. It caches extra decrypted bytes when
+// necessary, similar to aeadEncrypter.
+type aeadDecrypter struct {
 	aeadCrypter                       // Embedded ciphertext opener
 	reader             io.Reader // 'reader' is a partialLengthReader
 	peekedBytes        []byte    // Used to detect last chunk
@@ -66,9 +66,9 @@ func (ae *AEADEncrypted) parse(buf io.Reader) error {
 	return nil
 }
 
-// GetStreamReader prepares a aeadCrypter and returns a ReadCloser from which
-// decrypted bytes can be read (see streamReader.Read()).
-func (ae *AEADEncrypted) GetStreamReader(key []byte) (io.ReadCloser, error) {
+// Decrypt prepares an aeadCrypter and returns a ReadCloser from which
+// decrypted bytes can be read (see aeadDecrypter.Read()).
+func (ae *AEADEncrypted) Decrypt(key []byte) (io.ReadCloser, error) {
 	config := &AEADConfig{
 		cipher:        CipherFunction(ae.prefix[2]),
 		mode:          AEADMode(ae.prefix[3]),
@@ -83,7 +83,7 @@ func (ae *AEADEncrypted) GetStreamReader(key []byte) (io.ReadCloser, error) {
 	if n, err := ae.Contents.Read(peekedBytes); err != nil || n < config.TagLength() {
 		return nil, errors.AEADError("Not enough data to decrypt")
 	}
-	return &streamReader{
+	return &aeadDecrypter{
 		aeadCrypter: aeadCrypter{
 			aead:           aead,
 			config:         config,
@@ -98,7 +98,7 @@ func (ae *AEADEncrypted) GetStreamReader(key []byte) (io.ReadCloser, error) {
 // Read decrypts bytes and reads them into dst. It decrypts when necessary and
 // caches extra decrypted bytes. It returns the number of bytes copied into dst
 // and an error.
-func (ar *streamReader) Read(dst []byte) (n int, err error) {
+func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 	if len(dst) == 0 {
 		return 0, errors.AEADError("argument of Read must have positive length")
 	}
@@ -146,15 +146,15 @@ func (ar *streamReader) Read(dst []byte) (n int, err error) {
 }
 
 // Close wipes the aeadCrypter, along with the reader, cached, and carried bytes.
-func (ar *streamReader) Close() (err error) {
+func (ar *aeadDecrypter) Close() (err error) {
 	ar.aeadCrypter = aeadCrypter{}
 	ar.peekedBytes = nil
 	return nil
 }
 
 // GetStreamWriter initializes the aeadCrypter and returns a writer. This writer
-// encrypts and writes bytes (see streamWriter.Write()).
-func GetStreamWriter(w io.Writer, key []byte, config *AEADConfig) (io.WriteCloser, error) {
+// encrypts and writes bytes (see aeadEncrypter.Write()).
+func SerializeAEADEncrypted(w io.Writer, key []byte, config *AEADConfig) (io.WriteCloser, error) {
 	writeCloser := noOpCloser{w}
 	writer, err := serializeStreamHeader(writeCloser, packetTypeAEADEncrypted)
 	if err != nil {
@@ -192,7 +192,7 @@ func GetStreamWriter(w io.Writer, key []byte, config *AEADConfig) (io.WriteClose
 		return nil, err
 	}
 
-	return &streamWriter{
+	return &aeadEncrypter{
 		aeadCrypter: aeadCrypter{
 			aead:           alg,
 			config:         config,
@@ -206,7 +206,7 @@ func GetStreamWriter(w io.Writer, key []byte, config *AEADConfig) (io.WriteClose
 // Write encrypts and writes bytes. It encrypts when necessary and caches extra
 // plaintext bytes for next call. When the stream is finished, Close() MUST be
 // called to append the final tag.
-func (aw *streamWriter) Write(plaintextBytes []byte) (n int, err error) {
+func (aw *aeadEncrypter) Write(plaintextBytes []byte) (n int, err error) {
 	chunkLen := int(aw.config.ChunkSize())
 	tagLen := aw.config.TagLength()
 	buf := append(aw.cache, plaintextBytes...)
@@ -232,7 +232,7 @@ func (aw *streamWriter) Write(plaintextBytes []byte) (n int, err error) {
 // Close encrypts and writes the remaining cached plaintext if any, appends the
 // final authentication tag, and closes the embedded writer. This function MUST
 // be called at the end of a stream.
-func (aw *streamWriter) Close() (err error) {
+func (aw *aeadEncrypter) Close() (err error) {
 	tagLen := aw.config.TagLength()
 	// Encrypt and write whatever is left on the cache (it may be empty)
 	if len(aw.cache) > 0 {
@@ -291,7 +291,7 @@ func initAlgorithm(key []byte, conf *AEADConfig) (cipher.AEAD, error) {
 }
 
 // sealChunk Encrypts and authenticates the given chunk.
-func (aw *streamWriter) sealChunk(data []byte) ([]byte, error) {
+func (aw *aeadEncrypter) sealChunk(data []byte) ([]byte, error) {
 	if len(data) > int(aw.config.ChunkSize()) {
 		return nil, errors.AEADError("chunk exceeds maximum length")
 	}
@@ -310,7 +310,7 @@ func (aw *streamWriter) sealChunk(data []byte) ([]byte, error) {
 // processChunk decrypts and checks integrity of an encrypted chunk, returning
 // the underlying plaintext and an error. It access peeked bytes from next
 // chunk, to identify the last chunk and decrypt/validate accordingly.
-func (ar *streamReader) processChunk(data []byte) ([]byte, error) {
+func (ar *aeadDecrypter) processChunk(data []byte) ([]byte, error) {
 
 	tagLen := ar.config.TagLength()
 	chunkLen := int(ar.config.ChunkSize())
@@ -354,7 +354,7 @@ func (ar *streamReader) processChunk(data []byte) ([]byte, error) {
 
 // Checks the summary tag. It takes into account the total decrypted bytes into
 // the associated data. It returns an error, or nil if the tag is valid.
-func (ar *streamReader) validateFinalTag(tag []byte) error {
+func (ar *aeadDecrypter) validateFinalTag(tag []byte) error {
 	// Associated: tag, version, cipher, aead, chunk size, index, and octets
 	amountBytes := make([]byte, 8)
 	binary.BigEndian.PutUint64(amountBytes, uint64(ar.bytesProcessed))
