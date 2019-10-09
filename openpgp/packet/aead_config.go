@@ -93,13 +93,12 @@ func tagLength(mode AEADMode) int {
 }
 
 // NonceLength returns the length in bytes of nonces.
-func (conf *AEADConfig) NonceLength() int {
-	switch conf.Mode() {
+func nonceLength(mode AEADMode) int {
+	switch mode {
 	case AEADModeEAX:
 		return 16
 	case AEADModeOCB:
 		return 15
 	}
 	panic("unsupported aead mode")
-	return 0
 }

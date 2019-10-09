@@ -55,7 +55,8 @@ func (ae *AEADEncrypted) parse(buf io.Reader) error {
 		return errors.AEADError("could not read aead header")
 	}
 	// Read initial nonce
-	nonceLen := (&AEADConfig{mode: AEADMode(prefix[3])}).NonceLength()
+	mode := AEADMode(prefix[3])
+	nonceLen := nonceLength(mode)
 	initialNonce := make([]byte, nonceLen)
 	if n, err := buf.Read(initialNonce); err != nil || n < nonceLen {
 		return err
@@ -176,7 +177,8 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, config *AEADConfig) (io.Wri
 		return nil, errors.AEADError("could not write AEAD headers")
 	}
 	// Sample nonce
-	nonce := make([]byte, config.NonceLength())
+	nonceLen := nonceLength(config.Mode())
+	nonce := make([]byte, nonceLen)
 	n, err = io.ReadFull(rand.Reader, nonce)
 	if err != nil {
 		panic("Could not sample random nonce")
