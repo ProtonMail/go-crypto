@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	maxChunkSizeExp = 10  // Test chunk sizes are at most 1 << maxChunkSizeExp
+	maxChunkSizeExp = 18  // Test chunk sizes are at most 1 << maxChunkSizeExp
 )
 
 const (
@@ -145,8 +145,8 @@ func TestAeadRandomStream(t *testing.T) {
 		key := make([]byte, 16)
 		rand.Read(key)
 
-		chunkSizeExp := mathrand.Intn(maxChunkSizeExp)
-		chunkSize := uint64(1 << (6 + uint(chunkSizeExp)))
+		chunkSizeExp := 6 + mathrand.Intn(maxChunkSizeExp - 5)
+		chunkSize := uint64(1 << uint(chunkSizeExp))
 		config := &Config{
 			AEADConfig: AEADConfig{DefaultChunkSize: chunkSize},
 		}
@@ -220,11 +220,9 @@ func TestAeadRandomCorruptStream(t *testing.T) {
 		key := make([]byte, 16)
 		rand.Read(key)
 
-		var chunkSizeExp int
-		for chunkSizeExp == 0 {
-			chunkSizeExp = mathrand.Intn(maxChunkSizeExp)
-		}
-		chunkSize := uint64(1 << (6 + uint(chunkSizeExp)))
+		chunkSizeExp := mathrand.Intn(maxChunkSizeExp)
+		chunkSizeExp = 6 + mathrand.Intn(maxChunkSizeExp - 5)
+		chunkSize := uint64(1 << uint(chunkSizeExp))
 		config := &Config{
 			AEADConfig: AEADConfig{DefaultChunkSize: chunkSize},
 		}
