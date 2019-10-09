@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"io"
+	"bytes"
 
 	"golang.org/x/crypto/eax"
 	"golang.org/x/crypto/ocb"
@@ -31,7 +32,7 @@ type aeadCrypter struct {
 	associatedData []byte // Chunk-independent associated data
 	chunkIndex     []byte // Chunk counter
 	bytesProcessed int    // Amount of (plain/cipher)-text bytes read/written
-	cache          []byte
+	cache          bytes.Buffer
 }
 
 // aeadEncrypter encrypts and writes bytes. It encrypts when necessary according
@@ -106,17 +107,21 @@ func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 	}
 	chunkLen := int(ar.config.ChunkSize())
 	tagLen := ar.aead.Overhead()
-	if len(dst) <= len(ar.cache) {
-		n = copy(dst, ar.cache[:len(dst)])
-		ar.cache = ar.cache[n:]
-		return
+	if len(dst) <= ar.cache.Len() {
+		n, errRead := ar.cache.Read(dst)
+		return n, errRead
 	}
 	// Retrieve cached plaintext bytes from previous calls
-	decrypted := ar.cache
+	decrypted := make([]byte, ar.cache.Len())
+	bytesRead, errRead := ar.cache.Read(decrypted)
+	if errRead != nil && errRead != io.EOF {
+		return 0, errRead
+	}
+	decrypted = decrypted[:bytesRead]
 
 	// Read a chunk
 	cipherChunk := make([]byte, chunkLen+tagLen)
-	bytesRead, errRead := io.ReadFull(ar.reader, cipherChunk)
+	bytesRead, errRead = io.ReadFull(ar.reader, cipherChunk)
 	if errRead != nil && errRead != io.EOF && errRead != io.ErrUnexpectedEOF {
 		return 0, errRead
 	}
@@ -132,10 +137,9 @@ func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 	// Append necessary bytes, and cache the rest
 	if len(dst) < len(decrypted) {
 		n = copy(dst, decrypted[:len(dst)])
-		ar.cache = decrypted[len(dst):]
+		ar.cache.Write(decrypted[len(dst):])
 	} else {
 		n = copy(dst, decrypted)
-		ar.cache = nil
 	}
 	err = errRead
 	return
@@ -201,7 +205,7 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, config *Config) (io.WriteCl
 func (aw *aeadEncrypter) Write(plaintextBytes []byte) (n int, err error) {
 	chunkLen := int(aw.config.ChunkSize())
 	tagLen := aw.aead.Overhead()
-	buf := append(aw.cache, plaintextBytes...)
+	buf := append(aw.cache.Bytes(), plaintextBytes...)
 	n = 0
 	i := 0
 	for i = 0; i < len(buf)/chunkLen; i++ {
@@ -217,7 +221,7 @@ func (aw *aeadEncrypter) Write(plaintextBytes []byte) (n int, err error) {
 		aw.bytesProcessed += n - tagLen
 	}
 	// Cache remaining plaintext for next chunk
-	aw.cache = plaintextBytes[chunkLen*i:]
+	aw.cache.Write(plaintextBytes[chunkLen*i:])
 	return
 }
 
@@ -227,8 +231,8 @@ func (aw *aeadEncrypter) Write(plaintextBytes []byte) (n int, err error) {
 func (aw *aeadEncrypter) Close() (err error) {
 	tagLen := aw.aead.Overhead()
 	// Encrypt and write whatever is left on the cache (it may be empty)
-	if len(aw.cache) > 0 {
-		lastEncryptedChunk, err := aw.sealChunk(aw.cache)
+	if aw.cache.Len() > 0 {
+		lastEncryptedChunk, err := aw.sealChunk(aw.cache.Bytes())
 		if err != nil {
 			return err
 		}
