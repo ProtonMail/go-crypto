@@ -105,7 +105,7 @@ func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 		return 0, errors.AEADError("argument of Read must have positive length")
 	}
 	chunkLen := int(ar.config.ChunkSize())
-	tagLen := ar.config.Mode().tagLength()
+	tagLen := ar.aead.Overhead()
 	if len(dst) <= len(ar.cache) {
 		n = copy(dst, ar.cache[:len(dst)])
 		ar.cache = ar.cache[n:]
@@ -200,7 +200,7 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, config *Config) (io.WriteCl
 // called to append the final tag.
 func (aw *aeadEncrypter) Write(plaintextBytes []byte) (n int, err error) {
 	chunkLen := int(aw.config.ChunkSize())
-	tagLen := aw.config.Mode().tagLength()
+	tagLen := aw.aead.Overhead()
 	buf := append(aw.cache, plaintextBytes...)
 	n = 0
 	i := 0
@@ -225,7 +225,7 @@ func (aw *aeadEncrypter) Write(plaintextBytes []byte) (n int, err error) {
 // final authentication tag, and closes the embedded writer. This function MUST
 // be called at the end of a stream.
 func (aw *aeadEncrypter) Close() (err error) {
-	tagLen := aw.config.Mode().tagLength()
+	tagLen := aw.aead.Overhead()
 	// Encrypt and write whatever is left on the cache (it may be empty)
 	if len(aw.cache) > 0 {
 		lastEncryptedChunk, err := aw.sealChunk(aw.cache)
@@ -304,7 +304,7 @@ func (aw *aeadEncrypter) sealChunk(data []byte) ([]byte, error) {
 // chunk, to identify the last chunk and decrypt/validate accordingly.
 func (ar *aeadDecrypter) processChunk(data []byte) ([]byte, error) {
 
-	tagLen := ar.config.Mode().tagLength()
+	tagLen := ar.aead.Overhead()
 	chunkLen := int(ar.config.ChunkSize())
 	ctLen := tagLen + chunkLen
 	// Restore carried bytes from last call
