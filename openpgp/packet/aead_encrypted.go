@@ -69,16 +69,6 @@ func (ae *AEADEncrypted) parse(buf io.Reader) error {
 	return nil
 }
 
-// Associated data for chunks: tag, version, cipher, mode, chunk size byte
-func (ae *AEADEncrypted) prefix() []byte {
-	return []byte{
-		0xD4,
-		aeadEncryptedVersion,
-		byte(ae.cipher),
-		byte(ae.mode),
-		ae.chunkSizeByte}
-}
-
 // Decrypt prepares an aeadCrypter and returns a ReadCloser from which
 // decrypted bytes can be read (see aeadDecrypter.Read()).
 func (ae *AEADEncrypted) Decrypt(key []byte) (io.ReadCloser, error) {
@@ -94,13 +84,13 @@ func (ae *AEADEncrypted) Decrypt(key []byte) (io.ReadCloser, error) {
 	}
 	return &aeadDecrypter{
 		aeadCrypter: aeadCrypter{
-			aead: aead,
 			config: &AEADConfig{
 				chunkSizeByte: ae.chunkSizeByte,
 				mode:          ae.mode,
 			},
+			aead: aead,
 			initialNonce:   ae.initialNonce,
-			associatedData: ae.prefix(),
+			associatedData: ae.associatedData(),
 			chunkIndex:     make([]byte, 8),
 		},
 		reader:      ae.Contents,
@@ -368,6 +358,16 @@ func (ar *aeadDecrypter) validateFinalTag(tag []byte) error {
 		return err
 	}
 	return nil
+}
+
+// Associated data for chunks: tag, version, cipher, mode, chunk size byte
+func (ae *AEADEncrypted) associatedData() []byte {
+	return []byte{
+		0xD4,
+		aeadEncryptedVersion,
+		byte(ae.cipher),
+		byte(ae.mode),
+		ae.chunkSizeByte}
 }
 
 // computeNonce takes the incremental index and computes an eXclusive OR with
