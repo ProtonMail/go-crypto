@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/base64"
+	"fmt"
 	"io"
 	"io/ioutil"
 	mathrand "math/rand"
@@ -35,8 +36,10 @@ func TestAeadNewAEADInstanceWithDefaultConfig(t *testing.T) {
 		AEADModeOCB: []byte{0xd4, 0x01, 0x07, 0x02, 0x01},
 	}
 	for mode := range modesToPrefix {
-		conf := &AEADConfig{mode: AEADMode(mode)}
-		_, err := initAlgorithm(key, conf)
+		conf := &Config{
+			AEADConfig: AEADConfig{mode: mode},
+		}
+		_, err := initAlgorithm(key, conf.Mode(), conf.Cipher())
 		if err != nil {
 			t.Errorf("Error creating valid AEAD from default: %s", err)
 		}
@@ -147,7 +150,9 @@ func TestAeadRandomStream(t *testing.T) {
 		for chunkSizeByte == 0 {
 			chunkSizeByte = mathrand.Intn(maxChunkSizeByte)
 		}
-		config := &AEADConfig{chunkSizeByte: byte(chunkSizeByte)}
+		config := &Config{
+			AEADConfig: AEADConfig{chunkSizeByte: byte(chunkSizeByte)},
+		}
 
 		// Plaintext
 		randomLength := mathrand.Intn(maxChunks*int(config.ChunkSize()))
@@ -207,6 +212,7 @@ func TestAeadRandomStream(t *testing.T) {
 		want := plaintext
 		if !bytes.Equal(got, want) {
 			t.Errorf("Error encrypting/decrypting random stream")
+			fmt.Println(len(got))
 			// t.Errorf("Error encrypting/decrypting random stream: got\n%X\nwant\n%X",
 			// 	got, want)
 		}
@@ -222,7 +228,9 @@ func TestAeadRandomCorruptStream(t *testing.T) {
 		for chunkSizeByte == 0 {
 			chunkSizeByte = mathrand.Intn(maxChunkSizeByte)
 		}
-		config := &AEADConfig{chunkSizeByte: byte(chunkSizeByte)}
+		config := &Config{
+			AEADConfig: AEADConfig{chunkSizeByte: byte(chunkSizeByte)},
+		}
 
 		// Plaintext
 		randomLength := 1 + mathrand.Intn(maxChunks * int(config.ChunkSize()))

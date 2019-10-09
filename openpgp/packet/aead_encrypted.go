@@ -86,6 +86,10 @@ func (ae *AEADEncrypted) Decrypt(key []byte) (io.ReadCloser, error) {
 	return &aeadDecrypter{
 		aeadCrypter: aeadCrypter{
 			aead:           aead,
+			config:         &AEADConfig{
+				chunkSizeByte: chunkSizeByte,
+				mode:          mode,
+			},
 			initialNonce:   ae.initialNonce,
 			associatedData: ae.prefix,
 			chunkIndex:     make([]byte, 8),
@@ -189,7 +193,7 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, config *Config) (io.WriteCl
 	return &aeadEncrypter{
 		aeadCrypter: aeadCrypter{
 			aead:           alg,
-			config:         config.AEADConfig,
+			config:         &config.AEADConfig,
 			associatedData: prefix,
 			chunkIndex:     make([]byte, 8),
 			initialNonce:   nonce,
@@ -264,12 +268,12 @@ func (aw *aeadEncrypter) Close() (err error) {
 
 // initAlgorithm sets up the AEAD algorithm with the given key according
 // to the given AEADConfig. It returns the AEAD instance and an error.
-func initAlgorithm(key []byte, mode AEADMode, cipher CipherFunction) (cipher.AEAD, error) {
+func initAlgorithm(key []byte, mode AEADMode, ciph CipherFunction) (cipher.AEAD, error) {
 	// Set up cipher
-	ciph := algorithm.CipherFunction(cipher).New(key)
+	blockCipher := algorithm.CipherFunction(ciph).New(key)
 	// Set up cipher.AEAD
 	var newFunc func(cipher.Block) (cipher.AEAD, error)
-	switch conf {
+	switch mode {
 	case AEADModeEAX:
 		newFunc = eax.NewEAX
 	case AEADModeOCB:
@@ -277,7 +281,7 @@ func initAlgorithm(key []byte, mode AEADMode, cipher CipherFunction) (cipher.AEA
 	default:
 		return nil, errors.UnsupportedError("unsupported AEAD mode")
 	}
-	alg, err := newFunc(ciph)
+	alg, err := newFunc(blockCipher)
 	if err != nil {
 		return nil, err
 	}
