@@ -83,10 +83,11 @@ func (ae *AEADEncrypted) Decrypt(key []byte) (io.ReadCloser, error) {
 	if n, err := ae.Contents.Read(peekedBytes); err != nil || n < tagLen {
 		return nil, errors.AEADError("Not enough data to decrypt")
 	}
+	chunkSize := uint64(1 << (6 + ae.chunkSizeByte))
 	return &aeadDecrypter{
 		aeadCrypter: aeadCrypter{
 			config: &AEADConfig{
-				DefaultChunkSizeByte: ae.chunkSizeByte,
+				DefaultChunkSize:     chunkSize,
 				DefaultMode:          ae.mode,
 			},
 			aead: aead,

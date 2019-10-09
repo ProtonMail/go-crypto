@@ -2,6 +2,8 @@
 
 package packet
 
+import "math/bits"
+
 // Only currently defined version
 const aeadEncryptedVersion = 1
 
@@ -20,12 +22,12 @@ type AEADConfig struct {
 	DefaultMode AEADMode
 	// Amount of octets in each chunk of data, according to the formula
 	// chunkSize = ((uint64_t)1 << (chunkSizeByte + 6))
-	DefaultChunkSizeByte byte
+	DefaultChunkSize uint64
 }
 
 var defaultConfig = &AEADConfig{
 	DefaultMode:          AEADModeEAX,
-	DefaultChunkSizeByte: 0x12,  // 1<<(6 + 12) = 262144 bytes
+	DefaultChunkSize: 1 << 18,  // 262144 bytes
 }
 
 // Version returns the AEAD version implemented, and is currently defined as
@@ -48,18 +50,31 @@ func (conf *AEADConfig) Mode() AEADMode {
 // ChunkSizeByte returns the byte indicating the chunk size. The effective
 // chunk size is computed with the formula uint64(1) << (chunkSizeByte + 6)
 func (conf *AEADConfig) ChunkSizeByte() byte {
-	if conf == nil || conf.DefaultChunkSizeByte == 0 {
-		return defaultConfig.DefaultChunkSizeByte
+	chunkSize := conf.ChunkSize()
+	exponent := bits.Len64(chunkSize) - 1
+	if exponent < 6 {
+		// Should never occur, since also checked in ChunkSize()
+		panic("aead: chunk size too small, minimum value is 1 << 6")
 	}
-	if conf.DefaultChunkSizeByte > 0x56 {
-		panic("aead: too long chunk size")
-	}
-	return conf.DefaultChunkSizeByte
+	return byte(exponent - 6)
 }
 
 // ChunkSize returns the maximum number of body octets in each chunk of data.
 func (conf *AEADConfig) ChunkSize() uint64 {
-	return uint64(1) << (conf.ChunkSizeByte() + 6)
+	if conf == nil || conf.DefaultChunkSize == 0 {
+		return defaultConfig.DefaultChunkSize
+	}
+	size := conf.DefaultChunkSize
+	if size & (size - 1) != 0 {
+		panic("aead: chunk size must be a power of 2")
+	}
+	if size < 1<<6 {
+		panic("aead: chunk size too small, minimum value is 1 << 6")
+	}
+	if size > 1<<62 {
+		panic("aead: chunk size too large, maximum value is 1 << 62")
+	}
+	return size
 }
 
 // TagLength returns the length in bytes of authentication tags.
