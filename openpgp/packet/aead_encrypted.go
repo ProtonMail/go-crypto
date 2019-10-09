@@ -69,18 +69,22 @@ func (ae *AEADEncrypted) parse(buf io.Reader) error {
 // Decrypt prepares an aeadCrypter and returns a ReadCloser from which
 // decrypted bytes can be read (see aeadDecrypter.Read()).
 func (ae *AEADEncrypted) Decrypt(key []byte) (io.ReadCloser, error) {
+	mode := AEADMode(ae.prefix[3])
+	cipher := CipherFunction(ae.prefix[2])
+	chunkSizeByte := byte(ae.prefix[4])
 	config := &AEADConfig{
-		cipher:        CipherFunction(ae.prefix[2]),
-		mode:          AEADMode(ae.prefix[3]),
-		chunkSizeByte: byte(ae.prefix[4]),
+		cipher:        cipher,
+		mode:          mode,
+		chunkSizeByte: chunkSizeByte,
 	}
 	aead, err := initAlgorithm(key, config)
 	if err != nil {
 		return nil, err
 	}
 	// Carry the first tagLen bytes
-	peekedBytes := make([]byte, config.TagLength())
-	if n, err := ae.Contents.Read(peekedBytes); err != nil || n < config.TagLength() {
+	tagLen := tagLength(mode)
+	peekedBytes := make([]byte, tagLen)
+	if n, err := ae.Contents.Read(peekedBytes); err != nil || n < tagLen {
 		return nil, errors.AEADError("Not enough data to decrypt")
 	}
 	return &aeadDecrypter{
@@ -103,7 +107,7 @@ func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 		return 0, errors.AEADError("argument of Read must have positive length")
 	}
 	chunkLen := int(ar.config.ChunkSize())
-	tagLen := ar.config.TagLength()
+	tagLen := tagLength(ar.config.Mode())
 	if len(dst) <= len(ar.cache) {
 		n = copy(dst, ar.cache[:len(dst)])
 		ar.cache = ar.cache[n:]
@@ -202,7 +206,7 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, config *AEADConfig) (io.Wri
 // called to append the final tag.
 func (aw *aeadEncrypter) Write(plaintextBytes []byte) (n int, err error) {
 	chunkLen := int(aw.config.ChunkSize())
-	tagLen := aw.config.TagLength()
+	tagLen := tagLength(aw.config.Mode())
 	buf := append(aw.cache, plaintextBytes...)
 	n = 0
 	i := 0
@@ -227,7 +231,7 @@ func (aw *aeadEncrypter) Write(plaintextBytes []byte) (n int, err error) {
 // final authentication tag, and closes the embedded writer. This function MUST
 // be called at the end of a stream.
 func (aw *aeadEncrypter) Close() (err error) {
-	tagLen := aw.config.TagLength()
+	tagLen := tagLength(aw.config.Mode())
 	// Encrypt and write whatever is left on the cache (it may be empty)
 	if len(aw.cache) > 0 {
 		lastEncryptedChunk, err := aw.sealChunk(aw.cache)
@@ -306,7 +310,7 @@ func (aw *aeadEncrypter) sealChunk(data []byte) ([]byte, error) {
 // chunk, to identify the last chunk and decrypt/validate accordingly.
 func (ar *aeadDecrypter) processChunk(data []byte) ([]byte, error) {
 
-	tagLen := ar.config.TagLength()
+	tagLen := tagLength(ar.config.Mode())
 	chunkLen := int(ar.config.ChunkSize())
 	ctLen := tagLen + chunkLen
 	// Restore carried bytes from last call

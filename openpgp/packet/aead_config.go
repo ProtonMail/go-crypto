@@ -82,14 +82,14 @@ func (conf *AEADConfig) ChunkSize() uint64 {
 }
 
 // TagLength returns the length in bytes of authentication tags.
-func (conf *AEADConfig) TagLength() int {
-	switch conf.Mode() {
+func tagLength(mode AEADMode) int {
+	switch mode {
 	case AEADModeEAX:
 		return 16
 	case AEADModeOCB:
 		return 16
 	}
-	return 0
+	panic("Unsupported AEAD mode")
 }
 
 // NonceLength returns the length in bytes of nonces.
