@@ -16,82 +16,91 @@ import (
 
 // AEADEncrypted represents an AEAD Encrypted Packet (tag 20, RFC4880bis-5.16).
 type AEADEncrypted struct {
-	prefix       []byte    // Packet tag, version, cipher, mode, chunk size byte
-	initialNonce []byte    // Referred to as IV in RFC4880-bis
-	Contents     io.Reader // Encrypted chunks and tags
+	cipher        CipherFunction
+	mode          AEADMode
+	chunkSizeByte byte
+	Contents      io.Reader // Encrypted chunks and tags
+	initialNonce  []byte    // Referred to as IV in RFC4880-bis
 }
 
 // An AEAD opener/sealer, its configuration, and data for en/decryption.
 type aeadCrypter struct {
 	aead           cipher.AEAD
 	config         *AEADConfig
+	initialNonce   []byte
 	associatedData []byte // Chunk-independent associated data
 	chunkIndex     []byte // Chunk counter
-	initialNonce   []byte
+	bytesProcessed int    // Amount of (plain/cipher)-text bytes read/written
 	cache          []byte
-	bytesProcessed int // Amount of (plain/cipher)-text bytes read/written
 }
 
 // aeadEncrypter encrypts and writes bytes. It encrypts when necessary according
 // to the AEAD block size, and caches the extra encrypted bytes for next write.
 type aeadEncrypter struct {
-	aeadCrypter                               // Embedded plaintext sealer
-	writer                io.WriteCloser // 'writer' is a partialLengthWriter
+	aeadCrypter                // Embedded plaintext sealer
+	writer      io.WriteCloser // 'writer' is a partialLengthWriter
 }
 
 // aeadDecrypter reads and decrypts bytes. It caches extra decrypted bytes when
 // necessary, similar to aeadEncrypter.
 type aeadDecrypter struct {
-	aeadCrypter                       // Embedded ciphertext opener
-	reader             io.Reader // 'reader' is a partialLengthReader
-	peekedBytes        []byte    // Used to detect last chunk
+	aeadCrypter           // Embedded ciphertext opener
+	reader      io.Reader // 'reader' is a partialLengthReader
+	peekedBytes []byte    // Used to detect last chunk
 }
 
 func (ae *AEADEncrypted) parse(buf io.Reader) error {
-	// Information needed for opening chunks
-	prefix := make([]byte, 5)
-	prefix[0] = 0xD4
-	if n, err := buf.Read(prefix[1:5]); err != nil || n < 4 {
+	headerData := make([]byte, 4)
+	if n, err := buf.Read(headerData); err != nil || n < 4 {
 		return errors.AEADError("could not read aead header")
 	}
 	// Read initial nonce
-	mode := AEADMode(prefix[3])
+	mode := AEADMode(headerData[2])
 	nonceLen := nonceLength(mode)
 	initialNonce := make([]byte, nonceLen)
 	if n, err := buf.Read(initialNonce); err != nil || n < nonceLen {
 		return err
 	}
 	ae.Contents = buf
-	ae.prefix = prefix
 	ae.initialNonce = initialNonce
+	ae.cipher = CipherFunction(headerData[1])
+	ae.mode = mode
+	ae.chunkSizeByte = byte(headerData[3])
 	return nil
+}
+
+// Associated data for chunks: tag, version, cipher, mode, chunk size byte
+func (ae *AEADEncrypted) prefix() []byte {
+	return []byte{
+		0xD4,
+		aeadEncryptedVersion,
+		byte(ae.cipher),
+		byte(ae.mode),
+		ae.chunkSizeByte}
 }
 
 // Decrypt prepares an aeadCrypter and returns a ReadCloser from which
 // decrypted bytes can be read (see aeadDecrypter.Read()).
 func (ae *AEADEncrypted) Decrypt(key []byte) (io.ReadCloser, error) {
-	mode := AEADMode(ae.prefix[3])
-	cipher := CipherFunction(ae.prefix[2])
-	chunkSizeByte := byte(ae.prefix[4])
-	aead, err := initAlgorithm(key, mode, cipher)
+	aead, err := initAlgorithm(key, ae.mode, ae.cipher)
 	if err != nil {
 		return nil, err
 	}
 	// Carry the first tagLen bytes
-	tagLen := tagLength(mode)
+	tagLen := tagLength(ae.mode)
 	peekedBytes := make([]byte, tagLen)
 	if n, err := ae.Contents.Read(peekedBytes); err != nil || n < tagLen {
 		return nil, errors.AEADError("Not enough data to decrypt")
 	}
 	return &aeadDecrypter{
 		aeadCrypter: aeadCrypter{
-			aead:           aead,
-			config:         &AEADConfig{
-				chunkSizeByte: chunkSizeByte,
-				mode:          mode,
+			aead: aead,
+			config: &AEADConfig{
+				chunkSizeByte: ae.chunkSizeByte,
+				mode:          ae.mode,
 			},
 			initialNonce:   ae.initialNonce,
-			associatedData: ae.prefix,
+			associatedData: ae.prefix(),
 			chunkIndex:     make([]byte, 8),
 		},
 		reader:      ae.Contents,
@@ -157,11 +166,6 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, config *Config) (io.WriteCl
 	if err != nil {
 		return nil, err
 	}
-	// Set packet tag
-	// buf := bytes.NewBuffer(nil)
-	// if err := serializeType(buf, packetTypeAEADEncrypted); err != nil {
-	// 	return nil, err
-	// }
 	// Data for en/decryption: tag, version, cipher, aead mode, chunk size
 	prefix := []byte{
 		0xD4,
