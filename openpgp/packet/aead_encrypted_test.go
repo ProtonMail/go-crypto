@@ -37,7 +37,7 @@ func TestAeadNewAEADInstanceWithDefaultConfig(t *testing.T) {
 	}
 	for mode := range modesToPrefix {
 		conf := &Config{
-			AEADConfig: AEADConfig{mode: mode},
+			AEADConfig: AEADConfig{DefaultMode: mode},
 		}
 		_, err := initAlgorithm(key, conf.Mode(), conf.Cipher())
 		if err != nil {
@@ -151,7 +151,7 @@ func TestAeadRandomStream(t *testing.T) {
 			chunkSizeByte = mathrand.Intn(maxChunkSizeByte)
 		}
 		config := &Config{
-			AEADConfig: AEADConfig{chunkSizeByte: byte(chunkSizeByte)},
+			AEADConfig: AEADConfig{DefaultChunkSizeByte: byte(chunkSizeByte)},
 		}
 
 		// Plaintext
@@ -229,7 +229,7 @@ func TestAeadRandomCorruptStream(t *testing.T) {
 			chunkSizeByte = mathrand.Intn(maxChunkSizeByte)
 		}
 		config := &Config{
-			AEADConfig: AEADConfig{chunkSizeByte: byte(chunkSizeByte)},
+			AEADConfig: AEADConfig{DefaultChunkSizeByte: byte(chunkSizeByte)},
 		}
 
 		// Plaintext

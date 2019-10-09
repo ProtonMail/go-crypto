@@ -86,8 +86,8 @@ func (ae *AEADEncrypted) Decrypt(key []byte) (io.ReadCloser, error) {
 	return &aeadDecrypter{
 		aeadCrypter: aeadCrypter{
 			config: &AEADConfig{
-				chunkSizeByte: ae.chunkSizeByte,
-				mode:          ae.mode,
+				DefaultChunkSizeByte: ae.chunkSizeByte,
+				DefaultMode:          ae.mode,
 			},
 			aead: aead,
 			initialNonce:   ae.initialNonce,

@@ -17,15 +17,15 @@ const (
 // A nil AEADConfig is valid and results in all default values.
 type AEADConfig struct {
 	// The AEAD mode of operation.
-	mode AEADMode
+	DefaultMode AEADMode
 	// Amount of octets in each chunk of data, according to the formula
 	// chunkSize = ((uint64_t)1 << (chunkSizeByte + 6))
-	chunkSizeByte byte
+	DefaultChunkSizeByte byte
 }
 
 var defaultConfig = &AEADConfig{
-	mode:          AEADModeEAX,
-	chunkSizeByte: 0x12,  // 1<<(6 + 12) = 262144 bytes
+	DefaultMode:          AEADModeEAX,
+	DefaultChunkSizeByte: 0x12,  // 1<<(6 + 12) = 262144 bytes
 }
 
 // Version returns the AEAD version implemented, and is currently defined as
@@ -36,25 +36,25 @@ func (conf *AEADConfig) Version() byte {
 
 // Mode returns the AEAD mode of operation.
 func (conf *AEADConfig) Mode() AEADMode {
-	if conf == nil || conf.mode == 0 {
+	if conf == nil || conf.DefaultMode == 0 {
 		return AEADModeEAX
 	}
-	if conf.mode != AEADMode(1) && conf.mode != AEADMode(2) {
+	if conf.DefaultMode != AEADMode(1) && conf.DefaultMode != AEADMode(2) {
 		panic("AEAD mode unsupported")
 	}
-	return conf.mode
+	return conf.DefaultMode
 }
 
 // ChunkSizeByte returns the byte indicating the chunk size. The effective
 // chunk size is computed with the formula uint64(1) << (chunkSizeByte + 6)
 func (conf *AEADConfig) ChunkSizeByte() byte {
-	if conf == nil || conf.chunkSizeByte == 0 {
-		return defaultConfig.chunkSizeByte
+	if conf == nil || conf.DefaultChunkSizeByte == 0 {
+		return defaultConfig.DefaultChunkSizeByte
 	}
-	if conf.chunkSizeByte > 0x56 {
+	if conf.DefaultChunkSizeByte > 0x56 {
 		panic("aead: too long chunk size")
 	}
-	return conf.chunkSizeByte
+	return conf.DefaultChunkSizeByte
 }
 
 // ChunkSize returns the maximum number of body octets in each chunk of data.
