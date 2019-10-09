@@ -73,12 +73,7 @@ func (ae *AEADEncrypted) Decrypt(key []byte) (io.ReadCloser, error) {
 	mode := AEADMode(ae.prefix[3])
 	cipher := CipherFunction(ae.prefix[2])
 	chunkSizeByte := byte(ae.prefix[4])
-	config := &AEADConfig{
-		cipher:        cipher,
-		mode:          mode,
-		chunkSizeByte: chunkSizeByte,
-	}
-	aead, err := initAlgorithm(key, config)
+	aead, err := initAlgorithm(key, mode, cipher)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +86,6 @@ func (ae *AEADEncrypted) Decrypt(key []byte) (io.ReadCloser, error) {
 	return &aeadDecrypter{
 		aeadCrypter: aeadCrypter{
 			aead:           aead,
-			config:         config,
 			initialNonce:   ae.initialNonce,
 			associatedData: ae.prefix,
 			chunkIndex:     make([]byte, 8),
@@ -153,7 +147,7 @@ func (ar *aeadDecrypter) Close() (err error) {
 
 // GetStreamWriter initializes the aeadCrypter and returns a writer. This writer
 // encrypts and writes bytes (see aeadEncrypter.Write()).
-func SerializeAEADEncrypted(w io.Writer, key []byte, config *AEADConfig) (io.WriteCloser, error) {
+func SerializeAEADEncrypted(w io.Writer, key []byte, config *Config) (io.WriteCloser, error) {
 	writeCloser := noOpCloser{w}
 	writer, err := serializeStreamHeader(writeCloser, packetTypeAEADEncrypted)
 	if err != nil {
@@ -167,7 +161,7 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, config *AEADConfig) (io.Wri
 	// Data for en/decryption: tag, version, cipher, aead mode, chunk size
 	prefix := []byte{
 		0xD4,
-		config.Version(),
+		config.AEADConfig.Version(),
 		byte(config.Cipher()),
 		byte(config.Mode()),
 		config.ChunkSizeByte(),
@@ -187,7 +181,7 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, config *AEADConfig) (io.Wri
 	if err != nil {
 		return nil, err
 	}
-	alg, err := initAlgorithm(key, config)
+	alg, err := initAlgorithm(key, config.AEADConfig.Mode(), config.Cipher())
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +189,7 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, config *AEADConfig) (io.Wri
 	return &aeadEncrypter{
 		aeadCrypter: aeadCrypter{
 			aead:           alg,
-			config:         config,
+			config:         config.AEADConfig,
 			associatedData: prefix,
 			chunkIndex:     make([]byte, 8),
 			initialNonce:   nonce,
@@ -270,12 +264,12 @@ func (aw *aeadEncrypter) Close() (err error) {
 
 // initAlgorithm sets up the AEAD algorithm with the given key according
 // to the given AEADConfig. It returns the AEAD instance and an error.
-func initAlgorithm(key []byte, conf *AEADConfig) (cipher.AEAD, error) {
+func initAlgorithm(key []byte, mode AEADMode, cipher CipherFunction) (cipher.AEAD, error) {
 	// Set up cipher
-	ciph := algorithm.CipherFunction(conf.Cipher()).New(key)
+	ciph := algorithm.CipherFunction(cipher).New(key)
 	// Set up cipher.AEAD
 	var newFunc func(cipher.Block) (cipher.AEAD, error)
-	switch conf.Mode() {
+	switch conf {
 	case AEADModeEAX:
 		newFunc = eax.NewEAX
 	case AEADModeOCB:

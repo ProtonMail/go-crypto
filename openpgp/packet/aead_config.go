@@ -2,11 +2,6 @@
 
 package packet
 
-import (
-	// "crypto/rand"
-	"golang.org/x/crypto/openpgp/internal/algorithm"
-)
-
 // Only currently defined version
 const aeadEncryptedVersion = 1
 
@@ -21,7 +16,6 @@ const (
 // AEADConfig collects a number of AEAD parameters along with sensible defaults.
 // A nil AEADConfig is valid and results in all default values.
 type AEADConfig struct {
-	cipher CipherFunction
 	// The AEAD mode of operation.
 	mode AEADMode
 	// Amount of octets in each chunk of data, according to the formula
@@ -30,7 +24,6 @@ type AEADConfig struct {
 }
 
 var defaultConfig = &AEADConfig{
-	cipher:        CipherAES128,
 	mode:          AEADModeEAX,
 	chunkSizeByte: 0x12,  // 1<<(6 + 12) = 262144 bytes
 }
@@ -39,18 +32,6 @@ var defaultConfig = &AEADConfig{
 // 0x01.
 func (conf *AEADConfig) Version() byte {
 	return aeadEncryptedVersion
-}
-
-// Cipher returns the underlying block cipher used by the AEAD algorithm.
-func (conf *AEADConfig) Cipher() CipherFunction {
-	if conf == nil || conf.cipher == 0 {
-		return defaultConfig.cipher
-	}
-	_, ok := algorithm.CipherById[uint8(conf.cipher)]
-	if !ok {
-		panic("aead: Unknown block cipher algorithm")
-	}
-	return conf.cipher
 }
 
 // Mode returns the AEAD mode of operation.

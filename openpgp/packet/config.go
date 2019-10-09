@@ -53,6 +53,8 @@ type Config struct {
 	Algorithm PublicKeyAlgorithm
 	// Some known primes that are optionally prepopulated by the caller
 	RSAPrimes []*big.Int
+	// TODO: Describe
+	AEADConfig
 }
 
 func (c *Config) Random() io.Reader {
