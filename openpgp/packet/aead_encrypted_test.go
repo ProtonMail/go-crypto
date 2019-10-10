@@ -66,7 +66,10 @@ func TestAeadRFCParse(t *testing.T) {
 func TestAeadRandomStream(t *testing.T) {
 	for i := 0; i < iterations; i++ {
 		key := make([]byte, 16)
-		rand.Read(key)
+		_, err := rand.Read(key)
+		if err != nil {
+			t.Error(err)
+		}
 
 		chunkSizeExp := 6 + mathrand.Intn(maxChunkSizeExp - 5)
 		chunkSize := uint64(1 << uint(chunkSizeExp))
@@ -77,7 +80,10 @@ func TestAeadRandomStream(t *testing.T) {
 		// Plaintext
 		randomLength := mathrand.Intn(maxChunks*int(config.ChunkSize()))
 		plaintext := make([]byte, randomLength)
-		rand.Read(plaintext)
+		_, err = rand.Read(plaintext)
+		if err != nil {
+			t.Error(err)
+		}
 
 		// 'writeCloser' encrypts and writes the plaintext bytes.
 		raw := bytes.NewBuffer(nil)
@@ -141,7 +147,10 @@ func TestAeadRandomStream(t *testing.T) {
 func TestAeadRandomCorruptStream(t *testing.T) {
 	for i := 0; i < iterations; i++ {
 		key := make([]byte, 16)
-		rand.Read(key)
+		_, err := rand.Read(key)
+		if err != nil {
+			t.Error(err)
+		}
 
 		chunkSizeExp := mathrand.Intn(maxChunkSizeExp)
 		chunkSizeExp = 6 + mathrand.Intn(maxChunkSizeExp - 5)
@@ -153,7 +162,10 @@ func TestAeadRandomCorruptStream(t *testing.T) {
 		// Plaintext
 		randomLength := 1 + mathrand.Intn(maxChunks * int(config.ChunkSize()))
 		plaintext := make([]byte, randomLength)
-		rand.Read(plaintext)
+		_, err = rand.Read(plaintext)
+		if err != nil {
+			t.Error(err)
+		}
 
 		// 'writeCloser' encrypts and writes the plaintext bytes.
 		raw := bytes.NewBuffer(nil)

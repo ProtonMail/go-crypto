@@ -147,8 +147,8 @@ func (ar *aeadDecrypter) Close() (err error) {
 	return nil
 }
 
-// GetStreamWriter initializes the aeadCrypter and returns a writer. This writer
-// encrypts and writes bytes (see aeadEncrypter.Write()).
+// SerializeAEADEncrypted initializes the aeadCrypter and returns a writer.
+// This writer encrypts and writes bytes (see aeadEncrypter.Write()).
 func SerializeAEADEncrypted(w io.Writer, key []byte, config *Config) (io.WriteCloser, error) {
 	writeCloser := noOpCloser{w}
 	writer, err := serializeStreamHeader(writeCloser, packetTypeAEADEncrypted)
@@ -311,7 +311,6 @@ func (ar *aeadDecrypter) processChunk(data []byte) ([]byte, error) {
 		err = ar.validateFinalTag(finalTag)
 		if err != nil {
 			// Final tag is corrupt
-			ar.Close()
 			return nil, errors.AEADError(
 				"final tag authentication failed, remaining stream wiped")
 		}
