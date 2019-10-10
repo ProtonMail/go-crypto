@@ -71,10 +71,7 @@ func (ae *AEADEncrypted) parse(buf io.Reader) error {
 // decrypted bytes can be read (see aeadDecrypter.Read()).
 func (ae *AEADEncrypted) Decrypt(key []byte) (io.ReadCloser, error) {
 	blockCipher := CipherFunction(ae.cipher).new(key)
-	aead, err := AEADMode(ae.mode).new(blockCipher)
-	if err != nil {
-		return nil, err
-	}
+	aead := AEADMode(ae.mode).new(blockCipher)
 	// Carry the first tagLen bytes
 	tagLen := ae.mode.TagLength()
 	peekedBytes := make([]byte, tagLen)
@@ -182,10 +179,7 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, config *Config) (io.WriteCl
 		return nil, err
 	}
 	blockCipher := CipherFunction(config.Cipher()).new(key)
-	alg, err := AEADMode(config.AEADConfig.Mode()).new(blockCipher)
-	if err != nil {
-		return nil, err
-	}
+	alg := AEADMode(config.AEADConfig.Mode()).new(blockCipher)
 
 	return &aeadEncrypter{
 		aeadCrypter: aeadCrypter{

@@ -527,6 +527,6 @@ func (mode AEADMode) TagLength() int {
 }
 
 // new returns a fresh instance of the given mode.
-func (mode AEADMode) new(block cipher.Block) (cipher.AEAD, error) {
+func (mode AEADMode) new(block cipher.Block) cipher.AEAD {
 	return algorithm.AEADMode(mode).New(block)
 }

@@ -39,12 +39,16 @@ func (mode AEADMode) NonceLength() int {
 }
 
 // New returns a fresh instance of the given mode
-func (mode AEADMode) New(block cipher.Block) (cipher.AEAD, error) {
+func (mode AEADMode) New(block cipher.Block) (alg cipher.AEAD) {
+	var err error
 	switch mode {
 	case AEADModeEAX:
-		return eax.NewEAX(block)
+		alg, err = eax.NewEAX(block)
 	case AEADModeOCB:
-		return ocb.NewOCB(block)
+		alg, err = ocb.NewOCB(block)
 	}
-	panic("unsupported aead mode")
+	if err != nil {
+		panic(err.Error())
+	}
+	return alg
 }
