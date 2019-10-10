@@ -232,6 +232,99 @@ func TestAeadRandomCorruptStream(t *testing.T) {
 	}
 }
 
-func DontTestAeadEmptyStream(t *testing.T) {
-	t.Error("Write me")
+// Test is it is possible to stream an empty plaintext correctly
+func TestAeadEmptyStream(t *testing.T) {
+	key := make([]byte, 16)
+	_, err := rand.Read(key)
+	if err != nil {
+		t.Error(err)
+	}
+
+	config := &Config{}
+	raw := bytes.NewBuffer(nil)
+	writeCloser, err := SerializeAEADEncrypted(raw, key, config)
+	if err != nil {
+		t.Error(err)
+	}
+	// Write the partial lengths packet into 'raw'
+	if _, err = writeCloser.Write(make([]byte, 0)); err != nil {
+		t.Error(err)
+	}
+	// Close MUST be called - it appends the final auth. tag
+	if err = writeCloser.Close(); err != nil {
+		t.Error(err)
+	}
+	// Packet is ready.
+	corruptBytes := make([]byte, len(raw.Bytes()))
+	copy(corruptBytes, raw.Bytes())
+	for bytes.Equal(corruptBytes, raw.Bytes()) {
+		corruptBytes[mathrand.Intn(len(corruptBytes)-5)+5] = byte(mathrand.Intn(256))
+	}
+	corrupt := bytes.NewBuffer(corruptBytes)
+
+	// Decrypt correct stream
+	packet := new(AEADEncrypted)
+	ptype, _, contentsReader, err := readHeader(raw)
+	if ptype != packetTypeAEADEncrypted || err != nil {
+		t.Error("Error reading packet header")
+	}
+	if err = packet.parse(contentsReader); err != nil {
+		t.Error(err)
+	}
+	// decrypted plaintext can be read from 'rc'
+	rc, err := packet.Decrypt(key)
+
+	var got []byte
+	for {
+		// Read a random number of bytes, until the end of the packet.
+		decrypted := make([]byte, 10)
+		n, errRead := rc.Read(decrypted)
+		err = errRead
+		decrypted = decrypted[:n]
+		got = append(got, decrypted...)
+		if err != nil {
+			if err == io.EOF {
+				// Finished reading
+				break
+			} else if err != io.ErrUnexpectedEOF {
+				// Something happened
+				t.Error("decrypting empty stream failed:", err)
+				break
+			}
+		}
+	}
+
+	// Decrypt corrupt stream
+	packet = new(AEADEncrypted)
+	ptype, _, contentsReader, err = readHeader(corrupt)
+	if ptype != packetTypeAEADEncrypted || err != nil {
+		t.Error("Error reading packet header")
+	}
+	if err = packet.parse(contentsReader); err != nil {
+		t.Error(err)
+	}
+	// decrypted plaintext can be read from 'rc'
+	rc, err = packet.Decrypt(key)
+
+	for {
+		// Read a random number of bytes, until the end of the packet.
+		decrypted := make([]byte, 10)
+		n, errRead := rc.Read(decrypted)
+		err = errRead
+		decrypted = decrypted[:n]
+		got = append(got, decrypted...)
+		if err != nil {
+			if err == io.EOF {
+				// Finished reading
+				break
+			} else if err != io.ErrUnexpectedEOF {
+				// Something happened
+				err = err
+				break
+			}
+		}
+	}
+	if err == nil {
+		t.Errorf("No error raised when reading corrupt stream  with empty plaintext")
+	}
 }

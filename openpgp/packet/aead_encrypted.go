@@ -101,6 +101,7 @@ func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 	if len(dst) == 0 {
 		return 0, errors.AEADError("argument of Read must have positive length")
 	}
+
 	chunkLen := int(ar.config.ChunkSize())
 	tagLen := ar.aead.Overhead()
 	if len(dst) <= ar.cache.Len() {
@@ -201,6 +202,18 @@ func (aw *aeadEncrypter) Write(plaintextBytes []byte) (n int, err error) {
 	buf := append(aw.cache.Bytes(), plaintextBytes...)
 	n = 0
 	i := 0
+	// Bordercase: Empty plaintext
+	if len(buf) == 0 {
+		encryptedChunk, errSeal := aw.sealChunk(nil)
+		if errSeal != nil {
+			return n, errSeal
+		}
+		n, err = aw.writer.Write(encryptedChunk)
+		if err != nil || n < tagLen {
+			return n, errors.AEADError("error writing encrypted chunk")
+		}
+		return
+	}
 	for i = 0; i < len(buf)/chunkLen; i++ {
 		plaintext := buf[chunkLen*i : chunkLen*(i+1)]
 		encryptedChunk, errSeal := aw.sealChunk(plaintext)
