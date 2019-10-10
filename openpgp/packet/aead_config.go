@@ -20,8 +20,7 @@ const (
 type AEADConfig struct {
 	// The AEAD mode of operation.
 	DefaultMode AEADMode
-	// Amount of octets in each chunk of data, according to the formula
-	// chunkSize = ((uint64_t)1 << (chunkSizeByte + 6))
+	// Amount of octets in each chunk of data
 	DefaultChunkSize uint64
 }
 
@@ -47,18 +46,6 @@ func (conf *AEADConfig) Mode() AEADMode {
 	return conf.DefaultMode
 }
 
-// ChunkSizeByte returns the byte indicating the chunk size. The effective
-// chunk size is computed with the formula uint64(1) << (chunkSizeByte + 6)
-func (conf *AEADConfig) ChunkSizeByte() byte {
-	chunkSize := conf.ChunkSize()
-	exponent := bits.Len64(chunkSize) - 1
-	if exponent < 6 {
-		// Should never occur, since also checked in ChunkSize()
-		panic("aead: chunk size too small, minimum value is 1 << 6")
-	}
-	return byte(exponent - 6)
-}
-
 // ChunkSize returns the maximum number of body octets in each chunk of data.
 func (conf *AEADConfig) ChunkSize() uint64 {
 	if conf == nil || conf.DefaultChunkSize == 0 {
@@ -77,7 +64,19 @@ func (conf *AEADConfig) ChunkSize() uint64 {
 	return size
 }
 
-// TagLength returns the length in bytes of authentication tags.
+// ChunkSizeByte returns the byte indicating the chunk size. The effective
+// chunk size is computed with the formula uint64(1) << (chunkSizeByte + 6)
+func (conf *AEADConfig) ChunkSizeByte() byte {
+	chunkSize := conf.ChunkSize()
+	exponent := bits.Len64(chunkSize) - 1
+	if exponent < 6 {
+		// Should never occur, since also checked in ChunkSize()
+		panic("aead: chunk size too small, minimum value is 1 << 6")
+	}
+	return byte(exponent - 6)
+}
+
+// tagLength returns the length in bytes of authentication tags.
 func (mode AEADMode) tagLength() int {
 	switch mode {
 	case AEADModeEAX:
@@ -88,7 +87,7 @@ func (mode AEADMode) tagLength() int {
 	panic("Unsupported AEAD mode")
 }
 
-// NonceLength returns the length in bytes of nonces.
+// nonceLength returns the length in bytes of nonces.
 func (mode AEADMode) nonceLength() int {
 	switch mode {
 	case AEADModeEAX:

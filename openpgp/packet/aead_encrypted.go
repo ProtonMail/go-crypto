@@ -3,11 +3,11 @@
 package packet
 
 import (
+	"bytes"
 	"crypto/cipher"
 	"crypto/rand"
 	"encoding/binary"
 	"io"
-	"bytes"
 
 	"golang.org/x/crypto/eax"
 	"golang.org/x/crypto/ocb"
@@ -87,10 +87,10 @@ func (ae *AEADEncrypted) Decrypt(key []byte) (io.ReadCloser, error) {
 	return &aeadDecrypter{
 		aeadCrypter: aeadCrypter{
 			config: &AEADConfig{
-				DefaultChunkSize:     chunkSize,
-				DefaultMode:          ae.mode,
+				DefaultChunkSize: chunkSize,
+				DefaultMode:      ae.mode,
 			},
-			aead: aead,
+			aead:           aead,
 			initialNonce:   ae.initialNonce,
 			associatedData: ae.associatedData(),
 			chunkIndex:     make([]byte, 8),
@@ -109,8 +109,7 @@ func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 	chunkLen := int(ar.config.ChunkSize())
 	tagLen := ar.aead.Overhead()
 	if len(dst) <= ar.cache.Len() {
-		n, errRead := ar.cache.Read(dst)
-		return n, errRead
+		return ar.cache.Read(dst)
 	}
 	// Retrieve cached plaintext bytes from previous calls
 	decrypted := make([]byte, ar.cache.Len())
