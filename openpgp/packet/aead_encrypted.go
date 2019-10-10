@@ -9,10 +9,7 @@ import (
 	"encoding/binary"
 	"io"
 
-	"golang.org/x/crypto/eax"
-	"golang.org/x/crypto/ocb"
 	"golang.org/x/crypto/openpgp/errors"
-	"golang.org/x/crypto/openpgp/internal/algorithm"
 )
 
 // AEADEncrypted represents an AEAD Encrypted Packet (tag 20, RFC4880bis-5.16).
@@ -57,7 +54,7 @@ func (ae *AEADEncrypted) parse(buf io.Reader) error {
 	}
 	// Read initial nonce
 	mode := AEADMode(headerData[2])
-	nonceLen := mode.nonceLength()
+	nonceLen := mode.NonceLength()
 	initialNonce := make([]byte, nonceLen)
 	if n, err := buf.Read(initialNonce); err != nil || n < nonceLen {
 		return err
@@ -73,12 +70,13 @@ func (ae *AEADEncrypted) parse(buf io.Reader) error {
 // Decrypt prepares an aeadCrypter and returns a ReadCloser from which
 // decrypted bytes can be read (see aeadDecrypter.Read()).
 func (ae *AEADEncrypted) Decrypt(key []byte) (io.ReadCloser, error) {
-	aead, err := initAlgorithm(key, ae.mode, ae.cipher)
+	blockCipher := CipherFunction(ae.cipher).new(key)
+	aead, err := AEADMode(ae.mode).new(blockCipher)
 	if err != nil {
 		return nil, err
 	}
 	// Carry the first tagLen bytes
-	tagLen := ae.mode.tagLength()
+	tagLen := ae.mode.TagLength()
 	peekedBytes := make([]byte, tagLen)
 	if n, err := ae.Contents.Read(peekedBytes); err != nil || n < tagLen {
 		return nil, errors.AEADError("Not enough data to decrypt")
@@ -173,7 +171,7 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, config *Config) (io.WriteCl
 		return nil, errors.AEADError("could not write AEAD headers")
 	}
 	// Sample nonce
-	nonceLen := config.Mode().nonceLength()
+	nonceLen := config.Mode().NonceLength()
 	nonce := make([]byte, nonceLen)
 	n, err = io.ReadFull(rand.Reader, nonce)
 	if err != nil {
@@ -183,7 +181,8 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, config *Config) (io.WriteCl
 	if err != nil {
 		return nil, err
 	}
-	alg, err := initAlgorithm(key, config.AEADConfig.Mode(), config.Cipher())
+	blockCipher := CipherFunction(config.Cipher()).new(key)
+	alg, err := AEADMode(config.AEADConfig.Mode()).new(blockCipher)
 	if err != nil {
 		return nil, err
 	}
@@ -262,28 +261,6 @@ func (aw *aeadEncrypter) Close() (err error) {
 		return err
 	}
 	return nil
-}
-
-// initAlgorithm sets up the AEAD algorithm with the given key according
-// to the given AEADConfig. It returns the AEAD instance and an error.
-func initAlgorithm(key []byte, mode AEADMode, ciph CipherFunction) (cipher.AEAD, error) {
-	// Set up cipher
-	blockCipher := algorithm.CipherFunction(ciph).New(key)
-	// Set up cipher.AEAD
-	var newFunc func(cipher.Block) (cipher.AEAD, error)
-	switch mode {
-	case AEADModeEAX:
-		newFunc = eax.NewEAX
-	case AEADModeOCB:
-		newFunc = ocb.NewOCB
-	default:
-		return nil, errors.UnsupportedError("unsupported AEAD mode")
-	}
-	alg, err := newFunc(blockCipher)
-	if err != nil {
-		return nil, err
-	}
-	return alg, nil
 }
 
 // sealChunk Encrypts and authenticates the given chunk.

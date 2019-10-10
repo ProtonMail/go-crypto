@@ -24,27 +24,6 @@ const (
 	maxChunks = 15
 )
 
-func TestAeadNewAEADInstanceWithDefaultConfig(t *testing.T) {
-	key := make([]byte, keyLength)
-	if _, err := rand.Read(key); err != nil {
-		t.Error(err)
-	}
-	var modesToPrefix = map[AEADMode][]byte{
-		// Packet tags in new format
-		AEADModeEAX: []byte{0xd4, 0x01, 0x07, 0x01, 0x01},
-		AEADModeOCB: []byte{0xd4, 0x01, 0x07, 0x02, 0x01},
-	}
-	for mode := range modesToPrefix {
-		conf := &Config{
-			AEADConfig: AEADConfig{DefaultMode: mode},
-		}
-		_, err := initAlgorithm(key, conf.Mode(), conf.Cipher())
-		if err != nil {
-			t.Errorf("Error creating valid AEAD from default: %s", err)
-		}
-	}
-}
-
 func TestAeadRFCParse(t *testing.T) {
 	for _, sample := range samplesAeadEncryptedDataPacket {
 		key, _ := hex.DecodeString(sample.cek)

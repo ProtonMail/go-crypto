@@ -7,14 +7,6 @@ import "math/bits"
 // Only currently defined version
 const aeadEncryptedVersion = 1
 
-type AEADMode uint8
-
-// Supported modes of operation (see RFC4880bis [EAX] and RFC7253)
-const (
-	AEADModeEAX = AEADMode(1)
-	AEADModeOCB = AEADMode(2)
-)
-
 // AEADConfig collects a number of AEAD parameters along with sensible defaults.
 // A nil AEADConfig is valid and results in all default values.
 type AEADConfig struct {
@@ -25,8 +17,8 @@ type AEADConfig struct {
 }
 
 var defaultConfig = &AEADConfig{
-	DefaultMode:          AEADModeEAX,
-	DefaultChunkSize: 1 << 18,  // 262144 bytes
+	DefaultMode:      AEADModeEAX,
+	DefaultChunkSize: 1 << 18, // 262144 bytes
 }
 
 // Version returns the AEAD version implemented, and is currently defined as
@@ -38,9 +30,11 @@ func (conf *AEADConfig) Version() byte {
 // Mode returns the AEAD mode of operation.
 func (conf *AEADConfig) Mode() AEADMode {
 	if conf == nil || conf.DefaultMode == 0 {
-		return AEADModeEAX
+		return defaultConfig.DefaultMode
 	}
-	if conf.DefaultMode != AEADMode(1) && conf.DefaultMode != AEADMode(2) {
+	mode := conf.DefaultMode
+	// TODO Maybe a map from algorithm package here
+	if mode != AEADMode(1) && mode != AEADMode(2) {
 		panic("AEAD mode unsupported")
 	}
 	return conf.DefaultMode
@@ -52,7 +46,7 @@ func (conf *AEADConfig) ChunkSize() uint64 {
 		return defaultConfig.DefaultChunkSize
 	}
 	size := conf.DefaultChunkSize
-	if size & (size - 1) != 0 {
+	if size&(size-1) != 0 {
 		panic("aead: chunk size must be a power of 2")
 	}
 	if size < 1<<6 {
@@ -74,26 +68,4 @@ func (conf *AEADConfig) ChunkSizeByte() byte {
 		panic("aead: chunk size too small, minimum value is 1 << 6")
 	}
 	return byte(exponent - 6)
-}
-
-// tagLength returns the length in bytes of authentication tags.
-func (mode AEADMode) tagLength() int {
-	switch mode {
-	case AEADModeEAX:
-		return 16
-	case AEADModeOCB:
-		return 16
-	}
-	panic("Unsupported AEAD mode")
-}
-
-// nonceLength returns the length in bytes of nonces.
-func (mode AEADMode) nonceLength() int {
-	switch mode {
-	case AEADModeEAX:
-		return 16
-	case AEADModeOCB:
-		return 15
-	}
-	panic("unsupported aead mode")
 }

@@ -508,3 +508,25 @@ const (
 	CompressionZIP  CompressionAlgo = 1
 	CompressionZLIB CompressionAlgo = 2
 )
+
+// AEADMode represents the different Authenticated Encryption with Associated
+// Data specified for OpenPGP.
+type AEADMode algorithm.AEADMode
+
+const (
+	AEADModeEAX AEADMode = 1
+	AEADModeOCB AEADMode = 2
+)
+
+func (mode AEADMode) NonceLength() int {
+	return algorithm.AEADMode(mode).NonceLength()
+}
+
+func (mode AEADMode) TagLength() int {
+	return algorithm.AEADMode(mode).TagLength()
+}
+
+// new returns a fresh instance of the given mode.
+func (mode AEADMode) new(block cipher.Block) (cipher.AEAD, error) {
+	return algorithm.AEADMode(mode).New(block)
+}
