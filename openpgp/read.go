@@ -88,7 +88,10 @@ func ReadMessage(r io.Reader, keyring KeyRing, prompt PromptFunction, config *pa
 
 	var symKeys []*packet.SymmetricKeyEncrypted
 	var pubKeys []keyEnvelopePair
-	var se *packet.SymmetricallyEncrypted
+	// Integrity protected encrypted packet: SymmetricallyEncrypted or AEADEncrypted
+	var ipep interface{
+		Decrypt(packet.CipherFunction, []byte) (io.ReadCloser, error)
+	}
 
 	packets := packet.NewReader(r)
 	md = new(MessageDetails)
@@ -100,7 +103,6 @@ func ReadMessage(r io.Reader, keyring KeyRing, prompt PromptFunction, config *pa
 	// collects these packets.
 ParsePackets:
 	for {
-		// Next also .parse()s the packet
 		p, err = packets.Next()
 		if err != nil {
 			return nil, err
@@ -129,7 +131,10 @@ ParsePackets:
 				pubKeys = append(pubKeys, keyEnvelopePair{k, p})
 			}
 		case *packet.SymmetricallyEncrypted:
-			se = p
+			ipep = p
+			break ParsePackets
+		case *packet.AEADEncrypted:
+			ipep = p
 			break ParsePackets
 		case *packet.Compressed, *packet.LiteralData, *packet.OnePassSignature:
 			// This message isn't encrypted.
@@ -165,7 +170,7 @@ FindKey:
 					continue
 				}
 				// Try decrypt symmetrically encrypted
-				decrypted, err = se.Decrypt(pk.encryptedKey.CipherFunc, pk.encryptedKey.Key)
+				decrypted, err = ipep.Decrypt(pk.encryptedKey.CipherFunc, pk.encryptedKey.Key)
 				if err != nil && err != errors.ErrKeyIncorrect {
 					return nil, err
 				}
@@ -201,7 +206,7 @@ FindKey:
 			for _, s := range symKeys {
 				key, cipherFunc, err := s.Decrypt(passphrase)
 				if err == nil {
-					decrypted, err = se.Decrypt(cipherFunc, key)
+					decrypted, err = ipep.Decrypt(cipherFunc, key)
 					if err != nil && err != errors.ErrKeyIncorrect {
 						return nil, err
 					}
