@@ -100,6 +100,7 @@ func ReadMessage(r io.Reader, keyring KeyRing, prompt PromptFunction, config *pa
 	// collects these packets.
 ParsePackets:
 	for {
+		// Next also .parse()s the packet
 		p, err = packets.Next()
 		if err != nil {
 			return nil, err
@@ -163,6 +164,7 @@ FindKey:
 				if len(pk.encryptedKey.Key) == 0 {
 					continue
 				}
+				// Try decrypt symmetrically encrypted
 				decrypted, err = se.Decrypt(pk.encryptedKey.CipherFunc, pk.encryptedKey.Key)
 				if err != nil && err != errors.ErrKeyIncorrect {
 					return nil, err

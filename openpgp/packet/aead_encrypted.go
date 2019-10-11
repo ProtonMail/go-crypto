@@ -171,7 +171,7 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, config *Config) (io.WriteCl
 	// Sample nonce
 	nonceLen := config.Mode().NonceLength()
 	nonce := make([]byte, nonceLen)
-	n, err = io.ReadFull(rand.Reader, nonce)
+	n, err = rand.Read(nonce)
 	if err != nil {
 		panic("Could not sample random nonce")
 	}

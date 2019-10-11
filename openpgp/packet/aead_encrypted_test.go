@@ -325,6 +325,6 @@ func TestAeadEmptyStream(t *testing.T) {
 		}
 	}
 	if err == nil {
-		t.Errorf("No error raised when reading corrupt stream  with empty plaintext")
+		t.Errorf("No error raised when reading corrupt stream with empty plaintext")
 	}
 }
