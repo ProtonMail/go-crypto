@@ -16,7 +16,7 @@ type AEADConfig struct {
 	DefaultChunkSize uint64
 }
 
-var defaultConfig = &AEADConfig{
+var defaultAEADConfig = &AEADConfig{
 	DefaultMode:      AEADModeEAX,
 	DefaultChunkSize: 1 << 18, // 262144 bytes
 }
@@ -30,7 +30,7 @@ func (conf *AEADConfig) Version() byte {
 // Mode returns the AEAD mode of operation.
 func (conf *AEADConfig) Mode() AEADMode {
 	if conf == nil || conf.DefaultMode == 0 {
-		return defaultConfig.DefaultMode
+		return defaultAEADConfig.DefaultMode
 	}
 	mode := conf.DefaultMode
 	// TODO Maybe a map from algorithm package here
@@ -43,7 +43,7 @@ func (conf *AEADConfig) Mode() AEADMode {
 // ChunkSize returns the maximum number of body octets in each chunk of data.
 func (conf *AEADConfig) ChunkSize() uint64 {
 	if conf == nil || conf.DefaultChunkSize == 0 {
-		return defaultConfig.DefaultChunkSize
+		return defaultAEADConfig.DefaultChunkSize
 	}
 	size := conf.DefaultChunkSize
 	if size&(size-1) != 0 {

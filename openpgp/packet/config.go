@@ -53,8 +53,16 @@ type Config struct {
 	Algorithm PublicKeyAlgorithm
 	// Some known primes that are optionally prepopulated by the caller
 	RSAPrimes []*big.Int
-	// TODO: Describe
+	// AEADConfig configures the Authenticated Encryption with Associated Data
 	AEADConfig
+	// **************
+	// WIP
+	// **************
+	SymmetricKeyEncryptedVersion int
+}
+
+var defaultConfig = &Config{
+	SymmetricKeyEncryptedVersion: 4,
 }
 
 func (c *Config) Random() io.Reader {
@@ -97,4 +105,11 @@ func (c *Config) PasswordHashIterations() int {
 		return 0
 	}
 	return c.S2KCount
+}
+
+func (c *Config) SKEVersion() int {
+	if c == nil || c.SymmetricKeyEncryptedVersion == 0 {
+		return defaultConfig.SymmetricKeyEncryptedVersion
+	}
+	return c.SymmetricKeyEncryptedVersion
 }

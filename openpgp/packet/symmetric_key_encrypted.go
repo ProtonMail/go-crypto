@@ -21,12 +21,14 @@ const maxSessionKeySizeInBytes = 64
 // SymmetricKeyEncrypted represents a passphrase protected session key. See RFC
 // 4880, section 5.3.
 type SymmetricKeyEncrypted struct {
+	Version      int
 	CipherFunc   CipherFunction
+	Mode         AEADMode
 	s2k          func(out, in []byte)
+	iv           []byte
 	encryptedKey []byte
+	aeadTag      []byte
 }
-
-const symmetricKeyEncryptedVersion = 4
 
 func (ske *SymmetricKeyEncrypted) parse(r io.Reader) error {
 	// RFC 4880, section 5.3.
@@ -34,11 +36,14 @@ func (ske *SymmetricKeyEncrypted) parse(r io.Reader) error {
 	if _, err := readFull(r, buf[:]); err != nil {
 		return err
 	}
-	if buf[0] != symmetricKeyEncryptedVersion {
+	switch buf[0] {
+	case 4, 5:
+		ske.Version = int(buf[0])
+	default:
 		return errors.UnsupportedError("SymmetricKeyEncrypted version")
 	}
 	ske.CipherFunc = CipherFunction(buf[1])
-
+	// TODO: Not very clean to use KeySize here.
 	if ske.CipherFunc.KeySize() == 0 {
 		return errors.UnsupportedError("unknown cipher: " + strconv.Itoa(int(buf[1])))
 	}
@@ -124,7 +129,7 @@ func SerializeSymmetricKeyEncrypted(w io.Writer, passphrase []byte, config *Conf
 	}
 
 	var buf [2]byte
-	buf[0] = symmetricKeyEncryptedVersion
+	buf[0] = byte(config.SKEVersion())
 	buf[1] = byte(cipherFunc)
 	_, err = w.Write(buf[:])
 	if err != nil {
@@ -183,7 +188,7 @@ func SerializeSymmetricKeyEncryptedReuseKey(w io.Writer, session []byte, passphr
 	}
 
 	var buf [2]byte
-	buf[0] = symmetricKeyEncryptedVersion
+	buf[0] = byte(config.SKEVersion())
 	buf[1] = byte(cipherFunc)
 	_, err = w.Write(buf[:])
 	if err != nil {
