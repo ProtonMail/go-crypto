@@ -99,6 +99,7 @@ func (ske *SymmetricKeyEncrypted) parseV5(r io.Reader) error {
 	if err != nil && err != io.ErrUnexpectedEOF {
 		return err
 	}
+	ske.aeadNonce = nonce
 
 	// Encrypted key and final tag may follow
 	// TODO: And tag?
@@ -129,12 +130,13 @@ func (ske *SymmetricKeyEncrypted) Decrypt(passphrase []byte) ([]byte, CipherFunc
 		return key, ske.CipherFunc, nil
 	}
 
+	cipherFunc := ske.CipherFunc
 	var plaintextKey []byte
 	var err error
 
 	switch ske.Version {
 	case 4:
-		plaintextKey, err = ske.decryptV4(key)
+		plaintextKey, cipherFunc, err = ske.decryptV4(key)
 	case 5:
 		plaintextKey, err = ske.decryptV5(key)
 	default:
@@ -142,15 +144,9 @@ func (ske *SymmetricKeyEncrypted) Decrypt(passphrase []byte) ([]byte, CipherFunc
 		return nil, CipherFunction(0), err
 	}
 	if err != nil {
-		// TODO
+		return nil, CipherFunction(0), err
 	}
 
-	cipherFunc := CipherFunction(plaintextKey[0])
-	if cipherFunc.blockSize() == 0 {
-		return nil, ske.CipherFunc, errors.UnsupportedError(
-			"unknown cipher: " + strconv.Itoa(int(cipherFunc)))
-	}
-	plaintextKey = plaintextKey[1:]
 	if l, cipherKeySize := len(plaintextKey), cipherFunc.KeySize(); l != cipherFunc.KeySize() {
 		return nil, cipherFunc, errors.StructuralError(
 			"length of decrypted key (" + strconv.Itoa(l) + ") " +
@@ -159,14 +155,20 @@ func (ske *SymmetricKeyEncrypted) Decrypt(passphrase []byte) ([]byte, CipherFunc
 	return plaintextKey, cipherFunc, nil
 }
 
-func (ske *SymmetricKeyEncrypted) decryptV4(key []byte) ([]byte, error) {
+func (ske *SymmetricKeyEncrypted) decryptV4(key []byte) ([]byte, CipherFunction, error) {
 
 	// the IV is all zeros
 	iv := make([]byte, ske.CipherFunc.blockSize())
 	c := cipher.NewCFBDecrypter(ske.CipherFunc.new(key), iv)
 	plaintextKey := make([]byte, len(ske.encryptedKey))
 	c.XORKeyStream(plaintextKey, ske.encryptedKey)
-	return plaintextKey, nil
+	cipherFunc := CipherFunction(plaintextKey[0])
+	if cipherFunc.blockSize() == 0 {
+		return nil, ske.CipherFunc, errors.UnsupportedError(
+			"unknown cipher: " + strconv.Itoa(int(cipherFunc)))
+	}
+	plaintextKey = plaintextKey[1:]
+	return plaintextKey, cipherFunc, nil
 }
 
 func (ske *SymmetricKeyEncrypted) decryptV5(key []byte) ([]byte, error) {
@@ -179,7 +181,7 @@ func (ske *SymmetricKeyEncrypted) decryptV5(key []byte) ([]byte, error) {
 	// Probably declare plaintextKey before and use as first argument
 	plaintextKey, err := aead.Open(nil, ske.aeadNonce, ciphertext, adata)
 	if err != nil {
-		// TODO
+		return nil, err
 	}
 	return plaintextKey, nil
 }

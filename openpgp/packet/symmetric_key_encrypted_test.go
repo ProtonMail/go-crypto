@@ -7,6 +7,7 @@ package packet
 import (
 	"bytes"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"testing"
@@ -58,7 +59,69 @@ func TestSymmetricKeyEncrypted(t *testing.T) {
 	}
 }
 
+func TestSymmetricKeyEncryptedV5(t *testing.T) {
+	testCase := aeadEaxRFC
+	// Key
+	buf := readerFromHex(testCase.packets)
+	packet, err := Read(buf)
+	if err != nil {
+		t.Errorf("failed to read SymmetricKeyEncrypted: %s", err)
+		return
+	}
+	ske, ok := packet.(*SymmetricKeyEncrypted)
+	if !ok {
+		t.Error("didn't find SymmetricKeyEncrypted packet")
+		return
+	}
+	// Decrypt key
+	key, cipherFunc, err := ske.Decrypt([]byte("password"))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	packet, err = Read(buf)
+	if err != nil {
+		t.Errorf("failed to read SymmetricallyEncrypted: %s", err)
+		return
+	}
+	aeadE, ok := packet.(*AEADEncrypted)
+	if !ok {
+		t.Error("didn't find SymmetricallyEncrypted packet")
+		return
+	}
+	r, err := aeadE.Decrypt(cipherFunc, key)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	contents, err := ioutil.ReadAll(r)
+	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+		fmt.Println(err)
+		t.Error(err)
+		return
+	}
+	fmt.Println(string(contents))
+
+	// expectedContents, _ := hex.DecodeString(symmetricallyEncryptedContentsHex)
+	// if !bytes.Equal(expectedContents, contents) {
+	// 	t.Errorf("bad contents got:%x want:%x", contents, expectedContents)
+	// }
+}
+
+
 const symmetricallyEncryptedHex = "c32e04090308f9f479ee0862ee8700a86d5cce4c166b5a7d664dcbe0f0eb2696a3e8a815fe8913251605ad79cc865f15d24301c3da8f5003383b9bd62c673589e2292d990902227311905ff4a7f694727578468e15d9f1aadb41572c4b2a789d7f93896661249200b64af9fbf6abf001f5498d036a"
+
+type packetSequence struct {
+	password              string
+	packets               string
+}
+
+var aeadEaxRFC = &packetSequence{
+	password: "password",
+	packets: "c33e0507010308cd5a9f70fbe0bc6590bc669e34e500dcaedc5b32aa2dab02359dee19d07c3446c4312a34ae1967a2fb7e928ea5b4fa8012bd456d1738c63c36d44a0107010eb732379f73c4928de25facfe6517ec105dc11a81dc0cb8a2f6f3d90016384a56fc821ae11ae8dbcb49862655dea88d06a81486801b0ff387bd2eab013de1259586906eab2476",
+}
+
 const symmetricallyEncryptedContentsHex = "cb1875076d73672e7478745cafc23e636f6e74656e74732e0d0a"
 
 func TestSerializeSymmetricKeyEncryptedCiphers(t *testing.T) {

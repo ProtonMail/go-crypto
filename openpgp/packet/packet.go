@@ -389,6 +389,8 @@ func Read(r io.Reader) (p Packet, err error) {
 		se := new(SymmetricallyEncrypted)
 		se.MDC = true
 		p = se
+	case packetTypeAEADEncrypted:
+		p = new(AEADEncrypted)
 	default:
 		err = errors.UnknownPacketTypeError(tag)
 	}
