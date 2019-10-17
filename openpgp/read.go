@@ -89,9 +89,7 @@ func ReadMessage(r io.Reader, keyring KeyRing, prompt PromptFunction, config *pa
 	var symKeys []*packet.SymmetricKeyEncrypted
 	var pubKeys []keyEnvelopePair
 	// Integrity protected encrypted packet: SymmetricallyEncrypted or AEADEncrypted
-	var ipep interface{
-		Decrypt(packet.CipherFunction, []byte) (io.ReadCloser, error)
-	}
+	var edp packet.EncryptedDataPacket
 
 	packets := packet.NewReader(r)
 	md = new(MessageDetails)
@@ -131,10 +129,10 @@ ParsePackets:
 				pubKeys = append(pubKeys, keyEnvelopePair{k, p})
 			}
 		case *packet.SymmetricallyEncrypted:
-			ipep = p
+			edp = p
 			break ParsePackets
 		case *packet.AEADEncrypted:
-			ipep = p
+			edp = p
 			break ParsePackets
 		case *packet.Compressed, *packet.LiteralData, *packet.OnePassSignature:
 			// This message isn't encrypted.
@@ -170,7 +168,7 @@ FindKey:
 					continue
 				}
 				// Try decrypt symmetrically encrypted
-				decrypted, err = ipep.Decrypt(pk.encryptedKey.CipherFunc, pk.encryptedKey.Key)
+				decrypted, err = edp.Decrypt(pk.encryptedKey.CipherFunc, pk.encryptedKey.Key)
 				if err != nil && err != errors.ErrKeyIncorrect {
 					return nil, err
 				}
@@ -206,7 +204,7 @@ FindKey:
 			for _, s := range symKeys {
 				key, cipherFunc, err := s.Decrypt(passphrase)
 				if err == nil {
-					decrypted, err = ipep.Decrypt(cipherFunc, key)
+					decrypted, err = edp.Decrypt(cipherFunc, key)
 					if err != nil && err != errors.ErrKeyIncorrect {
 						return nil, err
 					}

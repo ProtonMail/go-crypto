@@ -74,11 +74,11 @@ func TestAeadRandomStream(t *testing.T) {
 		chunkSizeExp := 6 + mathrand.Intn(maxChunkSizeExp - 5)
 		chunkSize := uint64(1 << uint(chunkSizeExp))
 		config := &Config{
-			AEADConfig: AEADConfig{DefaultChunkSize: chunkSize},
+			AEADConfig: AEADConfig{ChunkSize: chunkSize},
 		}
 
 		// Plaintext
-		randomLength := mathrand.Intn(maxChunks*int(config.ChunkSize()))
+		randomLength := mathrand.Intn(maxChunks*int(config.ChunkLength()))
 		plaintext := make([]byte, randomLength)
 		_, err = rand.Read(plaintext)
 		if err != nil {
@@ -115,7 +115,7 @@ func TestAeadRandomStream(t *testing.T) {
 		// decrypted plaintext can be read from 'rc'
 		rc, err := packet.GetStreamReader(key)
 
-		maxRead := 3 * int(config.ChunkSize())
+		maxRead := 3 * int(config.ChunkLength())
 		var got []byte
 		for {
 			// Read a random number of bytes, until the end of the packet.
@@ -156,11 +156,11 @@ func TestAeadRandomCorruptStream(t *testing.T) {
 		chunkSizeExp = 6 + mathrand.Intn(maxChunkSizeExp - 5)
 		chunkSize := uint64(1 << uint(chunkSizeExp))
 		config := &Config{
-			AEADConfig: AEADConfig{DefaultChunkSize: chunkSize},
+			AEADConfig: AEADConfig{ChunkSize: chunkSize},
 		}
 
 		// Plaintext
-		randomLength := 1 + mathrand.Intn(maxChunks * int(config.ChunkSize()))
+		randomLength := 1 + mathrand.Intn(maxChunks * int(config.ChunkLength()))
 		plaintext := make([]byte, randomLength)
 		_, err = rand.Read(plaintext)
 		if err != nil {
@@ -203,7 +203,7 @@ func TestAeadRandomCorruptStream(t *testing.T) {
 			continue
 		}
 		rc, err := packet.GetStreamReader(key)
-		maxRead := 3 * int(config.ChunkSize())
+		maxRead := 3 * int(config.ChunkLength())
 		var got []byte
 		for {
 			// Read a random number of bytes, until the end of the packet.

@@ -39,18 +39,16 @@ func TestDecryptKeyAndIntegrityProtectedEncryptedPacket(t *testing.T) {
 			return
 		}
 		// Decrypt contents
-		var ipep interface {
-			Decrypt(CipherFunction, []byte) (io.ReadCloser, error)
-		}
+		var edp EncryptedDataPacket
 		switch packet.(type) {
 		case *SymmetricallyEncrypted:
-			ipep, _ = packet.(*SymmetricallyEncrypted)
+			edp, _ = packet.(*SymmetricallyEncrypted)
 		case *AEADEncrypted:
-			ipep, _ = packet.(*AEADEncrypted)
+			edp, _ = packet.(*AEADEncrypted)
 		default:
 			t.Fatal("no integrity protected packet")
 		}
-		r, err := ipep.Decrypt(cipherFunc, key)
+		r, err := edp.Decrypt(cipherFunc, key)
 		if err != nil {
 			t.Error(err)
 			return

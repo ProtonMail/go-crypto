@@ -319,6 +319,10 @@ const (
 	packetTypeAEADEncrypted             packetType = 20
 )
 
+// SymmetricallyEncrypted or AEADEncrypted packet.
+type EncryptedDataPacket interface {
+	Decrypt(CipherFunction, []byte) (io.ReadCloser, error)
+}
 // peekVersion detects the version of a public key packet about to
 // be read. A bufio.Reader at the original position of the io.Reader
 // is returned.

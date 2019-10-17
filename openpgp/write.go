@@ -115,6 +115,8 @@ func SymmetricallyEncrypt(ciphertext io.Writer, passphrase []byte, hints *FileHi
 	if err != nil {
 		return
 	}
+
+	// TODO: if aead is disabled or not
 	w, err := packet.SerializeSymmetricallyEncrypted(ciphertext, config.Cipher(), key, config)
 	if err != nil {
 		return
@@ -307,6 +309,7 @@ func encrypt(ciphertext io.Writer, to []*Entity, signed *Entity, hints *FileHint
 
 	encryptKeys := make([]Key, len(to))
 	for i := range to {
+		// TODO: Check AEAD preferred (see spec)
 		var ok bool
 		encryptKeys[i], ok = to[i].EncryptionKey(config.Now())
 		if !ok {
@@ -353,6 +356,7 @@ func encrypt(ciphertext io.Writer, to []*Entity, signed *Entity, hints *FileHint
 		}
 	}
 
+	// if aead is disabled or not
 	payload, err := packet.SerializeSymmetricallyEncrypted(ciphertext, cipher, symKey, config)
 	if err != nil {
 		return

@@ -95,8 +95,8 @@ func (ae *AEADEncrypted) GetStreamReader(key []byte) (io.ReadCloser, error) {
 	return &aeadDecrypter{
 		aeadCrypter: aeadCrypter{
 			config: &AEADConfig{
-				DefaultChunkSize: chunkSize,
 				DefaultMode:      ae.mode,
+				ChunkSize: chunkSize,
 			},
 			aead:           aead,
 			initialNonce:   ae.initialNonce,
@@ -115,7 +115,7 @@ func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 		return 0, errors.AEADError("argument of Read must have positive length")
 	}
 
-	chunkLen := int(ar.config.ChunkSize())
+	chunkLen := int(ar.config.ChunkLength())
 	tagLen := ar.aead.Overhead()
 	if len(dst) <= ar.cache.Len() {
 		return ar.cache.Read(dst)
@@ -175,7 +175,7 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, config *Config) (io.WriteCl
 		config.AEADConfig.Version(),
 		byte(config.Cipher()),
 		byte(config.Mode()),
-		config.ChunkSizeByte(),
+		config.ChunkLengthByte(),
 	}
 	n, err := writer.Write(prefix[1:])
 	if err != nil || n < 4 {
@@ -210,7 +210,7 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, config *Config) (io.WriteCl
 // plaintext bytes for next call. When the stream is finished, Close() MUST be
 // called to append the final tag.
 func (aw *aeadEncrypter) Write(plaintextBytes []byte) (n int, err error) {
-	chunkLen := int(aw.config.ChunkSize())
+	chunkLen := int(aw.config.ChunkLength())
 	tagLen := aw.aead.Overhead()
 	buf := append(aw.cache.Bytes(), plaintextBytes...)
 	n = 0
@@ -285,7 +285,7 @@ func (aw *aeadEncrypter) Close() (err error) {
 
 // sealChunk Encrypts and authenticates the given chunk.
 func (aw *aeadEncrypter) sealChunk(data []byte) ([]byte, error) {
-	if len(data) > int(aw.config.ChunkSize()) {
+	if len(data) > int(aw.config.ChunkLength()) {
 		return nil, errors.AEADError("chunk exceeds maximum length")
 	}
 	if aw.associatedData == nil {
@@ -306,7 +306,7 @@ func (aw *aeadEncrypter) sealChunk(data []byte) ([]byte, error) {
 func (ar *aeadDecrypter) processChunk(data []byte) ([]byte, error) {
 
 	tagLen := ar.aead.Overhead()
-	chunkLen := int(ar.config.ChunkSize())
+	chunkLen := int(ar.config.ChunkLength())
 	ctLen := tagLen + chunkLen
 	// Restore carried bytes from last call
 	chunkExtra := append(ar.peekedBytes, data...)

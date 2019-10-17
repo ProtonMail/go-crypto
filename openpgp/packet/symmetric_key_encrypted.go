@@ -152,6 +152,7 @@ func (ske *SymmetricKeyEncrypted) Decrypt(passphrase []byte) ([]byte, CipherFunc
 			"length of decrypted key (" + strconv.Itoa(l) + ") " +
 			"not equal to cipher keysize (" + strconv.Itoa(cipherKeySize) + ")")
 	}
+	// Nil if V5
 	return plaintextKey, cipherFunc, nil
 }
 
@@ -215,7 +216,8 @@ func SerializeSymmetricKeyEncrypted(w io.Writer, passphrase []byte, config *Conf
 	}
 
 	var buf [2]byte
-	buf[0] = byte(config.SKEVersion())
+	// If AEAD is enabled
+	buf[0] = byte(4)
 	buf[1] = byte(cipherFunc)
 	_, err = w.Write(buf[:])
 	if err != nil {
@@ -274,7 +276,7 @@ func SerializeSymmetricKeyEncryptedReuseKey(w io.Writer, session []byte, passphr
 	}
 
 	var buf [2]byte
-	buf[0] = byte(config.SKEVersion())
+	buf[0] = byte(4)
 	buf[1] = byte(cipherFunc)
 	_, err = w.Write(buf[:])
 	if err != nil {
