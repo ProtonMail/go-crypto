@@ -7,7 +7,6 @@ package packet
 import (
 	"bytes"
 	"encoding/hex"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"testing"
@@ -19,24 +18,20 @@ func TestDecryptKeyAndIntegrityProtectedEncryptedPacket(t *testing.T) {
 		buf := readerFromHex(testCase.packets)
 		packet, err := Read(buf)
 		if err != nil {
-			t.Errorf("failed to read SymmetricKeyEncrypted: %s", err)
-			return
+			t.Fatalf("failed to read SymmetricKeyEncrypted: %s", err)
 		}
 		ske, ok := packet.(*SymmetricKeyEncrypted)
 		if !ok {
-			t.Error("didn't find SymmetricKeyEncrypted packet")
-			return
+			t.Fatal("didn't find SymmetricKeyEncrypted packet")
 		}
 		// Decrypt key
 		key, cipherFunc, err := ske.Decrypt([]byte(testCase.password))
 		if err != nil {
-			t.Error(err)
-			return
+			t.Fatal(err)
 		}
 		packet, err = Read(buf)
 		if err != nil {
-			t.Errorf("failed to read SymmetricallyEncrypted: %s", err)
-			return
+			t.Fatalf("failed to read SymmetricallyEncrypted: %s", err)
 		}
 		// Decrypt contents
 		var edp EncryptedDataPacket
@@ -50,15 +45,12 @@ func TestDecryptKeyAndIntegrityProtectedEncryptedPacket(t *testing.T) {
 		}
 		r, err := edp.Decrypt(cipherFunc, key)
 		if err != nil {
-			t.Error(err)
-			return
+			t.Fatal(err)
 		}
 
 		contents, err := ioutil.ReadAll(r)
 		if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
-			fmt.Println(err)
-			t.Error(err)
-			return
+			t.Fatal(err)
 		}
 
 		expectedContents, _ := hex.DecodeString(testCase.contents)

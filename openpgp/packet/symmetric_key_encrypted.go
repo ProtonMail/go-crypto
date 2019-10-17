@@ -102,7 +102,7 @@ func (ske *SymmetricKeyEncrypted) parseV5(r io.Reader) error {
 	ske.aeadNonce = nonce
 
 	// Encrypted key and final tag may follow
-	// TODO: And tag?
+	// TODO: tag if no encrypted key?
 	tagLen := ske.Mode.TagLength()
 	ekAndTag := make([]byte, maxSessionKeySizeInBytes + tagLen)
 	n, err = readFull(r, ekAndTag)
@@ -130,30 +130,20 @@ func (ske *SymmetricKeyEncrypted) Decrypt(passphrase []byte) ([]byte, CipherFunc
 		return key, ske.CipherFunc, nil
 	}
 
-	cipherFunc := ske.CipherFunc
-	var plaintextKey []byte
-	var err error
-
 	switch ske.Version {
 	case 4:
-		plaintextKey, cipherFunc, err = ske.decryptV4(key)
+		plaintextKey, cipherFunc, err := ske.decryptV4(key)
+		if len(plaintextKey) != cipherFunc.KeySize() {
+			return nil, cipherFunc, errors.StructuralError(
+				"length of decrypted key not equal to cipher keysize")
+		}
+		return plaintextKey, cipherFunc, err
 	case 5:
-		plaintextKey, err = ske.decryptV5(key)
-	default:
-		err := errors.UnsupportedError("unknown SymmetricKeyEncrypted version")
-		return nil, CipherFunction(0), err
+		plaintextKey, err := ske.decryptV5(key)
+		return plaintextKey, CipherFunction(0), err
 	}
-	if err != nil {
-		return nil, CipherFunction(0), err
-	}
-
-	if l, cipherKeySize := len(plaintextKey), cipherFunc.KeySize(); l != cipherFunc.KeySize() {
-		return nil, cipherFunc, errors.StructuralError(
-			"length of decrypted key (" + strconv.Itoa(l) + ") " +
-			"not equal to cipher keysize (" + strconv.Itoa(cipherKeySize) + ")")
-	}
-	// Nil if V5
-	return plaintextKey, cipherFunc, nil
+	err := errors.UnsupportedError("unknown SymmetricKeyEncrypted version")
+	return nil, CipherFunction(0), err
 }
 
 func (ske *SymmetricKeyEncrypted) decryptV4(key []byte) ([]byte, CipherFunction, error) {
@@ -177,8 +167,7 @@ func (ske *SymmetricKeyEncrypted) decryptV5(key []byte) ([]byte, error) {
 	aead := ske.Mode.new(blockCipher)
 
 	ciphertext := append(ske.encryptedKey, ske.aeadTag...)
-	adata := []byte{
-		0xc3, byte(ske.Version), byte(ske.CipherFunc), byte(ske.Mode)}
+	adata := []byte{0xc3, byte(5), byte(ske.CipherFunc), byte(ske.Mode)}
 	// Probably declare plaintextKey before and use as first argument
 	plaintextKey, err := aead.Open(nil, ske.aeadNonce, ciphertext, adata)
 	if err != nil {
@@ -193,7 +182,9 @@ func (ske *SymmetricKeyEncrypted) decryptV5(key []byte) ([]byte, error) {
 // SerializeSymmetricallyEncrypted.
 // If config is nil, sensible defaults will be used.
 func SerializeSymmetricKeyEncrypted(w io.Writer, passphrase []byte, config *Config) (key []byte, err error) {
+	v5 := config.AEADEnabled
 	cipherFunc := config.Cipher()
+	// TODO: Not clean to use keysize for this
 	keySize := cipherFunc.KeySize()
 	if keySize == 0 {
 		return nil, errors.UnsupportedError("unknown cipher: " + strconv.Itoa(int(cipherFunc)))
@@ -215,11 +206,21 @@ func SerializeSymmetricKeyEncrypted(w io.Writer, passphrase []byte, config *Conf
 		return
 	}
 
-	var buf [2]byte
-	// If AEAD is enabled
-	buf[0] = byte(4)
+	buf := make([]byte, 2)
+	// Symmetric Key Encrypted Version
+	if v5 {
+		buf[0] = byte(5)
+	} else {
+		buf[0] = byte(4)
+	}
+	// Cipher function
 	buf[1] = byte(cipherFunc)
-	_, err = w.Write(buf[:])
+
+	if v5 {
+		// AEAD mode
+		buf = append(buf, byte(config.AEADConfig.Mode()))
+	}
+	_, err = w.Write(buf)
 	if err != nil {
 		return
 	}
@@ -228,19 +229,43 @@ func SerializeSymmetricKeyEncrypted(w io.Writer, passphrase []byte, config *Conf
 		return
 	}
 
+	// Sample sessionKey using random reader
 	sessionKey := make([]byte, keySize)
 	_, err = io.ReadFull(config.Random(), sessionKey)
 	if err != nil {
 		return
 	}
-	iv := make([]byte, cipherFunc.blockSize())
-	c := cipher.NewCFBEncrypter(cipherFunc.new(keyEncryptingKey), iv)
-	encryptedCipherAndKey := make([]byte, keySize+1)
-	c.XORKeyStream(encryptedCipherAndKey, buf[1:])
-	c.XORKeyStream(encryptedCipherAndKey[1:], sessionKey)
-	_, err = w.Write(encryptedCipherAndKey)
-	if err != nil {
-		return
+	if v5 {
+		blockCipher := cipherFunc.new(keyEncryptingKey)
+		mode := config.AEADConfig.Mode()
+		aead := mode.new(blockCipher)
+		// Sample nonce using random reader
+		nonce := make([]byte, config.AEADConfig.Mode().NonceLength())
+		_, err = io.ReadFull(config.Random(), nonce)
+		if err != nil {
+			return
+		}
+		// Seal and write (encryptedData includes auth. tag)
+		adata := []byte{0xc3, byte(5), byte(cipherFunc), byte(mode)}
+		encryptedData := aead.Seal(nil, nonce, sessionKey, adata)
+		_, err = w.Write(nonce)
+		if err != nil {
+			return
+		}
+		_, err = w.Write(encryptedData)
+		if err != nil {
+			return
+		}
+	} else {
+		iv := make([]byte, cipherFunc.blockSize())
+		c := cipher.NewCFBEncrypter(cipherFunc.new(keyEncryptingKey), iv)
+		encryptedCipherAndKey := make([]byte, keySize+1)
+		c.XORKeyStream(encryptedCipherAndKey, buf[1:])
+		c.XORKeyStream(encryptedCipherAndKey[1:], sessionKey)
+		_, err = w.Write(encryptedCipherAndKey)
+		if err != nil {
+			return
+		}
 	}
 
 	key = sessionKey

@@ -67,16 +67,9 @@ func (ae *AEADEncrypted) parse(buf io.Reader) error {
 	return nil
 }
 
-// Decrypt checks that the given cipher is consistent with the packet and
-// returns a io.ReadCloser from which decrypted bytes can be read, or an error
-// (see GetStreamReader).
+// Decrypt returns a io.ReadCloser from which decrypted bytes can be read, or
+// an error (see GetStreamReader).
 func (ae *AEADEncrypted) Decrypt(ciph CipherFunction, key []byte) (io.ReadCloser, error) {
-	// The CipherFunction normally comes from a public key cipher selection (see
-	// read.go)
-	if ciph != ae.cipher {
-		return nil, errors.AEADError(
-			"selected cipher is inconsistent with packet header")
-	}
 	return ae.GetStreamReader(key)
 }
 
