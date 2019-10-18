@@ -181,7 +181,7 @@ func (ske *SymmetricKeyEncrypted) decryptV5(key []byte) ([]byte, error) {
 // SerializeSymmetricallyEncrypted.
 // If config is nil, sensible defaults will be used.
 func SerializeSymmetricKeyEncrypted(w io.Writer, passphrase []byte, config *Config) (key []byte, err error) {
-	v5 := config.AEADEnabled
+	v5 := config.IsAEADEnabled()
 	cipherFunc := config.Cipher()
 	// TODO: Not clean to use keysize for this
 	keySize := cipherFunc.KeySize()
