@@ -522,6 +522,7 @@ type AEADMode algorithm.AEADMode
 const (
 	AEADModeEAX AEADMode = 1
 	AEADModeOCB AEADMode = 2
+	AEADModeGCM AEADMode = 100
 )
 
 func (mode AEADMode) NonceLength() int {

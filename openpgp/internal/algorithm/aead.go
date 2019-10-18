@@ -14,6 +14,7 @@ type AEADMode uint8
 const (
 	AEADModeEAX = AEADMode(1)
 	AEADModeOCB = AEADMode(2)
+	AEADModeGCM = AEADMode(100)
 )
 
 // tagLength returns the length in bytes of authentication tags.
@@ -22,6 +23,8 @@ func (mode AEADMode) TagLength() int {
 	case AEADModeEAX:
 		return 16
 	case AEADModeOCB:
+		return 16
+	case AEADModeGCM:
 		return 16
 	}
 	panic("Unsupported AEAD mode")
@@ -34,6 +37,8 @@ func (mode AEADMode) NonceLength() int {
 		return 16
 	case AEADModeOCB:
 		return 15
+	case AEADModeGCM:
+		return 12
 	}
 	panic("unsupported aead mode")
 }
@@ -46,6 +51,8 @@ func (mode AEADMode) New(block cipher.Block) (alg cipher.AEAD) {
 		alg, err = eax.NewEAX(block)
 	case AEADModeOCB:
 		alg, err = ocb.NewOCB(block)
+	case AEADModeGCM:
+		alg, err = cipher.NewGCM(block)
 	}
 	if err != nil {
 		panic(err.Error())

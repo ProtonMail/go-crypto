@@ -34,7 +34,7 @@ func (conf *AEADConfig) Mode() AEADMode {
 	}
 	mode := conf.DefaultMode
 	// TODO Maybe a map from algorithm package here
-	if mode != AEADMode(1) && mode != AEADMode(2) {
+	if mode != AEADModeEAX && mode != AEADModeOCB && mode != AEADModeGCM {
 		panic("AEAD mode unsupported")
 	}
 	return conf.DefaultMode

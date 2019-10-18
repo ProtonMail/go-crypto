@@ -74,9 +74,10 @@ func TestRandomSerializeSymmetricKeyEncryptedV5(t *testing.T) {
 	var modes = []AEADMode{
 		AEADModeEAX,
 		AEADModeOCB,
+		AEADModeGCM,
 	}
 
-	for i := 0; i < iterationsVerySlow; i++ {
+	for i := 0; i < iterationsSlow; i++ {
 		var buf bytes.Buffer
 		passphrase := make([]byte, mathrand.Intn(maxPassLen))
 		_, err := rand.Read(passphrase)
