@@ -15,11 +15,6 @@ import (
 )
 
 const maxPassLen = 64
-const (
-	iterations = 200
-    iterationsSlow = 10
-    iterationsVerySlow = 5
-)
 
 // Tests against RFC vectors
 func TestDecryptSymmetricKeyAndEncryptedDataPacket(t *testing.T) {

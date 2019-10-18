@@ -6,12 +6,22 @@ package openpgp
 
 import (
 	"bytes"
+	"crypto/rand"
 	"io"
 	"io/ioutil"
+	mathrand "math/rand"
 	"testing"
 	"time"
 
 	"golang.org/x/crypto/openpgp/packet"
+)
+
+const (
+	iterations         = 200
+	iterationsSlow     = 10
+	iterationsVerySlow = 5
+	maxPlaintextLen    = 1 << 12
+	maxPassLen         = 1 << 6
 )
 
 func TestSignDetached(t *testing.T) {
@@ -159,40 +169,52 @@ func TestSymmetricEncryption(t *testing.T) {
 	}
 }
 
-func WIPTestSymmetricEncryptionAEAD(t *testing.T) {
-	buf := new(bytes.Buffer)
+func TestSymmetricEncryptionV5(t *testing.T) {
 	config := &packet.Config{AEADEnabled: true}
-	plaintext, err := SymmetricallyEncrypt(buf, []byte("testing"), nil, config)
-	if err != nil {
-		t.Errorf("error writing headers: %s", err)
-		return
-	}
-	message := []byte("hello world\n")
-	_, err = plaintext.Write(message)
-	if err != nil {
-		t.Errorf("error writing to plaintext writer: %s", err)
-	}
-	err = plaintext.Close()
-	if err != nil {
-		t.Errorf("error closing plaintext writer: %s", err)
-	}
+	for i := 0; i < iterationsVerySlow; i++ {
+		buf := new(bytes.Buffer)
+		passphrase := make([]byte, mathrand.Intn(maxPassLen))
+		_, err := rand.Read(passphrase)
+		if err != nil {
+			panic(err)
+		}
+		plaintext, err := SymmetricallyEncrypt(buf, passphrase, nil, config)
+		if err != nil {
+			t.Errorf("error writing headers: %s", err)
+			return
+		}
+		message := make([]byte, mathrand.Intn(maxPlaintextLen))
+		_, errR := rand.Read(message)
+		if errR != nil {
+			panic(errR)
+		}
+		_, err = plaintext.Write(message)
+		if err != nil {
+			t.Errorf("error writing to plaintext writer: %s", err)
+		}
+		err = plaintext.Close()
+		if err != nil {
+			t.Errorf("error closing plaintext writer: %s", err)
+		}
 
-	md, err := ReadMessage(buf, nil, func(keys []Key, symmetric bool) ([]byte, error) {
-		return []byte("testing"), nil
-	}, nil)
-	if err != nil {
-		t.Errorf("error rereading message: %s", err)
-	}
-	messageBuf := bytes.NewBuffer(nil)
-	_, err = io.Copy(messageBuf, md.UnverifiedBody)
-	if err != nil {
-		t.Errorf("error rereading message: %s", err)
-	}
-	if !bytes.Equal(message, messageBuf.Bytes()) {
-		t.Errorf("recovered message incorrect got '%s', want '%s'", messageBuf.Bytes(), message)
+		promptFunc := func(keys []Key, symmetric bool) ([]byte, error) {
+			return passphrase, nil
+		}
+		md, err := ReadMessage(buf, nil, promptFunc, config)
+		if err != nil {
+			t.Errorf("error rereading message: %s", err)
+		}
+		messageBuf := bytes.NewBuffer(nil)
+		_, err = io.Copy(messageBuf, md.UnverifiedBody)
+		if err != nil {
+			t.Errorf("error rereading message: %s", err)
+		}
+		if !bytes.Equal(message, messageBuf.Bytes()) {
+			t.Errorf("recovered message incorrect got '%s', want '%s'",
+				messageBuf.Bytes(), message)
+		}
 	}
 }
-
 
 var testEncryptionTests = []struct {
 	keyRingHex string
