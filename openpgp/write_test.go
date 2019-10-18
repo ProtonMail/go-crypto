@@ -159,6 +159,41 @@ func TestSymmetricEncryption(t *testing.T) {
 	}
 }
 
+func WIPTestSymmetricEncryptionAEAD(t *testing.T) {
+	buf := new(bytes.Buffer)
+	config := &packet.Config{AEADEnabled: true}
+	plaintext, err := SymmetricallyEncrypt(buf, []byte("testing"), nil, config)
+	if err != nil {
+		t.Errorf("error writing headers: %s", err)
+		return
+	}
+	message := []byte("hello world\n")
+	_, err = plaintext.Write(message)
+	if err != nil {
+		t.Errorf("error writing to plaintext writer: %s", err)
+	}
+	err = plaintext.Close()
+	if err != nil {
+		t.Errorf("error closing plaintext writer: %s", err)
+	}
+
+	md, err := ReadMessage(buf, nil, func(keys []Key, symmetric bool) ([]byte, error) {
+		return []byte("testing"), nil
+	}, nil)
+	if err != nil {
+		t.Errorf("error rereading message: %s", err)
+	}
+	messageBuf := bytes.NewBuffer(nil)
+	_, err = io.Copy(messageBuf, md.UnverifiedBody)
+	if err != nil {
+		t.Errorf("error rereading message: %s", err)
+	}
+	if !bytes.Equal(message, messageBuf.Bytes()) {
+		t.Errorf("recovered message incorrect got '%s', want '%s'", messageBuf.Bytes(), message)
+	}
+}
+
+
 var testEncryptionTests = []struct {
 	keyRingHex string
 	isSigned   bool
