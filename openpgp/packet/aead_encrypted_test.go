@@ -17,7 +17,6 @@ var (
 
 const (
 	keyLength  = 16
-	iterations = 200
 	// Approx. plaintext length, in amount of chunks
 	maxChunks = 15
 )

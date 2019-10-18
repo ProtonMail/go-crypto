@@ -6,13 +6,23 @@ package packet
 
 import (
 	"bytes"
+	"crypto/rand"
+	mathrand "math/rand"
 	"encoding/hex"
 	"io"
 	"io/ioutil"
 	"testing"
 )
 
-func TestDecryptKeyAndIntegrityProtectedEncryptedPacket(t *testing.T) {
+const maxPassLen = 64
+const (
+	iterations = 200
+    iterationsSlow = 10
+    iterationsVerySlow = 5
+)
+
+// Tests against RFC vectors
+func TestDecryptSymmetricKeyAndEncryptedDataPacket(t *testing.T) {
 	for _, testCase := range keyAndIpePackets {
 		// Key
 		buf := readerFromHex(testCase.packets)
@@ -60,7 +70,53 @@ func TestDecryptKeyAndIntegrityProtectedEncryptedPacket(t *testing.T) {
 	}
 }
 
-func TestSerializeSymmetricKeyEncryptedCiphers(t *testing.T) {
+func TestRandomSerializeSymmetricKeyEncryptedV5(t *testing.T) {
+	var ciphers = []CipherFunction{
+		CipherAES128,
+		CipherAES192,
+		CipherAES256,
+	}
+	var modes = []AEADMode{
+		AEADModeEAX,
+		AEADModeOCB,
+	}
+
+	for i := 0; i < iterationsVerySlow; i++ {
+		var buf bytes.Buffer
+		passphrase := make([]byte, mathrand.Intn(maxPassLen))
+		_, err := rand.Read(passphrase)
+		if err != nil {
+			panic(err)
+		}
+		aeadConf := AEADConfig{
+			DefaultMode: modes[mathrand.Intn(len(modes))],
+		}
+		config := &Config{
+			AEADEnabled: true,
+			DefaultCipher: ciphers[mathrand.Intn(len(ciphers))],
+			AEADConfig: aeadConf,
+		}
+		key, err := SerializeSymmetricKeyEncrypted(&buf, passphrase, config)
+		p, err := Read(&buf)
+		if err != nil {
+			t.Errorf("failed to reparse %s", err)
+		}
+		ske, ok := p.(*SymmetricKeyEncrypted)
+		if !ok {
+			t.Errorf("parsed a different packet type: %#v", p)
+		}
+
+		parsedKey, _, err := ske.Decrypt(passphrase)
+		if err != nil {
+			t.Errorf("failed to decrypt reparsed SKE: %s", err)
+		}
+		if !bytes.Equal(key, parsedKey) {
+			t.Errorf("keys don't match after Decrypt: %x (original) vs %x (parsed)", key, parsedKey)
+		}
+	}
+}
+
+func TestSerializeSymmetricKeyEncryptedCiphersV4(t *testing.T) {
 	tests := [...]struct {
 		cipherFunc CipherFunction
 		name       string
@@ -74,7 +130,10 @@ func TestSerializeSymmetricKeyEncryptedCiphers(t *testing.T) {
 
 	for _, test := range tests {
 		var buf bytes.Buffer
-		passphrase := []byte("testing")
+		passphrase := make([]byte, mathrand.Intn(maxPassLen))
+		if _, err := rand.Read(passphrase); err != nil {
+			panic(err)
+		}
 		config := &Config{
 			DefaultCipher: test.cipherFunc,
 		}
@@ -110,7 +169,7 @@ func TestSerializeSymmetricKeyEncryptedCiphers(t *testing.T) {
 		}
 		if parsedCipherFunc != test.cipherFunc {
 			t.Errorf("cipher(%s) cipher function doesn't match after Decrypt: %d (original) vs %d (parsed)",
-				test.name, test.cipherFunc, parsedCipherFunc)
+			test.name, test.cipherFunc, parsedCipherFunc)
 		}
 	}
 }

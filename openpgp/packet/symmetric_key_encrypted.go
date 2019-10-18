@@ -102,7 +102,7 @@ func (ske *SymmetricKeyEncrypted) parseV5(r io.Reader) error {
 	ske.aeadNonce = nonce
 
 	// Encrypted key and final tag may follow
-	// TODO: tag if no encrypted key?
+	// TODO: panic if no encrypted key?
 	tagLen := ske.Mode.TagLength()
 	ekAndTag := make([]byte, maxSessionKeySizeInBytes + tagLen)
 	n, err = readFull(r, ekAndTag)
@@ -129,22 +129,21 @@ func (ske *SymmetricKeyEncrypted) Decrypt(passphrase []byte) ([]byte, CipherFunc
 	if len(ske.encryptedKey) == 0 {
 		return key, ske.CipherFunc, nil
 	}
-
 	switch ske.Version {
 	case 4:
 		plaintextKey, cipherFunc, err := ske.decryptV4(key)
 		if len(plaintextKey) != cipherFunc.KeySize() {
 			return nil, cipherFunc, errors.StructuralError(
 				"length of decrypted key not equal to cipher keysize")
+			}
+			return plaintextKey, cipherFunc, err
+		case 5:
+			plaintextKey, err := ske.decryptV5(key)
+			return plaintextKey, CipherFunction(0), err
 		}
-		return plaintextKey, cipherFunc, err
-	case 5:
-		plaintextKey, err := ske.decryptV5(key)
-		return plaintextKey, CipherFunction(0), err
+		err := errors.UnsupportedError("unknown SymmetricKeyEncrypted version")
+		return nil, CipherFunction(0), err
 	}
-	err := errors.UnsupportedError("unknown SymmetricKeyEncrypted version")
-	return nil, CipherFunction(0), err
-}
 
 func (ske *SymmetricKeyEncrypted) decryptV4(key []byte) ([]byte, CipherFunction, error) {
 
@@ -200,7 +199,14 @@ func SerializeSymmetricKeyEncrypted(w io.Writer, passphrase []byte, config *Conf
 	}
 	s2kBytes := s2kBuf.Bytes()
 
-	packetLength := 2 /* header */ + len(s2kBytes) + 1 /* cipher type */ + keySize
+	var packetLength int
+	if v5 {
+		nonceLen := config.AEADConfig.Mode().NonceLength()
+		tagLen := config.AEADConfig.Mode().TagLength()
+		packetLength = 3 + len(s2kBytes) + nonceLen + keySize + tagLen
+	} else {
+		packetLength = 2 /* header */ + len(s2kBytes) + 1 /* cipher type */ + keySize
+	}
 	err = serializeHeader(w, packetTypeSymmetricKeyEncrypted, packetLength)
 	if err != nil {
 		return
