@@ -21,6 +21,17 @@ const (
 	maxChunks = 15
 )
 
+var ciphers = []CipherFunction{
+	CipherAES128,
+	CipherAES192,
+	CipherAES256,
+}
+var modes = []AEADMode{
+	AEADModeEAX,
+	AEADModeOCB,
+	AEADModeGCM,
+}
+
 func TestAeadRFCParse(t *testing.T) {
 	for _, sample := range samplesAeadEncryptedDataPacket {
 		key, _ := hex.DecodeString(sample.cek)
@@ -73,7 +84,11 @@ func TestAeadRandomStream(t *testing.T) {
 		chunkSizeExp := 6 + mathrand.Intn(maxChunkSizeExp - 5)
 		chunkSize := uint64(1 << uint(chunkSizeExp))
 		config := &Config{
-			AEADConfig: AEADConfig{ChunkSize: chunkSize},
+			AEADConfig: AEADConfig{
+				ChunkSize: chunkSize,
+				DefaultMode: modes[mathrand.Intn(len(modes))],
+			},
+			DefaultCipher: ciphers[mathrand.Intn(len(ciphers))],
 		}
 
 		// Plaintext
@@ -151,11 +166,14 @@ func TestAeadRandomCorruptStream(t *testing.T) {
 			t.Error(err)
 		}
 
-		chunkSizeExp := mathrand.Intn(maxChunkSizeExp)
-		chunkSizeExp = 6 + mathrand.Intn(maxChunkSizeExp - 5)
+		chunkSizeExp := 6 + mathrand.Intn(maxChunkSizeExp - 5)
 		chunkSize := uint64(1 << uint(chunkSizeExp))
 		config := &Config{
-			AEADConfig: AEADConfig{ChunkSize: chunkSize},
+			AEADConfig: AEADConfig{
+				ChunkSize: chunkSize,
+				DefaultMode: modes[mathrand.Intn(len(modes))],
+			},
+			DefaultCipher: ciphers[mathrand.Intn(len(ciphers))],
 		}
 
 		// Plaintext
@@ -239,7 +257,15 @@ func TestAeadEmptyStream(t *testing.T) {
 		t.Error(err)
 	}
 
-	config := &Config{}
+	chunkSizeExp := 6 + mathrand.Intn(maxChunkSizeExp - 5)
+	chunkSize := uint64(1 << uint(chunkSizeExp))
+	config := &Config{
+		AEADConfig: AEADConfig{
+			ChunkSize: chunkSize,
+			DefaultMode: modes[mathrand.Intn(len(modes))],
+		},
+		DefaultCipher: ciphers[mathrand.Intn(len(ciphers))],
+	}
 	raw := bytes.NewBuffer(nil)
 	writeCloser, err := SerializeAEADEncrypted(raw, key, config)
 	if err != nil {
@@ -247,7 +273,6 @@ func TestAeadEmptyStream(t *testing.T) {
 	}
 	// Write the partial lengths packet into 'raw'
 	if _, err = writeCloser.Write(make([]byte, 0)); err != nil {
-		t.Error(err)
 	}
 	// Close MUST be called - it appends the final auth. tag
 	if err = writeCloser.Close(); err != nil {
