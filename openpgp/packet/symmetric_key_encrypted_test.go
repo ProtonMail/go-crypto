@@ -19,11 +19,6 @@ var ciphers = []CipherFunction{
 	CipherAES192,
 	CipherAES256,
 }
-var modes = []AEADMode{
-	AEADModeEAX,
-	AEADModeOCB,
-	AEADModeGCM,
-}
 
 const maxPassLen = 64
 

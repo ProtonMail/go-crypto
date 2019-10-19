@@ -49,15 +49,15 @@ type aeadDecrypter struct {
 
 func (ae *AEADEncrypted) parse(buf io.Reader) error {
 	headerData := make([]byte, 4)
-	if n, err := buf.Read(headerData); err != nil || n < 4 {
-		return errors.AEADError("could not read aead header")
+	if n, err := io.ReadFull(buf, headerData); n < 4 {
+		return errors.AEADError("could not read aead header:" + err.Error())
 	}
 	// Read initial nonce
 	mode := AEADMode(headerData[2])
 	nonceLen := mode.NonceLength()
 	initialNonce := make([]byte, nonceLen)
-	if n, err := buf.Read(initialNonce); err != nil || n < nonceLen {
-		return err
+	if n, err := io.ReadFull(buf, initialNonce); n < nonceLen {
+		return errors.AEADError("could not read aead nonce:" + err.Error())
 	}
 	ae.Contents = buf
 	ae.initialNonce = initialNonce
@@ -81,8 +81,9 @@ func (ae *AEADEncrypted) GetStreamReader(key []byte) (io.ReadCloser, error) {
 	// Carry the first tagLen bytes
 	tagLen := ae.mode.TagLength()
 	peekedBytes := make([]byte, tagLen)
-	if n, err := ae.Contents.Read(peekedBytes); err != nil || n < tagLen {
-		return nil, errors.AEADError("Not enough data to decrypt")
+	n, err := io.ReadFull(ae.Contents, peekedBytes)
+	if n < tagLen || (err != nil && err != io.EOF) {
+		return nil, errors.AEADError("Not enough data to decrypt:" + err.Error())
 	}
 	chunkSize := uint64(1 << (6 + ae.chunkSizeByte))
 	return &aeadDecrypter{

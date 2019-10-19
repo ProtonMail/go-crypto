@@ -21,7 +21,7 @@ const (
 	maxChunks = 15
 )
 
-var ciphers = []CipherFunction{
+var aeadCompatibleCiphers = []CipherFunction{
 	CipherAES128,
 	CipherAES192,
 	CipherAES256,
@@ -83,12 +83,13 @@ func TestAeadRandomStream(t *testing.T) {
 
 		chunkSizeExp := 6 + mathrand.Intn(maxChunkSizeExp - 5)
 		chunkSize := uint64(1 << uint(chunkSizeExp))
+		ciph := aeadCompatibleCiphers[mathrand.Intn(len(aeadCompatibleCiphers))]
 		config := &Config{
 			AEADConfig: AEADConfig{
 				ChunkSize: chunkSize,
 				DefaultMode: modes[mathrand.Intn(len(modes))],
 			},
-			DefaultCipher: ciphers[mathrand.Intn(len(ciphers))],
+			DefaultCipher: ciph,
 		}
 
 		// Plaintext
@@ -168,12 +169,13 @@ func TestAeadRandomCorruptStream(t *testing.T) {
 
 		chunkSizeExp := 6 + mathrand.Intn(maxChunkSizeExp - 5)
 		chunkSize := uint64(1 << uint(chunkSizeExp))
+		ciph := aeadCompatibleCiphers[mathrand.Intn(len(aeadCompatibleCiphers))]
 		config := &Config{
 			AEADConfig: AEADConfig{
 				ChunkSize: chunkSize,
 				DefaultMode: modes[mathrand.Intn(len(modes))],
 			},
-			DefaultCipher: ciphers[mathrand.Intn(len(ciphers))],
+			DefaultCipher: ciph,
 		}
 
 		// Plaintext
@@ -259,12 +261,13 @@ func TestAeadEmptyStream(t *testing.T) {
 
 	chunkSizeExp := 6 + mathrand.Intn(maxChunkSizeExp - 5)
 	chunkSize := uint64(1 << uint(chunkSizeExp))
+	ciph := aeadCompatibleCiphers[mathrand.Intn(len(aeadCompatibleCiphers))]
 	config := &Config{
 		AEADConfig: AEADConfig{
 			ChunkSize: chunkSize,
 			DefaultMode: modes[mathrand.Intn(len(modes))],
 		},
-		DefaultCipher: ciphers[mathrand.Intn(len(ciphers))],
+		DefaultCipher: ciph,
 	}
 	raw := bytes.NewBuffer(nil)
 	writeCloser, err := SerializeAEADEncrypted(raw, key, config)

@@ -8,7 +8,6 @@ import (
 	"bytes"
 	_ "crypto/sha512"
 	"encoding/hex"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -485,28 +484,89 @@ func TestSignatureV3Message(t *testing.T) {
 	return
 }
 
-func TestSymmetricAeadGcmOpenPGPJsMessage (t *testing.T) {
+func WIPTestSymmetricAeadGcmOpenPGPJsMessage (t *testing.T) {
 	passphrase := []byte("test")
 	file, err := os.Open("test_data/aead-sym-message.asc")
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := ioutil.ReadAll(file)
+	armoredEncryptedMessage, err := ioutil.ReadAll(file)
 	if err != nil {
 		t.Fatal(err)
 	}
-	block, err := armor.Decode(strings.NewReader(string(b)))
+	// Unarmor file
+	raw, err := armor.Decode(strings.NewReader(string(armoredEncryptedMessage)))
 	if err != nil {
 		t.Error(err)
 		return
 	}
+	// Mock passphrase prompt
 	promptFunc := func(keys []Key, symmetric bool) ([]byte, error) {
 		return passphrase, nil
 	}
-	md, err := ReadMessage(block.Body, nil, promptFunc, nil)
+	// Decrypt message
+	md, err := ReadMessage(raw.Body, nil, promptFunc, nil)
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	fmt.Println(md)
+	contents, err := ioutil.ReadAll(md.UnverifiedBody)
+	if err != nil {
+		t.Errorf("error reading UnverifiedBody: %s", err)
+	}
+	// Parse target plaintext
+	book, err := os.Open("test_data/a-modest-proposal.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	targetPlaintext, err := ioutil.ReadAll(book)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(targetPlaintext, contents) {
+		t.Fatal("Did not decrypt OpenPGPjs message correctly")
+	}
+}
+
+func EraseMe(t *testing.T) {
+	// p, err := packet.Read(block.Body)
+	// if err != nil {
+	// 	t.Fatalf("failed to read SymmetricKeyEncrypted: %s", err)
+	// }
+	// ske, ok := p.(*packet.SymmetricKeyEncrypted)
+	// if !ok {
+	// 	t.Fatal("didn't find SymmetricKeyEncrypted packet")
+	// }
+	// // Decrypt key
+	// key, cipherFunc, err := ske.Decrypt(passphrase)
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
+	// fmt.Println(key, cipherFunc)
+	// fmt.Println(block.Body)
+	// p, err = packet.Read(block.Body)
+	// fmt.Println(p, err)
+	// edp, _ := p.(*packet.AEADEncrypted)
+	// r, err := edp.Decrypt(cipherFunc, key)
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
+	// p, err = packet.Read(r)
+	// c, ok := p.(*packet.Compressed)
+	// if !ok {
+	// 	t.Error("didn't find Compressed packet")
+	// 	return
+	// }
+	// contents, err := ioutil.ReadAll(c.Body)
+	// if err != nil && err != io.EOF {
+	// 	t.Error(err)
+	// 	return
+	// }
+	// fmt.Println(string(contents))
+    //
+	// contents, err := ioutil.ReadAll(r)
+	// if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+	// 	t.Fatal(err)
+	// }
+	// fmt.Println(contents)
 }
