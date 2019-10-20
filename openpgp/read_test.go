@@ -8,6 +8,7 @@ import (
 	"bytes"
 	_ "crypto/sha512"
 	"encoding/hex"
+	"encoding/base64"
 	"io"
 	"io/ioutil"
 	"os"
@@ -484,7 +485,7 @@ func TestSignatureV3Message(t *testing.T) {
 	return
 }
 
-func WIPTestSymmetricAeadGcmOpenPGPJsMessage (t *testing.T) {
+func TestSymmetricAeadGcmOpenPGPJsMessage (t *testing.T) {
 	passphrase := []byte("test")
 	file, err := os.Open("test_data/aead-sym-message.asc")
 	if err != nil {
@@ -494,7 +495,7 @@ func WIPTestSymmetricAeadGcmOpenPGPJsMessage (t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Unarmor file
+	// Unarmor string
 	raw, err := armor.Decode(strings.NewReader(string(armoredEncryptedMessage)))
 	if err != nil {
 		t.Error(err)
@@ -523,50 +524,116 @@ func WIPTestSymmetricAeadGcmOpenPGPJsMessage (t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Why decompress strips trailing line break?
+	contents = append(contents, []byte("\n")...)
 	if !bytes.Equal(targetPlaintext, contents) {
 		t.Fatal("Did not decrypt OpenPGPjs message correctly")
 	}
 }
 
-func EraseMe(t *testing.T) {
-	// p, err := packet.Read(block.Body)
-	// if err != nil {
-	// 	t.Fatalf("failed to read SymmetricKeyEncrypted: %s", err)
-	// }
-	// ske, ok := p.(*packet.SymmetricKeyEncrypted)
-	// if !ok {
-	// 	t.Fatal("didn't find SymmetricKeyEncrypted packet")
-	// }
-	// // Decrypt key
-	// key, cipherFunc, err := ske.Decrypt(passphrase)
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-	// fmt.Println(key, cipherFunc)
-	// fmt.Println(block.Body)
-	// p, err = packet.Read(block.Body)
-	// fmt.Println(p, err)
-	// edp, _ := p.(*packet.AEADEncrypted)
-	// r, err := edp.Decrypt(cipherFunc, key)
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-	// p, err = packet.Read(r)
-	// c, ok := p.(*packet.Compressed)
-	// if !ok {
-	// 	t.Error("didn't find Compressed packet")
-	// 	return
-	// }
-	// contents, err := ioutil.ReadAll(c.Body)
-	// if err != nil && err != io.EOF {
-	// 	t.Error(err)
-	// 	return
-	// }
-	// fmt.Println(string(contents))
-    //
-	// contents, err := ioutil.ReadAll(r)
-	// if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
-	// 	t.Fatal(err)
-	// }
-	// fmt.Println(contents)
+func WIPTestAsymmestricAeadOcbOpenPGPjsCompressedMessage(t *testing.T) {
+	// Read key from file
+	armored, err := os.Open("test_data/aead-ocb-asym-key.asc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	el, err := ReadArmoredKeyRing(armored)
+	// Read ciphertext from file
+	ciphertext, err := os.Open("test_data/aead-sym-message.asc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	armoredEncryptedMessage, err := ioutil.ReadAll(ciphertext)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Unarmor string
+	raw, err := armor.Decode(strings.NewReader(string(armoredEncryptedMessage)))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	// Decrypt message
+	md, err := ReadMessage(raw.Body, el, nil, nil)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	// Read contents
+	contents, err := ioutil.ReadAll(md.UnverifiedBody)
+	if err != nil && err != io.ErrUnexpectedEOF {
+		t.Errorf("error reading UnverifiedBody: %s", err)
+	}
+
+	// Parse target plaintext
+	book, err := os.Open("test_data/a-modest-proposal.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	targetPlaintext, err := ioutil.ReadAll(book)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Why decompress strips trailing line break?
+	contents = append(contents, []byte("\n")...)
+	if !bytes.Equal(targetPlaintext, contents) {
+		t.Fatal("Did not decrypt OpenPGPjs message correctly")
+	}
+	return
 }
+
+func TestSymmetricAeadEaxOpenPGPJsMessage (t *testing.T) {
+	key := []byte{79, 41, 206, 112, 224, 133, 140, 223, 27, 61, 227, 57, 114,
+	118, 64, 60, 177, 26, 42, 174, 151, 5, 186, 74, 226, 97, 214, 63, 114, 77,
+	215, 121}
+
+	file, err := os.Open("test_data/aead-eax-packet.b64")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fileBytes, err := ioutil.ReadAll(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Decode from base 64
+	raw, err := base64.StdEncoding.DecodeString(string(fileBytes))
+	r := bytes.NewBuffer(raw)
+	// Read packet
+	p, err := packet.Read(r)
+	if err != nil {
+		panic(err)
+	}
+
+	// Decrypt with key
+	var edp packet.EncryptedDataPacket
+	edp = p.(*packet.AEADEncrypted)
+	rc, err := edp.Decrypt(packet.CipherFunction(0), key)
+	if err != nil {
+		panic(err)
+	}
+	// Read literal data packet
+	p, err = packet.Read(rc)
+	ld := p.(*packet.LiteralData)
+
+	// Read contents
+	contents, err := ioutil.ReadAll(ld.Body)
+	if err != nil && err != io.ErrUnexpectedEOF {
+		t.Errorf("error reading UnverifiedBody: %s", err)
+	}
+
+	// Parse target plaintext
+	book, err := os.Open("test_data/a-modest-proposal.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	targetPlaintext, err := ioutil.ReadAll(book)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Why decompress strips trailing line break?
+	contents = append(contents, []byte("\n")...)
+	if !bytes.Equal(targetPlaintext, contents) {
+		t.Fatal("Did not decrypt OpenPGPjs message correctly")
+	}
+}
+

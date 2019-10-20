@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	iterations = 200
+	iterations = 500
     iterationsSlow = 10
     iterationsVerySlow = 5
 )
