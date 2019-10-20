@@ -33,14 +33,13 @@ func (conf *AEADConfig) Mode() AEADMode {
 		return defaultAEADConfig.DefaultMode
 	}
 	mode := conf.DefaultMode
-	// TODO Maybe a map from algorithm package here
 	if mode != AEADModeEAX && mode != AEADModeOCB && mode != AEADModeGCM {
 		panic("AEAD mode unsupported")
 	}
 	return conf.DefaultMode
 }
 
-// ChunkSize returns the maximum number of body octets in each chunk of data.
+// ChunkLength returns the maximum number of body octets in each chunk of data.
 func (conf *AEADConfig) ChunkLength() uint64 {
 	if conf == nil || conf.ChunkSize == 0 {
 		return defaultAEADConfig.ChunkSize
@@ -58,7 +57,7 @@ func (conf *AEADConfig) ChunkLength() uint64 {
 	return size
 }
 
-// ChunkSizeByte returns the byte indicating the chunk size. The effective
+// ChunkLengthByte returns the byte indicating the chunk size. The effective
 // chunk size is computed with the formula uint64(1) << (chunkSizeByte + 6)
 func (conf *AEADConfig) ChunkLengthByte() byte {
 	chunkSize := conf.ChunkLength()

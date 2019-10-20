@@ -46,7 +46,7 @@ func TestAeadRFCParse(t *testing.T) {
 			t.Error(err)
 		}
 		// decrypted plaintext can be read from 'rc'
-		rc, err := packet.GetStreamReader(key)
+		rc, err := packet.getStreamReader(key)
 		if err != nil {
 			t.Error(err)
 		}
@@ -128,7 +128,7 @@ func TestAeadRandomStream(t *testing.T) {
 			t.Error(err)
 		}
 		// decrypted plaintext can be read from 'rc'
-		rc, err := packet.GetStreamReader(key)
+		rc, err := packet.getStreamReader(key)
 
 		maxRead := 3 * int(config.ChunkLength())
 		var got []byte
@@ -221,7 +221,7 @@ func TestAeadRandomCorruptStream(t *testing.T) {
 			// Header was corrupted
 			continue
 		}
-		rc, err := packet.GetStreamReader(key)
+		rc, err := packet.getStreamReader(key)
 		maxRead := 3 * int(config.ChunkLength())
 		var got []byte
 		for {
@@ -299,7 +299,7 @@ func TestAeadEmptyStream(t *testing.T) {
 		t.Error(err)
 	}
 	// decrypted plaintext can be read from 'rc'
-	rc, err := packet.GetStreamReader(key)
+	rc, err := packet.getStreamReader(key)
 
 	var got []byte
 	for {
@@ -331,7 +331,7 @@ func TestAeadEmptyStream(t *testing.T) {
 		t.Error(err)
 	}
 	// decrypted plaintext can be read from 'rc'
-	rc, err = packet.GetStreamReader(key)
+	rc, err = packet.getStreamReader(key)
 
 	for {
 		// Read a random number of bytes, until the end of the packet.
@@ -340,13 +340,12 @@ func TestAeadEmptyStream(t *testing.T) {
 		err = errRead
 		decrypted = decrypted[:n]
 		got = append(got, decrypted...)
-		if err != nil {
-			if err == io.EOF {
+		if errRead != nil {
+			if errRead == io.EOF {
 				// Finished reading
 				break
-			} else if err != io.ErrUnexpectedEOF {
-				// Something happened
-				err = err
+			} else if errRead != io.ErrUnexpectedEOF {
+				err = errRead
 				break
 			}
 		}

@@ -174,12 +174,11 @@ func hashToHashId(h crypto.Hash) uint8 {
 	return v
 }
 
-// Encrypt encrypts a message to a number of recipients and, optionally, signs
-// it. hints contains optional information, that is also encrypted, that aids
-// the recipients in processing the message. The resulting WriteCloser must
-// be closed after the contents of the file have been written.
-// If config is nil, sensible defaults will be used.
-// The signing is done in text mode
+// EncryptText encrypts a message to a number of recipients and, optionally,
+// signs it. Optional information is contained in 'hints', also encrypted, that
+// aids the recipients in processing the message. The resulting WriteCloser
+// must be closed after the contents of the file have been written. If config
+// is nil, sensible defaults will be used. The signing is done in text mode.
 func EncryptText(ciphertext io.Writer, to []*Entity, signed *Entity, hints *FileHints, config *packet.Config) (plaintext io.WriteCloser, err error) {
 	return encrypt(ciphertext, to, signed, hints, packet.SigTypeText, config)
 }

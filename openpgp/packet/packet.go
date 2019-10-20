@@ -319,7 +319,8 @@ const (
 	packetTypeAEADEncrypted             packetType = 20
 )
 
-// SymmetricallyEncrypted or AEADEncrypted packet.
+// EncryptedDataPacket holds encrypted data. It is currently implemented by
+// SymmetricallyEncrypted and AEADEncrypted.
 type EncryptedDataPacket interface {
 	Decrypt(CipherFunction, []byte) (io.ReadCloser, error)
 }

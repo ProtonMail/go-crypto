@@ -26,9 +26,9 @@ type aeadCrypter struct {
 	aead           cipher.AEAD
 	config         *AEADConfig
 	initialNonce   []byte
-	associatedData []byte // Chunk-independent associated data
-	chunkIndex     []byte // Chunk counter
-	bytesProcessed int    // Amount of (plain/cipher)-text bytes read/written
+	associatedData []byte       // Chunk-independent associated data
+	chunkIndex     []byte       // Chunk counter
+	bytesProcessed int          // Amount of (plain/cipher)-text bytes read/written
 	buffer         bytes.Buffer // Cached bytes accross chunks
 }
 
@@ -68,14 +68,14 @@ func (ae *AEADEncrypted) parse(buf io.Reader) error {
 }
 
 // Decrypt returns a io.ReadCloser from which decrypted bytes can be read, or
-// an error (see GetStreamReader).
+// an error.
 func (ae *AEADEncrypted) Decrypt(ciph CipherFunction, key []byte) (io.ReadCloser, error) {
-	return ae.GetStreamReader(key)
+	return ae.getStreamReader(key)
 }
 
 // Decrypt prepares an aeadCrypter and returns a ReadCloser from which
 // decrypted bytes can be read (see aeadDecrypter.Read()).
-func (ae *AEADEncrypted) GetStreamReader(key []byte) (io.ReadCloser, error) {
+func (ae *AEADEncrypted) getStreamReader(key []byte) (io.ReadCloser, error) {
 	blockCipher := CipherFunction(ae.cipher).new(key)
 	aead := AEADMode(ae.mode).new(blockCipher)
 	// Carry the first tagLen bytes
@@ -89,8 +89,8 @@ func (ae *AEADEncrypted) GetStreamReader(key []byte) (io.ReadCloser, error) {
 	return &aeadDecrypter{
 		aeadCrypter: aeadCrypter{
 			config: &AEADConfig{
-				DefaultMode:      ae.mode,
-				ChunkSize: chunkSize,
+				DefaultMode: ae.mode,
+				ChunkSize:   chunkSize,
 			},
 			aead:           aead,
 			initialNonce:   ae.initialNonce,
@@ -235,7 +235,8 @@ func (aw *aeadEncrypter) Write(plaintextBytes []byte) (n int, err error) {
 	}
 	// Cache remaining plaintext for next chunk
 	m, errW := aw.buffer.Write(plaintextBytes[chunkLen*i:])
-	n += m; err = errW
+	n += m
+	err = errW
 	return
 }
 

@@ -8,6 +8,8 @@ import (
 	"golang.org/x/crypto/ocb"
 )
 
+// AEADMode defines the Authenticated Encryption with Associated Data mode of
+// operation.
 type AEADMode uint8
 
 // Supported modes of operation (see RFC4880bis [EAX] and RFC7253)
@@ -17,7 +19,7 @@ const (
 	AEADModeGCM = AEADMode(100)
 )
 
-// tagLength returns the length in bytes of authentication tags.
+// TagLength returns the length in bytes of authentication tags.
 func (mode AEADMode) TagLength() int {
 	switch mode {
 	case AEADModeEAX:
@@ -30,7 +32,7 @@ func (mode AEADMode) TagLength() int {
 	panic("Unsupported AEAD mode")
 }
 
-// nonceLength returns the length in bytes of nonces.
+// NonceLength returns the length in bytes of nonces.
 func (mode AEADMode) NonceLength() int {
 	switch mode {
 	case AEADModeEAX:
