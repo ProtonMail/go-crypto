@@ -316,7 +316,6 @@ func encrypt(ciphertext io.Writer, to []*Entity, signed *Entity, hints *FileHint
 
 	encryptKeys := make([]Key, len(to))
 	for i := range to {
-		// TODO: Check AEAD preferred (see spec)
 		var ok bool
 		encryptKeys[i], ok = to[i].EncryptionKey(config.Now())
 		if !ok {
