@@ -33,13 +33,13 @@ type aeadCrypter struct {
 }
 
 // aeadEncrypter encrypts and writes bytes. It encrypts when necessary according
-// to the AEAD block size, and caches the extra encrypted bytes for next write.
+// to the AEAD block size, and buffers the extra encrypted bytes for next write.
 type aeadEncrypter struct {
 	aeadCrypter                // Embedded plaintext sealer
 	writer      io.WriteCloser // 'writer' is a partialLengthWriter
 }
 
-// aeadDecrypter reads and decrypts bytes. It caches extra decrypted bytes when
+// aeadDecrypter reads and decrypts bytes. It buffers extra decrypted bytes when
 // necessary, similar to aeadEncrypter.
 type aeadDecrypter struct {
 	aeadCrypter           // Embedded ciphertext opener
@@ -102,7 +102,7 @@ func (ae *AEADEncrypted) getStreamReader(key []byte) (io.ReadCloser, error) {
 }
 
 // Read decrypts bytes and reads them into dst. It decrypts when necessary and
-// caches extra decrypted bytes. It returns the number of bytes copied into dst
+// buffers extra decrypted bytes. It returns the number of bytes copied into dst
 // and an error.
 func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 	if len(dst) == 0 {
@@ -114,7 +114,7 @@ func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 	if len(dst) <= ar.buffer.Len() {
 		return ar.buffer.Read(dst)
 	}
-	// Retrieve cached plaintext bytes from previous calls
+	// Retrieve buffered plaintext bytes from previous calls
 	decrypted := make([]byte, ar.buffer.Len())
 	bytesRead, errRead := ar.buffer.Read(decrypted)
 	if errRead != nil && errRead != io.EOF {
@@ -137,7 +137,7 @@ func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 		decrypted = append(decrypted, plainChunk...)
 	}
 
-	// Append necessary bytes, and cache the rest
+	// Append necessary bytes, and buffer the rest
 	if len(dst) < len(decrypted) {
 		n = copy(dst, decrypted[:len(dst)])
 		ar.buffer.Write(decrypted[len(dst):])
@@ -148,7 +148,7 @@ func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 	return
 }
 
-// Close wipes the aeadCrypter, along with the reader, cached, and carried bytes.
+// Close wipes the aeadCrypter, along with the reader, buffered, and carried bytes.
 func (ar *aeadDecrypter) Close() (err error) {
 	ar.aeadCrypter = aeadCrypter{}
 	ar.peekedBytes = nil
@@ -200,7 +200,7 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, config *Config) (io.WriteCl
 		writer: writer}, nil
 }
 
-// Write encrypts and writes bytes. It encrypts when necessary and caches extra
+// Write encrypts and writes bytes. It encrypts when necessary and buffers extra
 // plaintext bytes for next call. When the stream is finished, Close() MUST be
 // called to append the final tag.
 func (aw *aeadEncrypter) Write(plaintextBytes []byte) (n int, err error) {
@@ -240,12 +240,12 @@ func (aw *aeadEncrypter) Write(plaintextBytes []byte) (n int, err error) {
 	return
 }
 
-// Close encrypts and writes the remaining cached plaintext if any, appends the
+// Close encrypts and writes the remaining buffered plaintext if any, appends the
 // final authentication tag, and closes the embedded writer. This function MUST
 // be called at the end of a stream.
 func (aw *aeadEncrypter) Close() (err error) {
 	tagLen := aw.aead.Overhead()
-	// Encrypt and write whatever is left on the cache (it may be empty)
+	// Encrypt and write whatever is left on the buffer (it may be empty)
 	if aw.buffer.Len() > 0 {
 		lastEncryptedChunk, err := aw.sealChunk(aw.buffer.Bytes())
 		if err != nil {

@@ -117,8 +117,7 @@ func SymmetricallyEncrypt(ciphertext io.Writer, passphrase []byte, hints *FileHi
 	}
 
 	var w io.WriteCloser
-	v5 := config.IsAEADEnabled()
-	if v5 {
+	if config.IsAEADEnabled() {
 		w, err = packet.SerializeAEADEncrypted(ciphertext, key, config)
 		if err != nil {
 			return
@@ -308,13 +307,20 @@ func encrypt(ciphertext io.Writer, to []*Entity, signed *Entity, hints *FileHint
 		hashToHashId(crypto.SHA1),
 		hashToHashId(crypto.RIPEMD160),
 	}
+	candidateAeadModes := []uint8{
+		uint8(packet.AEADModeEAX),
+		uint8(packet.AEADModeOCB),
+		uint8(packet.AEADModeGCM),
+	}
 	// In the event that a recipient doesn't specify any supported ciphers
 	// or hash functions, these are the ones that we assume that every
 	// implementation supports.
 	defaultCiphers := candidateCiphers[0:1]
 	defaultHashes := candidateHashes[0:1]
+	defaultAeadModes := candidateAeadModes[0:1]
 
 	encryptKeys := make([]Key, len(to))
+	aeadSupported := true
 	for i := range to {
 		var ok bool
 		encryptKeys[i], ok = to[i].EncryptionKey(config.Now())
@@ -323,6 +329,9 @@ func encrypt(ciphertext io.Writer, to []*Entity, signed *Entity, hints *FileHint
 		}
 
 		sig := to[i].PrimaryIdentity().SelfSignature
+		if sig.AEAD == false {
+			aeadSupported = false
+		}
 
 		preferredSymmetric := sig.PreferredSymmetric
 		if len(preferredSymmetric) == 0 {
@@ -332,11 +341,16 @@ func encrypt(ciphertext io.Writer, to []*Entity, signed *Entity, hints *FileHint
 		if len(preferredHashes) == 0 {
 			preferredHashes = defaultHashes
 		}
+		preferredAeadModes := sig.PreferredAEAD
+		if len(preferredAeadModes) == 0 {
+			preferredAeadModes = defaultAeadModes
+		}
 		candidateCiphers = intersectPreferences(candidateCiphers, preferredSymmetric)
 		candidateHashes = intersectPreferences(candidateHashes, preferredHashes)
+		candidateAeadModes = intersectPreferences(candidateAeadModes, preferredAeadModes)
 	}
 
-	if len(candidateCiphers) == 0 || len(candidateHashes) == 0 {
+	if len(candidateCiphers) == 0 || len(candidateHashes) == 0 || len(candidateAeadModes) == 0 {
 		return nil, errors.InvalidArgumentError("cannot encrypt because recipient set shares no common algorithms")
 	}
 
@@ -362,10 +376,17 @@ func encrypt(ciphertext io.Writer, to []*Entity, signed *Entity, hints *FileHint
 		}
 	}
 
-	// if aead is disabled or not
-	payload, err := packet.SerializeSymmetricallyEncrypted(ciphertext, cipher, symKey, config)
-	if err != nil {
-		return
+	var payload io.WriteCloser
+	if aeadSupported {
+		payload, err = packet.SerializeAEADEncrypted(ciphertext, symKey, config)
+		if err != nil {
+			return
+		}
+	} else {
+		payload, err = packet.SerializeSymmetricallyEncrypted(ciphertext, cipher, symKey, config)
+		if err != nil {
+			return
+		}
 	}
 
 	return writeAndSign(payload, candidateHashes, signed, hints, sigType, config)

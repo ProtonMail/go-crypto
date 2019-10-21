@@ -524,14 +524,12 @@ func TestSymmetricAeadGcmOpenPGPJsMessage (t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Why decompress strips trailing line break?
-	contents = append(contents, []byte("\n")...)
 	if !bytes.Equal(targetPlaintext, contents) {
 		t.Fatal("Did not decrypt OpenPGPjs message correctly")
 	}
 }
 
-func WIPTestAsymmestricAeadOcbOpenPGPjsCompressedMessage(t *testing.T) {
+func TestAsymmestricAeadOcbOpenPGPjsCompressedMessage(t *testing.T) {
 	// Read key from file
 	armored, err := os.Open("test_data/aead-ocb-asym-key.asc")
 	if err != nil {
@@ -539,7 +537,7 @@ func WIPTestAsymmestricAeadOcbOpenPGPjsCompressedMessage(t *testing.T) {
 	}
 	el, err := ReadArmoredKeyRing(armored)
 	// Read ciphertext from file
-	ciphertext, err := os.Open("test_data/aead-sym-message.asc")
+	ciphertext, err := os.Open("test_data/aead-ocb-asym-message.asc")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -574,8 +572,6 @@ func WIPTestAsymmestricAeadOcbOpenPGPjsCompressedMessage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Why decompress strips trailing line break?
-	contents = append(contents, []byte("\n")...)
 	if !bytes.Equal(targetPlaintext, contents) {
 		t.Fatal("Did not decrypt OpenPGPjs message correctly")
 	}
@@ -621,6 +617,7 @@ func TestSymmetricAeadEaxOpenPGPJsMessage (t *testing.T) {
 		t.Errorf("error reading UnverifiedBody: %s", err)
 	}
 
+	// contents = append(contents, []byte("\n")...)
 	// Parse target plaintext
 	book, err := os.Open("test_data/a-modest-proposal.txt")
 	if err != nil {
@@ -630,9 +627,8 @@ func TestSymmetricAeadEaxOpenPGPJsMessage (t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Why decompress strips trailing line break?
-	contents = append(contents, []byte("\n")...)
 	if !bytes.Equal(targetPlaintext, contents) {
+
 		t.Fatal("Did not decrypt OpenPGPjs message correctly")
 	}
 }

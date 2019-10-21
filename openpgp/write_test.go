@@ -266,7 +266,25 @@ func TestEncryption(t *testing.T) {
 		}
 
 		buf := new(bytes.Buffer)
-		w, err := Encrypt(buf, kring[:1], signed, nil /* no hints */, nil)
+
+		// Flip coin to enable AEAD mode
+		var modes = []packet.AEADMode{
+			packet.AEADModeEAX,
+			packet.AEADModeOCB,
+			packet.AEADModeGCM,
+		}
+		var config *packet.Config
+		if mathrand.Int() % 2 == 0{
+			aeadConf := packet.AEADConfig{
+				DefaultMode: modes[mathrand.Intn(len(modes))],
+			}
+			config = &packet.Config{
+				AEADEnabled: true,
+				AEADConfig: aeadConf,
+			}
+		}
+
+		w, err := Encrypt(buf, kring[:1], signed, nil /* no hints */, config)
 		if err != nil {
 			t.Errorf("#%d: error in Encrypt: %s", i, err)
 			continue
@@ -284,7 +302,7 @@ func TestEncryption(t *testing.T) {
 			continue
 		}
 
-		md, err := ReadMessage(buf, kring, nil /* no prompt */, nil)
+		md, err := ReadMessage(buf, kring, nil /* no prompt */, config)
 		if err != nil {
 			t.Errorf("#%d: error reading message: %s", i, err)
 			continue
