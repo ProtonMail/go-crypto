@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"fmt"
 	"golang.org/x/crypto/openpgp/armor"
+	"golang.org/x/crypto/openpgp/packet"
 	"io"
 	"io/ioutil"
 	"strings"
