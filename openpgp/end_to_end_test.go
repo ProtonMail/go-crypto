@@ -8,27 +8,12 @@ import (
 	"bytes"
 	"fmt"
 	"golang.org/x/crypto/openpgp/armor"
-	"golang.org/x/crypto/openpgp/packet"
 	"io"
 	"io/ioutil"
 	"strings"
 	"testing"
 	"time"
 )
-
-type algorithmSet struct {
-	message                string
-	name                   string
-	privateKey             string
-	publicKey              string
-	password               string
-	encryptedSignedMessage string
-}
-
-type keySet struct {
-	name string
-	cfg  *packet.Config
-}
 
 // TODO: Explain what this test actually does.
 func TestEndToEnd(t *testing.T) {

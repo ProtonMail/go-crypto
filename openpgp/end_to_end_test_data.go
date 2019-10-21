@@ -4,6 +4,21 @@ import (
 	"golang.org/x/crypto/openpgp/packet"
 )
 
+type algorithmSet struct {
+	message                string
+	name                   string
+	privateKey             string
+	publicKey              string
+	password               string
+	encryptedSignedMessage string
+}
+
+type keySet struct {
+	name string
+	cfg  *packet.Config
+}
+
+
 var testSets = []algorithmSet{
 	{
 		test_message,
