@@ -7,6 +7,8 @@ package openpgp
 import (
 	"bytes"
 	"fmt"
+	"crypto/rand"
+	mathrand "math/rand"
 	"golang.org/x/crypto/openpgp/armor"
 	"io"
 	"io/ioutil"
@@ -150,24 +152,27 @@ func decryptionTest(t *testing.T, testSet algorithmSet, privateKey EntityList) {
 	return
 }
 
-// TODO: Describe
+// Encrypts a random message and tests decryption with recipients' key.
 func encryptDecryptTest(
 	t *testing.T,
 	testSetFrom, testSetTo algorithmSet,
 	privateKeyFrom, publicKeyFrom, publicKeyTo, privateKeyTo EntityList,
 ) {
-	var signed *Entity
-	signed = privateKeyFrom[0]
+	// Sample random message to encrypt
+	rawMessage := make([]byte, mathrand.Intn(maxMessageLength))
+	if _, err := rand.Read(rawMessage); err != nil {
+		panic(err)
+	}
+	message := string(rawMessage)
+
+	// Encrypt message
+	signed := privateKeyFrom[0]
 	signed.PrivateKey.Decrypt([]byte(testSetFrom.password))
 	buf := new(bytes.Buffer)
 	w, err := Encrypt(buf, publicKeyTo[:1], signed, nil /* no hints */, nil)
 	if err != nil {
 		t.Fatalf("Error in Encrypt: %s", err)
 	}
-
-	// sample random message
-	panic("Continue here")
-	const message = "testing"
 	_, err = w.Write([]byte(message))
 	if err != nil {
 		t.Fatalf("Error writing plaintext: %s", err)
@@ -177,6 +182,7 @@ func encryptDecryptTest(
 		t.Fatalf("Error closing WriteCloser: %s", err)
 	}
 
+	// Decrypt recipient key
 	var prompt = func(keys []Key, symmetric bool) ([]byte, error) {
 		err := keys[0].PrivateKey.Decrypt([]byte(testSetTo.password))
 		if err != nil {
@@ -185,11 +191,15 @@ func encryptDecryptTest(
 		}
 		return nil, nil
 	}
+
+	// Read message with recipient key
+	// TODO: Parse this
 	md, err := ReadMessage(buf, append(privateKeyTo, publicKeyFrom[0]), prompt, nil)
 	if err != nil {
 		t.Fatalf("Error reading message: %s", err)
 	}
 
+	// Test message details
 	if !md.IsEncrypted {
 		t.Fatal("The message should be encrypted")
 	}
@@ -213,6 +223,7 @@ func encryptDecryptTest(
 		t.Errorf("Expected message to be encrypted to %v, but got %#v", expectedKeyId, md.EncryptedToKeyIds)
 	}
 
+	// Test decrypted message
 	if string(plaintext) != message {
 		t.Errorf("got: %s, want: %s", string(plaintext), message)
 	}
@@ -225,9 +236,14 @@ func encryptDecryptTest(
 	}
 }
 
-func signVerifyTest(t *testing.T, testSetFrom algorithmSet, privateKeyFrom EntityList, publicKeyFrom EntityList, binary bool) {
-	var signed *Entity
-	signed = privateKeyFrom[0]
+// TODO: Describe
+func signVerifyTest(
+	t *testing.T,
+	testSetFrom algorithmSet,
+	privateKeyFrom, publicKeyFrom EntityList,
+	binary bool,
+) {
+	signed := privateKeyFrom[0]
 	signed.PrivateKey.Decrypt([]byte(testSetFrom.password))
 
 	buf := new(bytes.Buffer)
