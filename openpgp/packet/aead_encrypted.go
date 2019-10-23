@@ -70,7 +70,6 @@ func (ae *AEADEncrypted) parse(buf io.Reader) error {
 // Decrypt returns a io.ReadCloser from which decrypted bytes can be read, or
 // an error.
 func (ae *AEADEncrypted) Decrypt(ciph CipherFunction, key []byte) (io.ReadCloser, error) {
-	panic("I WAS FINALLY CALLED!")
 	return ae.getStreamReader(key)
 }
 
