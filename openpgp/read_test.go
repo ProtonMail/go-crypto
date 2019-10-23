@@ -6,7 +6,7 @@ package openpgp
 
 import (
 	"bytes"
-	_ "crypto/sha512"
+	"crypto/sha512"
 	"encoding/hex"
 	"encoding/base64"
 	"io"
@@ -515,16 +515,14 @@ func TestSymmetricAeadGcmOpenPGPJsMessage (t *testing.T) {
 	if err != nil {
 		t.Errorf("error reading UnverifiedBody: %s", err)
 	}
-	// Parse target plaintext
-	book, err := os.Open("test_data/a-modest-proposal.txt")
-	if err != nil {
-		t.Fatal(err)
-	}
-	targetPlaintext, err := ioutil.ReadAll(book)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(targetPlaintext, contents) {
+
+	// The plaintext is https://www.gutenberg.org/cache/epub/1080/pg1080.txt
+	// We compare the SHA512 hashes.
+	wantHash := modestProposalSha512
+	gotHashRaw := sha512.Sum512(contents)
+	gotHash := base64.StdEncoding.EncodeToString(gotHashRaw[:])
+
+	if wantHash != gotHash {
 		t.Fatal("Did not decrypt OpenPGPjs message correctly")
 	}
 }
@@ -563,19 +561,13 @@ func TestAsymmestricAeadOcbOpenPGPjsCompressedMessage(t *testing.T) {
 		t.Errorf("error reading UnverifiedBody: %s", err)
 	}
 
-	// Parse target plaintext
-	book, err := os.Open("test_data/a-modest-proposal.txt")
-	if err != nil {
-		t.Fatal(err)
-	}
-	targetPlaintext, err := ioutil.ReadAll(book)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(targetPlaintext, contents) {
+	wantHash := modestProposalSha512
+	gotHashRaw := sha512.Sum512(contents)
+	gotHash := base64.StdEncoding.EncodeToString(gotHashRaw[:])
+
+	if wantHash != gotHash {
 		t.Fatal("Did not decrypt OpenPGPjs message correctly")
 	}
-	return
 }
 
 func TestSymmetricAeadEaxOpenPGPJsMessage (t *testing.T) {
@@ -617,18 +609,11 @@ func TestSymmetricAeadEaxOpenPGPJsMessage (t *testing.T) {
 		t.Errorf("error reading UnverifiedBody: %s", err)
 	}
 
-	// contents = append(contents, []byte("\n")...)
-	// Parse target plaintext
-	book, err := os.Open("test_data/a-modest-proposal.txt")
-	if err != nil {
-		t.Fatal(err)
-	}
-	targetPlaintext, err := ioutil.ReadAll(book)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(targetPlaintext, contents) {
+	wantHash := modestProposalSha512
+	gotHashRaw := sha512.Sum512(contents)
+	gotHash := base64.StdEncoding.EncodeToString(gotHashRaw[:])
 
+	if wantHash != gotHash {
 		t.Fatal("Did not decrypt OpenPGPjs message correctly")
 	}
 }
