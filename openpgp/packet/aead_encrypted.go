@@ -29,7 +29,7 @@ type aeadCrypter struct {
 	associatedData []byte       // Chunk-independent associated data
 	chunkIndex     []byte       // Chunk counter
 	bytesProcessed int          // Amount of (plain/cipher)-text bytes read/written
-	buffer         bytes.Buffer // Cached bytes accross chunks
+	buffer         bytes.Buffer // Buffered bytes accross chunks
 }
 
 // aeadEncrypter encrypts and writes bytes. It encrypts when necessary according
@@ -209,7 +209,9 @@ func (aw *aeadEncrypter) Write(plaintextBytes []byte) (n int, err error) {
 	buf := append(aw.buffer.Bytes(), plaintextBytes...)
 	n = 0
 	i := 0
-	// Bordercase: Empty plaintext
+	// Bordercase - Empty plaintext: For compatibility with OpenPGPjs, seal an
+	// empty chunk (the stream therefore consists in two auth. tags, the second
+	// one appended in Close()).
 	if len(buf) == 0 {
 		encryptedChunk, errSeal := aw.sealChunk(nil)
 		if errSeal != nil {
@@ -233,7 +235,7 @@ func (aw *aeadEncrypter) Write(plaintextBytes []byte) (n int, err error) {
 		}
 		aw.bytesProcessed += n - tagLen
 	}
-	// Cache remaining plaintext for next chunk
+	// Buffer remaining plaintext for next chunk
 	m, errW := aw.buffer.Write(plaintextBytes[chunkLen*i:])
 	n += m
 	err = errW

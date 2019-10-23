@@ -320,7 +320,9 @@ func encrypt(ciphertext io.Writer, to []*Entity, signed *Entity, hints *FileHint
 	defaultAeadModes := candidateAeadModes[0:1]
 
 	encryptKeys := make([]Key, len(to))
+	// AEAD is negotiated only if every key supports it.
 	aeadSupported := true
+
 	for i := range to {
 		var ok bool
 		encryptKeys[i], ok = to[i].EncryptionKey(config.Now())

@@ -153,8 +153,6 @@ func TestAeadRandomStream(t *testing.T) {
 		want := plaintext
 		if !bytes.Equal(got, want) {
 			t.Errorf("Error encrypting/decrypting random stream")
-			// t.Errorf("Error encrypting/decrypting random stream: got\n%X\nwant\n%X",
-			// 	got, want)
 		}
 	}
 }
@@ -251,7 +249,10 @@ func TestAeadRandomCorruptStream(t *testing.T) {
 	}
 }
 
-// Test is it is possible to stream an empty plaintext correctly
+// Test if it is possible to stream an empty plaintext correctly. For
+// compatibility with OpenPGPjs, if the stream has no contents, it has two
+// authentication tags: One for the empty chunk, and the final auth. tag. This
+// test also checks if it cannot decrypt a corrupt stream of empty plaintext.
 func TestAeadEmptyStream(t *testing.T) {
 	key := make([]byte, 16)
 	_, err := rand.Read(key)

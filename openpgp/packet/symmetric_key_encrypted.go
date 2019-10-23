@@ -104,13 +104,13 @@ func (ske *SymmetricKeyEncrypted) parseV5(r io.Reader) error {
 	// Encrypted key and final tag may follow
 	// TODO: panic if no encrypted key?
 	tagLen := ske.Mode.TagLength()
-	ekAndTag := make([]byte, maxSessionKeySizeInBytes + tagLen)
+	ekAndTag := make([]byte, maxSessionKeySizeInBytes+tagLen)
 	n, err = readFull(r, ekAndTag)
 	if err != nil && err != io.ErrUnexpectedEOF {
 		return err
 	}
 	if n != 0 {
-		if n == maxSessionKeySizeInBytes + tagLen {
+		if n == maxSessionKeySizeInBytes+tagLen {
 			return errors.UnsupportedError("oversized encrypted session key")
 		}
 		sep := n - tagLen
@@ -135,15 +135,15 @@ func (ske *SymmetricKeyEncrypted) Decrypt(passphrase []byte) ([]byte, CipherFunc
 		if len(plaintextKey) != cipherFunc.KeySize() {
 			return nil, cipherFunc, errors.StructuralError(
 				"length of decrypted key not equal to cipher keysize")
-			}
-			return plaintextKey, cipherFunc, err
-		case 5:
-			plaintextKey, err := ske.decryptV5(key)
-			return plaintextKey, CipherFunction(0), err
 		}
-		err := errors.UnsupportedError("unknown SymmetricKeyEncrypted version")
-		return nil, CipherFunction(0), err
+		return plaintextKey, cipherFunc, err
+	case 5:
+		plaintextKey, err := ske.decryptV5(key)
+		return plaintextKey, CipherFunction(0), err
 	}
+	err := errors.UnsupportedError("unknown SymmetricKeyEncrypted version")
+	return nil, CipherFunction(0), err
+}
 
 func (ske *SymmetricKeyEncrypted) decryptV4(key []byte) ([]byte, CipherFunction, error) {
 
