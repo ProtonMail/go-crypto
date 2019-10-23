@@ -756,6 +756,7 @@ func (sig *Signature) buildSubpackets() (subpackets []outputSubpacket) {
 	}
 
 	// The following subpackets may only appear in self-signatures
+	var features []byte
 
 	if sig.KeyLifetimeSecs != nil && *sig.KeyLifetimeSecs != 0 {
 		keyLifetime := make([]byte, 4)
@@ -769,10 +770,12 @@ func (sig *Signature) buildSubpackets() (subpackets []outputSubpacket) {
 
 	if len(sig.PreferredSymmetric) > 0 {
 		subpackets = append(subpackets, outputSubpacket{true, prefSymmetricAlgosSubpacket, false, sig.PreferredSymmetric})
+		features = append(features, 0x01)
 	}
 
 	if len(sig.PreferredAEAD) > 0 {
 		subpackets = append(subpackets, outputSubpacket{true, prefAeadAlgosSubpacket, false, sig.PreferredAEAD})
+		features = append(features, 0x02)
 	}
 
 	if len(sig.PreferredHash) > 0 {
@@ -781,6 +784,9 @@ func (sig *Signature) buildSubpackets() (subpackets []outputSubpacket) {
 
 	if len(sig.PreferredCompression) > 0 {
 		subpackets = append(subpackets, outputSubpacket{true, prefCompressionSubpacket, false, sig.PreferredCompression})
+	}
+	if len(features) > 0 {
+		subpackets = append(subpackets, outputSubpacket{true, featuresSubpacket, false, features})
 	}
 
 	return

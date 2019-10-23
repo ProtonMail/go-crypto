@@ -123,6 +123,9 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 			FlagsValid:   true,
 			FlagSign:     true,
 			FlagCertify:  true,
+			// Set MDC true by default, see 5.8 vs. 5.14
+			MDC:          true,
+			AEAD:         config.IsAEADEnabled(),
 			IssuerKeyId:  &e.PrimaryKey.KeyId,
 		},
 	}
@@ -141,6 +144,10 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 	// Likewise for DefaultCipher.
 	if config != nil && config.DefaultCipher != 0 {
 		e.Identities[uid.Id].SelfSignature.PreferredSymmetric = []uint8{uint8(config.DefaultCipher)}
+	}
+	// And for DefaultMode.
+	if config != nil && config.DefaultMode != 0 {
+		e.Identities[uid.Id].SelfSignature.PreferredAEAD = []uint8{uint8(config.DefaultMode)}
 	}
 
 	e.Subkeys = make([]Subkey, 1)

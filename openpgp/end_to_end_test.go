@@ -126,6 +126,29 @@ var keySets = []keySet{
 		"ed25519",
 		&packet.Config{Algorithm: packet.PubKeyAlgoEdDSA},
 	},
+	{
+		"rsa2048Aead",
+		&packet.Config{
+			RSABits: 2048,
+			Algorithm: packet.PubKeyAlgoRSA,
+			AEADEnabled: true,
+		},
+	},
+	{
+		"rsa4096Aead",
+		&packet.Config{
+			RSABits: 4096,
+			Algorithm: packet.PubKeyAlgoRSA,
+			AEADEnabled: true,
+		},
+	},
+	{
+		"ed25519Aead",
+		&packet.Config{
+			Algorithm: packet.PubKeyAlgoEdDSA,
+			AEADEnabled: true,
+		},
+	},
 }
 
 func readArmoredPublicKey(t *testing.T, publicKey string) EntityList {

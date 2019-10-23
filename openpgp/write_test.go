@@ -75,9 +75,6 @@ func TestSignDetachedP256(t *testing.T) {
 }
 
 func TestNewEntity(t *testing.T) {
-	if testing.Short() {
-		return
-	}
 
 	// Check bit-length with no config.
 	e, err := NewEntity("Test User", "test", "test@example.com", nil)
@@ -274,13 +271,13 @@ func TestEncryption(t *testing.T) {
 			packet.AEADModeGCM,
 		}
 		var config *packet.Config
-		if mathrand.Int() % 2 == 0{
+		if mathrand.Int()%2 == 0 {
 			aeadConf := packet.AEADConfig{
 				DefaultMode: modes[mathrand.Intn(len(modes))],
 			}
 			config = &packet.Config{
 				AEADEnabled: true,
-				AEADConfig: aeadConf,
+				AEADConfig:  aeadConf,
 			}
 		}
 
