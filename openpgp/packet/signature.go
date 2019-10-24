@@ -11,7 +11,6 @@ import (
 	"crypto/ecdsa"
 	"encoding/asn1"
 	"encoding/binary"
-	"fmt"
 	"hash"
 	"io"
 	"math/big"
@@ -391,7 +390,6 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		// Features subpacket, section 5.2.3.24 specifies a very general
 		// mechanism for OpenPGP implementations to signal support for new
 		// features.
-		fmt.Println(subpacket)
 		if len(subpacket) > 0 {
 			if subpacket[0]&0x01 != 0 {
 				sig.MDC = true

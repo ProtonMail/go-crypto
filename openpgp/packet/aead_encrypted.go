@@ -164,19 +164,21 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, config *Config) (io.WriteCl
 		return nil, err
 	}
 	// Data for en/decryption: tag, version, cipher, aead mode, chunk size
+
+	aeadConf := config.AEAD()
 	prefix := []byte{
 		0xD4,
 		aeadEncryptedVersion,
 		byte(config.Cipher()),
-		byte(config.Mode()),
-		config.ChunkLengthByte(),
+		byte(aeadConf.Mode()),
+		aeadConf.ChunkLengthByte(),
 	}
 	n, err := writer.Write(prefix[1:])
 	if err != nil || n < 4 {
 		return nil, errors.AEADError("could not write AEAD headers")
 	}
 	// Sample nonce
-	nonceLen := config.Mode().NonceLength()
+	nonceLen := aeadConf.Mode().NonceLength()
 	nonce := make([]byte, nonceLen)
 	n, err = rand.Read(nonce)
 	if err != nil {
@@ -187,12 +189,12 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, config *Config) (io.WriteCl
 		return nil, err
 	}
 	blockCipher := CipherFunction(config.Cipher()).new(key)
-	alg := AEADMode(config.AEADConfig.Mode()).new(blockCipher)
+	alg := AEADMode(aeadConf.Mode()).new(blockCipher)
 
 	return &aeadEncrypter{
 		aeadCrypter: aeadCrypter{
 			aead:           alg,
-			config:         &config.AEADConfig,
+			config:         &aeadConf,
 			associatedData: prefix,
 			chunkIndex:     make([]byte, 8),
 			initialNonce:   nonce,

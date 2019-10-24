@@ -73,6 +73,80 @@ func TestAeadRFCParse(t *testing.T) {
 	}
 }
 
+// Tests if functions are callable and correct with a nil config
+func TestAeadNilConfigStream(t *testing.T) {
+	key := make([]byte, 16)
+	_, err := rand.Read(key)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Plaintext
+	maxLength := 1000
+	randomLength := mathrand.Intn(maxLength)
+	plaintext := make([]byte, randomLength)
+	_, err = rand.Read(plaintext)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// 'writeCloser' encrypts and writes the plaintext bytes.
+	raw := bytes.NewBuffer(nil)
+	writeCloser, err := SerializeAEADEncrypted(raw, key, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	// Write the partial lengths packet into 'raw'
+	if _, err = writeCloser.Write(plaintext); err != nil {
+		t.Error(err)
+	}
+	// Close MUST be called - it appends the final auth. tag
+	if err = writeCloser.Close(); err != nil {
+		t.Error(err)
+	}
+	// Packet is ready.
+
+	// Start decrypting stream
+	packet := new(AEADEncrypted)
+
+	ptype, _, contentsReader, err := readHeader(raw)
+	if ptype != packetTypeAEADEncrypted || err != nil {
+		t.Error("Error reading packet header")
+	}
+
+	if err = packet.parse(contentsReader); err != nil {
+		t.Error(err)
+	}
+	// decrypted plaintext can be read from 'rc'
+	rc, err := packet.getStreamReader(key)
+
+	maxRead := 30
+	var got []byte
+	for {
+		// Read a random number of bytes, until the end of the packet.
+		decrypted := make([]byte, 1 + mathrand.Intn(maxRead))
+		n, errRead := rc.Read(decrypted)
+		err = errRead
+		decrypted = decrypted[:n]
+		got = append(got, decrypted...)
+		if err != nil {
+			if err == io.EOF {
+				// Finished reading
+				break
+			} else if err != io.ErrUnexpectedEOF {
+				// Something happened
+				t.Error("decrypting random stream failed:", err)
+				break
+			}
+		}
+	}
+	want := plaintext
+	if !bytes.Equal(got, want) {
+		t.Errorf("Error encrypting/decrypting random stream")
+	}
+}
+
+
 func TestAeadRandomStream(t *testing.T) {
 	for i := 0; i < iterations; i++ {
 		key := make([]byte, 16)

@@ -17,8 +17,8 @@ type AEADConfig struct {
 }
 
 var defaultAEADConfig = &AEADConfig{
-	DefaultMode:      AEADModeEAX,
-	ChunkSize: 1 << 18, // 262144 bytes
+	DefaultMode: AEADModeEAX,
+	ChunkSize:   1 << 18, // 262144 bytes
 }
 
 // Mode returns the AEAD mode of operation.
