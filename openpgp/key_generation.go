@@ -143,8 +143,8 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 	}
 
 	// And for DefaultMode.
-	if config != nil && config.DefaultMode != 0 && config.IsAEADEnabled() {
-		e.Identities[uid.Id].SelfSignature.PreferredAEAD = []uint8{uint8(config.DefaultMode)}
+	if config != nil && config.AEAD().DefaultMode != 0 && config.IsAEADEnabled() {
+		e.Identities[uid.Id].SelfSignature.PreferredAEAD = []uint8{uint8(config.AEAD().DefaultMode)}
 	}
 
 	err := e.Identities[uid.Id].SelfSignature.SignUserId(uid.Id, e.PrimaryKey, e.PrivateKey, config)

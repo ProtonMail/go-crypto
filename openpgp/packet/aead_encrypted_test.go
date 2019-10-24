@@ -158,16 +158,17 @@ func TestAeadRandomStream(t *testing.T) {
 		chunkSizeExp := 6 + mathrand.Intn(maxChunkSizeExp - 5)
 		chunkSize := uint64(1 << uint(chunkSizeExp))
 		ciph := aeadCompatibleCiphers[mathrand.Intn(len(aeadCompatibleCiphers))]
+		aeadConf := AEADConfig{
+			ChunkSize: chunkSize,
+			DefaultMode: modes[mathrand.Intn(len(modes))],
+		}
 		config := &Config{
-			AEADConfig: AEADConfig{
-				ChunkSize: chunkSize,
-				DefaultMode: modes[mathrand.Intn(len(modes))],
-			},
+			AEADConfig: aeadConf,
 			DefaultCipher: ciph,
 		}
 
 		// Plaintext
-		randomLength := mathrand.Intn(maxChunks*int(config.ChunkLength()))
+		randomLength := mathrand.Intn(maxChunks*int(aeadConf.ChunkLength()))
 		plaintext := make([]byte, randomLength)
 		_, err = rand.Read(plaintext)
 		if err != nil {
@@ -204,7 +205,7 @@ func TestAeadRandomStream(t *testing.T) {
 		// decrypted plaintext can be read from 'rc'
 		rc, err := packet.getStreamReader(key)
 
-		maxRead := 3 * int(config.ChunkLength())
+		maxRead := 3 * int(aeadConf.ChunkLength())
 		var got []byte
 		for {
 			// Read a random number of bytes, until the end of the packet.
@@ -242,16 +243,17 @@ func TestAeadRandomCorruptStream(t *testing.T) {
 		chunkSizeExp := 6 + mathrand.Intn(maxChunkSizeExp - 5)
 		chunkSize := uint64(1 << uint(chunkSizeExp))
 		ciph := aeadCompatibleCiphers[mathrand.Intn(len(aeadCompatibleCiphers))]
+		aeadConf := AEADConfig{
+			ChunkSize: chunkSize,
+			DefaultMode: modes[mathrand.Intn(len(modes))],
+		}
 		config := &Config{
-			AEADConfig: AEADConfig{
-				ChunkSize: chunkSize,
-				DefaultMode: modes[mathrand.Intn(len(modes))],
-			},
+			AEADConfig: aeadConf,
 			DefaultCipher: ciph,
 		}
 
 		// Plaintext
-		randomLength := 1 + mathrand.Intn(maxChunks * int(config.ChunkLength()))
+		randomLength := 1 + mathrand.Intn(maxChunks * int(aeadConf.ChunkLength()))
 		plaintext := make([]byte, randomLength)
 		_, err = rand.Read(plaintext)
 		if err != nil {
@@ -294,7 +296,7 @@ func TestAeadRandomCorruptStream(t *testing.T) {
 			continue
 		}
 		rc, err := packet.getStreamReader(key)
-		maxRead := 3 * int(config.ChunkLength())
+		maxRead := 3 * int(aeadConf.ChunkLength())
 		var got []byte
 		for {
 			// Read a random number of bytes, until the end of the packet.

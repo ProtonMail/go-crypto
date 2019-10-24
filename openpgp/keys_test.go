@@ -498,10 +498,11 @@ func TestNewEntityWithPreferredAead(t *testing.T) {
 		if len(identity.SelfSignature.PreferredAEAD) == 0 {
 			t.Fatal("didn't find a preferred mode in self signature")
 		}
-		if identity.SelfSignature.PreferredAEAD[0] != uint8(cfg.DefaultMode) {
+		mode := identity.SelfSignature.PreferredAEAD[0]
+		if mode != uint8(cfg.AEAD().DefaultMode) {
 			t.Fatalf(
 				"Expected preferred mode to be %d, got %d",
-				uint8(cfg.DefaultMode),
+				uint8(cfg.AEAD().DefaultMode),
 				identity.SelfSignature.PreferredAEAD[0])
 		}
 	}

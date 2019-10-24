@@ -54,7 +54,7 @@ type Config struct {
 	// Some known primes that are optionally prepopulated by the caller
 	RSAPrimes []*big.Int
 	// AEADConfig configures the Authenticated Encryption with Associated Data
-	AEADConfig
+	AEADConfig AEADConfig
 	// If AEADEnabled is true, AEADEncrypted with version 5
 	// SymmetricKeyEncrypted packets are used over SymmetricallyEncrypted with
 	// version 4 SymmetricKeyEncrypted packets.
