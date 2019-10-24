@@ -1,14 +1,12 @@
-// Copyright 2011 The Go Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
+// Copyright (C) 2019 ProtonTech AG
 
-package openpgp
+package integrationTests
 
 import (
 	"bytes"
-	"fmt"
 	"crypto/rand"
 	mathrand "math/rand"
+	"golang.org/x/crypto/openpgp"
 	"golang.org/x/crypto/openpgp/armor"
 	"io"
 	"io/ioutil"
@@ -17,56 +15,61 @@ import (
 	"time"
 )
 
-// TODO: Explain what this test actually does.
+// Takes a set of different keys (some external, some generated here) and test
+// interactions between them: encrypt, sign, decrypt, verify random messages.
 func TestEndToEnd(t *testing.T) {
-	keyGenTestSets, err := makeTestSets()
+	keyGenTestSets, err := generateFreshTestSets()
 	if err != nil {
 		t.Fatal("Cannot proceed without generated keys: " + err.Error())
 	}
 	testSets = append(testSets, keyGenTestSets...)
 
 	for _, testSet := range testSets {
-		t.Run(testSet.name,
+		t.Run(
+			testSet.name,
 			func(t *testing.T) {
 				algorithmTest(t, testSet)
-			})
+			},
+		)
 	}
 }
 
-// TODO: Explain what this function (test, really) actually does.
-func algorithmTest(t *testing.T, testSet algorithmSet) {
-	var privateKeyFrom = readArmoredPrivateKey(t, testSet.privateKey, testSet.password)
-	var publicKeyFrom = readArmoredPublicKey(t, testSet.publicKey)
+// Given the 'from' testSet, (1) Decrypt an already existing message, (2)
+// Encrypt a message for each of the other keys ('to' testSet) and then decrypt
+// on the other end, and (3) sign TODO
+func algorithmTest(t *testing.T, from algorithmSet) {
+	var privateKeyFrom = readArmoredPrivateKey(t, from.privateKey, from.password)
+	var publicKeyFrom = readArmoredPublicKey(t, from.publicKey)
 
 	// 1. Decrypt the encryptedSignedMessage of the given testSet
-	t.Run(fmt.Sprintf("DecryptPreparedMessage"),
+	t.Run("DecryptPreparedMessage",
 		func(t *testing.T) {
-			decryptionTest(t, testSet, privateKeyFrom)
+			decryptionTest(t, from, privateKeyFrom)
 		})
-	// 2. For this testset, compose a message for every other testSet.
+	// 2. Compose a message for every other key.
 	t.Run("encryptDecrypt", func(t *testing.T) {
-		for _, testSetTo := range testSets {
-			var publicKeyTo = readArmoredPublicKey(t, testSetTo.publicKey)
-			var privateKeyTo = readArmoredPrivateKey(t, testSetTo.privateKey, testSetTo.password)
-			t.Run(testSetTo.name,
+		for _, to := range testSets {
+			var publicKeyTo = readArmoredPublicKey(t, to.publicKey)
+			var privateKeyTo = readArmoredPrivateKey(t, to.privateKey, to.password)
+			t.Run(to.name,
 				func(t *testing.T) {
-					encryptDecryptTest(t, testSet, testSetTo, privateKeyFrom, publicKeyFrom, publicKeyTo, privateKeyTo)
+					encryptDecryptTest(t, from, to, privateKeyFrom, publicKeyFrom, publicKeyTo, privateKeyTo)
 				})
 		}
 	})
-	// 3. TODO
+	// 3. Sign a message and verify signature.
 	t.Run("signVerify", func(t *testing.T) {
 		t.Run("binary", func(t *testing.T) {
-			signVerifyTest(t, testSet, privateKeyFrom, publicKeyFrom, true)
+			signVerifyTest(t, from, privateKeyFrom, publicKeyFrom, true)
 		})
 		t.Run("text", func(t *testing.T) {
-			signVerifyTest(t, testSet, privateKeyFrom, publicKeyFrom, false)
+			signVerifyTest(t, from, privateKeyFrom, publicKeyFrom, false)
 		})
 	})
 }
 
-func readArmoredPublicKey(t *testing.T, publicKey string) EntityList {
-	keys, err := ReadArmoredKeyRing(bytes.NewBufferString(publicKey))
+func readArmoredPublicKey(t *testing.T, publicKey string) openpgp.EntityList {
+	keys, err := openpgp.ReadArmoredKeyRing(bytes.NewBufferString(publicKey))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,8 +82,8 @@ func readArmoredPublicKey(t *testing.T, publicKey string) EntityList {
 	return keys
 }
 
-func readArmoredPrivateKey(t *testing.T, privateKey string, password string) EntityList {
-	keys, err := ReadArmoredKeyRing(bytes.NewBufferString(privateKey))
+func readArmoredPrivateKey(t *testing.T, privateKey string, password string) openpgp.EntityList {
+	keys, err := openpgp.ReadArmoredKeyRing(bytes.NewBufferString(privateKey))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,12 +102,12 @@ func readArmoredPrivateKey(t *testing.T, privateKey string, password string) Ent
 	return keys
 }
 
-// This subtest decrypts the encryptedSignedMessage of each testSet.
-func decryptionTest(t *testing.T, testSet algorithmSet, privateKey EntityList) {
+// This subtest decrypts the existing encryoted and signed of each testSet.
+func decryptionTest(t *testing.T, testSet algorithmSet, privateKey openpgp.EntityList) {
 	if testSet.encryptedSignedMessage == "" {
 		return
 	}
-	var prompt = func(keys []Key, symmetric bool) ([]byte, error) {
+	var prompt = func(keys []openpgp.Key, symmetric bool) ([]byte, error) {
 		err := keys[0].PrivateKey.Decrypt([]byte(testSet.password))
 		if err != nil {
 			t.Errorf("prompt: error decrypting key: %s", err)
@@ -117,7 +120,7 @@ func decryptionTest(t *testing.T, testSet algorithmSet, privateKey EntityList) {
 		t.Error(err)
 		return
 	}
-	md, err := ReadMessage(sig.Body, privateKey, prompt, nil)
+	md, err := openpgp.ReadMessage(sig.Body, privateKey, prompt, nil)
 	if err != nil {
 		t.Error(err)
 		return
@@ -155,8 +158,8 @@ func decryptionTest(t *testing.T, testSet algorithmSet, privateKey EntityList) {
 // Encrypts a random message and tests decryption with recipients' key.
 func encryptDecryptTest(
 	t *testing.T,
-	testSetFrom, testSetTo algorithmSet,
-	privateKeyFrom, publicKeyFrom, publicKeyTo, privateKeyTo EntityList,
+	from, testSetTo algorithmSet,
+	privateKeyFrom, publicKeyFrom, publicKeyTo, privateKeyTo openpgp.EntityList,
 ) {
 	// Sample random message to encrypt
 	rawMessage := make([]byte, mathrand.Intn(maxMessageLength))
@@ -167,9 +170,9 @@ func encryptDecryptTest(
 
 	// Encrypt message
 	signed := privateKeyFrom[0]
-	signed.PrivateKey.Decrypt([]byte(testSetFrom.password))
+	signed.PrivateKey.Decrypt([]byte(from.password))
 	buf := new(bytes.Buffer)
-	w, err := Encrypt(buf, publicKeyTo[:1], signed, nil /* no hints */, nil)
+	w, err := openpgp.Encrypt(buf, publicKeyTo[:1], signed, nil /* no hints */, nil)
 	if err != nil {
 		t.Fatalf("Error in Encrypt: %s", err)
 	}
@@ -183,7 +186,7 @@ func encryptDecryptTest(
 	}
 
 	// Decrypt recipient key
-	var prompt = func(keys []Key, symmetric bool) ([]byte, error) {
+	var prompt = func(keys []openpgp.Key, symmetric bool) ([]byte, error) {
 		err := keys[0].PrivateKey.Decrypt([]byte(testSetTo.password))
 		if err != nil {
 			t.Errorf("Prompt: error decrypting key: %s", err)
@@ -194,7 +197,7 @@ func encryptDecryptTest(
 
 	// Read message with recipient key
 	// TODO: Parse this
-	md, err := ReadMessage(buf, append(privateKeyTo, publicKeyFrom[0]), prompt, nil)
+	md, err := openpgp.ReadMessage(buf, append(privateKeyTo, publicKeyFrom[0]), prompt, nil)
 	if err != nil {
 		t.Fatalf("Error reading message: %s", err)
 	}
@@ -239,25 +242,33 @@ func encryptDecryptTest(
 // TODO: Describe
 func signVerifyTest(
 	t *testing.T,
-	testSetFrom algorithmSet,
-	privateKeyFrom, publicKeyFrom EntityList,
+	from algorithmSet,
+	privateKeyFrom, publicKeyFrom openpgp.EntityList,
 	binary bool,
 ) {
 	signed := privateKeyFrom[0]
-	signed.PrivateKey.Decrypt([]byte(testSetFrom.password))
+	signed.PrivateKey.Decrypt([]byte(from.password))
 
-	buf := new(bytes.Buffer)
 	message := bytes.NewReader(bytes.NewBufferString("testing 漢字 \r\n \n \r\n").Bytes())
+
+	// TODO:
+	// Sample random message to encrypt
+	// rawMessage := make([]byte, mathrand.Intn(maxMessageLength))
+	// if _, err := rand.Read(rawMessage); err != nil {
+	// 	panic(err)
+	// }
+	// message := bytes.NewReader(rawMessage)
+	buf := new(bytes.Buffer)
 	if binary {
-		ArmoredDetachSign(buf, signed, message, nil)
+		openpgp.ArmoredDetachSign(buf, signed, message, nil)
 	} else {
-		ArmoredDetachSignText(buf, signed, message, nil)
+		openpgp.ArmoredDetachSignText(buf, signed, message, nil)
 	}
 
 	signatureReader := bytes.NewReader(buf.Bytes())
 
 	wrongmessage := bytes.NewReader(bytes.NewBufferString("testing 漢字").Bytes())
-	wrongsigner, err := CheckArmoredDetachedSignature(publicKeyFrom, wrongmessage, signatureReader, nil)
+	wrongsigner, err := openpgp.CheckArmoredDetachedSignature(publicKeyFrom, wrongmessage, signatureReader, nil)
 
 	if err == nil || wrongsigner != nil {
 		t.Fatal("Expected the signature to not verify")
@@ -268,7 +279,7 @@ func signVerifyTest(
 	signatureReader.Seek(0, io.SeekStart)
 
 	wronglineendings := bytes.NewReader(bytes.NewBufferString("testing 漢字 \n \r\n \n").Bytes())
-	wronglinesigner, err := CheckArmoredDetachedSignature(publicKeyFrom, wronglineendings, signatureReader, nil)
+	wronglinesigner, err := openpgp.CheckArmoredDetachedSignature(publicKeyFrom, wronglineendings, signatureReader, nil)
 
 	if binary {
 		if err == nil || wronglinesigner != nil {
@@ -292,7 +303,7 @@ func signVerifyTest(
 	message.Seek(0, io.SeekStart)
 	signatureReader.Seek(0, io.SeekStart)
 
-	signer, err := CheckArmoredDetachedSignature(publicKeyFrom, message, signatureReader, nil)
+	signer, err := openpgp.CheckArmoredDetachedSignature(publicKeyFrom, message, signatureReader, nil)
 
 	if err != nil {
 		t.Errorf("signature error: %s", err)

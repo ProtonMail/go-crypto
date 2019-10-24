@@ -1,4 +1,4 @@
-package openpgp
+package integrationTests
 
 import (
 	"golang.org/x/crypto/openpgp/packet"

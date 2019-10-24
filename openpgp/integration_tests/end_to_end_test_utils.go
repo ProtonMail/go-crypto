@@ -1,17 +1,18 @@
-package openpgp
+package integrationTests
 
 import (
 	"bytes"
 	"strings"
 	"crypto/rand"
 	mathrand "math/rand"
+	"golang.org/x/crypto/openpgp"
 	"golang.org/x/crypto/openpgp/armor"
 )
 var maxPasswordLength = 64
 var maxMessageLength = 1 << 12
 
 // TODO: Describe what this function does.
-func makeTestSets() (testSets []algorithmSet, err error) {
+func generateFreshTestSets() (testSets []algorithmSet, err error) {
 	email := "tester@tester.tester"
 	comments := ""
 
@@ -33,7 +34,7 @@ func makeTestSets() (testSets []algorithmSet, err error) {
 		}
 
 		// Generate keys
-		newEntity, _ := NewEntity(email, comments, email, keySet.cfg)
+		newEntity, _ := openpgp.NewEntity(email, comments, email, keySet.cfg)
 		if err = newEntity.SelfSign(nil); err != nil {
 			panic(err)
 		}
@@ -87,7 +88,7 @@ func armorWithType(input []byte, armorType string) (string, error) {
 
 func publicKey(privateKey string) (string, error) {
 	privKeyReader := strings.NewReader(privateKey)
-	entries, err := ReadArmoredKeyRing(privKeyReader)
+	entries, err := openpgp.ReadArmoredKeyRing(privKeyReader)
 	if err != nil {
 		return "", err
 	}
