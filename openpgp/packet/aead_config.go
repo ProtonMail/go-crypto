@@ -21,12 +21,6 @@ var defaultAEADConfig = &AEADConfig{
 	ChunkSize: 1 << 18, // 262144 bytes
 }
 
-// Version returns the AEAD version implemented, and is currently defined as
-// 0x01.
-func (conf *AEADConfig) Version() byte {
-	return aeadEncryptedVersion
-}
-
 // Mode returns the AEAD mode of operation.
 func (conf *AEADConfig) Mode() AEADMode {
 	if conf == nil || conf.DefaultMode == 0 {

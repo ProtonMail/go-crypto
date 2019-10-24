@@ -11,6 +11,7 @@ import (
 	"crypto/ecdsa"
 	"encoding/asn1"
 	"encoding/binary"
+	"fmt"
 	"hash"
 	"io"
 	"math/big"
@@ -251,9 +252,9 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 			goto Truncated
 		}
 		length = uint32(subpacket[1])<<24 |
-			uint32(subpacket[2])<<16 |
-			uint32(subpacket[3])<<8 |
-			uint32(subpacket[4])
+		uint32(subpacket[2])<<16 |
+		uint32(subpacket[3])<<8 |
+		uint32(subpacket[4])
 		subpacket = subpacket[5:]
 	}
 	if length > uint32(len(subpacket)) {
@@ -389,10 +390,16 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 	case featuresSubpacket:
 		// Features subpacket, section 5.2.3.24 specifies a very general
 		// mechanism for OpenPGP implementations to signal support for new
-		// features. In practice, the subpacket is used exclusively to
-		// indicate support for MDC- or AEAD-protected encryption.
-		sig.MDC = len(subpacket) >= 1 && subpacket[0]&1 == 1
-		sig.AEAD = len(subpacket) >= 1 && subpacket[0]&2 == 1
+		// features.
+		fmt.Println(subpacket)
+		if len(subpacket) > 0 {
+			if subpacket[0]&0x01 != 0 {
+				sig.MDC = true
+			}
+			if subpacket[0]&0x02 != 0 {
+				sig.AEAD = true
+			}
+		}
 	case embeddedSignatureSubpacket:
 		// Only usage is in signatures that cross-certify
 		// signing subkeys. section 5.2.3.26 describes the
@@ -755,8 +762,19 @@ func (sig *Signature) buildSubpackets() (subpackets []outputSubpacket) {
 		subpackets = append(subpackets, outputSubpacket{true, keyFlagsSubpacket, false, []byte{flags}})
 	}
 
-	// The following subpackets may only appear in self-signatures
-	var features []byte
+	// The following subpackets may only appear in self-signatures.
+
+	var features = byte(0x00)
+	if sig.MDC {
+		features |= 0x01
+	}
+	if sig.AEAD {
+		features |= 0x02
+	}
+
+	if features != 0x00 {
+		subpackets = append(subpackets, outputSubpacket{true, featuresSubpacket, false, []byte{features}})
+	}
 
 	if sig.KeyLifetimeSecs != nil && *sig.KeyLifetimeSecs != 0 {
 		keyLifetime := make([]byte, 4)
@@ -770,12 +788,10 @@ func (sig *Signature) buildSubpackets() (subpackets []outputSubpacket) {
 
 	if len(sig.PreferredSymmetric) > 0 {
 		subpackets = append(subpackets, outputSubpacket{true, prefSymmetricAlgosSubpacket, false, sig.PreferredSymmetric})
-		features = append(features, 0x01)
 	}
 
 	if len(sig.PreferredAEAD) > 0 {
 		subpackets = append(subpackets, outputSubpacket{true, prefAeadAlgosSubpacket, false, sig.PreferredAEAD})
-		features = append(features, 0x02)
 	}
 
 	if len(sig.PreferredHash) > 0 {
@@ -785,9 +801,7 @@ func (sig *Signature) buildSubpackets() (subpackets []outputSubpacket) {
 	if len(sig.PreferredCompression) > 0 {
 		subpackets = append(subpackets, outputSubpacket{true, prefCompressionSubpacket, false, sig.PreferredCompression})
 	}
-	if len(features) > 0 {
-		subpackets = append(subpackets, outputSubpacket{true, featuresSubpacket, false, features})
-	}
+
 
 	return
 }

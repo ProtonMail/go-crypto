@@ -130,10 +130,6 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 		},
 	}
 	e.Identities[uid.Id].Signatures = append(e.Identities[uid.Id].Signatures, e.Identities[uid.Id].SelfSignature)
-	err := e.Identities[uid.Id].SelfSignature.SignUserId(uid.Id, e.PrimaryKey, e.PrivateKey, config)
-	if err != nil {
-		return nil, err
-	}
 
 	// If the user passes in a DefaultHash via packet.Config,
 	// set the PreferredHash for the SelfSignature.
@@ -145,9 +141,15 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 	if config != nil && config.DefaultCipher != 0 {
 		e.Identities[uid.Id].SelfSignature.PreferredSymmetric = []uint8{uint8(config.DefaultCipher)}
 	}
+
 	// And for DefaultMode.
-	if config != nil && config.DefaultMode != 0 {
+	if config != nil && config.DefaultMode != 0 && config.IsAEADEnabled() {
 		e.Identities[uid.Id].SelfSignature.PreferredAEAD = []uint8{uint8(config.DefaultMode)}
+	}
+
+	err := e.Identities[uid.Id].SelfSignature.SignUserId(uid.Id, e.PrimaryKey, e.PrivateKey, config)
+	if err != nil {
+		return nil, err
 	}
 
 	e.Subkeys = make([]Subkey, 1)

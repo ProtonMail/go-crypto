@@ -166,7 +166,7 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, config *Config) (io.WriteCl
 	// Data for en/decryption: tag, version, cipher, aead mode, chunk size
 	prefix := []byte{
 		0xD4,
-		config.AEADConfig.Version(),
+		aeadEncryptedVersion,
 		byte(config.Cipher()),
 		byte(config.Mode()),
 		config.ChunkLengthByte(),

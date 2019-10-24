@@ -352,7 +352,7 @@ func encrypt(ciphertext io.Writer, to []*Entity, signed *Entity, hints *FileHint
 		candidateAeadModes = intersectPreferences(candidateAeadModes, preferredAeadModes)
 	}
 
-	if len(candidateCiphers) == 0 || len(candidateHashes) == 0 || len(candidateAeadModes) == 0 {
+	if len(candidateCiphers) == 0 || len(candidateHashes) == 0 {  //|| len(candidateAeadModes) == 0 {
 		return nil, errors.InvalidArgumentError("cannot encrypt because recipient set shares no common algorithms")
 	}
 

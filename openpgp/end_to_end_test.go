@@ -26,86 +26,86 @@ type algorithmSet struct {
 }
 
 var testSets = []algorithmSet{
-	{
-		test_message,
-		"rsa",
-		rsa_priv_key,
-		rsa_pub_key,
-		rsa_pass,
-		rsa_enc_sign_message,
-	},
-	{
-		test_message,
-		"dsa",
-		dsa_elgamal_priv,
-		dsa_elgamal_pub,
-		dsa_elgamal_pass,
-		dsa_elgamal_enc_sign_message,
-	},
-	{
-		test_message,
-		"p256",
-		p256_priv,
-		p256_pub,
-		p256_pass,
-		p256_enc_sign_message,
-	},
-	{
-		test_message,
-		"p384",
-		p384_priv,
-		p384_pub,
-		p384_pass,
-		p384_enc_sign_message,
-	},
-	{
-		test_message,
-		"p521",
-		p521_priv,
-		p521_pub,
-		p521_pass,
-		p521_enc_sign_message,
-	},
-	{
-		test_message,
-		"secp256k1",
-		secp256k1_priv,
-		secp256k1_pub,
-		secp256k1_pass,
-		secp256k1_enc_sign_message,
-	},
-	{
-		test_message,
-		"ed25519",
-		ed25519_priv,
-		ed25519_pub,
-		ed25519_pass,
-		ed25519_enc_sign_message,
-	},
-	{
-		brainpool_testmessage,
-		"brainpoolp256r1",
-		brainpoolp256r1_priv,
-		brainpoolp256r1_pub,
-		brainpoolp256r1_pass,
-		brainpoolp256r1_enc_sign_message,
-	},
-	{
-		brainpool_testmessage,
-		"brainpoolp384r1",
-		brainpoolp384r1_priv,
-		brainpoolp384r1_pub,
-		brainpoolp384r1_pass,
-		brainpoolp384r1_enc_sign_message,
-	},
-	{
-		brainpool_testmessage,
-		"brainpoolp512r1",
-		brainpoolp512r1_priv,
-		brainpoolp512r1_pub,
-		brainpoolp512r1_pass,
-		brainpoolp512r1_enc_sign_message,
-	},
+	// {
+	// 	test_message,
+	// 	"rsa",
+	// 	rsa_priv_key,
+	// 	rsa_pub_key,
+	// 	rsa_pass,
+	// 	rsa_enc_sign_message,
+	// },
+	// {
+	// 	test_message,
+	// 	"dsa",
+	// 	dsa_elgamal_priv,
+	// 	dsa_elgamal_pub,
+	// 	dsa_elgamal_pass,
+	// 	dsa_elgamal_enc_sign_message,
+	// },
+	// {
+	// 	test_message,
+	// 	"p256",
+	// 	p256_priv,
+	// 	p256_pub,
+	// 	p256_pass,
+	// 	p256_enc_sign_message,
+	// },
+	// {
+	// 	test_message,
+	// 	"p384",
+	// 	p384_priv,
+	// 	p384_pub,
+	// 	p384_pass,
+	// 	p384_enc_sign_message,
+	// },
+	// {
+	// 	test_message,
+	// 	"p521",
+	// 	p521_priv,
+	// 	p521_pub,
+	// 	p521_pass,
+	// 	p521_enc_sign_message,
+	// },
+	// {
+	// 	test_message,
+	// 	"secp256k1",
+	// 	secp256k1_priv,
+	// 	secp256k1_pub,
+	// 	secp256k1_pass,
+	// 	secp256k1_enc_sign_message,
+	// },
+	// {
+	// 	test_message,
+	// 	"ed25519",
+	// 	ed25519_priv,
+	// 	ed25519_pub,
+	// 	ed25519_pass,
+	// 	ed25519_enc_sign_message,
+	// },
+	// {
+	// 	brainpool_testmessage,
+	// 	"brainpoolp256r1",
+	// 	brainpoolp256r1_priv,
+	// 	brainpoolp256r1_pub,
+	// 	brainpoolp256r1_pass,
+	// 	brainpoolp256r1_enc_sign_message,
+	// },
+	// {
+	// 	brainpool_testmessage,
+	// 	"brainpoolp384r1",
+	// 	brainpoolp384r1_priv,
+	// 	brainpoolp384r1_pub,
+	// 	brainpoolp384r1_pass,
+	// 	brainpoolp384r1_enc_sign_message,
+	// },
+	// {
+	// 	brainpool_testmessage,
+	// 	"brainpoolp512r1",
+	// 	brainpoolp512r1_priv,
+	// 	brainpoolp512r1_pub,
+	// 	brainpoolp512r1_pass,
+	// 	brainpoolp512r1_enc_sign_message,
+	// },
 }
 
 type keySet struct {
@@ -113,25 +113,29 @@ type keySet struct {
 	cfg  *packet.Config
 }
 
+var aeadConf = packet.AEADConfig{
+	DefaultMode: packet.AEADModeEAX,
+}
 var keySets = []keySet{
-	{
-		"rsa",
-		&packet.Config{RSABits: 2048, Algorithm: packet.PubKeyAlgoRSA},
-	},
-	{
-		"rsa",
-		&packet.Config{RSABits: 4096, Algorithm: packet.PubKeyAlgoRSA},
-	},
-	{
-		"ed25519",
-		&packet.Config{Algorithm: packet.PubKeyAlgoEdDSA},
-	},
+	// {
+	// 	"rsa",
+	// 	&packet.Config{RSABits: 2048, Algorithm: packet.PubKeyAlgoRSA},
+	// },
+	// {
+	// 	"rsa",
+	// 	&packet.Config{RSABits: 4096, Algorithm: packet.PubKeyAlgoRSA},
+	// },
+	// {
+	// 	"ed25519",
+	// 	&packet.Config{Algorithm: packet.PubKeyAlgoEdDSA},
+	// },
 	{
 		"rsa2048Aead",
 		&packet.Config{
 			RSABits: 2048,
 			Algorithm: packet.PubKeyAlgoRSA,
 			AEADEnabled: true,
+			AEADConfig: aeadConf,
 		},
 	},
 	{
@@ -140,6 +144,7 @@ var keySets = []keySet{
 			RSABits: 4096,
 			Algorithm: packet.PubKeyAlgoRSA,
 			AEADEnabled: true,
+			AEADConfig: aeadConf,
 		},
 	},
 	{
@@ -147,6 +152,7 @@ var keySets = []keySet{
 		&packet.Config{
 			Algorithm: packet.PubKeyAlgoEdDSA,
 			AEADEnabled: true,
+			AEADConfig: aeadConf,
 		},
 	},
 }
@@ -251,6 +257,7 @@ func encryptDecryptTest(t *testing.T, testSetFrom algorithmSet, testSetTo algori
 	signed.PrivateKey.Decrypt([]byte(testSetFrom.password))
 
 	buf := new(bytes.Buffer)
+	// panic("Why no cfg?")
 	w, err := Encrypt(buf, publicKeyTo[:1], signed, nil /* no hints */, nil)
 	if err != nil {
 		t.Fatalf("Error in Encrypt: %s", err)
