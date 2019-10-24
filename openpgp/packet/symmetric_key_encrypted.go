@@ -37,7 +37,6 @@ func (ske *SymmetricKeyEncrypted) parse(r io.Reader) error {
 		return err
 	}
 	ske.CipherFunc = CipherFunction(buf[1])
-	// TODO: Not very clean to use KeySize here.
 	if ske.CipherFunc.KeySize() == 0 {
 		return errors.UnsupportedError("unknown cipher: " + strconv.Itoa(int(buf[1])))
 	}
@@ -102,7 +101,6 @@ func (ske *SymmetricKeyEncrypted) parseV5(r io.Reader) error {
 	ske.aeadNonce = nonce
 
 	// Encrypted key and final tag may follow
-	// TODO: panic if no encrypted key?
 	tagLen := ske.Mode.TagLength()
 	ekAndTag := make([]byte, maxSessionKeySizeInBytes+tagLen)
 	n, err = readFull(r, ekAndTag)
@@ -183,7 +181,6 @@ func (ske *SymmetricKeyEncrypted) decryptV5(key []byte) ([]byte, error) {
 func SerializeSymmetricKeyEncrypted(w io.Writer, passphrase []byte, config *Config) (key []byte, err error) {
 	v5 := config.IsAEADEnabled()
 	cipherFunc := config.Cipher()
-	// TODO: Not clean to use keysize for this
 	keySize := cipherFunc.KeySize()
 	if keySize == 0 {
 		return nil, errors.UnsupportedError("unknown cipher: " + strconv.Itoa(int(cipherFunc)))
