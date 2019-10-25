@@ -22,13 +22,13 @@ func generateFreshTestVectors(settings []keySetting) (vectors []testVector, err 
 		name := randomName()
 		email := randomEmail()
 		comment := randomComment()
-		rawPwd := []byte(randomPassword())
+		password := randomPassword()
 		message := randomMessage()
 
 		newVector := testVector{
 			name: setting.name + "_fresh",
-			password: string(rawPwd),
-			message: string(message),
+			password: password,
+			message: message,
 		}
 
 		// Generate keys
@@ -41,6 +41,7 @@ func generateFreshTestVectors(settings []keySetting) (vectors []testVector, err 
 		}
 
 		// Encrypt private key of entity
+		rawPwd := []byte(password)
 		if newEntity.PrivateKey != nil && !newEntity.PrivateKey.Encrypted {
 			if err = newEntity.PrivateKey.Encrypt(rawPwd); err != nil {
 				panic(err)
@@ -154,11 +155,10 @@ func randomPassword() string {
     return string(password)
 }
 
-// Random message as a byte array
-func randomMessage() []byte {
+func randomMessage() string {
 	message := make([]byte, mathrand.Intn(maxMessageLength))
 	if _, err := rand.Read(message); err != nil {
 		panic(err)
 	}
-	return message
+	return string(message)
 }

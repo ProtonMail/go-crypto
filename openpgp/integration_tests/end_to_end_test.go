@@ -4,8 +4,6 @@ package integrationTests
 
 import (
 	"bytes"
-	"crypto/rand"
-	mathrand "math/rand"
 	"golang.org/x/crypto/openpgp"
 	"golang.org/x/crypto/openpgp/armor"
 	"io"
@@ -49,7 +47,8 @@ func testInteractions(t *testing.T, from testVector) {
 		func(t *testing.T) {
 			decryptionTest(t, from, privateKeyFrom)
 		})
-	// 2. Compose a message for every other key.
+	// 2. Compose encrypt, decrypt and verify a random message for every other
+	// key.
 	t.Run("encryptDecrypt", func(t *testing.T) {
 		for _, to := range testVectors {
 			var publicKeyTo = readArmoredPublicKey(t, to.publicKey)
@@ -164,12 +163,7 @@ func encryptDecryptTest(
 	from, to testVector,
 	privateKeyFrom, publicKeyFrom, publicKeyTo, privateKeyTo openpgp.EntityList,
 ) {
-	// Sample random message to encrypt
-	rawMessage := make([]byte, mathrand.Intn(maxMessageLength))
-	if _, err := rand.Read(rawMessage); err != nil {
-		panic(err)
-	}
-	message := string(rawMessage)
+	message := randomMessage()
 
 	// Encrypt message
 	signed := privateKeyFrom[0]
