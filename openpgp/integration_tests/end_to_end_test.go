@@ -16,9 +16,8 @@ import (
 /////////////////////////////////////////////////////////////////////////////
 // TODO:
 //
-// - Mock config for tests (implement randomConfig)
-// - Mock line endings (implement randomLineEnding)
-// - See why 'rsa' foreign key is failing to decrypt
+// - Mock config for tests (implement randomConfig() in utils.go)
+// - Mock line endings (implement randomLineEnding())
 //
 /////////////////////////////////////////////////////////////////////////////
 
@@ -164,6 +163,11 @@ func decryptionTest(t *testing.T, vector testVector, sk openpgp.EntityList) {
 // (including self) and verifies on the other end.
 func encDecTest(t *testing.T, from testVector, testVectors []testVector) {
 	skFrom := readArmoredSk(t, from.privateKey, from.password)
+	// Decrypt private key if necessary
+	err := skFrom.DecryptionKeys()[0].PrivateKey.Decrypt([]byte(from.password))
+	if err != nil {
+		t.Error(err)
+	}
 	pkFrom := readArmoredPk(t, from.publicKey)
 	for _, to := range testVectors {
 		t.Run(to.name, func(t *testing.T) {
