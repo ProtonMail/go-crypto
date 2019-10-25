@@ -1,13 +1,13 @@
-package integrationTests
+package integrationtests
 
 import (
 	"bytes"
 	"strings"
 	"crypto/rand"
-	_ "fmt"
 	mathrand "math/rand"
 	"golang.org/x/crypto/openpgp"
 	"golang.org/x/crypto/openpgp/armor"
+	"time"
 )
 var maxPasswordLength = 64
 var maxMessageLength = 1 << 12
@@ -16,6 +16,7 @@ var maxMessageLength = 1 << 12
 // given settings, associates a random message for each key. It returns the
 // test vectors.
 func generateFreshTestVectors(settings []keySetting) (vectors []testVector, err error) {
+	mathrand.Seed(time.Now().UTC().UnixNano())
 
 	for _, setting := range settings {
 		// Sample random email, comment, password and message
@@ -80,11 +81,12 @@ func armorWithType(input []byte, armorType string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	_, err = w.Write(input)
-	if err != nil {
+	if _, err = w.Write(input); err != nil {
 		return "", err
 	}
-	w.Close()
+	if err := w.Close(); err != nil {
+		return "", err
+	}
 	return b.String(), nil
 }
 
@@ -97,12 +99,15 @@ func publicKey(privateKey string) (string, error) {
 
 	var outBuf bytes.Buffer
 	for _, e := range entries {
-		e.Serialize(&outBuf)
+		err := e.Serialize(&outBuf)
+		if err != nil {
+			return "", err
+		}
 	}
 
 	outString, err := armorWithType(outBuf.Bytes(), "PGP PUBLIC KEY BLOCK")
 	if err != nil {
-		return "", nil
+		return "", err
 	}
 
 	return outString, nil
@@ -145,6 +150,7 @@ func randomComment() string {
         comment[i] = runes[mathrand.Intn(len(runes)) % 85]
     }
     return string(comment)
+	// return ""
 }
 
 func randomPassword() string {
@@ -153,6 +159,7 @@ func randomPassword() string {
         password[i] = runes[mathrand.Intn(len(runes))]
     }
     return string(password)
+	// return "password"
 }
 
 func randomMessage() string {
@@ -161,10 +168,14 @@ func randomMessage() string {
 		panic(err)
 	}
 	return string(message)
+	// return "hello world"
 }
 
 // Change one char of the input
 func corrupt(input string) string {
+	if input == "" {
+		return string(runes[mathrand.Intn(len(runes))])
+	}
 	output := []rune(input)
 	for string(output) == input {
 		output[mathrand.Intn(len(output))] = runes[mathrand.Intn(len(runes))]

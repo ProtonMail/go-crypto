@@ -1,4 +1,4 @@
-package integrationTests
+package integrationtests
 
 import (
 	"golang.org/x/crypto/openpgp/packet"
@@ -23,14 +23,14 @@ var keySettings = []keySetting{
 	{
 		"rsa2048",
 		&packet.Config{
-			RSABits: 2048,
+			RSABits:   2048,
 			Algorithm: packet.PubKeyAlgoRSA,
 		},
 	},
 	{
 		"rsa4096",
 		&packet.Config{
-			RSABits: 4096,
+			RSABits:   4096,
 			Algorithm: packet.PubKeyAlgoRSA,
 		},
 	},
@@ -42,93 +42,94 @@ var keySettings = []keySetting{
 	},
 }
 
-const test_message = "test問量鮮控到案進平"
-var testVectors = []testVector{
+const testMessage = "test問量鮮控到案進平"
+
+var foreignTestVectors = []testVector{
 	{
-		test_message,
+		testMessage,
 		"rsa",
-		rsa_priv_key,
-		rsa_pub_key,
-		rsa_pass,
-		rsa_enc_sign_message,
+		rsaPrivKey,
+		rsaPubKey,
+		rsaPass,
+		rsaEncSignMessage,
 	},
 	{
-		test_message,
+		testMessage,
 		"dsa",
-		dsa_elgamal_priv,
-		dsa_elgamal_pub,
-		dsa_elgamal_pass,
-		dsa_elgamal_enc_sign_message,
+		dsaElgamalPriv,
+		dsaElgamalPub,
+		dsaElgamalPass,
+		dsaElgamalEncSignMessage,
 	},
 	{
-		test_message,
+		testMessage,
 		"p256",
-		p256_priv,
-		p256_pub,
-		p256_pass,
-		p256_enc_sign_message,
+		p256Priv,
+		p256Pub,
+		p256Pass,
+		p256EncSignMessage,
 	},
 	{
-		test_message,
+		testMessage,
 		"p384",
-		p384_priv,
-		p384_pub,
-		p384_pass,
-		p384_enc_sign_message,
+		p384Priv,
+		p384Pub,
+		p384Pass,
+		p384EncSignMessage,
 	},
 	{
-		test_message,
+		testMessage,
 		"p521",
-		p521_priv,
-		p521_pub,
-		p521_pass,
-		p521_enc_sign_message,
+		p521Priv,
+		p521Pub,
+		p521Pass,
+		p521EncSignMessage,
 	},
 	{
-		test_message,
+		testMessage,
 		"secp256k1",
-		secp256k1_priv,
-		secp256k1_pub,
-		secp256k1_pass,
-		secp256k1_enc_sign_message,
+		secp256k1Priv,
+		secp256k1Pub,
+		secp256k1Pass,
+		secp256k1EncSignMessage,
 	},
 	{
-		test_message,
+		testMessage,
 		"ed25519",
-		ed25519_priv,
-		ed25519_pub,
-		ed25519_pass,
-		ed25519_enc_sign_message,
+		ed25519Priv,
+		ed25519Pub,
+		ed25519Pass,
+		ed25519EncSignMessage,
 	},
 	{
-		brainpool_testmessage,
+		brainpoolTestmessage,
 		"brainpoolp256r1",
-		brainpoolp256r1_priv,
-		brainpoolp256r1_pub,
-		brainpoolp256r1_pass,
-		brainpoolp256r1_enc_sign_message,
+		brainpoolp256r1Priv,
+		brainpoolp256r1Pub,
+		brainpoolp256r1Pass,
+		brainpoolp256r1EncSignMessage,
 	},
 	{
-		brainpool_testmessage,
+		brainpoolTestmessage,
 		"brainpoolp384r1",
-		brainpoolp384r1_priv,
-		brainpoolp384r1_pub,
-		brainpoolp384r1_pass,
-		brainpoolp384r1_enc_sign_message,
+		brainpoolp384r1Priv,
+		brainpoolp384r1Pub,
+		brainpoolp384r1Pass,
+		brainpoolp384r1EncSignMessage,
 	},
 	{
-		brainpool_testmessage,
+		brainpoolTestmessage,
 		"brainpoolp512r1",
-		brainpoolp512r1_priv,
-		brainpoolp512r1_pub,
-		brainpoolp512r1_pass,
-		brainpoolp512r1_enc_sign_message,
+		brainpoolp512r1Priv,
+		brainpoolp512r1Pub,
+		brainpoolp512r1Pass,
+		brainpoolp512r1EncSignMessage,
 	},
 }
 
-const rsa_pass = "hello world"
+const rsaPass = "hello world"
 
-const rsa_priv_key = `-----BEGIN PGP PRIVATE KEY BLOCK-----
+const rsaPrivKey = `-----BEGIN PGP PRIVATE KEY BLOCK-----
 
 lQH+BFJhL04BBADclrUEDDsm0PSZbQ6pml9FpzTyXiyCyDN+rMOsy9J300Oc10kt
 /nyBej9vZSRcaW5VpNNj0iA+c1/w2FPf84zNsTzvDmuMaNHFUzky4/vkYuZra//3
@@ -166,7 +167,7 @@ SXuqKcWqoEuO7OBSEFThCXBfUYMC01OrqKEswPm/V3zZkLu01q12UMwZach28QwK
 =lw5e
 -----END PGP PRIVATE KEY BLOCK-----`
 
-const rsa_pub_key = `-----BEGIN PGP PUBLIC KEY BLOCK-----
+const rsaPubKey = `-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mI0EUmEvTgEEANyWtQQMOybQ9JltDqmaX0WnNPJeLILIM36sw6zL0nfTQ5zXSS3+
 fIF6P29lJFxpblWk02PSID5zX/DYU9/zjM2xPO8Oa4xo0cVTOTLj++Ri5mtr//f5
@@ -189,7 +190,7 @@ hz3tYjKhoFTKEIq3y3Pp
 =h/aX
 -----END PGP PUBLIC KEY BLOCK-----`
 
-const rsa_enc_sign_message = `-----BEGIN PGP MESSAGE-----
+const rsaEncSignMessage = `-----BEGIN PGP MESSAGE-----
 
 wYwD4IT3RGwgLJcBA/9txflPrGAhTRBISzQFVrMU2DYjuKy+XbOxMEsNy1H9
 eXbCp6lP6AeKxAGrdDfJb209LoL6lvS4UpCV4eV+ucZ1tzZYBlqxTtMq4oC6
@@ -203,9 +204,9 @@ bBBgRdPauYvDNmUQb9UFfFGiD6GTqNEQd827fz+2r1Lp4OdEdkh1BMeQ
 =wyjK
 -----END PGP MESSAGE-----`
 
-const dsa_elgamal_pass = "abcd"
+const dsaElgamalPass = "abcd"
 
-const dsa_elgamal_priv = `-----BEGIN PGP PRIVATE KEY BLOCK-----
+const dsaElgamalPriv = `-----BEGIN PGP PRIVATE KEY BLOCK-----
 
 lQHhBFERnrMRBADmM0hIfkI3yosjgbWo9v0Lnr3CCE+8KsMszgVS+hBu0XfGraKm
 ivcA2aaJimHqVYOP7gEnwFAxHBBpeTJcu5wzCFyJwEYqVeS3nnaIhBPplSF14Duf
@@ -232,7 +233,7 @@ AKC8omYPPomN1E/UJFfXdLDIMi5LoA==
 =LSrW
 -----END PGP PRIVATE KEY BLOCK-----`
 
-const dsa_elgamal_pub = `-----BEGIN PGP PUBLIC KEY BLOCK-----
+const dsaElgamalPub = `-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 xsDiBFERnrMRBADmM0hIfkI3yosjgbWo9v0Lnr3CCE+8KsMszgVS+hBu0XfG
 raKmivcA2aaJimHqVYOP7gEnwFAxHBBpeTJcu5wzCFyJwEYqVeS3nnaIhBPp
@@ -257,7 +258,7 @@ wnO9/+vzIVnL93W3k0/8AKC8omYPPomN1E/UJFfXdLDIMi5LoA==
 =Oa9H
 -----END PGP PUBLIC KEY BLOCK-----`
 
-const dsa_elgamal_enc_sign_message = `-----BEGIN PGP MESSAGE-----
+const dsaElgamalEncSignMessage = `-----BEGIN PGP MESSAGE-----
 
 wcBOA1N4OCSSjECBEAP8DhX4Ii5TxauisNiJ6ThzZVo0rDrM37eG55Z9/Fp9
 wOFcMoYiM7muadPd0jjVkGk0Y0d1QrfmAW1619L3kv4lGJcB92jEVXeg6HPq
@@ -272,9 +273,9 @@ pBbKbBAQW+fw6ajsKSNoWPqYriVEOGtKCfmrCTe32W0Diifyap7VbsY5q9yK
 =+rSf
 -----END PGP MESSAGE-----`
 
-const p256_pass = ""
+const p256Pass = ""
 
-const p256_priv = `-----BEGIN PGP PRIVATE KEY BLOCK-----
+const p256Priv = `-----BEGIN PGP PRIVATE KEY BLOCK-----
 
 lHcEWqvIexMIKoZIzj0DAQcCAwTHEN/Yb0iLnIdL1TZcPDB2k+KqSnMlOxiK2YwV
 xd9or0tNccGkt7Sg3NcNua7X/YW45Vgkxq0p9lf3pJsepydVAAD/SqMfMs2IAGx3
@@ -291,7 +292,7 @@ vhrof7LYUWcOUggO69XoCM9Log==
 =bVnA
 -----END PGP PRIVATE KEY BLOCK-----`
 
-const p256_pub = `-----BEGIN PGP PUBLIC KEY BLOCK-----
+const p256Pub = `-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 xlIEWqvIexMIKoZIzj0DAQcCAwTHEN/Yb0iLnIdL1TZcPDB2k+KqSnMlOxiK
 2YwVxd9or0tNccGkt7Sg3NcNua7X/YW45Vgkxq0p9lf3pJsepydVzR90ZXN0
@@ -307,7 +308,7 @@ hic7M74a6H+y2FFnDlIIDuvV6AjPS6I=
 =UrtO
 -----END PGP PUBLIC KEY BLOCK-----`
 
-const p256_enc_sign_message = `-----BEGIN PGP MESSAGE-----
+const p256EncSignMessage = `-----BEGIN PGP MESSAGE-----
 
 wX4DaAJTyVNTRvUSAgMERFsv0Org2FHPu0n5k6xNOv520Yh2dk2SDojc6cF3
 ynPgyMftshAfmDQZ6zPDwW1Ya8EB9ihsXcbjBg4Uf1xoBjCdQHkVTjI39ehZ
@@ -320,9 +321,9 @@ YUjQR2GU+zI4qrw=
 =GXt6
 -----END PGP MESSAGE-----`
 
-const p384_pass = ""
+const p384Pass = ""
 
-const p384_priv = `-----BEGIN PGP PRIVATE KEY BLOCK-----
+const p384Priv = `-----BEGIN PGP PRIVATE KEY BLOCK-----
 
 lKQEWqvMThMFK4EEACIDAwQeVELezSIjmPkpfo3QejOWQwPxxaA6xnh3Lgu0zoTz
 jbYeE6xFejlLMuHGRs/msuwkqRIEKPufVxDA9t4llIClJus82Bei2FV6gF+21xdI
@@ -342,7 +343,7 @@ g++gKRKmxI7Jg0+oAOcL4v2iuUx6Yo66T67gCg==
 =CW/l
 -----END PGP PRIVATE KEY BLOCK-----`
 
-const p384_pub = `-----BEGIN PGP PUBLIC KEY BLOCK-----
+const p384Pub = `-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 xm8EWqvMThMFK4EEACIDAwQeVELezSIjmPkpfo3QejOWQwPxxaA6xnh3Lgu0
 zoTzjbYeE6xFejlLMuHGRs/msuwkqRIEKPufVxDA9t4llIClJus82Bei2FV6
@@ -361,7 +362,7 @@ THpijrpPruAK
 =DewR
 -----END PGP PUBLIC KEY BLOCK-----`
 
-const p384_enc_sign_message = `-----BEGIN PGP MESSAGE-----
+const p384EncSignMessage = `-----BEGIN PGP MESSAGE-----
 
 wZ4D3tsm495R/DQSAwME/mB7VDjlMWyJzp0BHit9A4M5hFCHSSI70xNeXAqP
 +eziDTAoo/J3ulVEVx6dyBvXizBxHIz4F5y8eQPfiz8zgj7572z5kuH+/OIh
@@ -375,9 +376,9 @@ ho/jQzANS17yy2O17IXqZUvroDfNjdY8Rw/fiCTL
 =cfGW
 -----END PGP MESSAGE-----`
 
-const p521_pass = ""
+const p521Pass = ""
 
-const p521_priv = `-----BEGIN PGP PRIVATE KEY BLOCK-----
+const p521Priv = `-----BEGIN PGP PRIVATE KEY BLOCK-----
 
 lNoEWqvMtxMFK4EEACMEIwQBG+c6zB/CLvG89VPlwcEf7lVw1o/USkR1BKwdEJX+
 6kevyCfoW9i5fr3Xj3te/KEkWbm53fYCxQxT1YPCOEQe2/gAyH+Sa+xIL3WFxOho
@@ -401,7 +402,7 @@ FBv4c44lu5xpvsgGgmDaIwlgLunElVMnKSXrO9Hqpn9a+pRJv5Be/BsZOW82Y2f7
 =dTWU
 -----END PGP PRIVATE KEY BLOCK-----`
 
-const p521_pub = `-----BEGIN PGP PUBLIC KEY BLOCK-----
+const p521Pub = `-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 xpMEWqvMtxMFK4EEACMEIwQBG+c6zB/CLvG89VPlwcEf7lVw1o/USkR1BKwd
 EJX+6kevyCfoW9i5fr3Xj3te/KEkWbm53fYCxQxT1YPCOEQe2/gAyH+Sa+xI
@@ -423,7 +424,7 @@ NmNn+/yu01M2DSWu
 =KibM
 -----END PGP PUBLIC KEY BLOCK-----`
 
-const p521_enc_sign_message = `-----BEGIN PGP MESSAGE-----
+const p521EncSignMessage = `-----BEGIN PGP MESSAGE-----
 
 wcACAzZYNqaBUBrOEgQjBABmhjNT+HfNdK3mVvVRpIbP8BACPUzmnFagNzd7
 d4jFqfRrP3Il3ohx+scNEYxFgloGOooukRJXASauk4MUXgvpFAFtycVNTT3N
@@ -439,9 +440,9 @@ UC6h8O9obgz9IN4=
 =/S1e
 -----END PGP MESSAGE-----`
 
-const secp256k1_pass = "juliet"
+const secp256k1Pass = "juliet"
 
-const secp256k1_priv = `-----BEGIN PGP PRIVATE KEY BLOCK-----
+const secp256k1Priv = `-----BEGIN PGP PRIVATE KEY BLOCK-----
 
 xaIEVjET2xMFK4EEAAoCAwS/zT2gefLhEnISXN3rvdV3eD6MVrPwxNMAR+LM
 ZzFO1gdtZbf7XQSZP02CYQe3YFrNQYYuJ4CGkTvOVJSV+yrA/gkDCILD3FP2
@@ -460,7 +461,7 @@ rsJhBBgTCAATBQJWMRPbCRDCsSOJtAGkPQIbDAAA5IMBAOAd5crBXv9/ihPz
 =C3TW
 -----END PGP PRIVATE KEY BLOCK-----`
 
-const secp256k1_pub = `-----BEGIN PGP PUBLIC KEY BLOCK-----
+const secp256k1Pub = `-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 xk8EVjET2xMFK4EEAAoCAwS/zT2gefLhEnISXN3rvdV3eD6MVrPwxNMAR+LM
 ZzFO1gdtZbf7XQSZP02CYQe3YFrNQYYuJ4CGkTvOVJSV+yrAzS5Sb21lbyBN
@@ -475,7 +476,7 @@ HLr5fhoGnRots3JSC0j20UQQOKVOXaW3
 =VpL9
 -----END PGP PUBLIC KEY BLOCK-----`
 
-const secp256k1_enc_sign_message = `-----BEGIN PGP MESSAGE-----
+const secp256k1EncSignMessage = `-----BEGIN PGP MESSAGE-----
 
 wX4DDYFqRW5CSpsSAgMEre9Mf7Ig5et7Z+E6dTM/pTEKD8cEIfuW5yV8RL2X
 3FqGkGbhpmxgyIrWvf3cJhhmusdkzl+AisnGz71bVgfBYjCfe3olAfyvlZUj
@@ -488,9 +489,9 @@ UMcIpI0EsrGSCI8=
 =8BUx
 -----END PGP MESSAGE-----`
 
-const ed25519_pass = "sun"
+const ed25519Pass = "sun"
 
-const ed25519_priv = `-----BEGIN PGP PRIVATE KEY BLOCK-----
+const ed25519Priv = `-----BEGIN PGP PRIVATE KEY BLOCK-----
 
 lIYEWkN+5BYJKwYBBAHaRw8BAQdAIGqj23Kp273IPkgjwA7ue5MDIRAfWLYRqnFy
 c2AFMcD+BwMCeaL+cNXzgI7uJQ7HBv53TAXO3y5uyJQMonkFtQtldL8YDbNP3pbd
@@ -507,7 +508,7 @@ QdsBANlddInzoZ8CCwsNagZXujp+2gWtue5axTPnDkjGhLIK
 =wo91
 -----END PGP PRIVATE KEY BLOCK-----`
 
-const ed25519_pub = `-----BEGIN PGP PUBLIC KEY BLOCK-----
+const ed25519Pub = `-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mDMEWkN+5BYJKwYBBAHaRw8BAQdAIGqj23Kp273IPkgjwA7ue5MDIRAfWLYRqnFy
 c2AFMcC0EUxpZ2h0IDxsaWdodEBzdW4+iJAEExYIADgWIQSGS0GuVELT3Rs0woce
@@ -521,7 +522,7 @@ Ba257lrFM+cOSMaEsgo=
 =D8HS
 -----END PGP PUBLIC KEY BLOCK-----`
 
-const ed25519_enc_sign_message = `-----BEGIN PGP MESSAGE-----
+const ed25519EncSignMessage = `-----BEGIN PGP MESSAGE-----
 
 wV4DzYfy+90rz7YSAQdAWBKmhkgx+WtyERt903WpExRZfyAhxji8FKhthTRI
 Lw4w/vzk9zMULlXZSknznkPnRlJyFUHqH9gFt8e3EQlij62Kd5T5AQBc0CLC
@@ -533,12 +534,12 @@ KN5U4Rx7ftKgsaTMsEnKk/w8rEqxL8a1YtLe4X1tdecRBTi7qbndYeXp5lVl
 =Co9x
 -----END PGP MESSAGE-----`
 
-const brainpool_testmessage = `test問量鮮控到案進平
+const brainpoolTestmessage = `test問量鮮控到案進平
 `
 
-const brainpoolp256r1_pass = ""
+const brainpoolp256r1Pass = ""
 
-const brainpoolp256r1_priv = `-----BEGIN PGP PRIVATE KEY BLOCK-----
+const brainpoolp256r1Priv = `-----BEGIN PGP PRIVATE KEY BLOCK-----
 
 lHgEWrpD4RMJKyQDAwIIAQEHAgMEMyiJsl3MxlZFRRg518IiUbv+/294KU+dBq/B
 QYbvt4dHh4M7O9Rgfic8EPbe47wKr6v6Z7wXgHpjqtKRoBzlxAAA/jhgOEGBKP4E
@@ -555,7 +556,7 @@ gTHjrXXT++KbkzQRVWMO8UpRwg==
 =BkRB
 -----END PGP PRIVATE KEY BLOCK-----`
 
-const brainpoolp256r1_pub = `-----BEGIN PGP PUBLIC KEY BLOCK-----
+const brainpoolp256r1Pub = `-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mFMEWrpD4RMJKyQDAwIIAQEHAgMEMyiJsl3MxlZFRRg518IiUbv+/294KU+dBq/B
 QYbvt4dHh4M7O9Rgfic8EPbe47wKr6v6Z7wXgHpjqtKRoBzlxLQddGVzdEBnb2Ny
@@ -570,7 +571,7 @@ Q7eIqzMnDgD+NDXL5S0lB6zul0GTwIEx46110/vim5M0EVVjDvFKUcI=
 =Bx7J
 -----END PGP PUBLIC KEY BLOCK-----`
 
-const brainpoolp256r1_enc_sign_message = `-----BEGIN PGP MESSAGE-----
+const brainpoolp256r1EncSignMessage = `-----BEGIN PGP MESSAGE-----
 
 hH4DLFUmpfJ2kxcSAgMElfY0YbA1dI8s8MMhBHOXw0wwR/O+S8Pm/huBbkIbOb2c
 AL7ImXZYvPgS5tkpbxmItEedlLF439E8rwrPBqmrWTDSy/q9CyR2IKVSVNbConaz
@@ -583,9 +584,9 @@ wyZAsOwGJD4+TQ==
 =GeXG
 -----END PGP MESSAGE-----`
 
-const brainpoolp384r1_pass = ""
+const brainpoolp384r1Pass = ""
 
-const brainpoolp384r1_priv = `-----BEGIN PGP PRIVATE KEY BLOCK-----
+const brainpoolp384r1Priv = `-----BEGIN PGP PRIVATE KEY BLOCK-----
 
 lKgEWrqJ2RMJKyQDAwIIAQELAwMELWPYFx5PjaQLkP/dNEmMYqD72jsx/IzSO9j1
 FsmwE7hmosHMjXcDWrsxDuRqPfFMN98P/8kRB4Qn+o2dNHHdRuzAm/O5XCpoFGRL
@@ -605,7 +606,7 @@ MfjeXWX2rg7rPiWO9HU41dsEcZ2pvN3sC5mQchfqivFINTvIngmk2g==
 =8J0V
 -----END PGP PRIVATE KEY BLOCK-----`
 
-const brainpoolp384r1_pub = `-----BEGIN PGP PUBLIC KEY BLOCK-----
+const brainpoolp384r1Pub = `-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mHMEWrqJ2RMJKyQDAwIIAQELAwMELWPYFx5PjaQLkP/dNEmMYqD72jsx/IzSO9j1
 FsmwE7hmosHMjXcDWrsxDuRqPfFMN98P/8kRB4Qn+o2dNHHdRuzAm/O5XCpoFGRL
@@ -623,7 +624,7 @@ JY70dTjV2wRxnam83ewLmZByF+qK8Ug1O8ieCaTa
 =vEH0
 -----END PGP PUBLIC KEY BLOCK-----`
 
-const brainpoolp384r1_enc_sign_message = `-----BEGIN PGP MESSAGE-----
+const brainpoolp384r1EncSignMessage = `-----BEGIN PGP MESSAGE-----
 
 hJ4D25491by3UQcSAwMEidpiLdDr/FBd9HVhN1kjJkagjbXQrKPuu47ws2k67MBS
 gNo913vEQOzhqdiVliYtMAIpEt4sNyWCQ+TUEigsFiaG6Dp0wPG4/qVhRgRB4poN
@@ -637,9 +638,9 @@ bmKARW86AH7YpKjCbedsy9e5SvQohv102w/mZVk=
 =C5uY
 -----END PGP MESSAGE-----`
 
-const brainpoolp512r1_pass = ""
+const brainpoolp512r1Pass = ""
 
-const brainpoolp512r1_priv = `-----BEGIN PGP PRIVATE KEY BLOCK-----
+const brainpoolp512r1Priv = `-----BEGIN PGP PRIVATE KEY BLOCK-----
 
 lNgEWrqKjRMJKyQDAwIIAQENBAMEDI4HTYTe2L0kzVVIJUrN7+8KivNLQNRUeLFp
 oeKHeEqZdzv2zuYsqW91wTcxuobHuyhz2Rw/6GuxCjHMZKe1OEKzO73MHvk5x3Ut
@@ -663,7 +664,7 @@ u4H95mtsxZo=
 =Qb7k
 -----END PGP PRIVATE KEY BLOCK-----`
 
-const brainpoolp512r1_pub = `-----BEGIN PGP PUBLIC KEY BLOCK-----
+const brainpoolp512r1Pub = `-----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mJMEWrqKjRMJKyQDAwIIAQENBAMEDI4HTYTe2L0kzVVIJUrN7+8KivNLQNRUeLFp
 oeKHeEqZdzv2zuYsqW91wTcxuobHuyhz2Rw/6GuxCjHMZKe1OEKzO73MHvk5x3Ut
@@ -684,7 +685,7 @@ UygWL2RYu4H95mtsxZo=
 =3o0a
 -----END PGP PUBLIC KEY BLOCK-----`
 
-const brainpoolp512r1_enc_sign_message = `-----BEGIN PGP MESSAGE-----
+const brainpoolp512r1EncSignMessage = `-----BEGIN PGP MESSAGE-----
 
 hL4DpJcoPAigmZESBAMEonrXiHjcMR/PE/ZwHEfC2rqhzugPOjxoytUCFx/WwLyI
 hREwlk3QA4wKO/xM9bgIkUg9bVlbJtsGceAcDgzxPonaeP+UhEMpi+otV4NT9y/F
