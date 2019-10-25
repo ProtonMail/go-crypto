@@ -49,9 +49,9 @@ func testInteractions(t *testing.T, testVectors []testVector) {
 
 			// 1. Decrypt the encryptedSignedMessage of the given testSet
 			t.Run("DecryptPreparedMessage",
-			func(t *testing.T) {
-				decryptionTest(t, from, skFrom)
-			})
+				func(t *testing.T) {
+					decryptionTest(t, from, skFrom)
+				})
 			// 2. Sign a message and verify signature.
 			t.Run("signVerify", func(t *testing.T) {
 				t.Run("binary", func(t *testing.T) {
@@ -64,9 +64,9 @@ func testInteractions(t *testing.T, testVectors []testVector) {
 			// 3. Encrypt, decrypt and verify a random message for
 			// every other key.
 			t.Run("encryptDecrypt",
-			func(t *testing.T) {
-				encDecTest(t, from, testVectors)
-			})
+				func(t *testing.T) {
+					encDecTest(t, from, testVectors)
+				})
 		})
 	}
 }
@@ -162,11 +162,11 @@ func decryptionTest(t *testing.T, vector testVector, sk openpgp.EntityList) {
 
 // Given a testVector, encrypts random messages for all given testVectors
 // (including self) and verifies on the other end.
-func encDecTest(t *testing.T, from testVector, testVectors []testVector){
+func encDecTest(t *testing.T, from testVector, testVectors []testVector) {
 	skFrom := readArmoredSk(t, from.privateKey, from.password)
 	pkFrom := readArmoredPk(t, from.publicKey)
 	for _, to := range testVectors {
-		t.Run(to.name, func (t *testing.T) {
+		t.Run(to.name, func(t *testing.T) {
 			pkTo := readArmoredPk(t, to.publicKey)
 			skTo := readArmoredSk(t, to.privateKey, to.password)
 			message := randomMessage()
@@ -196,7 +196,7 @@ func encDecTest(t *testing.T, from testVector, testVectors []testVector){
 			// -----------------
 
 			// Decrypt recipient key
-			var prompt = func(keys []openpgp.Key) ([]byte, error) {
+			var prompt = func(keys []openpgp.Key, symm bool) ([]byte, error) {
 				err := keys[0].PrivateKey.Decrypt([]byte(to.password))
 				if err != nil {
 					t.Errorf("Prompt: error decrypting key: %s", err)
@@ -206,7 +206,8 @@ func encDecTest(t *testing.T, from testVector, testVectors []testVector){
 			}
 
 			// Read message with recipient key
-			md, err := openpgp.ReadMessage(buf, append(skTo, pkFrom[0]), prompt, nil)
+			keyring := append(skTo, pkFrom[:]...)
+			md, err := openpgp.ReadMessage(buf, keyring, prompt, nil)
 			if err != nil {
 				t.Fatalf("Error reading message: %s", err)
 			}
@@ -218,7 +219,9 @@ func encDecTest(t *testing.T, from testVector, testVectors []testVector){
 			signKey, _ := signed.SigningKey(time.Now())
 			expectedKeyID := signKey.PublicKey.KeyId
 			if md.SignedByKeyId != expectedKeyID {
-				t.Fatalf("Message signed by wrong key id, got: %v, want: %v", *md.SignedBy, expectedKeyID)
+				t.Fatalf(
+					"Message signed by wrong key id, got: %v, want: %v",
+					*md.SignedBy, expectedKeyID)
 			}
 			if md.SignedBy == nil {
 				t.Fatalf("Failed to find the signing Entity")
@@ -231,8 +234,10 @@ func encDecTest(t *testing.T, from testVector, testVectors []testVector){
 
 			encryptKey, _ := pkTo[0].EncryptionKey(time.Now())
 			expectedEncKeyID := encryptKey.PublicKey.KeyId
-			if len(md.EncryptedToKeyIds) != 1 || md.EncryptedToKeyIds[0] != expectedEncKeyID {
-				t.Errorf("Expected message to be encrypted to %v, but got %#v", expectedKeyID, md.EncryptedToKeyIds)
+			if len(md.EncryptedToKeyIds) != 1 ||
+				md.EncryptedToKeyIds[0] != expectedEncKeyID {
+				t.Errorf("Expected message to be encrypted to %v, but got %#v",
+				expectedKeyID, md.EncryptedToKeyIds)
 			}
 
 			// Test decrypted message
@@ -268,10 +273,9 @@ func signVerifyTest(
 	lineEnding := "\r\n \n \r\n"
 	otherLineEnding := "\n \r\n \n"
 	// Add line endings to test whether the non-binary version of this
-	// signature normalizes the final line endings, see
-	// https://tools.ietf.org/html/draft-ietf-openpgp-rfc4880bis-08#section-5.2.1
+	// signature normalizes the final line endings, see RFC4880bis, sec 5.2.1.
 
-	message :=bytes.NewReader([]byte(messageBody + lineEnding))
+	message := bytes.NewReader([]byte(messageBody + lineEnding))
 	otherMessage := bytes.NewReader([]byte(messageBody + otherLineEnding))
 
 	corruptMessage := bytes.NewReader([]byte(corrupt(messageBody) + lineEnding))
@@ -338,7 +342,8 @@ func signVerifyTest(
 		t.Error(errSeek)
 	}
 
-	signer, err := openpgp.CheckArmoredDetachedSignature(pkFrom, message, signatureReader, nil)
+	signer, err := openpgp.CheckArmoredDetachedSignature(
+		pkFrom, message, signatureReader, nil)
 
 	if err != nil {
 		t.Errorf("signature error: %s", err)
