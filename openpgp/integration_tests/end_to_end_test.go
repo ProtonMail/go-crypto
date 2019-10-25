@@ -25,7 +25,7 @@ import (
 // interactions between them: encrypt, sign, decrypt, verify random messages.
 func TestEndToEnd(t *testing.T) {
 	// Generate random test vectors with the given key settings.
-	freshTestVectors, err := generateFreshTestVectors(keySettings)
+	freshTestVectors, err := generateFreshTestVectors()
 	if err != nil {
 		t.Fatal("Cannot proceed without generated keys: " + err.Error())
 	}
@@ -46,12 +46,12 @@ func testInteractions(t *testing.T, testVectors []testVector) {
 		pkFrom := readArmoredPk(t, from.publicKey)
 		t.Run(from.name, func(t *testing.T) {
 
-			// 1. Decrypt the encryptedSignedMessage of the given testSet
+			// 1. Decrypt the existing message of the given test vector
 			t.Run("DecryptPreparedMessage",
 				func(t *testing.T) {
 					decryptionTest(t, from, skFrom)
 				})
-			// 2. Sign a message and verify signature.
+			// 2. Sign a message and verify the signature.
 			t.Run("signVerify", func(t *testing.T) {
 				t.Run("binary", func(t *testing.T) {
 					signVerifyTest(t, from, skFrom, pkFrom, true)
@@ -95,7 +95,7 @@ func readArmoredSk(t *testing.T, sk string, pass string) openpgp.EntityList {
 	if len(keys[0].Subkeys) != 1 {
 		t.Errorf("Failed to read good subkey, %d", len(keys[0].Subkeys))
 	}
-	var keyObject = keys[0].PrivateKey
+	keyObject := keys[0].PrivateKey
 	if pass != "" {
 		corruptPassword := corrupt(pass)
 		if err := keyObject.Decrypt([]byte(corruptPassword)); err == nil {
@@ -111,7 +111,7 @@ func decryptionTest(t *testing.T, vector testVector, sk openpgp.EntityList) {
 	if vector.encryptedSignedMessage == "" {
 		return
 	}
-	var prompt = func(keys []openpgp.Key, symmetric bool) ([]byte, error) {
+	prompt := func(keys []openpgp.Key, symmetric bool) ([]byte, error) {
 		err := keys[0].PrivateKey.Decrypt([]byte(vector.password))
 		if err != nil {
 			t.Errorf("prompt: error decrypting key: %s", err)
@@ -136,7 +136,7 @@ func decryptionTest(t *testing.T, vector testVector, sk openpgp.EntityList) {
 		return
 	}
 
-	var stringBody = string(body)
+	stringBody := string(body)
 	if stringBody != vector.message {
 		t.Fatal("Decrypted body did not match expected body")
 	}
@@ -200,7 +200,7 @@ func encDecTest(t *testing.T, from testVector, testVectors []testVector) {
 			// -----------------
 
 			// Decrypt recipient key
-			var prompt = func(keys []openpgp.Key, symm bool) ([]byte, error) {
+			prompt := func(keys []openpgp.Key, symm bool) ([]byte, error) {
 				err := keys[0].PrivateKey.Decrypt([]byte(to.password))
 				if err != nil {
 					t.Errorf("Prompt: error decrypting key: %s", err)

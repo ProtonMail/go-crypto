@@ -6,19 +6,49 @@ import (
 	"crypto/rand"
 	mathrand "math/rand"
 	"golang.org/x/crypto/openpgp"
+	"golang.org/x/crypto/openpgp/packet"
 	"golang.org/x/crypto/openpgp/armor"
 	"time"
 )
 var maxPasswordLength = 64
 var maxMessageLength = 1 << 12
 
+type keySetting struct {
+	name string
+	cfg  *packet.Config
+}
+
+// Settings for generating random, fresh key pairs
+var keySettings = []keySetting{
+	{
+		"rsa2048",
+		&packet.Config{
+			RSABits:   2048,
+			Algorithm: packet.PubKeyAlgoRSA,
+		},
+	},
+	{
+		"rsa4096",
+		&packet.Config{
+			RSABits:   4096,
+			Algorithm: packet.PubKeyAlgoRSA,
+		},
+	},
+	{
+		"ed25519",
+		&packet.Config{
+			Algorithm: packet.PubKeyAlgoEdDSA,
+		},
+	},
+}
+
 // This function produces random test vectors: generates keys according to the
 // given settings, associates a random message for each key. It returns the
 // test vectors.
-func generateFreshTestVectors(settings []keySetting) (vectors []testVector, err error) {
+func generateFreshTestVectors() (vectors []testVector, err error) {
 	mathrand.Seed(time.Now().UTC().UnixNano())
 
-	for _, setting := range settings {
+	for _, setting := range keySettings {
 		// Sample random email, comment, password and message
 		name := randomName()
 		email := randomEmail()
@@ -126,6 +156,7 @@ func randomName() string {
     }
     return string(firstName) + " " + string(lastName)
 }
+
 func randomEmail() string {
     address := make([]rune, 20)
 	domain := make([]rune, 5)

@@ -1,9 +1,5 @@
 package integrationtests
 
-import (
-	"golang.org/x/crypto/openpgp/packet"
-)
-
 type testVector struct {
 	message                string
 	name                   string
@@ -11,35 +7,6 @@ type testVector struct {
 	publicKey              string
 	password               string
 	encryptedSignedMessage string
-}
-
-type keySetting struct {
-	name string
-	cfg  *packet.Config
-}
-
-// Settings for generating random, fresh key pairs
-var keySettings = []keySetting{
-	{
-		"rsa2048",
-		&packet.Config{
-			RSABits:   2048,
-			Algorithm: packet.PubKeyAlgoRSA,
-		},
-	},
-	{
-		"rsa4096",
-		&packet.Config{
-			RSABits:   4096,
-			Algorithm: packet.PubKeyAlgoRSA,
-		},
-	},
-	{
-		"ed25519",
-		&packet.Config{
-			Algorithm: packet.PubKeyAlgoEdDSA,
-		},
-	},
 }
 
 const testMessage = "test問量鮮控到案進平"
