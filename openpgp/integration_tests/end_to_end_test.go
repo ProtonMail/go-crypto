@@ -18,26 +18,29 @@ import (
 // Takes a set of different keys (some external, some generated here) and test
 // interactions between them: encrypt, sign, decrypt, verify random messages.
 func TestEndToEnd(t *testing.T) {
-	keyGenTestSets, err := generateFreshTestSets()
+	// Generate random test vectors with the given key settings.
+	freshTestVectors, err := generateFreshTestVectors(keySettings)
 	if err != nil {
 		t.Fatal("Cannot proceed without generated keys: " + err.Error())
 	}
-	testSets = append(testSets, keyGenTestSets...)
 
-	for _, testSet := range testSets {
+	// Append them to the list of foreign test vectors.
+	testVectors = append(testVectors, freshTestVectors...)
+
+	for _, testSet := range testVectors {
 		t.Run(
 			testSet.name,
 			func(t *testing.T) {
-				algorithmTest(t, testSet)
+				testInteractions(t, testSet)
 			},
 		)
 	}
 }
 
-// Given the 'from' testSet, (1) Decrypt an already existing message, (2)
+// Given the 'from' testVector, (1) Decrypt an already existing message, (2)
 // Encrypt a message for each of the other keys ('to' testSet) and then decrypt
 // on the other end, and (3) sign TODO
-func algorithmTest(t *testing.T, from algorithmSet) {
+func testInteractions(t *testing.T, from testVector) {
 	var privateKeyFrom = readArmoredPrivateKey(t, from.privateKey, from.password)
 	var publicKeyFrom = readArmoredPublicKey(t, from.publicKey)
 
@@ -48,7 +51,7 @@ func algorithmTest(t *testing.T, from algorithmSet) {
 		})
 	// 2. Compose a message for every other key.
 	t.Run("encryptDecrypt", func(t *testing.T) {
-		for _, to := range testSets {
+		for _, to := range testVectors {
 			var publicKeyTo = readArmoredPublicKey(t, to.publicKey)
 			var privateKeyTo = readArmoredPrivateKey(t, to.privateKey, to.password)
 			t.Run(to.name,
@@ -103,7 +106,7 @@ func readArmoredPrivateKey(t *testing.T, privateKey string, password string) ope
 }
 
 // This subtest decrypts the existing encryoted and signed of each testSet.
-func decryptionTest(t *testing.T, testSet algorithmSet, privateKey openpgp.EntityList) {
+func decryptionTest(t *testing.T, testSet testVector, privateKey openpgp.EntityList) {
 	if testSet.encryptedSignedMessage == "" {
 		return
 	}
@@ -158,7 +161,7 @@ func decryptionTest(t *testing.T, testSet algorithmSet, privateKey openpgp.Entit
 // Encrypts a random message and tests decryption with recipients' key.
 func encryptDecryptTest(
 	t *testing.T,
-	from, testSetTo algorithmSet,
+	from, to testVector,
 	privateKeyFrom, publicKeyFrom, publicKeyTo, privateKeyTo openpgp.EntityList,
 ) {
 	// Sample random message to encrypt
@@ -187,7 +190,7 @@ func encryptDecryptTest(
 
 	// Decrypt recipient key
 	var prompt = func(keys []openpgp.Key, symmetric bool) ([]byte, error) {
-		err := keys[0].PrivateKey.Decrypt([]byte(testSetTo.password))
+		err := keys[0].PrivateKey.Decrypt([]byte(to.password))
 		if err != nil {
 			t.Errorf("Prompt: error decrypting key: %s", err)
 			return nil, err
@@ -242,7 +245,7 @@ func encryptDecryptTest(
 // TODO: Describe
 func signVerifyTest(
 	t *testing.T,
-	from algorithmSet,
+	from testVector,
 	privateKeyFrom, publicKeyFrom openpgp.EntityList,
 	binary bool,
 ) {

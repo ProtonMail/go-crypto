@@ -4,7 +4,7 @@ import (
 	"golang.org/x/crypto/openpgp/packet"
 )
 
-type algorithmSet struct {
+type testVector struct {
 	message                string
 	name                   string
 	privateKey             string
@@ -13,12 +13,13 @@ type algorithmSet struct {
 	encryptedSignedMessage string
 }
 
-type keySet struct {
+type keySetting struct {
 	name string
 	cfg  *packet.Config
 }
 
-var keySets = []keySet{
+// Settings for generating random, fresh key pairs
+var keySettings = []keySetting{
 	{
 		"rsa2048",
 		&packet.Config{
@@ -42,7 +43,7 @@ var keySets = []keySet{
 }
 
 const test_message = "test問量鮮控到案進平"
-var testSets = []algorithmSet{
+var testVectors = []testVector{
 	{
 		test_message,
 		"rsa",
