@@ -4,6 +4,7 @@ package integrationTests
 
 import (
 	"bytes"
+	"fmt"
 	"golang.org/x/crypto/openpgp"
 	"golang.org/x/crypto/openpgp/armor"
 	"io"
@@ -12,6 +13,14 @@ import (
 	"testing"
 	"time"
 )
+
+/////////////////////////////////////////////////////////////////////////////
+// TODO:
+//
+// - Mock config for tests (implement randomConfig)
+// - Mock line endings (implement randomLineEnding)
+//
+/////////////////////////////////////////////////////////////////////////////
 
 // Takes a set of different keys (some external, some generated here) and test
 // interactions between them: encrypt, sign, decrypt, verify random messages.
@@ -36,8 +45,8 @@ func TestEndToEnd(t *testing.T) {
 }
 
 // Given the 'from' testVector, (1) Decrypt an already existing message, (2)
-// Encrypt a message for each of the other keys ('to' testSet) and then decrypt
-// on the other end, and (3) sign TODO
+// Encrypt random messages for each of the other keys and then decrypt
+// on the other end, and (3) Sign and verify random messages.
 func testInteractions(t *testing.T, from testVector) {
 	var privateKeyFrom = readArmoredPrivateKey(t, from.privateKey, from.password)
 	var publicKeyFrom = readArmoredPublicKey(t, from.publicKey)
@@ -104,7 +113,8 @@ func readArmoredPrivateKey(t *testing.T, privateKey string, password string) ope
 	return keys
 }
 
-// This subtest decrypts the existing encryoted and signed of each testSet.
+// This subtest decrypts the existing encrypted and signed message of each
+// testSet.
 func decryptionTest(t *testing.T, testSet testVector, privateKey openpgp.EntityList) {
 	if testSet.encryptedSignedMessage == "" {
 		return
@@ -236,7 +246,9 @@ func encryptDecryptTest(
 	}
 }
 
-// TODO: Describe
+// Sign a random message and verify signature against the original message,
+// another message with same body but different line endings, and a corrupt
+// message.
 func signVerifyTest(
 	t *testing.T,
 	from testVector,
@@ -246,15 +258,21 @@ func signVerifyTest(
 	signed := privateKeyFrom[0]
 	signed.PrivateKey.Decrypt([]byte(from.password))
 
-	message := bytes.NewReader(bytes.NewBufferString("testing 漢字 \r\n \n \r\n").Bytes())
+	messageBody := randomMessage()
+	// TODO: Randomize this
+	lineEnding := "\r\n \n \r\n"
+	otherLineEnding := "\n \r\n \n"
+	// Add line endings to test whether the non-binary version of this
+	// signature normalizes the final line endings, see
+	// https://tools.ietf.org/html/draft-ietf-openpgp-rfc4880bis-08#section-5.2.1
+	// In the following if binary is false, both 'message' and 'otherMessage'
+	// should verify correctly with the valid signature.
+	message :=bytes.NewReader([]byte(messageBody + lineEnding))
+	otherMessage := bytes.NewReader([]byte(messageBody + otherLineEnding))
 
-	// TODO:
-	// Sample random message to encrypt
-	// rawMessage := make([]byte, mathrand.Intn(maxMessageLength))
-	// if _, err := rand.Read(rawMessage); err != nil {
-	// 	panic(err)
-	// }
-	// message := bytes.NewReader(rawMessage)
+	corruptMessage := bytes.NewReader([]byte(corrupt(messageBody) + lineEnding))
+
+	// Sign the message
 	buf := new(bytes.Buffer)
 	if binary {
 		openpgp.ArmoredDetachSign(buf, signed, message, nil)
@@ -262,41 +280,42 @@ func signVerifyTest(
 		openpgp.ArmoredDetachSignText(buf, signed, message, nil)
 	}
 
+	// Verify the signature against the corrupt message first
 	signatureReader := bytes.NewReader(buf.Bytes())
-
-	wrongmessage := bytes.NewReader(bytes.NewBufferString("testing 漢字").Bytes())
-	wrongsigner, err := openpgp.CheckArmoredDetachedSignature(publicKeyFrom, wrongmessage, signatureReader, nil)
-
+	wrongsigner, err := openpgp.CheckArmoredDetachedSignature(publicKeyFrom, corruptMessage, signatureReader, nil)
 	if err == nil || wrongsigner != nil {
 		t.Fatal("Expected the signature to not verify")
 		return
 	}
 
-	message.Seek(0, io.SeekStart)
+	// Reset the reader and verify against the message with different line
+	// endings (should pass in the non-binary case)
 	signatureReader.Seek(0, io.SeekStart)
 
-	wronglineendings := bytes.NewReader(bytes.NewBufferString("testing 漢字 \n \r\n \n").Bytes())
-	wronglinesigner, err := openpgp.CheckArmoredDetachedSignature(publicKeyFrom, wronglineendings, signatureReader, nil)
+	otherEndSigner, err := openpgp.CheckArmoredDetachedSignature(publicKeyFrom, otherMessage, signatureReader, nil)
 
 	if binary {
-		if err == nil || wronglinesigner != nil {
+		// Should not pass
+		if err == nil || otherEndSigner != nil {
 			t.Fatal("Expected the signature to not verify")
 			return
 		}
 	} else {
+		// Should pass
 		if err != nil {
 			t.Errorf("signature error: %s", err)
 			return
 		}
-		if wronglinesigner == nil {
+		if otherEndSigner == nil {
 			t.Errorf("signer is nil")
 			return
 		}
-		if wronglinesigner.PrimaryKey.KeyId != signed.PrimaryKey.KeyId {
-			t.Errorf("wrong signer got:%x want:%x", wronglinesigner.PrimaryKey.KeyId, 0)
+		if otherEndSigner.PrimaryKey.KeyId != signed.PrimaryKey.KeyId {
+			t.Errorf("wrong signer got:%x want:%x", otherEndSigner.PrimaryKey.KeyId, 0)
 		}
 	}
 
+	// Reset the reader and verify against the exact first message.
 	message.Seek(0, io.SeekStart)
 	signatureReader.Seek(0, io.SeekStart)
 

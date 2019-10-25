@@ -162,3 +162,12 @@ func randomMessage() string {
 	}
 	return string(message)
 }
+
+// Change one char of the input
+func corrupt(input string) string {
+	output := []rune(input)
+	for string(output) == input {
+		output[mathrand.Intn(len(output))] = runes[mathrand.Intn(len(runes))]
+	}
+	return string(output)
+}
