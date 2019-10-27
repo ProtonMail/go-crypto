@@ -143,7 +143,7 @@ func publicKey(privateKey string) (string, error) {
 	return outString, nil
 }
 
-var runes = []rune("abcdefghijklmnopqrstuvwxyz0123456789._ABCDEFGHIJKMNOPQRSTUVWXYZ:;?/!@#$%^&*{}[]_'\"-+~()<>")
+var runes = []rune("abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKMNOPQRSTUVWXYZ.:;?/!@#$%^&*{}[]_'\"-+~()<>")
 
 func randomName() string {
 	firstName := make([]rune, 8)
@@ -181,7 +181,6 @@ func randomComment() string {
         comment[i] = runes[mathrand.Intn(len(runes)) % 85]
     }
     return string(comment)
-	// return ""
 }
 
 func randomPassword() string {
@@ -190,16 +189,14 @@ func randomPassword() string {
         password[i] = runes[mathrand.Intn(len(runes))]
     }
     return string(password)
-	// return "password"
 }
 
 func randomMessage() string {
-	message := make([]byte, mathrand.Intn(maxMessageLength))
+	message := make([]byte, 1 + mathrand.Intn(maxMessageLength-1))
 	if _, err := rand.Read(message); err != nil {
 		panic(err)
 	}
 	return string(message)
-	// return "hello world"
 }
 
 // Change one char of the input

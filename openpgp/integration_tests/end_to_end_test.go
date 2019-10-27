@@ -16,8 +16,8 @@ import (
 /////////////////////////////////////////////////////////////////////////////
 // TODO:
 //
-// - Mock config for tests (implement randomConfig() in utils.go)
-// - Mock line endings (implement randomLineEnding())
+// - Mock config for tests (implement randomConfig() in utils.go).
+// - Move signature line endings test to packet unit tests.
 //
 /////////////////////////////////////////////////////////////////////////////
 
@@ -274,11 +274,14 @@ func signVerifyTest(
 	}
 
 	messageBody := randomMessage()
-	lineEnding := "\r\n \n \r\n"
-	otherLineEnding := "\n \r\n \n"
+
+	// ================================================
+	// TODO: Move the line ending checks to unit tests
+	// ================================================
 	// Add line endings to test whether the non-binary version of this
 	// signature normalizes the final line endings, see RFC4880bis, sec 5.2.1.
-
+	lineEnding := " \r\n \n \r\n"
+	otherLineEnding :=  " \n \r\n \n"
 	message := bytes.NewReader([]byte(messageBody + lineEnding))
 	otherMessage := bytes.NewReader([]byte(messageBody + otherLineEnding))
 
@@ -315,7 +318,6 @@ func signVerifyTest(
 
 	otherSigner, err := openpgp.CheckArmoredDetachedSignature(
 		pkFrom, otherMessage, signatureReader, nil)
-
 	if binary {
 		if err == nil || otherSigner != nil {
 			t.Fatal("Expected the signature to not verify")
