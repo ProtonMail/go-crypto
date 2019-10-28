@@ -33,14 +33,9 @@ func TestEndToEnd(t *testing.T) {
 	// Append them to the list of foreign test vectors.
 	testVectors := append(foreignTestVectors, freshTestVectors...)
 
-	// Run interactions tests
-	testInteractions(t, testVectors)
-}
-
-// For each testVector in testVectors, (1) Decrypt an already existing message,
-// (2) Sign and verify random messages, and (3) Encrypt random messages for
-// each of the other keys and then decrypt on the other end.
-func testInteractions(t *testing.T, testVectors []testVector) {
+	// For each testVector in testVectors, (1) Decrypt an already existing message,
+	// (2) Sign and verify random messages, and (3) Encrypt random messages for
+	// each of the other keys and then decrypt on the other end.
 	for _, from := range testVectors {
 		skFrom := readArmoredSk(t, from.privateKey, from.password)
 		pkFrom := readArmoredPk(t, from.publicKey)
