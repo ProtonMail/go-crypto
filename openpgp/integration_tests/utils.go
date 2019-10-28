@@ -148,27 +148,30 @@ var runes = []rune("abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKMNOPQRSTUVWXY
 func randomName() string {
 	firstName := make([]rune, 8)
 	lastName := make([]rune, 8)
+	nameRunes := runes[:26]
     for i := range firstName {
-        firstName[i] = runes[mathrand.Intn(len(runes)) % 26]
+        firstName[i] = nameRunes[mathrand.Intn(len(nameRunes))]
     }
     for i := range lastName {
-        lastName[i] = runes[mathrand.Intn(len(runes)) % 26]
+        lastName[i] = nameRunes[mathrand.Intn(len(nameRunes))]
     }
     return string(firstName) + " " + string(lastName)
 }
 
 func randomEmail() string {
     address := make([]rune, 20)
+	addressRunes := runes[:38]
 	domain := make([]rune, 5)
+	domainRunes := runes[:36]
 	ext := make([]rune, 3)
     for i := range address {
-        address[i] = runes[mathrand.Intn(len(runes)) % 38]
+        address[i] = addressRunes[mathrand.Intn(len(addressRunes))]
     }
     for i := range domain {
-        domain[i] = runes[mathrand.Intn(len(runes)) % 36]
+        domain[i] = domainRunes[mathrand.Intn(len(domainRunes))]
     }
     for i := range ext {
-        ext[i] = runes[mathrand.Intn(len(runes)) % 36]
+        ext[i] = domainRunes[mathrand.Intn(len(domainRunes))]
     }
 	email := string(address) + "@" + string(domain) + "." + string(ext)
     return email
@@ -177,8 +180,9 @@ func randomEmail() string {
 // Comment does not allow the following characters: ()<>\x00
 func randomComment() string {
     comment := make([]rune, 140)
+	commentRunes := runes[:84]
     for i := range comment {
-        comment[i] = runes[mathrand.Intn(len(runes)) % 85]
+        comment[i] = commentRunes[mathrand.Intn(len(commentRunes))]
     }
     return string(comment)
 }
