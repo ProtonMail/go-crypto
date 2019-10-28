@@ -65,41 +65,6 @@ func TestEndToEnd(t *testing.T) {
 	}
 }
 
-func readArmoredPk(t *testing.T, publicKey string) openpgp.EntityList {
-	keys, err := openpgp.ReadArmoredKeyRing(bytes.NewBufferString(publicKey))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(keys) < 1 {
-		t.Errorf("Failed to read key with good cross signature, %d", len(keys))
-	}
-	if len(keys[0].Subkeys) < 1 {
-		t.Errorf("Failed to read good subkey, %d", len(keys[0].Subkeys))
-	}
-	return keys
-}
-
-func readArmoredSk(t *testing.T, sk string, pass string) openpgp.EntityList {
-	keys, err := openpgp.ReadArmoredKeyRing(bytes.NewBufferString(sk))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(keys) != 1 {
-		t.Errorf("Failed to read key with good cross signature, %d", len(keys))
-	}
-	if len(keys[0].Subkeys) != 1 {
-		t.Errorf("Failed to read good subkey, %d", len(keys[0].Subkeys))
-	}
-	keyObject := keys[0].PrivateKey
-	if pass != "" {
-		corruptPassword := corrupt(pass)
-		if err := keyObject.Decrypt([]byte(corruptPassword)); err == nil {
-			t.Fatal("Decrypted key with invalid password")
-		}
-	}
-	return keys
-}
-
 // This subtest decrypts the existing encrypted and signed message of each
 // testVector.
 func decryptionTest(t *testing.T, vector testVector, sk openpgp.EntityList) {
@@ -359,4 +324,39 @@ func signVerifyTest(
 	}
 
 	return
+}
+
+func readArmoredPk(t *testing.T, publicKey string) openpgp.EntityList {
+	keys, err := openpgp.ReadArmoredKeyRing(bytes.NewBufferString(publicKey))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(keys) < 1 {
+		t.Errorf("Failed to read key with good cross signature, %d", len(keys))
+	}
+	if len(keys[0].Subkeys) < 1 {
+		t.Errorf("Failed to read good subkey, %d", len(keys[0].Subkeys))
+	}
+	return keys
+}
+
+func readArmoredSk(t *testing.T, sk string, pass string) openpgp.EntityList {
+	keys, err := openpgp.ReadArmoredKeyRing(bytes.NewBufferString(sk))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(keys) != 1 {
+		t.Errorf("Failed to read key with good cross signature, %d", len(keys))
+	}
+	if len(keys[0].Subkeys) != 1 {
+		t.Errorf("Failed to read good subkey, %d", len(keys[0].Subkeys))
+	}
+	keyObject := keys[0].PrivateKey
+	if pass != "" {
+		corruptPassword := corrupt(pass)
+		if err := keyObject.Decrypt([]byte(corruptPassword)); err == nil {
+			t.Fatal("Decrypted key with invalid password")
+		}
+	}
+	return keys
 }
