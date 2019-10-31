@@ -28,7 +28,7 @@ type aeadCrypter struct {
 	initialNonce   []byte
 	associatedData []byte       // Chunk-independent associated data
 	chunkIndex     []byte       // Chunk counter
-	bytesProcessed int          // Amount of (plain/cipher)-text bytes read/written
+	bytesProcessed int          // Amount of plaintext bytes encrypted/decrypted
 	buffer         bytes.Buffer // Buffered bytes accross chunks
 }
 
@@ -233,7 +233,7 @@ func (aw *aeadEncrypter) Write(plaintextBytes []byte) (n int, err error) {
 		}
 		n, err = aw.writer.Write(encryptedChunk)
 		if err != nil || n < tagLen {
-			return n, errors.AEADError("error writing encrypted chunk")
+			return n, errors.AEADError("error writing encrypted chunk: " + err.Error())
 		}
 		aw.bytesProcessed += n - tagLen
 	}
@@ -276,7 +276,6 @@ func (aw *aeadEncrypter) Close() (err error) {
 	if err != nil {
 		return err
 	}
-	aw.bytesProcessed += n
 	return aw.writer.Close()
 }
 
@@ -301,7 +300,6 @@ func (aw *aeadEncrypter) sealChunk(data []byte) ([]byte, error) {
 // the underlying plaintext and an error. It access peeked bytes from next
 // chunk, to identify the last chunk and decrypt/validate accordingly.
 func (ar *aeadDecrypter) processChunk(data []byte) ([]byte, error) {
-
 	tagLen := ar.aead.Overhead()
 	chunkLen := int(ar.config.ChunkLength())
 	ctLen := tagLen + chunkLen
