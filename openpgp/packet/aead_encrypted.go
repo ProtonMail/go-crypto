@@ -28,7 +28,7 @@ type aeadCrypter struct {
 	initialNonce   []byte
 	associatedData []byte       // Chunk-independent associated data
 	chunkIndex     []byte       // Chunk counter
-	bytesProcessed int          // Amount of (plain/cipher)-text bytes read/written
+	bytesProcessed int          // Amount of plaintext bytes encrypted/decrypted
 	buffer         bytes.Buffer // Buffered bytes accross chunks
 }
 
