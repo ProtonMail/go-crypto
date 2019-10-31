@@ -70,12 +70,12 @@ func (ae *AEADEncrypted) parse(buf io.Reader) error {
 // Decrypt returns a io.ReadCloser from which decrypted bytes can be read, or
 // an error.
 func (ae *AEADEncrypted) Decrypt(ciph CipherFunction, key []byte) (io.ReadCloser, error) {
-	return ae.getStreamReader(key)
+	return ae.decrypt(key)
 }
 
-// Decrypt prepares an aeadCrypter and returns a ReadCloser from which
+// decrypt prepares an aeadCrypter and returns a ReadCloser from which
 // decrypted bytes can be read (see aeadDecrypter.Read()).
-func (ae *AEADEncrypted) getStreamReader(key []byte) (io.ReadCloser, error) {
+func (ae *AEADEncrypted) decrypt(key []byte) (io.ReadCloser, error) {
 	blockCipher := CipherFunction(ae.cipher).new(key)
 	aead := AEADMode(ae.mode).new(blockCipher)
 	// Carry the first tagLen bytes
@@ -89,7 +89,6 @@ func (ae *AEADEncrypted) getStreamReader(key []byte) (io.ReadCloser, error) {
 	return &aeadDecrypter{
 		aeadCrypter: aeadCrypter{
 			config: &AEADConfig{
-				DefaultMode: ae.mode,
 				ChunkSize:   chunkSize,
 			},
 			aead:           aead,
