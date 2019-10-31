@@ -29,7 +29,7 @@ var aeadCompatibleCiphers = []CipherFunction{
 var modes = []AEADMode{
 	AEADModeEAX,
 	AEADModeOCB,
-	AEADModeGCM,
+	AEADModeExperimentalGCM,
 }
 
 func TestAeadRFCParse(t *testing.T) {
@@ -46,7 +46,7 @@ func TestAeadRFCParse(t *testing.T) {
 			t.Error(err)
 		}
 		// decrypted plaintext can be read from 'rc'
-		rc, err := packet.getStreamReader(key)
+		rc, err := packet.decrypt(key)
 		if err != nil {
 			t.Error(err)
 		}
@@ -118,7 +118,7 @@ func TestAeadNilConfigStream(t *testing.T) {
 		t.Error(err)
 	}
 	// decrypted plaintext can be read from 'rc'
-	rc, err := packet.getStreamReader(key)
+	rc, err := packet.decrypt(key)
 
 	maxRead := 30
 	var got []byte
@@ -203,7 +203,7 @@ func TestAeadRandomStream(t *testing.T) {
 			t.Error(err)
 		}
 		// decrypted plaintext can be read from 'rc'
-		rc, err := packet.getStreamReader(key)
+		rc, err := packet.decrypt(key)
 
 		maxRead := 3 * int(aeadConf.ChunkLength())
 		var got []byte
@@ -295,7 +295,7 @@ func TestAeadRandomCorruptStream(t *testing.T) {
 			// Header was corrupted
 			continue
 		}
-		rc, err := packet.getStreamReader(key)
+		rc, err := packet.decrypt(key)
 		maxRead := 3 * int(aeadConf.ChunkLength())
 		var got []byte
 		for {
@@ -376,7 +376,7 @@ func TestAeadEmptyStream(t *testing.T) {
 		t.Error(err)
 	}
 	// decrypted plaintext can be read from 'rc'
-	rc, err := packet.getStreamReader(key)
+	rc, err := packet.decrypt(key)
 
 	var got []byte
 	for {
@@ -408,7 +408,7 @@ func TestAeadEmptyStream(t *testing.T) {
 		t.Error(err)
 	}
 	// decrypted plaintext can be read from 'rc'
-	rc, err = packet.getStreamReader(key)
+	rc, err = packet.decrypt(key)
 
 	for {
 		// Read a random number of bytes, until the end of the packet.

@@ -230,22 +230,22 @@ func (aw *aeadEncrypter) Write(plaintextBytes []byte) (n int, err error) {
 		if errSeal != nil {
 			return n, errSeal
 		}
-		n, err = aw.writer.Write(encryptedChunk)
-		if err != nil || n < tagLen {
+		bytesWritten, err := aw.writer.Write(encryptedChunk)
+		n += bytesWritten
+		if err != nil || bytesWritten < tagLen {
 			return n, errors.AEADError("error writing encrypted chunk")
 		}
-		aw.bytesProcessed += n - tagLen
+		aw.bytesProcessed += bytesWritten - tagLen
 	}
 	// Buffer remaining plaintext for next chunk
-	m, errW := aw.buffer.Write(plaintextBytes[chunkLen*i:])
+	m, err := aw.buffer.Write(plaintextBytes[chunkLen*i:])
 	n += m
-	err = errW
 	return
 }
 
-// Close encrypts and writes the remaining buffered plaintext if any, appends the
-// final authentication tag, and closes the embedded writer. This function MUST
-// be called at the end of a stream.
+// Close encrypts and writes the remaining buffered plaintext if any, appends
+// the final authentication tag, and closes the embedded writer. This function
+// MUST be called at the end of a stream.
 func (aw *aeadEncrypter) Close() (err error) {
 	tagLen := aw.aead.Overhead()
 	// Encrypt and write whatever is left on the buffer (it may be empty)
@@ -271,11 +271,10 @@ func (aw *aeadEncrypter) Close() (err error) {
 	adata = append(adata, amountBytes...)
 	nonce := aw.computeNextNonce()
 	finalTag := aw.aead.Seal(nil, nonce, nil, adata)
-	n, err := aw.writer.Write(finalTag)
+	_, err = aw.writer.Write(finalTag)
 	if err != nil {
 		return err
 	}
-	aw.bytesProcessed += n
 	return aw.writer.Close()
 }
 
@@ -300,7 +299,6 @@ func (aw *aeadEncrypter) sealChunk(data []byte) ([]byte, error) {
 // the underlying plaintext and an error. It access peeked bytes from next
 // chunk, to identify the last chunk and decrypt/validate accordingly.
 func (ar *aeadDecrypter) processChunk(data []byte) ([]byte, error) {
-
 	tagLen := ar.aead.Overhead()
 	chunkLen := int(ar.config.ChunkLength())
 	ctLen := tagLen + chunkLen

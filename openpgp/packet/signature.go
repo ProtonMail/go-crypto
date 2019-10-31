@@ -70,9 +70,9 @@ type Signature struct {
 	RevocationReason     *uint8
 	RevocationReasonText string
 
-	// MDC (resp. AEAD) is set if this signature has a feature packet that
-	// indicates support for MDC (resp. AEAD) subpackets.
-	MDC, AEAD  bool
+	// MDC (resp. AEAD) is set if this signature has a feature subpacket that
+	// indicates support for MDC (resp. AEAD) packets.
+	MDC, AEAD bool
 
 	// EmbeddedSignature, if non-nil, is a signature of the parent key, by
 	// this key. This prevents an attacker from claiming another's signing
@@ -251,9 +251,9 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 			goto Truncated
 		}
 		length = uint32(subpacket[1])<<24 |
-		uint32(subpacket[2])<<16 |
-		uint32(subpacket[3])<<8 |
-		uint32(subpacket[4])
+			uint32(subpacket[2])<<16 |
+			uint32(subpacket[3])<<8 |
+			uint32(subpacket[4])
 		subpacket = subpacket[5:]
 	}
 	if length > uint32(len(subpacket)) {
@@ -390,6 +390,9 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		// Features subpacket, section 5.2.3.24 specifies a very general
 		// mechanism for OpenPGP implementations to signal support for new
 		// features.
+		if !isHashed {
+			return
+		}
 		if len(subpacket) > 0 {
 			if subpacket[0]&0x01 != 0 {
 				sig.MDC = true
@@ -788,9 +791,6 @@ func (sig *Signature) buildSubpackets() (subpackets []outputSubpacket) {
 		subpackets = append(subpackets, outputSubpacket{true, prefSymmetricAlgosSubpacket, false, sig.PreferredSymmetric})
 	}
 
-	if len(sig.PreferredAEAD) > 0 {
-		subpackets = append(subpackets, outputSubpacket{true, prefAeadAlgosSubpacket, false, sig.PreferredAEAD})
-	}
 
 	if len(sig.PreferredHash) > 0 {
 		subpackets = append(subpackets, outputSubpacket{true, prefHashAlgosSubpacket, false, sig.PreferredHash})
@@ -800,6 +800,9 @@ func (sig *Signature) buildSubpackets() (subpackets []outputSubpacket) {
 		subpackets = append(subpackets, outputSubpacket{true, prefCompressionSubpacket, false, sig.PreferredCompression})
 	}
 
+	if len(sig.PreferredAEAD) > 0 {
+		subpackets = append(subpackets, outputSubpacket{true, prefAeadAlgosSubpacket, false, sig.PreferredAEAD})
+	}
 
 	return
 }

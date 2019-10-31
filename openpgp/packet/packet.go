@@ -7,8 +7,8 @@
 package packet // import "golang.org/x/crypto/openpgp/packet"
 
 import (
-	"bytes"
 	"bufio"
+	"bytes"
 	"crypto/cipher"
 	"golang.org/x/crypto/openpgp/errors"
 	"golang.org/x/crypto/openpgp/internal/algorithm"
@@ -324,6 +324,7 @@ const (
 type EncryptedDataPacket interface {
 	Decrypt(CipherFunction, []byte) (io.ReadCloser, error)
 }
+
 // peekVersion detects the version of a public key packet about to
 // be read. A bufio.Reader at the original position of the io.Reader
 // is returned.
@@ -521,9 +522,9 @@ const (
 type AEADMode algorithm.AEADMode
 
 const (
-	AEADModeEAX AEADMode = 1
-	AEADModeOCB AEADMode = 2
-	AEADModeGCM AEADMode = 100
+	AEADModeEAX             AEADMode = 1
+	AEADModeOCB             AEADMode = 2
+	AEADModeExperimentalGCM AEADMode = 100
 )
 
 func (mode AEADMode) NonceLength() int {

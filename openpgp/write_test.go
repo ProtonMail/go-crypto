@@ -268,7 +268,7 @@ func TestEncryption(t *testing.T) {
 		var modes = []packet.AEADMode{
 			packet.AEADModeEAX,
 			packet.AEADModeOCB,
-			packet.AEADModeGCM,
+			packet.AEADModeExperimentalGCM,
 		}
 		var config *packet.Config
 		if mathrand.Int()%2 == 0 {

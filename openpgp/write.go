@@ -310,7 +310,7 @@ func encrypt(ciphertext io.Writer, to []*Entity, signed *Entity, hints *FileHint
 	candidateAeadModes := []uint8{
 		uint8(packet.AEADModeEAX),
 		uint8(packet.AEADModeOCB),
-		uint8(packet.AEADModeGCM),
+		uint8(packet.AEADModeExperimentalGCM),
 	}
 	// In the event that a recipient doesn't specify any supported ciphers
 	// or hash functions, these are the ones that we assume that every
@@ -320,7 +320,7 @@ func encrypt(ciphertext io.Writer, to []*Entity, signed *Entity, hints *FileHint
 	defaultAeadModes := candidateAeadModes[0:1]
 
 	encryptKeys := make([]Key, len(to))
-	// AEAD is negotiated only if every key supports it.
+	// AEAD is used only if every key supports it.
 	aeadSupported := true
 
 	for i := range to {
@@ -352,7 +352,7 @@ func encrypt(ciphertext io.Writer, to []*Entity, signed *Entity, hints *FileHint
 		candidateAeadModes = intersectPreferences(candidateAeadModes, preferredAeadModes)
 	}
 
-	if len(candidateCiphers) == 0 || len(candidateHashes) == 0 {  //|| len(candidateAeadModes) == 0 {
+	if len(candidateCiphers) == 0 || len(candidateHashes) == 0 || len(candidateAeadModes) == 0 {
 		return nil, errors.InvalidArgumentError("cannot encrypt because recipient set shares no common algorithms")
 	}
 

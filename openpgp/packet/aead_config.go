@@ -27,7 +27,8 @@ func (conf *AEADConfig) Mode() AEADMode {
 		return defaultAEADConfig.DefaultMode
 	}
 	mode := conf.DefaultMode
-	if mode != AEADModeEAX && mode != AEADModeOCB && mode != AEADModeGCM {
+	if mode != AEADModeEAX && mode != AEADModeOCB &&
+		mode != AEADModeExperimentalGCM {
 		panic("AEAD mode unsupported")
 	}
 	return conf.DefaultMode

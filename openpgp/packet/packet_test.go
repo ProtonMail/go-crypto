@@ -15,9 +15,9 @@ import (
 )
 
 const (
-	iterations = 500
-    iterationsSlow = 10
-    iterationsVerySlow = 5
+	iterations         = 500
+	iterationsSlow     = 10
+	iterationsVerySlow = 5
 )
 
 func TestReadFull(t *testing.T) {

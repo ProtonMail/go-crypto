@@ -179,7 +179,12 @@ func (ske *SymmetricKeyEncrypted) decryptV5(key []byte) ([]byte, error) {
 // SerializeSymmetricallyEncrypted.
 // If config is nil, sensible defaults will be used.
 func SerializeSymmetricKeyEncrypted(w io.Writer, passphrase []byte, config *Config) (key []byte, err error) {
-	v5 := config.IsAEADEnabled()
+	var version int
+	if config.IsAEADEnabled() {
+		version = 5
+	} else {
+		version = 4
+	}
 	cipherFunc := config.Cipher()
 	keySize := cipherFunc.KeySize()
 	if keySize == 0 {
@@ -197,12 +202,13 @@ func SerializeSymmetricKeyEncrypted(w io.Writer, passphrase []byte, config *Conf
 	s2kBytes := s2kBuf.Bytes()
 
 	var packetLength int
-	if v5 {
+	switch version {
+	case 4:
+		packetLength = 2 /* header */ + len(s2kBytes) + 1 /* cipher type */ + keySize
+	case 5:
 		nonceLen := config.AEADConfig.Mode().NonceLength()
 		tagLen := config.AEADConfig.Mode().TagLength()
 		packetLength = 3 + len(s2kBytes) + nonceLen + keySize + tagLen
-	} else {
-		packetLength = 2 /* header */ + len(s2kBytes) + 1 /* cipher type */ + keySize
 	}
 	err = serializeHeader(w, packetTypeSymmetricKeyEncrypted, packetLength)
 	if err != nil {
@@ -211,15 +217,11 @@ func SerializeSymmetricKeyEncrypted(w io.Writer, passphrase []byte, config *Conf
 
 	buf := make([]byte, 2)
 	// Symmetric Key Encrypted Version
-	if v5 {
-		buf[0] = byte(5)
-	} else {
-		buf[0] = byte(4)
-	}
+	buf[0] = byte(version)
 	// Cipher function
 	buf[1] = byte(cipherFunc)
 
-	if v5 {
+	if version == 5 {
 		// AEAD mode
 		buf = append(buf, byte(config.AEADConfig.Mode()))
 	}
@@ -238,7 +240,19 @@ func SerializeSymmetricKeyEncrypted(w io.Writer, passphrase []byte, config *Conf
 	if err != nil {
 		return
 	}
-	if v5 {
+
+	switch version {
+	case 4:
+		iv := make([]byte, cipherFunc.blockSize())
+		c := cipher.NewCFBEncrypter(cipherFunc.new(keyEncryptingKey), iv)
+		encryptedCipherAndKey := make([]byte, keySize+1)
+		c.XORKeyStream(encryptedCipherAndKey, buf[1:])
+		c.XORKeyStream(encryptedCipherAndKey[1:], sessionKey)
+		_, err = w.Write(encryptedCipherAndKey)
+		if err != nil {
+			return
+		}
+	case 5:
 		blockCipher := cipherFunc.new(keyEncryptingKey)
 		mode := config.AEADConfig.Mode()
 		aead := mode.new(blockCipher)
@@ -256,16 +270,6 @@ func SerializeSymmetricKeyEncrypted(w io.Writer, passphrase []byte, config *Conf
 			return
 		}
 		_, err = w.Write(encryptedData)
-		if err != nil {
-			return
-		}
-	} else {
-		iv := make([]byte, cipherFunc.blockSize())
-		c := cipher.NewCFBEncrypter(cipherFunc.new(keyEncryptingKey), iv)
-		encryptedCipherAndKey := make([]byte, keySize+1)
-		c.XORKeyStream(encryptedCipherAndKey, buf[1:])
-		c.XORKeyStream(encryptedCipherAndKey[1:], sessionKey)
-		_, err = w.Write(encryptedCipherAndKey)
 		if err != nil {
 			return
 		}
