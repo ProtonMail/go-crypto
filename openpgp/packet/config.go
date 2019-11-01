@@ -110,9 +110,9 @@ func (c *Config) IsAEADEnabled() bool {
 	return c.AEADEnabled
 }
 
-func (c *Config) AEAD() AEADConfig {
+func (c *Config) AEAD() *AEADConfig {
 	if c == nil {
-		return AEADConfig{}
+		return nil
 	}
-	return c.AEADConfig
+	return &c.AEADConfig
 }

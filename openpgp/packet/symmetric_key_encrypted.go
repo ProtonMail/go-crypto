@@ -36,20 +36,21 @@ func (ske *SymmetricKeyEncrypted) parse(r io.Reader) error {
 	if _, err := readFull(r, buf[:]); err != nil {
 		return err
 	}
+	ske.Version = int(buf[0])
 	ske.CipherFunc = CipherFunction(buf[1])
-	if ske.CipherFunc.KeySize() == 0 {
-		return errors.UnsupportedError("unknown cipher: " + strconv.Itoa(int(buf[1])))
-	}
-	switch buf[0] {
+
+	switch ske.Version {
 	case 4:
-		ske.Version = 4
 		return ske.parseV4(r)
 	case 5:
-		ske.Version = 5
 		return ske.parseV5(r)
 	default:
 		return errors.UnsupportedError("unknown SymmetricKeyEncrypted version")
 	}
+	if ske.CipherFunc.KeySize() == 0 {
+		return errors.UnsupportedError("unknown cipher: " + strconv.Itoa(int(buf[1])))
+	}
+	return nil
 }
 
 func (ske *SymmetricKeyEncrypted) parseV4(r io.Reader) error {
@@ -100,21 +101,22 @@ func (ske *SymmetricKeyEncrypted) parseV5(r io.Reader) error {
 	}
 	ske.aeadNonce = nonce
 
-	// Encrypted key and final tag may follow
+	// Encrypted key and final tag follow
 	tagLen := ske.Mode.TagLength()
 	ekAndTag := make([]byte, maxSessionKeySizeInBytes+tagLen)
 	n, err = readFull(r, ekAndTag)
 	if err != nil && err != io.ErrUnexpectedEOF {
 		return err
 	}
-	if n != 0 {
-		if n == maxSessionKeySizeInBytes+tagLen {
-			return errors.UnsupportedError("oversized encrypted session key")
-		}
-		sep := n - tagLen
-		ske.encryptedKey = ekAndTag[:sep]
-		ske.aeadTag = ekAndTag[sep:n]
+	if n < tagLen {
+		return errors.StructuralError("missing data from sym. key. enc. packet")
 	}
+	if n == maxSessionKeySizeInBytes+tagLen {
+		return errors.UnsupportedError("oversized encrypted session key")
+	}
+	sep := n - tagLen
+	ske.encryptedKey = ekAndTag[:sep]
+	ske.aeadTag = ekAndTag[sep:n]
 	return nil
 }
 
@@ -130,10 +132,6 @@ func (ske *SymmetricKeyEncrypted) Decrypt(passphrase []byte) ([]byte, CipherFunc
 	switch ske.Version {
 	case 4:
 		plaintextKey, cipherFunc, err := ske.decryptV4(key)
-		if len(plaintextKey) != cipherFunc.KeySize() {
-			return nil, cipherFunc, errors.StructuralError(
-				"length of decrypted key not equal to cipher keysize")
-		}
 		return plaintextKey, cipherFunc, err
 	case 5:
 		plaintextKey, err := ske.decryptV5(key)
@@ -156,6 +154,10 @@ func (ske *SymmetricKeyEncrypted) decryptV4(key []byte) ([]byte, CipherFunction,
 			"unknown cipher: " + strconv.Itoa(int(cipherFunc)))
 	}
 	plaintextKey = plaintextKey[1:]
+	if len(plaintextKey) != cipherFunc.KeySize() {
+		return nil, cipherFunc, errors.StructuralError(
+			"length of decrypted key not equal to cipher keysize")
+	}
 	return plaintextKey, cipherFunc, nil
 }
 
@@ -165,7 +167,6 @@ func (ske *SymmetricKeyEncrypted) decryptV5(key []byte) ([]byte, error) {
 
 	ciphertext := append(ske.encryptedKey, ske.aeadTag...)
 	adata := []byte{0xc3, byte(5), byte(ske.CipherFunc), byte(ske.Mode)}
-	// Probably declare plaintextKey before and use as first argument
 	plaintextKey, err := aead.Open(nil, ske.aeadNonce, ciphertext, adata)
 	if err != nil {
 		return nil, err

@@ -10,6 +10,7 @@ import (
 	"io"
 
 	"golang.org/x/crypto/openpgp/errors"
+	"golang.org/x/crypto/openpgp/internal/algorithm"
 )
 
 // AEADEncrypted represents an AEAD Encrypted Packet (tag 20, RFC4880bis-5.16).
@@ -61,7 +62,11 @@ func (ae *AEADEncrypted) parse(buf io.Reader) error {
 	}
 	ae.Contents = buf
 	ae.initialNonce = initialNonce
-	ae.cipher = CipherFunction(headerData[1])
+	c := headerData[1]
+	if _, ok := algorithm.CipherById[c]; !ok {
+		return errors.UnsupportedError("unknown cipher: " + string(c))
+	}
+	ae.cipher = CipherFunction(c)
 	ae.mode = mode
 	ae.chunkSizeByte = byte(headerData[3])
 	return nil
@@ -129,7 +134,7 @@ func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 	}
 	if bytesRead > 0 {
 		cipherChunk = cipherChunk[:bytesRead]
-		plainChunk, errChunk := ar.processChunk(cipherChunk)
+		plainChunk, errChunk := ar.openChunk(cipherChunk)
 		if errChunk != nil {
 			return 0, errChunk
 		}
@@ -193,7 +198,7 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, config *Config) (io.WriteCl
 	return &aeadEncrypter{
 		aeadCrypter: aeadCrypter{
 			aead:           alg,
-			config:         &aeadConf,
+			config:         aeadConf,
 			associatedData: prefix,
 			chunkIndex:     make([]byte, 8),
 			initialNonce:   nonce,
@@ -208,22 +213,12 @@ func (aw *aeadEncrypter) Write(plaintextBytes []byte) (n int, err error) {
 	chunkLen := int(aw.config.ChunkLength())
 	tagLen := aw.aead.Overhead()
 	buf := append(aw.buffer.Bytes(), plaintextBytes...)
+	// Empty write - do nothing
+	if len(buf) == 0 {
+		return 0, nil
+	}
 	n = 0
 	i := 0
-	// Bordercase - Empty plaintext: For compatibility with OpenPGPjs, seal an
-	// empty chunk (the stream therefore consists in two auth. tags, the second
-	// one appended in Close()).
-	if len(buf) == 0 {
-		encryptedChunk, errSeal := aw.sealChunk(nil)
-		if errSeal != nil {
-			return n, errSeal
-		}
-		n, err = aw.writer.Write(encryptedChunk)
-		if err != nil || n < tagLen {
-			return n, errors.AEADError("error writing encrypted chunk")
-		}
-		return
-	}
 	for i = 0; i < len(buf)/chunkLen; i++ {
 		plaintext := buf[chunkLen*i : chunkLen*(i+1)]
 		encryptedChunk, errSeal := aw.sealChunk(plaintext)
@@ -249,7 +244,7 @@ func (aw *aeadEncrypter) Write(plaintextBytes []byte) (n int, err error) {
 func (aw *aeadEncrypter) Close() (err error) {
 	tagLen := aw.aead.Overhead()
 	// Encrypt and write whatever is left on the buffer (it may be empty)
-	if aw.buffer.Len() > 0 {
+	if aw.buffer.Len() > 0 || aw.bytesProcessed == 0 {
 		lastEncryptedChunk, err := aw.sealChunk(aw.buffer.Bytes())
 		if err != nil {
 			return err
@@ -258,17 +253,13 @@ func (aw *aeadEncrypter) Close() (err error) {
 		if err != nil {
 			return err
 		}
-		if n < tagLen {
-			return errors.AEADError("close chunk without tag")
-		}
 		aw.bytesProcessed += n - tagLen
 	}
 	// Compute final tag (associated data: packet tag, version, cipher, aead,
 	// chunk size, index, total number of encrypted octets).
-	amountBytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(amountBytes, uint64(aw.bytesProcessed))
 	adata := append(aw.associatedData[:], aw.chunkIndex[:]...)
-	adata = append(adata, amountBytes...)
+	adata = append(adata, make([]byte, 8)...)
+	binary.BigEndian.PutUint64(adata[13:], uint64(aw.bytesProcessed))
 	nonce := aw.computeNextNonce()
 	finalTag := aw.aead.Seal(nil, nonce, nil, adata)
 	_, err = aw.writer.Write(finalTag)
@@ -295,27 +286,18 @@ func (aw *aeadEncrypter) sealChunk(data []byte) ([]byte, error) {
 	return encrypted, nil
 }
 
-// processChunk decrypts and checks integrity of an encrypted chunk, returning
+// openChunk decrypts and checks integrity of an encrypted chunk, returning
 // the underlying plaintext and an error. It access peeked bytes from next
 // chunk, to identify the last chunk and decrypt/validate accordingly.
-func (ar *aeadDecrypter) processChunk(data []byte) ([]byte, error) {
+func (ar *aeadDecrypter) openChunk(data []byte) ([]byte, error) {
 	tagLen := ar.aead.Overhead()
 	chunkLen := int(ar.config.ChunkLength())
 	ctLen := tagLen + chunkLen
 	// Restore carried bytes from last call
 	chunkExtra := append(ar.peekedBytes, data...)
-	chunk := chunkExtra[:len(chunkExtra)-tagLen]
 	// 'chunk' contains encrypted bytes, followed by an authentication tag.
-	var finalTag []byte
-	if len(chunk) < ctLen ||
-		(len(chunk) == ctLen && len(ar.peekedBytes) < tagLen) {
-		// Case final chunk
-		finalTag = chunkExtra[len(chunkExtra)-tagLen:]
-	} else {
-		// Case Regular chunk
-		ar.peekedBytes = chunkExtra[len(chunkExtra)-tagLen:]
-	}
-	// Decrypt and authenticate chunk
+	chunk := chunkExtra[:len(chunkExtra)-tagLen]
+	ar.peekedBytes = chunkExtra[len(chunkExtra)-tagLen:]
 	adata := append(ar.associatedData, ar.chunkIndex...)
 	nonce := ar.computeNextNonce()
 	plainChunk, err := ar.aead.Open(nil, nonce, chunk, adata)
@@ -327,7 +309,11 @@ func (ar *aeadDecrypter) processChunk(data []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	if finalTag != nil {
+	var finalTag []byte
+	// Case final chunk
+	if len(chunk) < ctLen ||
+		(len(chunk) == ctLen && len(ar.peekedBytes) < tagLen) {
+		finalTag = chunkExtra[len(chunkExtra)-tagLen:]
 		err = ar.validateFinalTag(finalTag)
 		if err != nil {
 			// Final tag is corrupt
