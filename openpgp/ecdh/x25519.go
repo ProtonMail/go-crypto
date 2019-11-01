@@ -25,7 +25,7 @@ func X25519GenerateParams(rand io.Reader) (priv [32]byte, x [32]byte, err error)
 	helper.SetString("27742317777372353535851937790883648493", 10)
 	n.Add(n, helper)
 
-	for true {
+	for {
 		_, err = io.ReadFull(rand, priv[:])
 		if err != nil {
 			return

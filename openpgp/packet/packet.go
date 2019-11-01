@@ -405,7 +405,7 @@ func Read(r io.Reader) (p Packet, err error) {
 type SignatureType uint8
 
 const (
-	SigTypeBinary            SignatureType = 0
+	SigTypeBinary                          = 0
 	SigTypeText                            = 1
 	SigTypeGenericCert                     = 0x10
 	SigTypePersonaCert                     = 0x11

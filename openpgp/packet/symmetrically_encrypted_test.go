@@ -36,6 +36,7 @@ func (t *testReader) Read(buf []byte) (n int, err error) {
 	return
 }
 
+// TODO(zugzwang): Why is this test inactive, and more importantly, not passing?
 func testMDCReader(t *testing.T) {
 	mdcPlaintext, _ := hex.DecodeString(mdcPlaintextHex)
 

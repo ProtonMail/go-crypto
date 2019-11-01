@@ -395,7 +395,7 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		// Embedded signatures are required to be v4 signatures see
 		// section 12.1. However, we only parse v4 signatures in this
 		// file anyway.
-		if err := sig.EmbeddedSignature.parse(bytes.NewBuffer(subpacket)); err != nil {
+		if err = sig.EmbeddedSignature.parse(bytes.NewBuffer(subpacket)); err != nil {
 			return nil, err
 		}
 		if sigType := sig.EmbeddedSignature.SigType; sigType != SigTypePrimaryKeyBinding {
@@ -470,7 +470,6 @@ func serializeSubpackets(to []byte, subpackets []outputSubpacket, hashed bool) {
 			to = to[n:]
 		}
 	}
-	return
 }
 
 // SigExpired returns whether sig is a signature that has expired or is created
@@ -540,9 +539,10 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 	switch priv.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly:
 		// supports both *rsa.PrivateKey and crypto.Signer
-		sigdata, err := priv.PrivateKey.(crypto.Signer).Sign(config.Random(), digest, sig.Hash)
+		var sigData []byte
+		sigData, err = priv.PrivateKey.(crypto.Signer).Sign(config.Random(), digest, sig.Hash)
 		if err == nil {
-			sig.RSASignature = encoding.NewMPI(sigdata)
+			sig.RSASignature = encoding.NewMPI(sigData)
 		}
 	case PubKeyAlgoDSA:
 		dsaPriv := priv.PrivateKey.(*dsa.PrivateKey)
@@ -552,7 +552,8 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 		if len(digest) > subgroupSize {
 			digest = digest[:subgroupSize]
 		}
-		r, s, err := dsa.Sign(config.Random(), dsaPriv, digest)
+		var r, s *big.Int
+		r, s, err = dsa.Sign(config.Random(), dsaPriv, digest)
 		if err == nil {
 			sig.DSASigR = new(encoding.MPI).SetBig(r)
 			sig.DSASigS = new(encoding.MPI).SetBig(s)
@@ -574,10 +575,11 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 			sig.ECDSASigS = new(encoding.MPI).SetBig(s)
 		}
 	case PubKeyAlgoEdDSA:
-		sigdata, err := priv.PrivateKey.(crypto.Signer).Sign(config.Random(), digest, crypto.Hash(0))
+		var sigData []byte
+		sigData, err = priv.PrivateKey.(crypto.Signer).Sign(config.Random(), digest, crypto.Hash(0))
 		if err == nil {
-			sig.EdDSASigR = encoding.NewMPI(sigdata[:32])
-			sig.EdDSASigS = encoding.NewMPI(sigdata[32:])
+			sig.EdDSASigR = encoding.NewMPI(sigData[:32])
+			sig.EdDSASigS = encoding.NewMPI(sigData[32:])
 		}
 	default:
 		err = errors.UnsupportedError("public key algorithm: " + strconv.Itoa(int(sig.PubKeyAlgo)))

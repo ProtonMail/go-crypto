@@ -258,6 +258,9 @@ func (pk *PrivateKey) SerializeUnEncrypted(w io.Writer) (err error) {
 	default:
 		err = errors.InvalidArgumentError("unknown private key type")
 	}
+	if err != nil {
+		return
+	}
 	privateKeyBytes := buf.Bytes()
 	if pk.sha1Checksum {
 		h := sha1.New()

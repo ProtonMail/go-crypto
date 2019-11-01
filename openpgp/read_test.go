@@ -445,42 +445,34 @@ func TestIssue11504(t *testing.T) {
 func TestSignatureV3Message(t *testing.T) {
 	sig, err := armor.Decode(strings.NewReader(signedMessageV3))
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 	key, err := ReadArmoredKeyRing(strings.NewReader(keyV4forVerifyingSignedMessageV3))
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 	md, err := ReadMessage(sig.Body, key, nil, nil)
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 
 	_, err = ioutil.ReadAll(md.UnverifiedBody)
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 
 	// We'll see a sig error here after reading in the UnverifiedBody above,
 	// if there was one to see.
 	if err = md.SignatureError; err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 
 	if md.SignatureV3 == nil {
-		t.Errorf("No available signature after checking signature")
-		return
+		t.Fatalf("No available signature after checking signature")
 	}
 	if md.Signature != nil {
-		t.Errorf("Did not expect a signature V4 back")
-		return
+		t.Fatalf("Did not expect a signature V4 back")
 	}
-	return
 }
 
 const testKey1KeyId = 0xA34D7E18C20C31BB
