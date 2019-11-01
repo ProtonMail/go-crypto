@@ -26,7 +26,7 @@ func (conf *AEADConfig) Mode() AEADMode {
 		mode != AEADModeExperimentalGCM {
 		panic("AEAD mode unsupported")
 	}
-	return conf.DefaultMode
+	return mode
 }
 
 // ChunkLength returns the maximum number of body octets in each chunk of data.
