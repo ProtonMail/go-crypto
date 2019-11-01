@@ -228,7 +228,7 @@ func (aw *aeadEncrypter) Write(plaintextBytes []byte) (n int, err error) {
 		bytesWritten, err := aw.writer.Write(encryptedChunk)
 		n += bytesWritten
 		if err != nil || bytesWritten < tagLen {
-			return n, errors.AEADError("error writing encrypted chunk")
+			return n, err
 		}
 		aw.bytesProcessed += bytesWritten - tagLen
 	}
