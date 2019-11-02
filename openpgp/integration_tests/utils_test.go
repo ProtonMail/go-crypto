@@ -2,14 +2,15 @@ package integrationtests
 
 import (
 	"bytes"
-	"strings"
 	"crypto/rand"
-	mathrand "math/rand"
 	"golang.org/x/crypto/openpgp"
-	"golang.org/x/crypto/openpgp/packet"
 	"golang.org/x/crypto/openpgp/armor"
+	"golang.org/x/crypto/openpgp/packet"
+	mathrand "math/rand"
+	"strings"
 	"time"
 )
+
 var maxPasswordLength = 64
 var maxMessageLength = 1 << 12
 
@@ -50,16 +51,12 @@ func generateFreshTestVectors() (vectors []testVector, err error) {
 
 	for _, setting := range keySettings {
 		// Sample random email, comment, password and message
-		name := randomName()
-		email := randomEmail()
-		comment := randomComment()
-		password := randomPassword()
-		message := randomMessage()
+		name, email, comment, password, message := randEntityData()
 
 		newVector := testVector{
-			name: setting.name + "_fresh",
+			name:     setting.name + "_fresh",
 			password: password,
-			message: message,
+			message:  message,
 		}
 
 		// Generate keys
@@ -145,58 +142,61 @@ func publicKey(privateKey string) (string, error) {
 
 var runes = []rune("abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKMNOPQRSTUVWXYZ.:;?/!@#$%^&*{}[]_'\"-+~()<>")
 
-func randomName() string {
+func randName() string {
 	firstName := make([]rune, 8)
 	lastName := make([]rune, 8)
 	nameRunes := runes[:26]
-    for i := range firstName {
-        firstName[i] = nameRunes[mathrand.Intn(len(nameRunes))]
-    }
-    for i := range lastName {
-        lastName[i] = nameRunes[mathrand.Intn(len(nameRunes))]
-    }
-    return string(firstName) + " " + string(lastName)
+
+	for i := range firstName {
+		firstName[i] = nameRunes[mathrand.Intn(len(nameRunes))]
+	}
+
+	for i := range lastName {
+		lastName[i] = nameRunes[mathrand.Intn(len(nameRunes))]
+	}
+
+	return string(firstName) + " " + string(lastName)
 }
 
-func randomEmail() string {
-    address := make([]rune, 20)
+func randEmail() string {
+	address := make([]rune, 20)
 	addressRunes := runes[:38]
 	domain := make([]rune, 5)
 	domainRunes := runes[:36]
 	ext := make([]rune, 3)
-    for i := range address {
-        address[i] = addressRunes[mathrand.Intn(len(addressRunes))]
-    }
-    for i := range domain {
-        domain[i] = domainRunes[mathrand.Intn(len(domainRunes))]
-    }
-    for i := range ext {
-        ext[i] = domainRunes[mathrand.Intn(len(domainRunes))]
-    }
+	for i := range address {
+		address[i] = addressRunes[mathrand.Intn(len(addressRunes))]
+	}
+	for i := range domain {
+		domain[i] = domainRunes[mathrand.Intn(len(domainRunes))]
+	}
+	for i := range ext {
+		ext[i] = domainRunes[mathrand.Intn(len(domainRunes))]
+	}
 	email := string(address) + "@" + string(domain) + "." + string(ext)
-    return email
+	return email
 }
 
 // Comment does not allow the following characters: ()<>\x00
-func randomComment() string {
-    comment := make([]rune, 140)
+func randComment() string {
+	comment := make([]rune, 140)
 	commentRunes := runes[:84]
-    for i := range comment {
-        comment[i] = commentRunes[mathrand.Intn(len(commentRunes))]
-    }
-    return string(comment)
+	for i := range comment {
+		comment[i] = commentRunes[mathrand.Intn(len(commentRunes))]
+	}
+	return string(comment)
 }
 
-func randomPassword() string {
-    password := make([]rune, mathrand.Intn(maxPasswordLength-1)+1)
-    for i := range password {
-        password[i] = runes[mathrand.Intn(len(runes))]
-    }
-    return string(password)
+func randPassword() string {
+	password := make([]rune, mathrand.Intn(maxPasswordLength-1)+1)
+	for i := range password {
+		password[i] = runes[mathrand.Intn(len(runes))]
+	}
+	return string(password)
 }
 
-func randomMessage() string {
-	message := make([]byte, 1 + mathrand.Intn(maxMessageLength-1))
+func randMessage() string {
+	message := make([]byte, 1+mathrand.Intn(maxMessageLength-1))
 	if _, err := rand.Read(message); err != nil {
 		panic(err)
 	}
@@ -213,4 +213,8 @@ func corrupt(input string) string {
 		output[mathrand.Intn(len(output))] = runes[mathrand.Intn(len(runes))]
 	}
 	return string(output)
+}
+
+func randEntityData() (string, string, string, string, string) {
+	return randName(), randEmail(), randComment(), randPassword(), randMessage()
 }
