@@ -47,7 +47,7 @@ var CipherById = map[uint8]Cipher{
 // CipherFunction determines the block cipher algorithm.
 type CipherFunction uint8
 
-// Id returns the algorithm Id, as a byte, of cipher.
+// Id returns the algorithm ID, as a byte, of cipher.
 func (cipher CipherFunction) Id() uint8 {
 	return uint8(cipher)
 }
