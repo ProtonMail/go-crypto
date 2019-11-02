@@ -42,7 +42,6 @@ func X25519GenerateParams(rand io.Reader) (priv [32]byte, x [32]byte, err error)
 		curve25519.ScalarBaseMult(&x, &priv)
 		return
 	}
-	return
 }
 
 // X25519GenerateKey generates and returns a private key from the given random

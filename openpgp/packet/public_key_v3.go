@@ -36,6 +36,7 @@ type PublicKeyV3 struct {
 	n, e encoding.Field
 }
 
+// TODO(zugzwang): This function is unused. Should be deprecated
 // newRSAPublicKeyV3 returns a PublicKey that wraps the given rsa.PublicKey.
 // Included here for testing purposes only. RFC 4880, section 5.5.2:
 // "an implementation MUST NOT generate a V3 key, but MAY accept it."
@@ -255,7 +256,9 @@ func userIdSignatureV3Hash(id string, pk signingKey, hfn crypto.Hash) (h hash.Ha
 
 	// RFC 4880, section 5.2.4
 	pk.SerializeSignaturePrefix(h)
-	pk.serializeWithoutHeaders(h)
+	if err = pk.serializeWithoutHeaders(h); err != nil {
+		return nil, err
+	}
 
 	h.Write([]byte(id))
 

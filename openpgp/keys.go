@@ -335,7 +335,7 @@ func ReadEntity(packets *packet.Reader) (*Entity, error) {
 	var revocations []*packet.Signature
 EachPacket:
 	for {
-		p, err := packets.Next()
+		p, err = packets.Next()
 		if err == io.EOF {
 			break
 		} else if err != nil {
@@ -344,7 +344,7 @@ EachPacket:
 
 		switch pkt := p.(type) {
 		case *packet.UserId:
-			if err := addUserID(e, packets, pkt); err != nil {
+			if err = addUserID(e, packets, pkt); err != nil {
 				return nil, err
 			}
 		case *packet.Signature:

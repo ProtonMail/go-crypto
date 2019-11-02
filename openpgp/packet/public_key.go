@@ -30,9 +30,6 @@ import (
 	"golang.org/x/crypto/rsa"
 )
 
-type kdfHashFunction byte
-type kdfAlgorithm byte
-
 // PublicKey represents an OpenPGP public key. See RFC 4880, section 5.5.2.
 type PublicKey struct {
 	CreationTime time.Time
@@ -445,7 +442,6 @@ func (pk *PublicKey) SerializeSignaturePrefix(h io.Writer) {
 	}
 	pLength += 6
 	h.Write([]byte{0x99, byte(pLength >> 8), byte(pLength)})
-	return
 }
 
 // Serialize writes the serialized contents of the given PublicKey into the
@@ -682,9 +678,13 @@ func keySignatureHash(pk, signed signingKey, hashFunc crypto.Hash) (h hash.Hash,
 
 	// RFC 4880, section 5.2.4
 	pk.SerializeSignaturePrefix(h)
-	pk.serializeWithoutHeaders(h)
+	if err = pk.serializeWithoutHeaders(h); err != nil {
+		return nil, err
+	}
 	signed.SerializeSignaturePrefix(h)
-	signed.serializeWithoutHeaders(h)
+	if err = signed.serializeWithoutHeaders(h); err != nil {
+		return nil, err
+	}
 	return
 }
 
@@ -727,8 +727,9 @@ func keyRevocationHash(pk signingKey, hashFunc crypto.Hash) (h hash.Hash, err er
 
 	// RFC 4880, section 5.2.4
 	pk.SerializeSignaturePrefix(h)
-	pk.serializeWithoutHeaders(h)
-
+	if err = pk.serializeWithoutHeaders(h); err != nil {
+		return nil, err
+	}
 	return
 }
 
@@ -752,7 +753,9 @@ func userIdSignatureHash(id string, pk *PublicKey, hashFunc crypto.Hash) (h hash
 
 	// RFC 4880, section 5.2.4
 	pk.SerializeSignaturePrefix(h)
-	pk.serializeWithoutHeaders(h)
+	if err = pk.serializeWithoutHeaders(h); err != nil {
+		return nil, err
+	}
 
 	var buf [5]byte
 	buf[0] = 0xb4
