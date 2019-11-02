@@ -4,9 +4,11 @@ package integrationtests
 
 import (
 	"bytes"
+	"encoding/json"
 	"golang.org/x/crypto/openpgp"
 	"golang.org/x/crypto/openpgp/armor"
 	"io"
+	"os"
 	"io/ioutil"
 	"strings"
 	"testing"
@@ -21,9 +23,30 @@ import (
 //
 /////////////////////////////////////////////////////////////////////////////
 
+type testVector struct {
+	Message                string
+	Name                   string
+	PrivateKey             string
+	PublicKey              string
+	Password               string
+	EncryptedSignedMessage string
+}
+
 // Takes a set of different keys (some external, some generated here) and test
 // interactions between them: encrypt, sign, decrypt, verify random messages.
 func TestEndToEnd(t *testing.T) {
+	// Fetch foreign test vectors from JSON file
+	file, err := os.Open("test_vectors.json")
+	if err != nil {
+		panic(err)
+	}
+	raw, err := ioutil.ReadAll(file)
+	var foreignTestVectors []testVector
+	err = json.Unmarshal(raw, &foreignTestVectors)
+	if err != nil {
+		panic(err)
+	}
+
 	// Generate random test vectors with the given key settings.
 	freshTestVectors, err := generateFreshTestVectors()
 	if err != nil {
@@ -37,9 +60,9 @@ func TestEndToEnd(t *testing.T) {
 	// (2) Sign and verify random messages, and (3) Encrypt random messages for
 	// each of the other keys and then decrypt on the other end.
 	for _, from := range testVectors {
-		skFrom := readArmoredSk(t, from.privateKey, from.password)
-		pkFrom := readArmoredPk(t, from.publicKey)
-		t.Run(from.name, func(t *testing.T) {
+		skFrom := readArmoredSk(t, from.PrivateKey, from.Password)
+		pkFrom := readArmoredPk(t, from.PublicKey)
+		t.Run(from.Name, func(t *testing.T) {
 
 			// 1. Decrypt the existing message of the given test vector
 			t.Run("DecryptPreparedMessage",
@@ -68,53 +91,47 @@ func TestEndToEnd(t *testing.T) {
 // This subtest decrypts the existing encrypted and signed message of each
 // testVector.
 func decryptionTest(t *testing.T, vector testVector, sk openpgp.EntityList) {
-	if vector.encryptedSignedMessage == "" {
+	if vector.EncryptedSignedMessage == "" {
 		return
 	}
 	prompt := func(keys []openpgp.Key, symmetric bool) ([]byte, error) {
-		err := keys[0].PrivateKey.Decrypt([]byte(vector.password))
+		err := keys[0].PrivateKey.Decrypt([]byte(vector.Password))
 		if err != nil {
 			t.Errorf("prompt: error decrypting key: %s", err)
 			return nil, err
 		}
 		return nil, nil
 	}
-	sig, err := armor.Decode(strings.NewReader(vector.encryptedSignedMessage))
+	sig, err := armor.Decode(strings.NewReader(vector.EncryptedSignedMessage))
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 	md, err := openpgp.ReadMessage(sig.Body, sk, prompt, nil)
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 
 	body, err := ioutil.ReadAll(md.UnverifiedBody)
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 
 	stringBody := string(body)
-	if stringBody != vector.message {
+	if stringBody != vector.Message {
 		t.Fatal("Decrypted body did not match expected body")
 	}
 
 	// We'll see a sig error here after reading in the UnverifiedBody above,
 	// if there was one to see.
 	if err = md.SignatureError; err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 
 	if md.SignatureV3 != nil {
-		t.Errorf("Did not expect a signature V3 back")
-		return
+		t.Fatal("Did not expect a signature V3 back")
 	}
 	if md.Signature == nil {
-		t.Errorf("Expected a signature to be set")
-		return
+		t.Fatal("Expected a signature to be set")
 	}
 	return
 }
@@ -122,22 +139,22 @@ func decryptionTest(t *testing.T, vector testVector, sk openpgp.EntityList) {
 // Given a testVector, encrypts random messages for all given testVectors
 // (including self) and verifies on the other end.
 func encDecTest(t *testing.T, from testVector, testVectors []testVector) {
-	skFrom := readArmoredSk(t, from.privateKey, from.password)
+	skFrom := readArmoredSk(t, from.PrivateKey, from.Password)
 	// Decrypt private key if necessary
-	err := skFrom.DecryptionKeys()[0].PrivateKey.Decrypt([]byte(from.password))
+	err := skFrom.DecryptionKeys()[0].PrivateKey.Decrypt([]byte(from.Password))
 	if err != nil {
 		t.Error(err)
 	}
-	pkFrom := readArmoredPk(t, from.publicKey)
+	pkFrom := readArmoredPk(t, from.PublicKey)
 	for _, to := range testVectors {
-		t.Run(to.name, func(t *testing.T) {
-			pkTo := readArmoredPk(t, to.publicKey)
-			skTo := readArmoredSk(t, to.privateKey, to.password)
+		t.Run(to.Name, func(t *testing.T) {
+			pkTo := readArmoredPk(t, to.PublicKey)
+			skTo := readArmoredSk(t, to.PrivateKey, to.Password)
 			message := randMessage()
 
 			// Encrypt message
 			signed := skFrom[0]
-			errDec := signed.PrivateKey.Decrypt([]byte(from.password))
+			errDec := signed.PrivateKey.Decrypt([]byte(from.Password))
 			if errDec != nil {
 				t.Error(errDec)
 			}
@@ -161,7 +178,7 @@ func encDecTest(t *testing.T, from testVector, testVectors []testVector) {
 
 			// Decrypt recipient key
 			prompt := func(keys []openpgp.Key, symm bool) ([]byte, error) {
-				err := keys[0].PrivateKey.Decrypt([]byte(to.password))
+				err := keys[0].PrivateKey.Decrypt([]byte(to.Password))
 				if err != nil {
 					t.Errorf("Prompt: error decrypting key: %s", err)
 					return nil, err
@@ -229,7 +246,7 @@ func signVerifyTest(
 	binary bool,
 ) {
 	signed := skFrom[0]
-	if err := signed.PrivateKey.Decrypt([]byte(from.password)); err != nil {
+	if err := signed.PrivateKey.Decrypt([]byte(from.Password)); err != nil {
 		t.Error(err)
 	}
 
@@ -265,7 +282,6 @@ func signVerifyTest(
 		pkFrom, corruptMessage, signatureReader, nil)
 	if err == nil || wrongsigner != nil {
 		t.Fatal("Expected the signature to not verify")
-		return
 	}
 
 	// Reset the reader and verify against the message with different line
@@ -285,12 +301,10 @@ func signVerifyTest(
 		}
 	} else {
 		if err != nil {
-			t.Errorf("signature error: %s", err)
-			return
+			t.Fatalf("signature error: %s", err)
 		}
 		if otherSigner == nil {
-			t.Errorf("signer is nil")
-			return
+			t.Fatalf("signer is nil")
 		}
 		if otherSigner.PrimaryKey.KeyId != signed.PrimaryKey.KeyId {
 			t.Errorf(
@@ -312,17 +326,14 @@ func signVerifyTest(
 		pkFrom, message, signatureReader, nil)
 
 	if err != nil {
-		t.Errorf("signature error: %s", err)
-		return
+		t.Fatalf("signature error: %s", err)
 	}
 	if signer == nil {
-		t.Errorf("signer is nil")
-		return
+		t.Fatalf("signer is nil")
 	}
 	if signer.PrimaryKey.KeyId != signed.PrimaryKey.KeyId {
 		t.Errorf("wrong signer got:%x want:%x", signer.PrimaryKey.KeyId, 0)
 	}
-
 	return
 }
 

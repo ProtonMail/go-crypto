@@ -8,55 +8,48 @@ import (
 	"golang.org/x/crypto/openpgp/packet"
 	mathrand "math/rand"
 	"strings"
-	"time"
 )
 
-var maxPasswordLength = 64
-var maxMessageLength = 1 << 12
-
-type keySetting struct {
-	name string
-	cfg  *packet.Config
-}
-
-// Settings for generating random, fresh key pairs
-var keySettings = []keySetting{
-	{
-		"rsa2048",
-		&packet.Config{
-			RSABits:   2048,
-			Algorithm: packet.PubKeyAlgoRSA,
-		},
-	},
-	{
-		"rsa4096",
-		&packet.Config{
-			RSABits:   4096,
-			Algorithm: packet.PubKeyAlgoRSA,
-		},
-	},
-	{
-		"ed25519",
-		&packet.Config{
-			Algorithm: packet.PubKeyAlgoEdDSA,
-		},
-	},
-}
 
 // This function produces random test vectors: generates keys according to the
 // given settings, associates a random message for each key. It returns the
 // test vectors.
 func generateFreshTestVectors() (vectors []testVector, err error) {
-	mathrand.Seed(time.Now().UTC().UnixNano())
+	// Settings for generating random, fresh key pairs
+	var keySettings = []struct {
+		name string
+		cfg  *packet.Config
+	}{
+		{
+			"rsa2048",
+			&packet.Config{
+				RSABits:   2048,
+				Algorithm: packet.PubKeyAlgoRSA,
+			},
+		},
+		{
+			"rsa4096",
+			&packet.Config{
+				RSABits:   4096,
+				Algorithm: packet.PubKeyAlgoRSA,
+			},
+		},
+		{
+			"ed25519",
+			&packet.Config{
+				Algorithm: packet.PubKeyAlgoEdDSA,
+			},
+		},
+	}
 
 	for _, setting := range keySettings {
 		// Sample random email, comment, password and message
 		name, email, comment, password, message := randEntityData()
 
 		newVector := testVector{
-			name:     setting.name + "_fresh",
-			password: password,
-			message:  message,
+			Name:     setting.name + "_fresh",
+			Password: password,
+			Message:  message,
 		}
 
 		// Generate keys
@@ -93,8 +86,8 @@ func generateFreshTestVectors() (vectors []testVector, err error) {
 		serialized := w.Bytes()
 
 		privateKey, _ := armorWithType(serialized, "PGP PRIVATE KEY BLOCK")
-		newVector.privateKey = privateKey
-		newVector.publicKey, _ = publicKey(privateKey)
+		newVector.PrivateKey = privateKey
+		newVector.PublicKey, _ = publicKey(privateKey)
 
 		vectors = append(vectors, newVector)
 	}
@@ -188,6 +181,7 @@ func randComment() string {
 }
 
 func randPassword() string {
+	maxPasswordLength := 64
 	password := make([]rune, mathrand.Intn(maxPasswordLength-1)+1)
 	for i := range password {
 		password[i] = runes[mathrand.Intn(len(runes))]
@@ -196,6 +190,7 @@ func randPassword() string {
 }
 
 func randMessage() string {
+	maxMessageLength := 1 << 12
 	message := make([]byte, 1+mathrand.Intn(maxMessageLength-1))
 	if _, err := rand.Read(message); err != nil {
 		panic(err)
