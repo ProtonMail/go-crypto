@@ -142,7 +142,7 @@ func (r *openpgpReader) Read(p []byte) (n int, err error) {
 	r.currentCRC = crc24(r.currentCRC, p[:n])
 
 	if err == io.EOF {
-		if r.lReader.crc != uint32(r.currentCRC&crc24Mask) {
+		if r.lReader.crc != r.currentCRC&crc24Mask {
 			return 0, ArmorCorrupt
 		}
 	}
