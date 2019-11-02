@@ -80,7 +80,7 @@ func generateFreshTestVectors() (vectors []testVector, err error) {
 
 		w := bytes.NewBuffer(nil)
 		if err = newEntity.SerializePrivateNoSign(w, nil); err != nil {
-			return
+			return nil, err
 		}
 
 		serialized := w.Bytes()
@@ -91,7 +91,7 @@ func generateFreshTestVectors() (vectors []testVector, err error) {
 
 		vectors = append(vectors, newVector)
 	}
-	return
+	return vectors, err
 }
 
 // armorWithType make bytes input to armor format

@@ -41,6 +41,9 @@ func TestEndToEnd(t *testing.T) {
 		panic(err)
 	}
 	raw, err := ioutil.ReadAll(file)
+	if err != nil {
+		panic(err)
+	}
 	var foreignTestVectors []testVector
 	err = json.Unmarshal(raw, &foreignTestVectors)
 	if err != nil {
@@ -133,7 +136,6 @@ func decryptionTest(t *testing.T, vector testVector, sk openpgp.EntityList) {
 	if md.Signature == nil {
 		t.Fatal("Expected a signature to be set")
 	}
-	return
 }
 
 // Given a testVector, encrypts random messages for all given testVectors
@@ -334,7 +336,6 @@ func signVerifyTest(
 	if signer.PrimaryKey.KeyId != signed.PrimaryKey.KeyId {
 		t.Errorf("wrong signer got:%x want:%x", signer.PrimaryKey.KeyId, 0)
 	}
-	return
 }
 
 func readArmoredPk(t *testing.T, publicKey string) openpgp.EntityList {
