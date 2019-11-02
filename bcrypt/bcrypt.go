@@ -30,8 +30,8 @@ var ErrMismatchedHashAndPassword = errors.New("crypto/bcrypt: hashedPassword is 
 // ErrHashTooShort is returned from CompareHashAndPassword when a hash is too short to be a bcrypt hash.
 var ErrHashTooShort = errors.New("crypto/bcrypt: hashedSecret too short to be a bcrypted password")
 
-// HashVersionTooNewError is returned from CompareHashAndPassword when a hash was created with // a bcrypt algorithm
-// newer than this implementation.
+// HashVersionTooNewError is returned from CompareHashAndPassword when a hash
+// was created with a bcrypt algorithm newer than this implementation.
 type HashVersionTooNewError byte
 
 func (hv HashVersionTooNewError) Error() string {

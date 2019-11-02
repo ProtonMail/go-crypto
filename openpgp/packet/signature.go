@@ -331,7 +331,7 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		sig.PreferredCompression = make([]byte, len(subpacket))
 		copy(sig.PreferredCompression, subpacket)
 	case primaryUserIdSubpacket:
-		// Primary User Id, section 5.2.3.19
+		// Primary User ID, section 5.2.3.19
 		if !isHashed {
 			return
 		}
