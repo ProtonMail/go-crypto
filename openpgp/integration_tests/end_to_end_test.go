@@ -36,7 +36,7 @@ type testVector struct {
 // interactions between them: encrypt, sign, decrypt, verify random messages.
 func TestEndToEnd(t *testing.T) {
 	// Fetch foreign test vectors from JSON file
-	file, err := os.Open("test_vectors.json")
+	file, err := os.Open("testdata/test_vectors.json")
 	if err != nil {
 		panic(err)
 	}
