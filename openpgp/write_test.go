@@ -344,6 +344,10 @@ func TestEncryption(t *testing.T) {
 	}
 }
 
+func TestAead(t *testing.T) {
+	t.Fail()
+}
+
 var testSigningTests = []struct {
 	keyRingHex string
 }{

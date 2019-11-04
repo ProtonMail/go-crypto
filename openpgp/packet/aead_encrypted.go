@@ -63,10 +63,9 @@ func (ae *AEADEncrypted) parse(buf io.Reader) error {
 	ae.Contents = buf
 	ae.initialNonce = initialNonce
 	c := headerData[1]
-	if _, ok := algorithm.CipherById[c]; !ok {
+	if ae.cipher, ok := algorithm.CipherById[c]; !ok {
 		return errors.UnsupportedError("unknown cipher: " + string(c))
 	}
-	ae.cipher = CipherFunction(c)
 	ae.mode = mode
 	ae.chunkSizeByte = byte(headerData[3])
 	return nil
@@ -161,7 +160,7 @@ func (ar *aeadDecrypter) Close() (err error) {
 
 // SerializeAEADEncrypted initializes the aeadCrypter and returns a writer.
 // This writer encrypts and writes bytes (see aeadEncrypter.Write()).
-func SerializeAEADEncrypted(w io.Writer, key []byte, config *Config) (io.WriteCloser, error) {
+func SerializeAEADEncrypted(w io.Writer, key []byte, cipher CipherFunction, mode AEADMode, config *Config) (io.WriteCloser, error) {
 	writeCloser := noOpCloser{w}
 	writer, err := serializeStreamHeader(writeCloser, packetTypeAEADEncrypted)
 	if err != nil {
