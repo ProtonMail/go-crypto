@@ -165,7 +165,7 @@ func TestAeadRandomStream(t *testing.T) {
 			DefaultMode: modes[mathrand.Intn(len(modes))],
 		}
 		config := &Config{
-			AEADConfig: aeadConf,
+			AEADConfig: &aeadConf,
 			DefaultCipher: ciph,
 		}
 
@@ -252,7 +252,7 @@ func TestAeadRandomCorruptStream(t *testing.T) {
 			DefaultMode: modes[mathrand.Intn(len(modes))],
 		}
 		config := &Config{
-			AEADConfig: aeadConf,
+			AEADConfig: &aeadConf,
 			DefaultCipher: ciph,
 		}
 
@@ -346,7 +346,7 @@ func TestAeadEmptyStream(t *testing.T) {
 	chunkSize := uint64(1 << uint(chunkSizeExp))
 	ciph := aeadCompatibleCiphers[mathrand.Intn(len(aeadCompatibleCiphers))]
 	config := &Config{
-		AEADConfig: AEADConfig{
+		AEADConfig: &AEADConfig{
 			ChunkSize: chunkSize,
 			DefaultMode: modes[mathrand.Intn(len(modes))],
 		},

@@ -175,7 +175,7 @@ func TestSymmetricEncryptionV5(t *testing.T) {
 	aeadConf := packet.AEADConfig{
 		DefaultMode: modes[mathrand.Intn(len(modes))],
 	}
-	config := &packet.Config{AEADConfig: aeadConf}
+	config := &packet.Config{AEADConfig: &aeadConf}
 	for i := 0; i < iterationsVerySlow; i++ {
 		buf := new(bytes.Buffer)
 		passphrase := make([]byte, mathrand.Intn(maxPassLen))
@@ -304,7 +304,7 @@ func TestEncryption(t *testing.T) {
 				DefaultMode: modes[mathrand.Intn(len(modes))],
 			}
 			config = &packet.Config{
-				AEADConfig:  aeadConf,
+				AEADConfig:  &aeadConf,
 			}
 		}
 
@@ -369,10 +369,6 @@ func TestEncryption(t *testing.T) {
 			}
 		}
 	}
-}
-
-func TestAead(t *testing.T) {
-	t.Fail()
 }
 
 var testSigningTests = []struct {

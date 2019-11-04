@@ -134,7 +134,7 @@ var keySets = []keySet{
 		&packet.Config{
 			RSABits: 2048,
 			Algorithm: packet.PubKeyAlgoRSA,
-			AEADConfig: aeadConf,
+			AEADConfig: &aeadConf,
 		},
 	},
 	{
@@ -142,14 +142,14 @@ var keySets = []keySet{
 		&packet.Config{
 			RSABits: 4096,
 			Algorithm: packet.PubKeyAlgoRSA,
-			AEADConfig: aeadConf,
+			AEADConfig: &aeadConf,
 		},
 	},
 	{
 		"ed25519Aead",
 		&packet.Config{
 			Algorithm: packet.PubKeyAlgoEdDSA,
-			AEADConfig: aeadConf,
+			AEADConfig: &aeadConf,
 		},
 	},
 }

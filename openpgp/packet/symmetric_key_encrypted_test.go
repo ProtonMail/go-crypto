@@ -84,9 +84,8 @@ func TestRandomSerializeSymmetricKeyEncryptedV5(t *testing.T) {
 			DefaultMode: modes[mathrand.Intn(len(modes))],
 		}
 		config := &Config{
-			AEADEnabled: true,
 			DefaultCipher: ciphers[mathrand.Intn(len(ciphers))],
-			AEADConfig: aeadConf,
+			AEADConfig: &aeadConf,
 		}
 		key, err := SerializeSymmetricKeyEncrypted(&buf, passphrase, config)
 		p, err := Read(&buf)

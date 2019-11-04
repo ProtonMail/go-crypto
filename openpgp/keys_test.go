@@ -484,7 +484,7 @@ func TestNewEntityWithoutPreferredSymmetric(t *testing.T) {
 
 func TestNewEntityWithPreferredAead(t *testing.T) {
 	cfg := &packet.Config{
-		AEADConfig: packet.AEADConfig{
+		AEADConfig: &packet.AEADConfig{
 			DefaultMode: packet.AEADModeEAX,
 		},
 	}

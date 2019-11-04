@@ -7,8 +7,8 @@ package openpgp
 import (
 	"bytes"
 	"crypto/sha512"
-	"encoding/hex"
 	"encoding/base64"
+	"encoding/hex"
 	"io"
 	"io/ioutil"
 	"os"
@@ -170,27 +170,27 @@ func TestCampbellQuine(t *testing.T) {
 	}
 }
 
-var signedEncryptedMessageTests = []struct {
-	keyRingHex       string
-	messageHex       string
-	signedByKeyId    uint64
-	encryptedToKeyId uint64
-}{
-	{
-		testKeys1And2PrivateHex,
-		signedEncryptedMessageHex,
-		0xa34d7e18c20c31bb,
-		0x2a67d68660df41c7,
-	},
-	{
-		dsaElGamalTestKeysHex,
-		signedEncryptedMessage2Hex,
-		0x33af447ccd759b09,
-		0xcf6a7abcd43e3673,
-	},
-}
 
 func TestSignedEncryptedMessage(t *testing.T) {
+	var signedEncryptedMessageTests = []struct {
+		keyRingHex       string
+		messageHex       string
+		signedByKeyId    uint64
+		encryptedToKeyId uint64
+	}{
+		{
+			testKeys1And2PrivateHex,
+			signedEncryptedMessageHex,
+			0xa34d7e18c20c31bb,
+			0x2a67d68660df41c7,
+		},
+		{
+			dsaElGamalTestKeysHex,
+			signedEncryptedMessage2Hex,
+			0x33af447ccd759b09,
+			0xcf6a7abcd43e3673,
+		},
+	}
 	for i, test := range signedEncryptedMessageTests {
 		expected := "Signed and encrypted message\n"
 		kring, _ := ReadKeyRing(readerFromHex(test.keyRingHex))
@@ -485,7 +485,7 @@ func TestSignatureV3Message(t *testing.T) {
 	return
 }
 
-func TestSymmetricAeadGcmOpenPGPJsMessage (t *testing.T) {
+func TestSymmetricAeadGcmOpenPGPJsMessage(t *testing.T) {
 	passphrase := []byte("test")
 	file, err := os.Open("test_data/aead-sym-message.asc")
 	if err != nil {
@@ -570,10 +570,10 @@ func TestAsymmestricAeadOcbOpenPGPjsCompressedMessage(t *testing.T) {
 	}
 }
 
-func TestSymmetricAeadEaxOpenPGPJsMessage (t *testing.T) {
+func TestSymmetricAeadEaxOpenPGPJsMessage(t *testing.T) {
 	key := []byte{79, 41, 206, 112, 224, 133, 140, 223, 27, 61, 227, 57, 114,
-	118, 64, 60, 177, 26, 42, 174, 151, 5, 186, 74, 226, 97, 214, 63, 114, 77,
-	215, 121}
+		118, 64, 60, 177, 26, 42, 174, 151, 5, 186, 74, 226, 97, 214, 63, 114, 77,
+		215, 121}
 
 	file, err := os.Open("test_data/aead-eax-packet.b64")
 	if err != nil {
@@ -617,4 +617,3 @@ func TestSymmetricAeadEaxOpenPGPJsMessage (t *testing.T) {
 		t.Fatal("Did not decrypt OpenPGPjs message correctly")
 	}
 }
-

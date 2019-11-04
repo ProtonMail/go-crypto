@@ -57,7 +57,7 @@ type Config struct {
 	// If AEADConfig is not nil, AEADEncrypted with version 5
 	// SymmetricKeyEncrypted packets are used over SymmetricallyEncrypted with
 	// version 4 SymmetricKeyEncrypted packets.
-	AEADConfig AEADConfig
+	AEADConfig *AEADConfig
 }
 
 func (c *Config) Random() io.Reader {
@@ -106,5 +106,5 @@ func (c *Config) AEAD() *AEADConfig {
 	if c == nil {
 		return nil
 	}
-	return &c.AEADConfig
+	return c.AEADConfig
 }
