@@ -167,7 +167,15 @@ func TestSymmetricEncryption(t *testing.T) {
 }
 
 func TestSymmetricEncryptionV5(t *testing.T) {
-	config := &packet.Config{AEADEnabled: true}
+	var modes = []packet.AEADMode{
+		packet.AEADModeEAX,
+		packet.AEADModeOCB,
+		packet.AEADModeExperimentalGCM,
+	}
+	aeadConf := packet.AEADConfig{
+		DefaultMode: modes[mathrand.Intn(len(modes))],
+	}
+	config := &packet.Config{AEADConfig: aeadConf}
 	for i := 0; i < iterationsVerySlow; i++ {
 		buf := new(bytes.Buffer)
 		passphrase := make([]byte, mathrand.Intn(maxPassLen))
@@ -276,7 +284,6 @@ func TestEncryption(t *testing.T) {
 				DefaultMode: modes[mathrand.Intn(len(modes))],
 			}
 			config = &packet.Config{
-				AEADEnabled: true,
 				AEADConfig:  aeadConf,
 			}
 		}

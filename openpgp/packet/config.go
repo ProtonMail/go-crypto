@@ -54,11 +54,10 @@ type Config struct {
 	// Some known primes that are optionally prepopulated by the caller
 	RSAPrimes []*big.Int
 	// AEADConfig configures the Authenticated Encryption with Associated Data
-	AEADConfig AEADConfig
-	// If AEADEnabled is true, AEADEncrypted with version 5
+	// If AEADConfig is not nil, AEADEncrypted with version 5
 	// SymmetricKeyEncrypted packets are used over SymmetricallyEncrypted with
 	// version 4 SymmetricKeyEncrypted packets.
-	AEADEnabled bool
+	AEADConfig AEADConfig
 }
 
 func (c *Config) Random() io.Reader {
@@ -107,7 +106,10 @@ func (c *Config) IsAEADEnabled() bool {
 	if c == nil {
 		return false
 	}
-	return c.AEADEnabled
+	if &c.AEADConfig != nil {
+		return true
+	}
+	return false
 }
 
 func (c *Config) AEAD() *AEADConfig {
