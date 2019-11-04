@@ -117,7 +117,7 @@ func SymmetricallyEncrypt(ciphertext io.Writer, passphrase []byte, hints *FileHi
 	}
 
 	var w io.WriteCloser
-	if config.IsAEADEnabled() {
+	if config.AEAD() != nil {
 		w, err = packet.SerializeAEADEncrypted(ciphertext, key, config.Cipher(), config.AEAD().Mode(), config)
 		if err != nil {
 			return

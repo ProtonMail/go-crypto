@@ -181,7 +181,7 @@ func (ske *SymmetricKeyEncrypted) decryptV5(key []byte) ([]byte, error) {
 // If config is nil, sensible defaults will be used.
 func SerializeSymmetricKeyEncrypted(w io.Writer, passphrase []byte, config *Config) (key []byte, err error) {
 	var version int
-	if config.IsAEADEnabled() {
+	if config.AEAD() != nil {
 		version = 5
 	} else {
 		version = 4

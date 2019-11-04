@@ -102,13 +102,6 @@ func (c *Config) PasswordHashIterations() int {
 	return c.S2KCount
 }
 
-func (c *Config) IsAEADEnabled() bool {
-	if c != nil && &c.AEADConfig != nil {
-		return true
-	}
-	return false
-}
-
 func (c *Config) AEAD() *AEADConfig {
 	if c == nil {
 		return nil

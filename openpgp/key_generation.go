@@ -125,7 +125,7 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 			FlagCertify:  true,
 			// Set MDC true by default, see 5.8 vs. 5.14
 			MDC:          true,
-			AEAD:         config.IsAEADEnabled(),
+			AEAD:         config.AEAD() != nil,
 			IssuerKeyId:  &e.PrimaryKey.KeyId,
 		},
 	}
@@ -143,7 +143,7 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 	}
 
 	// And for DefaultMode.
-	if config != nil && config.AEAD().DefaultMode != 0 && config.IsAEADEnabled() {
+	if config != nil && config.AEAD() != nil && config.AEAD().DefaultMode != 0 {
 		e.Identities[uid.Id].SelfSignature.PreferredAEAD = []uint8{uint8(config.AEAD().DefaultMode)}
 	}
 
