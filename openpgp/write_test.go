@@ -202,6 +202,26 @@ func TestSymmetricEncryptionV5(t *testing.T) {
 			t.Errorf("error closing plaintext writer: %s", err)
 		}
 
+		// Check if if the packet is AEADEncrypted
+		copiedCiph := make([]byte, len(buf.Bytes()))
+		copy(copiedCiph, buf.Bytes())
+		copiedBuf := bytes.NewBuffer(copiedCiph)
+		packets := packet.NewReader(copiedBuf)
+		// First a SymmetricKeyEncrypted packet
+		p, err := packets.Next()
+		switch tp := p.(type) {
+		case *packet.SymmetricKeyEncrypted:
+		default:
+			t.Errorf("Didn't find a SymmetricKeyEncrypted packet (found %T instead)", tp)
+		}
+		// Then an AEADEncrypted packet
+		p, err = packets.Next()
+		switch tp := p.(type) {
+		case *packet.AEADEncrypted:
+		default:
+			t.Errorf("Didn't find an AEADEncrypted packet (found %T instead)", tp)
+		}
+
 		promptFunc := func(keys []Key, symmetric bool) ([]byte, error) {
 			return passphrase, nil
 		}
