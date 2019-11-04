@@ -132,6 +132,7 @@ ParsePackets:
 			edp = p
 			break ParsePackets
 		case *packet.AEADEncrypted:
+			// edp = p.(*EncryptedDataPacket)
 			edp = p
 			break ParsePackets
 		case *packet.Compressed, *packet.LiteralData, *packet.OnePassSignature:

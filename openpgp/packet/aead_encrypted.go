@@ -63,9 +63,10 @@ func (ae *AEADEncrypted) parse(buf io.Reader) error {
 	ae.Contents = buf
 	ae.initialNonce = initialNonce
 	c := headerData[1]
-	if ae.cipher, ok := algorithm.CipherById[c]; !ok {
+	if _, ok := algorithm.CipherById[c]; !ok {
 		return errors.UnsupportedError("unknown cipher: " + string(c))
 	}
+	ae.cipher = CipherFunction(c)
 	ae.mode = mode
 	ae.chunkSizeByte = byte(headerData[3])
 	return nil
@@ -80,8 +81,8 @@ func (ae *AEADEncrypted) Decrypt(ciph CipherFunction, key []byte) (io.ReadCloser
 // decrypt prepares an aeadCrypter and returns a ReadCloser from which
 // decrypted bytes can be read (see aeadDecrypter.Read()).
 func (ae *AEADEncrypted) decrypt(key []byte) (io.ReadCloser, error) {
-	blockCipher := CipherFunction(ae.cipher).new(key)
-	aead := AEADMode(ae.mode).new(blockCipher)
+	blockCipher := ae.cipher.new(key)
+	aead := ae.mode.new(blockCipher)
 	// Carry the first tagLen bytes
 	tagLen := ae.mode.TagLength()
 	peekedBytes := make([]byte, tagLen)

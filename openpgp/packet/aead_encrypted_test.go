@@ -92,7 +92,9 @@ func TestAeadNilConfigStream(t *testing.T) {
 
 	// 'writeCloser' encrypts and writes the plaintext bytes.
 	raw := bytes.NewBuffer(nil)
-	writeCloser, err := SerializeAEADEncrypted(raw, key, nil)
+	cipher := CipherAES128
+	mode := AEADModeEAX
+	writeCloser, err := SerializeAEADEncrypted(raw, key, cipher, mode, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -177,7 +179,9 @@ func TestAeadRandomStream(t *testing.T) {
 
 		// 'writeCloser' encrypts and writes the plaintext bytes.
 		raw := bytes.NewBuffer(nil)
-		writeCloser, err := SerializeAEADEncrypted(raw, key, config)
+		cipher := CipherAES128
+		mode := AEADModeEAX
+		writeCloser, err := SerializeAEADEncrypted(raw, key, cipher, mode, config)
 		if err != nil {
 			t.Error(err)
 		}
@@ -262,7 +266,9 @@ func TestAeadRandomCorruptStream(t *testing.T) {
 
 		// 'writeCloser' encrypts and writes the plaintext bytes.
 		raw := bytes.NewBuffer(nil)
-		writeCloser, err := SerializeAEADEncrypted(raw, key, config)
+		cipher := CipherAES128
+		mode := AEADModeEAX
+		writeCloser, err := SerializeAEADEncrypted(raw, key, cipher, mode, config)
 		if err != nil {
 			t.Error(err)
 		}
@@ -347,7 +353,9 @@ func TestAeadEmptyStream(t *testing.T) {
 		DefaultCipher: ciph,
 	}
 	raw := bytes.NewBuffer(nil)
-	writeCloser, err := SerializeAEADEncrypted(raw, key, config)
+	cipher := CipherAES128
+	mode := AEADModeEAX
+	writeCloser, err := SerializeAEADEncrypted(raw, key, cipher, mode, config)
 	if err != nil {
 		t.Error(err)
 	}
