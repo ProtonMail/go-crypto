@@ -103,10 +103,7 @@ func (c *Config) PasswordHashIterations() int {
 }
 
 func (c *Config) IsAEADEnabled() bool {
-	if c == nil {
-		return false
-	}
-	if &c.AEADConfig != nil {
+	if c != nil && &c.AEADConfig != nil {
 		return true
 	}
 	return false
