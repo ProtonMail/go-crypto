@@ -1,8 +1,11 @@
 package integrationtests
 
 import (
+	"time"
 	"bytes"
+	"crypto"
 	"crypto/rand"
+	"strconv"
 	"golang.org/x/crypto/openpgp"
 	"golang.org/x/crypto/openpgp/armor"
 	"golang.org/x/crypto/openpgp/packet"
@@ -15,45 +18,21 @@ import (
 // given settings, associates a random message for each key. It returns the
 // test vectors.
 func generateFreshTestVectors() (vectors []testVector, err error) {
-	// Settings for generating random, fresh key pairs
-	var keySettings = []struct {
-		name string
-		cfg  *packet.Config
-	}{
-		{
-			"rsa2048",
-			&packet.Config{
-				RSABits:   2048,
-				Algorithm: packet.PubKeyAlgoRSA,
-			},
-		},
-		{
-			"rsa4096",
-			&packet.Config{
-				RSABits:   4096,
-				Algorithm: packet.PubKeyAlgoRSA,
-			},
-		},
-		{
-			"ed25519",
-			&packet.Config{
-				Algorithm: packet.PubKeyAlgoEdDSA,
-			},
-		},
-	}
-
-	for _, setting := range keySettings {
+	mathrand.Seed(time.Now().UTC().UnixNano())
+	for i := 0; i < 3; i++ {
+		config := randConfig()
 		// Sample random email, comment, password and message
 		name, email, comment, password, message := randEntityData()
 
 		newVector := testVector{
-			Name:     setting.name + "_fresh",
+			config:   config,
+			Name:     strconv.Itoa(int(config.Cipher())) + "_fresh",
 			Password: password,
 			Message:  message,
 		}
 
 		// Generate keys
-		newEntity, errKG := openpgp.NewEntity(name, comment, email, setting.cfg)
+		newEntity, errKG := openpgp.NewEntity(name, comment, email, config)
 		if errKG != nil {
 			panic(errKG)
 		}
@@ -212,4 +191,59 @@ func corrupt(input string) string {
 
 func randEntityData() (string, string, string, string, string) {
 	return randName(), randEmail(), randComment(), randPassword(), randMessage()
+}
+
+func randConfig() *packet.Config {
+	hashes := []crypto.Hash{
+		crypto.SHA256,
+	}
+	hash := hashes[mathrand.Intn(len(hashes))]
+
+	ciphers := []packet.CipherFunction{
+		packet.CipherAES256,
+	}
+	ciph := ciphers[mathrand.Intn(len(ciphers))]
+
+	compAlgos := []packet.CompressionAlgo {
+		packet.CompressionNone,
+		packet.CompressionZIP,
+		packet.CompressionZLIB,
+	}
+	compAlgo := compAlgos[mathrand.Intn(len(compAlgos))]
+
+	pkAlgos := []packet.PublicKeyAlgorithm {
+		packet.PubKeyAlgoRSA,
+		packet.PubKeyAlgoEdDSA,
+	}
+	pkAlgo := pkAlgos[mathrand.Intn(len(pkAlgos))]
+
+
+	var rsaBits int
+	if pkAlgo == packet.PubKeyAlgoRSA {
+		switch mathrand.Int() % 4 {
+		case 0:
+			rsaBits = 2048
+		case 1:
+			rsaBits = 3072
+		case 2:
+			rsaBits = 4096
+		default:
+			rsaBits = 0
+		}
+	}
+
+	level := mathrand.Intn(11)-1
+	compConf := &packet.CompressionConfig{level}
+
+	// Define AEAD mode when it's implemented
+	return &packet.Config{
+		Rand: rand.Reader,
+		DefaultHash: hash,
+		DefaultCipher: ciph,
+		DefaultCompressionAlgo: compAlgo,
+		CompressionConfig: compConf,
+		S2KCount: 1024 + mathrand.Intn(65010689),
+		RSABits: rsaBits,
+		Algorithm: pkAlgo,
+	}
 }

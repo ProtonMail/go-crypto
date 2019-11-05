@@ -7,9 +7,10 @@ import (
 	"encoding/json"
 	"golang.org/x/crypto/openpgp"
 	"golang.org/x/crypto/openpgp/armor"
+	"golang.org/x/crypto/openpgp/packet"
 	"io"
-	"os"
 	"io/ioutil"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -18,7 +19,6 @@ import (
 /////////////////////////////////////////////////////////////////////////////
 // TODO:
 //
-// - Mock config for tests (implement randomConfig() in utils.go).
 // - Move signature line endings test to packet unit tests.
 //
 /////////////////////////////////////////////////////////////////////////////
@@ -30,6 +30,7 @@ type testVector struct {
 	PublicKey              string
 	Password               string
 	EncryptedSignedMessage string
+	config                 *packet.Config
 }
 
 // Takes a set of different keys (some external, some generated here) and test
@@ -109,7 +110,7 @@ func decryptionTest(t *testing.T, vector testVector, sk openpgp.EntityList) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	md, err := openpgp.ReadMessage(sig.Body, sk, prompt, nil)
+	md, err := openpgp.ReadMessage(sig.Body, sk, prompt, vector.config)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +162,7 @@ func encDecTest(t *testing.T, from testVector, testVectors []testVector) {
 				t.Error(errDec)
 			}
 			buf := new(bytes.Buffer)
-			w, err := openpgp.Encrypt(buf, pkTo[:1], signed, nil, nil)
+			w, err := openpgp.Encrypt(buf, pkTo[:1], signed, nil, from.config)
 			if err != nil {
 				t.Fatalf("Error in Encrypt: %s", err)
 			}
@@ -190,7 +191,7 @@ func encDecTest(t *testing.T, from testVector, testVectors []testVector) {
 
 			// Read message with recipient key
 			keyring := append(skTo, pkFrom[:]...)
-			md, err := openpgp.ReadMessage(buf, keyring, prompt, nil)
+			md, err := openpgp.ReadMessage(buf, keyring, prompt, to.config)
 			if err != nil {
 				t.Fatalf("Error reading message: %s", err)
 			}
@@ -220,7 +221,7 @@ func encDecTest(t *testing.T, from testVector, testVectors []testVector) {
 			if len(md.EncryptedToKeyIds) != 1 ||
 				md.EncryptedToKeyIds[0] != expectedEncKeyID {
 				t.Errorf("Expected message to be encrypted to %v, but got %#v",
-				expectedKeyID, md.EncryptedToKeyIds)
+					expectedKeyID, md.EncryptedToKeyIds)
 			}
 
 			// Test decrypted message
@@ -260,7 +261,7 @@ func signVerifyTest(
 	// Add line endings to test whether the non-binary version of this
 	// signature normalizes the final line endings, see RFC4880bis, sec 5.2.1.
 	lineEnding := " \r\n \n \r\n"
-	otherLineEnding :=  " \n \r\n \n"
+	otherLineEnding := " \n \r\n \n"
 	message := bytes.NewReader([]byte(messageBody + lineEnding))
 	otherMessage := bytes.NewReader([]byte(messageBody + otherLineEnding))
 
