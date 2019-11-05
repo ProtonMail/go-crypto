@@ -202,7 +202,7 @@ func TestSymmetricEncryptionV5(t *testing.T) {
 			t.Errorf("error closing plaintext writer: %s", err)
 		}
 
-		// Check if if the packet is AEADEncrypted
+		// Check if the packet is AEADEncrypted
 		copiedCiph := make([]byte, len(buf.Bytes()))
 		copy(copiedCiph, buf.Bytes())
 		copiedBuf := bytes.NewBuffer(copiedCiph)

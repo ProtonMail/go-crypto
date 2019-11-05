@@ -154,10 +154,12 @@ func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 	} else {
 		n = copy(dst, decrypted)
 	}
-	err = errRead
 	// Detect if stream was truncated
-	if (err == io.EOF || err == io.ErrUnexpectedEOF) && !ar.eof {
-		return 0, errors.AEADError("Reached EOF without seeing final chunk")
+	if (errRead == io.EOF || errRead == io.ErrUnexpectedEOF) && !ar.eof {
+		return 0, io.ErrUnexpectedEOF
+	}
+	if errRead != io.ErrUnexpectedEOF {
+		err = errRead
 	}
 	return
 }

@@ -394,7 +394,7 @@ func readDecryptedStream(rc io.ReadCloser) (got []byte, err error) {
 			if err == io.EOF {
 				// Finished reading
 				break
-			} else if err != io.ErrUnexpectedEOF {
+			} else {
 				// Something happened
 				return nil, err
 			}
