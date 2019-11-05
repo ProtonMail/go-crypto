@@ -14,12 +14,6 @@ import (
 	"testing"
 )
 
-var ciphers = []CipherFunction{
-	CipherAES128,
-	CipherAES192,
-	CipherAES256,
-}
-
 const maxPassLen = 64
 
 // Tests against RFC vectors
@@ -72,6 +66,17 @@ func TestDecryptSymmetricKeyAndEncryptedDataPacket(t *testing.T) {
 }
 
 func TestRandomSerializeSymmetricKeyEncryptedV5(t *testing.T) {
+	var ciphers = []CipherFunction{
+		CipherAES128,
+		CipherAES192,
+		CipherAES256,
+	}
+	var modes = []AEADMode{
+		AEADModeEAX,
+		AEADModeOCB,
+		AEADModeExperimentalGCM,
+	}
+
 
 	for i := 0; i < iterationsSlow; i++ {
 		var buf bytes.Buffer

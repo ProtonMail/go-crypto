@@ -140,10 +140,11 @@ func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 			return 0, errChunk
 		}
 		decrypted = append(decrypted, plainChunk...)
-	}
-	// Detect if stream was truncated
-	if (errRead == io.EOF || errRead == io.ErrUnexpectedEOF) && !ar.eof {
-		return 0, errors.AEADError("Reached EOF without seeing final chunk")
+	} else if len(ar.peekedBytes) > 0 {
+		errChunk := ar.validateFinalTag(ar.peekedBytes)
+		if errChunk != nil {
+			return 0, errChunk
+		}
 	}
 
 	// Append necessary bytes, and buffer the rest
@@ -154,6 +155,10 @@ func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 		n = copy(dst, decrypted)
 	}
 	err = errRead
+	// Detect if stream was truncated
+	if (err == io.EOF || err == io.ErrUnexpectedEOF) && !ar.eof {
+		return 0, errors.AEADError("Reached EOF without seeing final chunk")
+	}
 	return
 }
 
@@ -325,7 +330,6 @@ func (ar *aeadDecrypter) openChunk(data []byte) ([]byte, error) {
 			return nil, errors.AEADError(
 				"final tag authentication failed, remaining stream wiped")
 		}
-		ar.eof = true
 	}
 	return plainChunk, nil
 }
@@ -343,6 +347,7 @@ func (ar *aeadDecrypter) validateFinalTag(tag []byte) error {
 	if err != nil {
 		return err
 	}
+	ar.eof = true
 	return nil
 }
 
