@@ -46,6 +46,7 @@ type aeadDecrypter struct {
 	aeadCrypter           // Embedded ciphertext opener
 	reader      io.Reader // 'reader' is a partialLengthReader
 	peekedBytes []byte    // Used to detect last chunk
+	eof         bool
 }
 
 func (ae *AEADEncrypted) parse(buf io.Reader) error {
@@ -139,6 +140,10 @@ func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 			return 0, errChunk
 		}
 		decrypted = append(decrypted, plainChunk...)
+	}
+	// Detect if stream was truncated
+	if (errRead == io.EOF || errRead == io.ErrUnexpectedEOF) && !ar.eof {
+		return 0, errors.AEADError("Reached EOF without seeing final chunk")
 	}
 
 	// Append necessary bytes, and buffer the rest
@@ -320,6 +325,7 @@ func (ar *aeadDecrypter) openChunk(data []byte) ([]byte, error) {
 			return nil, errors.AEADError(
 				"final tag authentication failed, remaining stream wiped")
 		}
+		ar.eof = true
 	}
 	return plainChunk, nil
 }

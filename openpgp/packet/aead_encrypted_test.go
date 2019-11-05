@@ -169,8 +169,8 @@ func TestAeadRandomStream(t *testing.T) {
 			DefaultCipher: ciph,
 		}
 
-		// Plaintext
-		randomLength := mathrand.Intn(maxChunks*int(aeadConf.ChunkLength()))
+		// Non-empty plaintext
+		randomLength := mathrand.Intn(maxChunks*int(aeadConf.ChunkLength())+1)
 		plaintext := make([]byte, randomLength)
 		_, err = rand.Read(plaintext)
 		if err != nil {
@@ -228,6 +228,10 @@ func TestAeadRandomStream(t *testing.T) {
 					break
 				}
 			}
+		}
+		// Close MUST be called - it checks if the final chunk was witnessed
+		if err = rc.Close(); err != nil {
+			t.Error(err)
 		}
 		want := plaintext
 		if !bytes.Equal(got, want) {
