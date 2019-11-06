@@ -51,13 +51,11 @@ func TestEndToEnd(t *testing.T) {
 		panic(err)
 	}
 
-	// Generate random test vectors with the given key settings.
+	// Generate random test vectors
 	freshTestVectors, err := generateFreshTestVectors()
 	if err != nil {
 		t.Fatal("Cannot proceed without generated keys: " + err.Error())
 	}
-
-	// Append them to the list of foreign test vectors.
 	testVectors := append(foreignTestVectors, freshTestVectors...)
 
 	// For each testVector in testVectors, (1) Decrypt an already existing message,
@@ -215,7 +213,6 @@ func encDecTest(t *testing.T, from testVector, testVectors []testVector) {
 			if err != nil {
 				t.Fatalf("Error reading encrypted contents: %s", err)
 			}
-
 			encryptKey, _ := pkTo[0].EncryptionKey(time.Now())
 			expectedEncKeyID := encryptKey.PublicKey.KeyId
 			if len(md.EncryptedToKeyIds) != 1 ||
@@ -223,7 +220,6 @@ func encDecTest(t *testing.T, from testVector, testVectors []testVector) {
 				t.Errorf("Expected message to be encrypted to %v, but got %#v",
 					expectedKeyID, md.EncryptedToKeyIds)
 			}
-
 			// Test decrypted message
 			if string(plaintext) != message {
 				t.Errorf("got: %s, want: %s", string(plaintext), message)
