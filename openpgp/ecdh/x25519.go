@@ -28,13 +28,13 @@ func X25519GenerateParams(rand io.Reader) (priv [32]byte, pub [32]byte, err erro
 		if err != nil {
 			return
 		}
+		priv[0] &= 248
+		priv[31] &= 127
+		priv[31] |= 64
 		// If the scalar is out of range, sample another random number.
 		if new(big.Int).SetBytes(priv[:]).Cmp(n) >= 0 {
 			continue
 		}
-		priv[0] &= 248
-		priv[31] &= 127
-		priv[31] |= 64
 
 		curve25519.ScalarBaseMult(&pub, &priv)
 		return
