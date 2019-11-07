@@ -16,7 +16,7 @@ import (
 	"golang.org/x/crypto/openpgp/internal/ecc"
 )
 
-func X25519GenerateParams(rand io.Reader) (priv [32]byte, x [32]byte, err error) {
+func X25519GenerateParams(rand io.Reader) (priv [32]byte, pub [32]byte, err error) {
 	var n, helper = new (big.Int), new (big.Int)
 	n.SetUint64(1)
 	n.Lsh(n, 252)
@@ -28,16 +28,15 @@ func X25519GenerateParams(rand io.Reader) (priv [32]byte, x [32]byte, err error)
 		if err != nil {
 			return
 		}
-		// This is because, in tests, rand will return all zeros and we don't
-		// want to get the point at infinity and loop forever.
-		priv[1] ^= 0x42
-
 		// If the scalar is out of range, sample another random number.
 		if new(big.Int).SetBytes(priv[:]).Cmp(n) >= 0 {
 			continue
 		}
+		priv[0] &= 248
+		priv[31] &= 127
+		priv[31] |= 64
 
-		curve25519.ScalarBaseMult(&x, &priv)
+		curve25519.ScalarBaseMult(&pub, &priv)
 		return
 	}
 	return
