@@ -11,8 +11,8 @@ import (
 	"io"
 	"math/big"
 
-	"golang.org/x/crypto/openpgp/aes/keywrap"
 	"golang.org/x/crypto/curve25519"
+	"golang.org/x/crypto/openpgp/aes/keywrap"
 	"golang.org/x/crypto/openpgp/internal/ecc"
 )
 
@@ -22,7 +22,7 @@ import (
 // curve. 'pub' is simply 'priv' * G where G is the base point.
 // See https://cr.yp.to/ecdh.html and RFC7748, sec 5.
 func generateKeyPair(rand io.Reader) (priv [32]byte, pub [32]byte, err error) {
-	var n, helper = new (big.Int), new (big.Int)
+	var n, helper = new(big.Int), new(big.Int)
 	n.SetUint64(1)
 	n.Lsh(n, 252)
 	helper.SetString("27742317777372353535851937790883648493", 10)
@@ -35,6 +35,7 @@ func generateKeyPair(rand io.Reader) (priv [32]byte, pub [32]byte, err error) {
 		}
 		// The following ensures that the private key is a number of the form
 		// 2^{254} + 8 * [0, 2^{251}), in order to avoid the small subgroup of
+		// of the curve.
 		priv[0] &= 248
 		priv[31] &= 127
 		priv[31] |= 64
@@ -76,8 +77,8 @@ func X25519GenerateKey(rand io.Reader, kdf KDF) (priv *PrivateKey, err error) {
 	var encodedKey = make([]byte, 33)
 	encodedKey[0] = 0x40
 	copy(encodedKey[1:], pubKey[:])
-	priv.PublicKey.X = new (big.Int).SetBytes(encodedKey[:])
-	priv.PublicKey.Y = new (big.Int)
+	priv.PublicKey.X = new(big.Int).SetBytes(encodedKey[:])
+	priv.PublicKey.Y = new(big.Int)
 	return priv, nil
 }
 
@@ -88,7 +89,7 @@ func X25519Encrypt(random io.Reader, pub *PublicKey, msg, curveOID, fingerprint 
 	}
 	var pubKey [32]byte
 
-	if pub.X.BitLen() > 33 * 264 {
+	if pub.X.BitLen() > 33*264 {
 		return nil, nil, errors.New("ecdh: invalid key")
 	}
 	copy(pubKey[:], pub.X.Bytes()[1:])
@@ -114,9 +115,9 @@ func X25519Encrypt(random io.Reader, pub *PublicKey, msg, curveOID, fingerprint 
 }
 
 func X25519Decrypt(priv *PrivateKey, vsG, m, curveOID, fingerprint []byte) (msg []byte, err error) {
-	var zb, d, ephemeralKey[32]byte
+	var zb, d, ephemeralKey [32]byte
 	if len(vsG) != 33 || vsG[0] != 0x40 {
-		return nil,  errors.New("ecdh: invalid key")
+		return nil, errors.New("ecdh: invalid key")
 	}
 	copy(ephemeralKey[:], vsG[1:33])
 
