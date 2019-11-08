@@ -51,6 +51,10 @@ func TestEndToEnd(t *testing.T) {
 		panic(err)
 	}
 
+	for i := 0; i < len(foreignTestVectors); i++ {
+		foreignTestVectors[i].Name += "_foreign"
+	}
+
 	// Generate random test vectors
 	freshTestVectors, err := generateFreshTestVectors()
 	if err != nil {

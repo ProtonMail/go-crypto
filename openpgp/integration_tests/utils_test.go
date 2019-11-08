@@ -25,8 +25,8 @@ func generateFreshTestVectors() (vectors []testVector, err error) {
 
 		// Only for verbose display
 		pkAlgoNames := map[packet.PublicKeyAlgorithm]string {
-			packet.PubKeyAlgoRSA: "RSA_fresh",
-			packet.PubKeyAlgoEdDSA: "EdDSA_fresh",
+			packet.PubKeyAlgoRSA: "rsa_fresh",
+			packet.PubKeyAlgoEdDSA: "ed25519_fresh",
 		}
 
 		newVector := testVector{
