@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"crypto"
 	"crypto/rand"
-	"strconv"
 	"golang.org/x/crypto/openpgp"
 	"golang.org/x/crypto/openpgp/armor"
 	"golang.org/x/crypto/openpgp/packet"
@@ -24,9 +23,15 @@ func generateFreshTestVectors() (vectors []testVector, err error) {
 		// Sample random email, comment, password and message
 		name, email, comment, password, message := randEntityData()
 
+		// Only for verbose display
+		pkAlgoNames := map[packet.PublicKeyAlgorithm]string {
+			packet.PubKeyAlgoRSA: "RSA_fresh",
+			packet.PubKeyAlgoEdDSA: "EdDSA_fresh",
+		}
+
 		newVector := testVector{
 			config:   config,
-			Name:     strconv.Itoa(int(config.Cipher())) + "_fresh",
+			Name:     pkAlgoNames[config.Algorithm],
 			Password: password,
 			Message:  message,
 		}
