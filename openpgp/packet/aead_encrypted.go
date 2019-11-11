@@ -164,10 +164,10 @@ func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 	return
 }
 
-// Close wipes the aeadCrypter, along with the reader, buffered, and carried bytes.
+// Close is noOp. The final authentication tag of the stream was already
+// checked in the last Read call. In the future, this function could be used to
+// wipe the reader and peeked, decrypted bytes, if necessary.
 func (ar *aeadDecrypter) Close() (err error) {
-	ar.aeadCrypter = aeadCrypter{}
-	ar.peekedBytes = nil
 	return nil
 }
 
