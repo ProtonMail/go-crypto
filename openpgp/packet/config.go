@@ -53,10 +53,10 @@ type Config struct {
 	Algorithm PublicKeyAlgorithm
 	// Some known primes that are optionally prepopulated by the caller
 	RSAPrimes []*big.Int
-	// AEADConfig configures the Authenticated Encryption with Associated Data.
-	// If a non-nil AEADConfig is passed, use the new AEAD Encrypted Data
-	// Packets defined in the draft of the next version of the OpenPGP
-	// specification.  See the documentation of AEADConfig for more
+	// AEADConfig configures the use of the new AEAD Encrypted Data Packet,
+	// defined in the draft of the next version of the OpenPGP specification.
+	// If a non-nil AEADConfig is passed, usage of this packet is enabled. By
+	// default, it is disabled. See the documentation of AEADConfig for more
 	// configuration options related to AEAD.
 	// **Note: using this option may break compatibility with other OpenPGP
 	// implementations, as well as future versions of this library.**
