@@ -147,7 +147,7 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 		}
 		pk.cipher = CipherFunction(buf[0])
 		pk.Encrypted = true
-		pk.s2k, pk.s2kConfig, pk.salt, err = s2k.Parse(r)
+		pk.s2k, pk.s2kConfig, pk.salt, err = s2k.ParseWithConfig(r)
 		if err != nil {
 			return
 		}

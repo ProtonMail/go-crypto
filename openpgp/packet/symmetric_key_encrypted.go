@@ -44,7 +44,7 @@ func (ske *SymmetricKeyEncrypted) parse(r io.Reader) error {
 	}
 
 	var err error
-	ske.s2k, _, _, err = s2k.Parse(r)
+	ske.s2k, err = s2k.Parse(r)
 	if err != nil {
 		return err
 	}

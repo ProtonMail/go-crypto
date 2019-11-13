@@ -84,7 +84,7 @@ func TestParse(t *testing.T) {
 	for i, test := range parseTests {
 		spec, _ := hex.DecodeString(test.spec)
 		buf := bytes.NewBuffer(spec)
-		f, s2kconfig, salt, err := Parse(buf)
+		f, s2kconfig, salt, err := ParseWithConfig(buf)
 		if err != nil {
 			t.Errorf("%d: Parse returned error: %s", i, err)
 			continue
@@ -134,7 +134,7 @@ func testSerializeConfig(t *testing.T, c *Config) {
 		return
 	}
 
-	f, _, _, err := Parse(buf)
+	f, err := Parse(buf)
 	if err != nil {
 		t.Errorf("failed to reparse: %s", err)
 		return
