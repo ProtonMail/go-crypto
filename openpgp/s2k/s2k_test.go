@@ -69,31 +69,41 @@ func TestIterated(t *testing.T) {
 }
 
 var parseTests = []struct {
-	spec, in, out string
+	spec, in, out, salt string
+	s2kConfig Config
 }{
 	/* Simple with SHA1 */
-	{"0002", "hello", "aaf4c61d"},
+	{"0002", "hello", "aaf4c61d", "", Config{0, crypto.SHA1, 0}},
 	/* Salted with SHA1 */
-	{"01020102030405060708", "hello", "f4f7d67e"},
+	{"01020102030405060708", "hello", "f4f7d67e", "0102030405060708", Config{1, crypto.SHA1, 0}},
 	/* Iterated with SHA1 */
-	{"03020102030405060708f1", "hello", "f2a57b7c"},
+	{"03020102030405060708f1", "hello", "f2a57b7c", "0102030405060708", Config{3, crypto.SHA1, 35651584}},
 }
 
 func TestParse(t *testing.T) {
 	for i, test := range parseTests {
 		spec, _ := hex.DecodeString(test.spec)
 		buf := bytes.NewBuffer(spec)
-		f, err := Parse(buf)
+		f, s2kconfig, salt, err := Parse(buf)
 		if err != nil {
 			t.Errorf("%d: Parse returned error: %s", i, err)
 			continue
 		}
 
-		expected, _ := hex.DecodeString(test.out)
-		out := make([]byte, len(expected))
+		expectedSalt, _ := hex.DecodeString(test.salt)
+		if !bytes.Equal(salt, expectedSalt) {
+			t.Errorf("%d: Wrong salt, got: %x want: %x", i, salt, expectedSalt)
+		}
+
+		if test.s2kConfig != s2kconfig {
+			t.Errorf("%d: Wrong s2kconfig, got: %+v want: %+v", i, s2kconfig, test.s2kConfig)
+		}
+
+		expectedHash, _ := hex.DecodeString(test.out)
+		out := make([]byte, len(expectedHash))
 		f(out, []byte(test.in))
-		if !bytes.Equal(out, expected) {
-			t.Errorf("%d: output got: %x want: %x", i, out, expected)
+		if !bytes.Equal(out, expectedHash) {
+			t.Errorf("%d: Wrong output got: %x want: %x", i, out, expectedHash)
 		}
 		if testing.Short() {
 			break
@@ -124,7 +134,7 @@ func testSerializeConfig(t *testing.T, c *Config) {
 		return
 	}
 
-	f, err := Parse(buf)
+	f, _, _, err := Parse(buf)
 	if err != nil {
 		t.Errorf("failed to reparse: %s", err)
 		return

@@ -134,26 +134,27 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 		return
 	}
 
-	s2kType := buf[0]
+	pk.s2kType = S2KType(buf[0])
 
-	switch s2kType {
-	case 0:
+	switch pk.s2kType {
+	case S2KNON:
 		pk.s2k = nil
 		pk.Encrypted = false
-	case 254, 255:
+	case S2KSHA1, S2KCHECKSUM:
 		_, err = readFull(r, buf[:])
 		if err != nil {
 			return
 		}
 		pk.cipher = CipherFunction(buf[0])
 		pk.Encrypted = true
-		pk.s2k, err = s2k.Parse(r)
+		pk.s2k, pk.s2kConfig, pk.salt, err = s2k.Parse(r)
 		if err != nil {
 			return
 		}
-		if s2kType == 254 {
+		if pk.s2kType == S2KSHA1 {
 			pk.sha1Checksum = true
 		}
+
 	default:
 		return errors.UnsupportedError("deprecated s2k function in private key")
 	}
@@ -199,9 +200,13 @@ func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 
 	privateKeyBuf := bytes.NewBuffer(nil)
 	if pk.Encrypted {
-		pk.SerializeEncrypted(privateKeyBuf)
+		err = pk.SerializeEncrypted(privateKeyBuf)
 	} else {
-		pk.SerializeUnEncrypted(privateKeyBuf)
+		err = pk.SerializeUnEncrypted(privateKeyBuf)
+	}
+
+	if err != nil {
+		return
 	}
 
 	ptype := packetTypePrivateKey

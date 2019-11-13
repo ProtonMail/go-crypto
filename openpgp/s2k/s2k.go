@@ -159,7 +159,7 @@ func Iterated(out []byte, h hash.Hash, in []byte, salt []byte, count int) {
 
 // Parse reads a binary specification for a string-to-key transformation from r
 // and returns a function which performs that transform.
-func Parse(r io.Reader) (f func(out, in []byte), err error) {
+func Parse(r io.Reader) (f func(out, in []byte), s2kConfig Config, salt []byte, err error) {
 	var buf [9]byte
 
 	_, err = io.ReadFull(r, buf[:2])
@@ -169,41 +169,52 @@ func Parse(r io.Reader) (f func(out, in []byte), err error) {
 
 	hash, ok := HashIdToHash(buf[1])
 	if !ok {
-		return nil, errors.UnsupportedError("hash for S2K function: " + strconv.Itoa(int(buf[1])))
+		return nil, Config{}, nil, errors.UnsupportedError("hash for S2K function: " + strconv.Itoa(int(buf[1])))
 	}
 	if !hash.Available() {
-		return nil, errors.UnsupportedError("hash not available: " + strconv.Itoa(int(hash)))
+		return nil, Config{}, nil, errors.UnsupportedError("hash not available: " + strconv.Itoa(int(hash)))
 	}
 	h := hash.New()
+
+	s2kConfig = Config{
+		S2KMode:  buf[0],
+		S2KCount: 0,
+		Hash:     hash,
+	}
 
 	switch buf[0] {
 	case 0:
 		f := func(out, in []byte) {
 			Simple(out, h, in)
 		}
-		return f, nil
+
+		s2kConfig.S2KMode = 0
+		return f, s2kConfig, nil, nil
 	case 1:
 		_, err = io.ReadFull(r, buf[:8])
 		if err != nil {
-			return
+			return nil, Config{}, nil, err
 		}
 		f := func(out, in []byte) {
 			Salted(out, h, in, buf[:8])
 		}
-		return f, nil
+
+		return f, s2kConfig, buf[:8], nil
 	case 3:
 		_, err = io.ReadFull(r, buf[:9])
 		if err != nil {
-			return
+			return nil, Config{}, nil, err
 		}
 		count := decodeCount(buf[8])
 		f := func(out, in []byte) {
 			Iterated(out, h, in, buf[:8], count)
 		}
-		return f, nil
+
+		s2kConfig.S2KCount = count
+		return f, s2kConfig, buf[:8], nil
 	}
 
-	return nil, errors.UnsupportedError("S2K function")
+	return nil, Config{}, nil, errors.UnsupportedError("S2K function")
 }
 
 // Serialize salts and stretches the given passphrase and writes the
