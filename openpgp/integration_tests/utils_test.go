@@ -174,7 +174,7 @@ func randPassword() string {
 }
 
 func randMessage() string {
-	maxMessageLength := 1 << 12
+	maxMessageLength := 1 << 20
 	message := make([]byte, 1+mathrand.Intn(maxMessageLength-1))
 	if _, err := rand.Read(message); err != nil {
 		panic(err)

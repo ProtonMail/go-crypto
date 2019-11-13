@@ -224,29 +224,31 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, cipher CipherFunction, mode
 func (aw *aeadEncrypter) Write(plaintextBytes []byte) (n int, err error) {
 	chunkLen := int(aw.config.ChunkLength())
 	tagLen := aw.aead.Overhead()
-	buf := append(aw.buffer.Bytes(), plaintextBytes...)
+	// Append plaintextBytes to existing buffered bytes
+	n, err = aw.buffer.Write(plaintextBytes)
+	if err != nil {
+		return 0, err
+	}
 	// Empty write - do nothing
-	if len(buf) == 0 {
+	if aw.buffer.Len() == 0 {
 		return 0, nil
 	}
-	n = 0
-	i := 0
-	for i = 0; i < len(buf)/chunkLen; i++ {
-		plaintext := buf[chunkLen*i : chunkLen*(i+1)]
+	// Encrypt and write chunks
+	plaintext := make([]byte, chunkLen)
+	for i := 0; i < aw.buffer.Len()/chunkLen; i++ {
+		if _, err := aw.buffer.Read(plaintext); err != nil {
+			return i*chunkLen, err
+		}
 		encryptedChunk, errSeal := aw.sealChunk(plaintext)
 		if errSeal != nil {
 			return n, errSeal
 		}
 		bytesWritten, err := aw.writer.Write(encryptedChunk)
-		n += bytesWritten
 		if err != nil || bytesWritten < tagLen {
 			return n, err
 		}
 		aw.bytesProcessed += bytesWritten - tagLen
 	}
-	// Buffer remaining plaintext for next chunk
-	m, err := aw.buffer.Write(plaintextBytes[chunkLen*i:])
-	n += m
 	return
 }
 
