@@ -25,7 +25,7 @@ type AEADEncrypted struct {
 // An AEAD opener/sealer, its configuration, and data for en/decryption.
 type aeadCrypter struct {
 	aead           cipher.AEAD
-	config         *AEADConfig
+	chunkSize      uint64
 	initialNonce   []byte
 	associatedData []byte       // Chunk-independent associated data
 	chunkIndex     []byte       // Chunk counter
@@ -91,13 +91,11 @@ func (ae *AEADEncrypted) decrypt(key []byte) (io.ReadCloser, error) {
 	if n < tagLen || (err != nil && err != io.EOF) {
 		return nil, errors.AEADError("Not enough data to decrypt:" + err.Error())
 	}
-	chunkSize := uint64(1 << (6 + ae.chunkSizeByte))
+	chunkSize := decodeAEADChunkSize(ae.chunkSizeByte)
 	return &aeadDecrypter{
 		aeadCrypter: aeadCrypter{
-			config: &AEADConfig{
-				ChunkSize:   chunkSize,
-			},
 			aead:           aead,
+			chunkSize:      chunkSize,
 			initialNonce:   ae.initialNonce,
 			associatedData: ae.associatedData(),
 			chunkIndex:     make([]byte, 8),
@@ -114,7 +112,7 @@ func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 		return 0, errors.AEADError("argument of Read must have positive length")
 	}
 
-	chunkLen := int(ar.config.ChunkLength())
+	chunkLen := int(ar.chunkSize)
 	tagLen := ar.aead.Overhead()
 	if len(dst) <= ar.buffer.Len() {
 		return ar.buffer.Read(dst)
@@ -187,7 +185,7 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, cipher CipherFunction, mode
 		aeadEncryptedVersion,
 		byte(config.Cipher()),
 		byte(aeadConf.Mode()),
-		aeadConf.ChunkLengthByte(),
+		aeadConf.ChunkSizeByte(),
 	}
 	n, err := writer.Write(prefix[1:])
 	if err != nil || n < 4 {
@@ -207,10 +205,11 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, cipher CipherFunction, mode
 	blockCipher := CipherFunction(config.Cipher()).new(key)
 	alg := AEADMode(aeadConf.Mode()).new(blockCipher)
 
+	chunkSize := decodeAEADChunkSize(aeadConf.ChunkSizeByte())
 	return &aeadEncrypter{
 		aeadCrypter: aeadCrypter{
 			aead:           alg,
-			config:         aeadConf,
+			chunkSize:      chunkSize,
 			associatedData: prefix,
 			chunkIndex:     make([]byte, 8),
 			initialNonce:   nonce,
@@ -222,7 +221,7 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, cipher CipherFunction, mode
 // plaintext bytes for next call. When the stream is finished, Close() MUST be
 // called to append the final tag.
 func (aw *aeadEncrypter) Write(plaintextBytes []byte) (n int, err error) {
-	chunkLen := int(aw.config.ChunkLength())
+	chunkLen := int(aw.chunkSize)
 	// Append plaintextBytes to existing buffered bytes
 	n, err = aw.buffer.Write(plaintextBytes)
 	if err != nil {
@@ -280,7 +279,7 @@ func (aw *aeadEncrypter) Close() (err error) {
 
 // sealChunk Encrypts and authenticates the given chunk.
 func (aw *aeadEncrypter) sealChunk(data []byte) ([]byte, error) {
-	if len(data) > int(aw.config.ChunkLength()) {
+	if len(data) > int(aw.chunkSize) {
 		return nil, errors.AEADError("chunk exceeds maximum length")
 	}
 	if aw.associatedData == nil {
@@ -300,7 +299,7 @@ func (aw *aeadEncrypter) sealChunk(data []byte) ([]byte, error) {
 // chunk, to identify the last chunk and decrypt/validate accordingly.
 func (ar *aeadDecrypter) openChunk(data []byte) ([]byte, error) {
 	tagLen := ar.aead.Overhead()
-	chunkLen := int(ar.config.ChunkLength())
+	chunkLen := int(ar.chunkSize)
 	ctLen := tagLen + chunkLen
 	// Restore carried bytes from last call
 	chunkExtra := append(ar.peekedBytes, data...)

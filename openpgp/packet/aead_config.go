@@ -29,32 +29,25 @@ func (conf *AEADConfig) Mode() AEADMode {
 	return mode
 }
 
-// ChunkLength returns the maximum number of body octets in each chunk of data.
-func (conf *AEADConfig) ChunkLength() uint64 {
+// ChunkSizeByte returns the byte indicating the chunk size. The effective
+// chunk size is computed with the formula uint64(1) << (chunkSizeByte + 6)
+func (conf *AEADConfig) ChunkSizeByte() byte {
 	if conf == nil || conf.ChunkSize == 0 {
-		return 1 << 18 // 262144 bytes
+		return 12 // 1 << (12 + 6) == 262144 bytes
 	}
-	size := conf.ChunkSize
-	if size&(size-1) != 0 {
-		panic("aead: chunk size must be a power of 2")
+
+	chunkSize := conf.ChunkSize
+	exponent := bits.Len64(chunkSize) - 1
+	switch {
+	case exponent < 6:
+		exponent = 6
+	case exponent > 62:
+		exponent = 62
 	}
-	if size < 1<<6 {
-		panic("aead: chunk size too small, minimum value is 1 << 6")
-	}
-	if size > 1<<62 {
-		panic("aead: chunk size too large, maximum value is 1 << 62")
-	}
-	return size
+
+	return byte(exponent - 6)
 }
 
-// ChunkLengthByte returns the byte indicating the chunk size. The effective
-// chunk size is computed with the formula uint64(1) << (chunkSizeByte + 6)
-func (conf *AEADConfig) ChunkLengthByte() byte {
-	chunkSize := conf.ChunkLength()
-	exponent := bits.Len64(chunkSize) - 1
-	if exponent < 6 {
-		// Should never occur, since also checked in ChunkSize()
-		panic("aead: chunk size too small, minimum value is 1 << 6")
-	}
-	return byte(exponent - 6)
+func decodeAEADChunkSize(c byte) uint64 {
+	return 1 << (c + 6)
 }
