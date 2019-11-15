@@ -228,12 +228,8 @@ func (aw *aeadEncrypter) Write(plaintextBytes []byte) (n int, err error) {
 		return n, err
 	}
 	// Encrypt and write chunks
-	plainChunk := make([]byte, chunkLen)
 	for aw.buffer.Len() >= chunkLen {
-		bytesRead, err := aw.buffer.Read(plainChunk)
-		if err != nil {
-			return n, err
-		}
+		plainChunk := aw.buffer.Next(chunkLen)
 		encryptedChunk, err := aw.sealChunk(plainChunk)
 		if err != nil {
 			return n, err
@@ -242,7 +238,6 @@ func (aw *aeadEncrypter) Write(plaintextBytes []byte) (n int, err error) {
 		if err != nil {
 			return n, err
 		}
-		aw.bytesProcessed += bytesRead
 	}
 	return
 }
@@ -253,7 +248,8 @@ func (aw *aeadEncrypter) Write(plaintextBytes []byte) (n int, err error) {
 func (aw *aeadEncrypter) Close() (err error) {
 	// Encrypt and write whatever is left on the buffer (it may be empty)
 	if aw.buffer.Len() > 0 || aw.bytesProcessed == 0 {
-		lastEncryptedChunk, err := aw.sealChunk(aw.buffer.Bytes())
+		plainChunk := aw.buffer.Bytes()
+		lastEncryptedChunk, err := aw.sealChunk(plainChunk)
 		if err != nil {
 			return err
 		}
@@ -261,7 +257,6 @@ func (aw *aeadEncrypter) Close() (err error) {
 		if err != nil {
 			return err
 		}
-		aw.bytesProcessed += aw.buffer.Len()
 	}
 	// Compute final tag (associated data: packet tag, version, cipher, aead,
 	// chunk size, index, total number of encrypted octets).
@@ -288,6 +283,7 @@ func (aw *aeadEncrypter) sealChunk(data []byte) ([]byte, error) {
 	adata := append(aw.associatedData, aw.chunkIndex...)
 	nonce := aw.computeNextNonce()
 	encrypted := aw.aead.Seal(nil, nonce, data, adata)
+	aw.bytesProcessed += len(data)
 	if err := aw.aeadCrypter.incrementIndex(); err != nil {
 		return nil, err
 	}
