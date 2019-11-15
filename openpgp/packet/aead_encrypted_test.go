@@ -372,7 +372,8 @@ func randomStream(key []byte, ptLen int, config *Config) (*bytes.Buffer, []byte,
 		return nil, nil, err
 	}
 	// Write the partial lengths packet into 'raw'
-	if _, err = writeCloser.Write(plaintext); err != nil {
+	_, err = writeCloser.Write(plaintext)
+	if err != nil {
 		return nil, nil, err
 	}
 	// Close MUST be called - it appends the final auth. tag

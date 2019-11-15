@@ -234,12 +234,12 @@ func (aw *aeadEncrypter) Write(plaintextBytes []byte) (n int, err error) {
 		return 0, nil
 	}
 	// Encrypt and write chunks
-	plaintext := make([]byte, chunkLen)
-	for i := 0; i < aw.buffer.Len()/chunkLen; i++ {
-		if _, err := aw.buffer.Read(plaintext); err != nil {
-			return i*chunkLen, err
+	plainChunk := make([]byte, chunkLen)
+	for aw.buffer.Len() > chunkLen {
+		if _, err = aw.buffer.Read(plainChunk); err != nil {
+			return
 		}
-		encryptedChunk, errSeal := aw.sealChunk(plaintext)
+		encryptedChunk, errSeal := aw.sealChunk(plainChunk)
 		if errSeal != nil {
 			return n, errSeal
 		}
