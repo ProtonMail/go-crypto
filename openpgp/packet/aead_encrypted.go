@@ -223,31 +223,27 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, cipher CipherFunction, mode
 // called to append the final tag.
 func (aw *aeadEncrypter) Write(plaintextBytes []byte) (n int, err error) {
 	chunkLen := int(aw.config.ChunkLength())
-	tagLen := aw.aead.Overhead()
 	// Append plaintextBytes to existing buffered bytes
 	n, err = aw.buffer.Write(plaintextBytes)
 	if err != nil {
-		return 0, err
-	}
-	// Empty write - do nothing
-	if aw.buffer.Len() == 0 {
-		return 0, nil
+		return n, err
 	}
 	// Encrypt and write chunks
 	plainChunk := make([]byte, chunkLen)
-	for aw.buffer.Len() > chunkLen {
-		if _, err = aw.buffer.Read(plainChunk); err != nil {
-			return
-		}
-		encryptedChunk, errSeal := aw.sealChunk(plainChunk)
-		if errSeal != nil {
-			return n, errSeal
-		}
-		bytesWritten, err := aw.writer.Write(encryptedChunk)
-		if err != nil || bytesWritten < tagLen {
+	for aw.buffer.Len() >= chunkLen {
+		bytesRead, err := aw.buffer.Read(plainChunk)
+		if err != nil {
 			return n, err
 		}
-		aw.bytesProcessed += bytesWritten - tagLen
+		encryptedChunk, err := aw.sealChunk(plainChunk)
+		if err != nil {
+			return n, err
+		}
+		_, err = aw.writer.Write(encryptedChunk)
+		if err != nil {
+			return n, err
+		}
+		aw.bytesProcessed += bytesRead
 	}
 	return
 }
@@ -256,18 +252,17 @@ func (aw *aeadEncrypter) Write(plaintextBytes []byte) (n int, err error) {
 // the final authentication tag, and closes the embedded writer. This function
 // MUST be called at the end of a stream.
 func (aw *aeadEncrypter) Close() (err error) {
-	tagLen := aw.aead.Overhead()
 	// Encrypt and write whatever is left on the buffer (it may be empty)
 	if aw.buffer.Len() > 0 || aw.bytesProcessed == 0 {
 		lastEncryptedChunk, err := aw.sealChunk(aw.buffer.Bytes())
 		if err != nil {
 			return err
 		}
-		n, err := aw.writer.Write(lastEncryptedChunk)
+		_, err = aw.writer.Write(lastEncryptedChunk)
 		if err != nil {
 			return err
 		}
-		aw.bytesProcessed += n - tagLen
+		aw.bytesProcessed += aw.buffer.Len()
 	}
 	// Compute final tag (associated data: packet tag, version, cipher, aead,
 	// chunk size, index, total number of encrypted octets).
