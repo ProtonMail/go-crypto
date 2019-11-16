@@ -225,6 +225,10 @@ func TestAeadRandomTruncatedStream(t *testing.T) {
 		key := randomKey(16)
 		config := randomConfig()
 		randomLength := mathrand.Intn(maxPlaintextLength)
+		if randomLength < 16 {
+			continue
+		}
+
 		raw, plain, err := randomStream(key, randomLength, config)
 		if err != nil {
 			t.Error(err)
