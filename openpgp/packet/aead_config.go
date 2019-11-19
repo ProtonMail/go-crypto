@@ -41,8 +41,8 @@ func (conf *AEADConfig) ChunkSizeByte() byte {
 	switch {
 	case exponent < 6:
 		exponent = 6
-	case exponent > 62:
-		exponent = 62
+	case exponent > 27:
+		exponent = 27
 	}
 
 	return byte(exponent - 6)
