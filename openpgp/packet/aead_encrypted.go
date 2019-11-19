@@ -126,13 +126,13 @@ func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 	decrypted = decrypted[:bytesRead]
 
 	// Read a chunk
-	cipherChunk := make([]byte, chunkLen+tagLen)
-	bytesRead, errRead = io.ReadFull(ar.reader, cipherChunk)
+	var cipherChunkBuf bytes.Buffer
+	_, errRead = io.CopyN(&cipherChunkBuf, ar.reader, int64(chunkLen + tagLen))
+	cipherChunk := cipherChunkBuf.Bytes()
 	if errRead != nil && errRead != io.EOF && errRead != io.ErrUnexpectedEOF {
 		return 0, errRead
 	}
 	if bytesRead > 0 {
-		cipherChunk = cipherChunk[:bytesRead]
 		plainChunk, errChunk := ar.openChunk(cipherChunk)
 		if errChunk != nil {
 			return 0, errChunk
