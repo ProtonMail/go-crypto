@@ -119,15 +119,18 @@ func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 	}
 	// Retrieve buffered plaintext bytes from previous calls
 	decrypted := make([]byte, ar.buffer.Len())
-	bytesRead, errRead := ar.buffer.Read(decrypted)
+	_, errRead := ar.buffer.Read(decrypted)
 	if errRead != nil && errRead != io.EOF {
 		return 0, errRead
 	}
-	decrypted = decrypted[:bytesRead]
 
 	// Read a chunk
-	var cipherChunkBuf bytes.Buffer
-	_, errRead = io.CopyN(&cipherChunkBuf, ar.reader, int64(chunkLen + tagLen))
+	cipherChunkBuf := new(bytes.Buffer)
+	chunkReader := io.LimitReader(ar.reader, int64(chunkLen+tagLen))
+	bytesRead, errRead := cipherChunkBuf.ReadFrom(chunkReader)
+	if bytesRead == 0 {
+		errRead = io.EOF
+	}
 	cipherChunk := cipherChunkBuf.Bytes()
 	if errRead != nil && errRead != io.EOF && errRead != io.ErrUnexpectedEOF {
 		return 0, errRead
@@ -139,6 +142,7 @@ func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 		}
 		decrypted = append(decrypted, plainChunk...)
 	} else if len(ar.peekedBytes) > 0 {
+		// End of the stream
 		errChunk := ar.validateFinalTag(ar.peekedBytes)
 		if errChunk != nil {
 			return 0, errChunk
