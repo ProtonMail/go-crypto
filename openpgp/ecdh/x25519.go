@@ -21,7 +21,7 @@ import (
 // 2^{254} + 8 * [0, 2^{251}), in order to avoid the small subgroup of the
 // curve. 'pub' is simply 'priv' * G where G is the base point.
 // See https://cr.yp.to/ecdh.html and RFC7748, sec 5.
-func generateKeyPair(rand io.Reader) (priv [32]byte, pub [32]byte, err error) {
+func x25519GenerateKeyPairBytes(rand io.Reader) (priv [32]byte, pub [32]byte, err error) {
 	var n, helper = new(big.Int), new(big.Int)
 	n.SetUint64(1)
 	n.Lsh(n, 252)
@@ -58,7 +58,7 @@ func X25519GenerateKey(rand io.Reader, kdf KDF) (priv *PrivateKey, err error) {
 	ci := ecc.FindByName("Curve25519")
 	priv = new(PrivateKey)
 	priv.PublicKey.Curve = ci.Curve
-	d, pubKey, err := generateKeyPair(rand)
+	d, pubKey, err := x25519GenerateKeyPairBytes(rand)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +83,7 @@ func X25519GenerateKey(rand io.Reader, kdf KDF) (priv *PrivateKey, err error) {
 }
 
 func X25519Encrypt(random io.Reader, pub *PublicKey, msg, curveOID, fingerprint []byte) (vsG, c []byte, err error) {
-	d, ephemeralKey, err := generateKeyPair(random)
+	d, ephemeralKey, err := x25519GenerateKeyPairBytes(random)
 	if err != nil {
 		return nil, nil, err
 	}
