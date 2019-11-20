@@ -14,7 +14,7 @@ import (
 // This test checks if the keys that this library stores or outputs are
 // properly masked.
 func TestGenerateMaskedPrivateKeyX25519(t *testing.T) {
-	priv, _, err := generateKeyPairBytes(rand.Reader)
+	priv, _, err := x25519GenerateKeyPairBytes(rand.Reader)
 	if err != nil  {
 		t.Fatal(err)
 	}
