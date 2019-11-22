@@ -11,9 +11,10 @@ import (
 	"testing"
 )
 
-var (
-	maxChunkSizeExp = 16 // Test chunk sizes are at most 1 << maxChunkSizeExp
-)
+// Note: This implementation does not produce packets with chunk sizes over
+// 1<<27, but can parse packets with chunk size octets up to 56 and decrypt
+// them within limits of the running system. See RFC4880bis, sec 5.16.
+var maxChunkSizeExp = 62
 
 const (
 	keyLength = 16

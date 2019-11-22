@@ -48,6 +48,12 @@ func (conf *AEADConfig) ChunkSizeByte() byte {
 	return byte(exponent - 6)
 }
 
-func decodeAEADChunkSize(c byte) uint64 {
-	return 1 << (c + 6)
+// decodeAEADChunkSize returns the effective chunk size. In 32-bit systems, the
+// maximum returned value is 1 << 30.
+func decodeAEADChunkSize(c byte) int {
+	size := uint64(1 << (c + 6))
+	if size != uint64(int(size)) {
+		return 1 << 30
+	}
+	return int(size)
 }
