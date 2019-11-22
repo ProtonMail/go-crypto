@@ -126,28 +126,16 @@ func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 
 	// Read a chunk
 	cipherChunkBuf := new(bytes.Buffer)
-	chunkReader := io.LimitReader(ar.reader, int64(chunkLen+tagLen))
-	bytesRead, errRead := cipherChunkBuf.ReadFrom(chunkReader)
-	if bytesRead == 0 {
-		errRead = io.EOF
-	}
+	_, errRead = io.CopyN(cipherChunkBuf, ar.reader, int64(chunkLen + tagLen))
 	cipherChunk := cipherChunkBuf.Bytes()
-	if errRead != nil && errRead != io.EOF && errRead != io.ErrUnexpectedEOF {
+	if errRead != nil && errRead != io.EOF {
 		return 0, errRead
 	}
-	if bytesRead > 0 {
-		plainChunk, errChunk := ar.openChunk(cipherChunk)
-		if errChunk != nil {
-			return 0, errChunk
-		}
-		decrypted = append(decrypted, plainChunk...)
-	} else if len(ar.peekedBytes) > 0 {
-		// End of the stream
-		errChunk := ar.validateFinalTag(ar.peekedBytes)
-		if errChunk != nil {
-			return 0, errChunk
-		}
+	plainChunk, errChunk := ar.openChunk(cipherChunk)
+	if errChunk != nil {
+		return 0, errChunk
 	}
+	decrypted = append(decrypted, plainChunk...)
 
 	// Append necessary bytes, and buffer the rest
 	if len(dst) < len(decrypted) {
@@ -156,12 +144,12 @@ func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 	} else {
 		n = copy(dst, decrypted)
 	}
-	// Detect if stream was truncated
-	if (errRead == io.EOF || errRead == io.ErrUnexpectedEOF) && !ar.eof {
-		return 0, io.ErrUnexpectedEOF
-	}
-	if errRead != io.ErrUnexpectedEOF {
-		err = errRead
+
+	if errRead == io.EOF {
+		errChunk := ar.validateFinalTag(ar.peekedBytes)
+		if errChunk != nil {
+			return n, errChunk
+		}
 	}
 	return
 }
@@ -299,8 +287,6 @@ func (aw *aeadEncrypter) sealChunk(data []byte) ([]byte, error) {
 // chunk, to identify the last chunk and decrypt/validate accordingly.
 func (ar *aeadDecrypter) openChunk(data []byte) ([]byte, error) {
 	tagLen := ar.aead.Overhead()
-	chunkLen := ar.chunkSize
-	ctLen := tagLen + chunkLen
 	// Restore carried bytes from last call
 	chunkExtra := append(ar.peekedBytes, data...)
 	// 'chunk' contains encrypted bytes, followed by an authentication tag.
@@ -315,19 +301,6 @@ func (ar *aeadDecrypter) openChunk(data []byte) ([]byte, error) {
 	ar.bytesProcessed += len(plainChunk)
 	if err = ar.aeadCrypter.incrementIndex(); err != nil {
 		return nil, err
-	}
-
-	var finalTag []byte
-	// Case final chunk
-	if len(chunk) < ctLen ||
-		(len(chunk) == ctLen && len(ar.peekedBytes) < tagLen) {
-		finalTag = chunkExtra[len(chunkExtra)-tagLen:]
-		err = ar.validateFinalTag(finalTag)
-		if err != nil {
-			// Final tag is corrupt
-			return nil, errors.AEADError(
-				"final tag authentication failed, remaining stream wiped")
-		}
 	}
 	return plainChunk, nil
 }
