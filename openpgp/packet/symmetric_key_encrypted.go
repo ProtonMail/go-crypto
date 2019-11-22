@@ -137,12 +137,41 @@ func (ske *SymmetricKeyEncrypted) decryptV5(key []byte) ([]byte, error) {
 	return plaintextKey, nil
 }
 
-// SerializeSymmetricKeyEncrypted serializes a symmetric key packet to w. The
-// packet contains a random session key, encrypted by a key derived from the
-// given passphrase. The session key is returned and must be passed to
-// SerializeSymmetricallyEncrypted.
+// SerializeSymmetricKeyEncrypted serializes a symmetric key packet to w.
+// The packet contains a random session key, encrypted by a key derived from
+// the given passphrase. The session key is returned and must be passed to
+// SerializeSymmetricallyEncrypted or SerializeAEADEncrypted, depending on
+// whether config.AEADConfig != nil.
 // If config is nil, sensible defaults will be used.
 func SerializeSymmetricKeyEncrypted(w io.Writer, passphrase []byte, config *Config) (key []byte, err error) {
+	cipherFunc := config.Cipher()
+	keySize := cipherFunc.KeySize()
+	if keySize == 0 {
+		return nil, errors.UnsupportedError("unknown cipher: " + strconv.Itoa(int(cipherFunc)))
+	}
+
+	sessionKey := make([]byte, keySize)
+	_, err = io.ReadFull(config.Random(), sessionKey)
+	if err != nil {
+		return
+	}
+
+	err = SerializeSymmetricKeyEncryptedReuseKey(w, sessionKey, passphrase, config)
+	if err != nil {
+		return
+	}
+
+	key = sessionKey
+	return
+}
+
+// SerializeSymmetricKeyEncryptedReuseKey serializes a symmetric key packet to w.
+// The packet contains the given session key, encrypted by a key derived from
+// the given passphrase. The session key must be passed to
+// SerializeSymmetricallyEncrypted or SerializeAEADEncrypted, depending on
+// whether config.AEADConfig != nil.
+// If config is nil, sensible defaults will be used.
+func SerializeSymmetricKeyEncryptedReuseKey(w io.Writer, sessionKey []byte, passphrase []byte, config *Config) (err error) {
 	var version int
 	if config.AEAD() != nil {
 		version = 5
@@ -152,7 +181,7 @@ func SerializeSymmetricKeyEncrypted(w io.Writer, passphrase []byte, config *Conf
 	cipherFunc := config.Cipher()
 	keySize := cipherFunc.KeySize()
 	if keySize == 0 {
-		return nil, errors.UnsupportedError("unknown cipher: " + strconv.Itoa(int(cipherFunc)))
+		return errors.UnsupportedError("unknown cipher: " + strconv.Itoa(int(cipherFunc)))
 	}
 
 	s2kBuf := new(bytes.Buffer)
@@ -198,13 +227,6 @@ func SerializeSymmetricKeyEncrypted(w io.Writer, passphrase []byte, config *Conf
 		return
 	}
 
-	// Sample sessionKey using random reader
-	sessionKey := make([]byte, keySize)
-	_, err = io.ReadFull(config.Random(), sessionKey)
-	if err != nil {
-		return
-	}
-
 	switch version {
 	case 4:
 		iv := make([]byte, cipherFunc.blockSize())
@@ -239,60 +261,5 @@ func SerializeSymmetricKeyEncrypted(w io.Writer, passphrase []byte, config *Conf
 		}
 	}
 
-	key = sessionKey
-	return
-}
-
-// SerializeSymmetricKeyEncryptedReuseKey serializes a symmetric key packet to w. The
-// packet contains a random session key, encrypted by a key derived from the
-// given passphrase. The session key is returned and must be passed to
-// SerializeSymmetricallyEncrypted.
-// If config is nil, sensible defaults will be used.
-func SerializeSymmetricKeyEncryptedReuseKey(w io.Writer, session []byte, passphrase []byte, config *Config) (err error) {
-	cipherFunc := config.Cipher()
-	keySize := cipherFunc.KeySize()
-	if keySize == 0 {
-		return errors.UnsupportedError("unknown cipher: " + strconv.Itoa(int(cipherFunc)))
-	}
-
-	s2kBuf := new(bytes.Buffer)
-	keyEncryptingKey := make([]byte, keySize)
-	// s2k.Serialize salts and stretches the passphrase, and writes the
-	// resulting key to keyEncryptingKey and the s2k descriptor to s2kBuf.
-	err = s2k.Serialize(s2kBuf, keyEncryptingKey, config.Random(), passphrase, &s2k.Config{Hash: config.Hash(), S2KCount: config.PasswordHashIterations()})
-	if err != nil {
-		return
-	}
-	s2kBytes := s2kBuf.Bytes()
-
-	packetLength := 2 /* header */ + len(s2kBytes) + 1 /* cipher type */ + keySize
-	err = serializeHeader(w, packetTypeSymmetricKeyEncrypted, packetLength)
-	if err != nil {
-		return
-	}
-
-	var buf [2]byte
-	buf[0] = byte(4)
-	buf[1] = byte(cipherFunc)
-	_, err = w.Write(buf[:])
-	if err != nil {
-		return
-	}
-	_, err = w.Write(s2kBytes)
-	if err != nil {
-		return
-	}
-
-	sessionKey := session
-
-	iv := make([]byte, cipherFunc.blockSize())
-	c := cipher.NewCFBEncrypter(cipherFunc.new(keyEncryptingKey), iv)
-	encryptedCipherAndKey := make([]byte, keySize+1)
-	c.XORKeyStream(encryptedCipherAndKey, buf[1:])
-	c.XORKeyStream(encryptedCipherAndKey[1:], sessionKey)
-	_, err = w.Write(encryptedCipherAndKey)
-	if err != nil {
-		return
-	}
 	return
 }
