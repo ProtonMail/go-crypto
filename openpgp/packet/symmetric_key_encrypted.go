@@ -36,29 +36,36 @@ func (ske *SymmetricKeyEncrypted) parse(r io.Reader) error {
 		return err
 	}
 	ske.Version = int(buf[0])
-	ske.CipherFunc = CipherFunction(buf[1])
-
-	switch ske.Version {
-	case 4:
-		return ske.parseV4(r)
-	case 5:
-		return ske.parseV5(r)
-	default:
+	if ske.Version != 4 && ske.Version != 5 {
 		return errors.UnsupportedError("unknown SymmetricKeyEncrypted version")
 	}
+	ske.CipherFunc = CipherFunction(buf[1])
 	if ske.CipherFunc.KeySize() == 0 {
 		return errors.UnsupportedError("unknown cipher: " + strconv.Itoa(int(buf[1])))
 	}
-	return nil
-}
 
-func (ske *SymmetricKeyEncrypted) parseV4(r io.Reader) error {
-	ske.Version = 4
+	if ske.Version == 5 {
+		mode := make([]byte, 1)
+		if _, err := r.Read(mode); err != nil {
+			return errors.StructuralError("cannot read AEAD octect from packet")
+		}
+		ske.Mode = AEADMode(mode[0])
+	}
 
 	var err error
 	ske.s2k, err = s2k.Parse(r)
 	if err != nil {
 		return err
+	}
+
+	if ske.Version == 5 {
+		// AEAD nonce
+		nonce := make([]byte, ske.Mode.NonceLength())
+		_, err := readFull(r, nonce)
+		if err != nil && err != io.ErrUnexpectedEOF {
+			return err
+		}
+		ske.aeadNonce = nonce
 	}
 
 	encryptedKey := make([]byte, maxSessionKeySizeInBytes)
@@ -75,45 +82,6 @@ func (ske *SymmetricKeyEncrypted) parseV4(r io.Reader) error {
 		}
 		ske.encryptedKey = encryptedKey[:n]
 	}
-	return nil
-}
-
-func (ske *SymmetricKeyEncrypted) parseV5(r io.Reader) error {
-	mode := make([]byte, 1)
-	if _, err := r.Read(mode); err != nil {
-		return errors.StructuralError("cannot read AEAD octect from packet")
-	}
-	ske.Mode = AEADMode(mode[0])
-
-	// S2k specifier
-	var err error
-	ske.s2k, err = s2k.Parse(r)
-	if err != nil {
-		return err
-	}
-
-	// AEAD nonce
-	nonce := make([]byte, ske.Mode.NonceLength())
-	n, err := readFull(r, nonce)
-	if err != nil && err != io.ErrUnexpectedEOF {
-		return err
-	}
-	ske.aeadNonce = nonce
-
-	// Encrypted key and final tag follow
-	tagLen := ske.Mode.TagLength()
-	encryptedKey := make([]byte, maxSessionKeySizeInBytes+tagLen)
-	n, err = readFull(r, encryptedKey)
-	if err != nil && err != io.ErrUnexpectedEOF {
-		return err
-	}
-	if n < tagLen {
-		return errors.StructuralError("missing data from sym. key. enc. packet")
-	}
-	if n == maxSessionKeySizeInBytes+tagLen {
-		return errors.UnsupportedError("oversized encrypted session key")
-	}
-	ske.encryptedKey = encryptedKey[:n]
 	return nil
 }
 
@@ -139,7 +107,6 @@ func (ske *SymmetricKeyEncrypted) Decrypt(passphrase []byte) ([]byte, CipherFunc
 }
 
 func (ske *SymmetricKeyEncrypted) decryptV4(key []byte) ([]byte, CipherFunction, error) {
-
 	// the IV is all zeros
 	iv := make([]byte, ske.CipherFunc.blockSize())
 	c := cipher.NewCFBDecrypter(ske.CipherFunc.new(key), iv)
