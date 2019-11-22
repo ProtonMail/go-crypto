@@ -110,6 +110,15 @@ func TestParseIntoParams(t *testing.T) {
 		if !bytes.Equal(out, expectedHash) {
 			t.Errorf("%d: Wrong output got: %x want: %x", i, out, expectedHash)
 		}
+		var reserialized bytes.Buffer
+		err = params.Serialize(&reserialized)
+		if err != nil {
+			t.Errorf("%d: params.Serialize() returned error: %s", i, err)
+			continue
+		}
+		if !bytes.Equal(reserialized.Bytes(), spec) {
+			t.Errorf("%d: Wrong reserialized got: %x want: %x", i, reserialized.Bytes(), spec)
+		}
 		if testing.Short() {
 			break
 		}

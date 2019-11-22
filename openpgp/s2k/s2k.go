@@ -282,10 +282,14 @@ func (params *Params) Serialize(encodedKeyBuf io.Writer) (err error) {
 	if _, err = encodedKeyBuf.Write([]byte{params.hashId}); err != nil {
 		return
 	}
-	if _, err = encodedKeyBuf.Write(params.salt); err != nil {
-		return
+	if params.mode > 0 {
+		if _, err = encodedKeyBuf.Write(params.salt); err != nil {
+			return
+		}
+		if params.mode == 3 {
+			_, err = encodedKeyBuf.Write([]byte{params.countByte})
+		}
 	}
-	_, err = encodedKeyBuf.Write([]byte{params.countByte})
 	return
 }
 
