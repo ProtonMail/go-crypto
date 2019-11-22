@@ -275,19 +275,19 @@ func (params *Params) Function() (f func(out, in []byte), err error) {
 	return nil, errors.UnsupportedError("S2K function")
 }
 
-func (params *Params) Serialize(encodedKeyBuf io.Writer) (err error) {
-	if _, err = encodedKeyBuf.Write([]byte{params.mode}); err != nil {
+func (params *Params) Serialize(w io.Writer) (err error) {
+	if _, err = w.Write([]byte{params.mode}); err != nil {
 		return
 	}
-	if _, err = encodedKeyBuf.Write([]byte{params.hashId}); err != nil {
+	if _, err = w.Write([]byte{params.hashId}); err != nil {
 		return
 	}
 	if params.mode > 0 {
-		if _, err = encodedKeyBuf.Write(params.salt); err != nil {
+		if _, err = w.Write(params.salt); err != nil {
 			return
 		}
 		if params.mode == 3 {
-			_, err = encodedKeyBuf.Write([]byte{params.countByte})
+			_, err = w.Write([]byte{params.countByte})
 		}
 	}
 	return
