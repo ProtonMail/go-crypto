@@ -4,9 +4,6 @@ package packet
 
 import "math/bits"
 
-// Only currently defined version
-const aeadEncryptedVersion = 1
-
 // AEADConfig collects a number of AEAD parameters along with sensible defaults.
 // A nil AEADConfig is valid and results in all default values.
 type AEADConfig struct {

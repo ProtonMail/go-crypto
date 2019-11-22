@@ -22,6 +22,9 @@ type AEADEncrypted struct {
 	initialNonce  []byte    // Referred to as IV in RFC4880-bis
 }
 
+// Only currently defined version
+const aeadEncryptedVersion = 1
+
 // An AEAD opener/sealer, its configuration, and data for en/decryption.
 type aeadCrypter struct {
 	aead           cipher.AEAD
