@@ -112,32 +112,31 @@ func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 		return 0, errors.AEADError("argument of Read must have positive length")
 	}
 
-	chunkLen := ar.chunkSize
-	tagLen := ar.aead.Overhead()
-	if len(dst) <= ar.buffer.Len() {
+	// Return buffered plaintext bytes from previous calls
+	if ar.buffer.Len() > 0 {
 		return ar.buffer.Read(dst)
 	}
-	// Retrieve buffered plaintext bytes from previous calls
-	decrypted := make([]byte, ar.buffer.Len())
-	_, errRead := ar.buffer.Read(decrypted)
-	if errRead != nil && errRead != io.EOF {
-		return 0, errRead
+
+	// Return EOF if we've previously validated the final tag
+	if ar.eof {
+		return 0, io.EOF
 	}
 
 	// Read a chunk
+	chunkLen := ar.chunkSize
+	tagLen := ar.aead.Overhead()
 	cipherChunkBuf := new(bytes.Buffer)
-	_, errRead = io.CopyN(cipherChunkBuf, ar.reader, int64(chunkLen + tagLen))
+	_, errRead := io.CopyN(cipherChunkBuf, ar.reader, int64(chunkLen + tagLen))
 	cipherChunk := cipherChunkBuf.Bytes()
 	if errRead != nil && errRead != io.EOF {
 		return 0, errRead
 	}
-	plainChunk, errChunk := ar.openChunk(cipherChunk)
+	decrypted, errChunk := ar.openChunk(cipherChunk)
 	if errChunk != nil {
 		return 0, errChunk
 	}
-	decrypted = append(decrypted, plainChunk...)
 
-	// Append necessary bytes, and buffer the rest
+	// Return decrypted bytes, buffering if necessary
 	if len(dst) < len(decrypted) {
 		n = copy(dst, decrypted[:len(dst)])
 		ar.buffer.Write(decrypted[len(dst):])
@@ -145,11 +144,13 @@ func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 		n = copy(dst, decrypted)
 	}
 
+	// Check final authentication tag
 	if errRead == io.EOF {
 		errChunk := ar.validateFinalTag(ar.peekedBytes)
 		if errChunk != nil {
 			return n, errChunk
 		}
+		ar.eof = true // Mark EOF for when we've returned all buffered data
 	}
 	return
 }
@@ -318,7 +319,6 @@ func (ar *aeadDecrypter) validateFinalTag(tag []byte) error {
 	if err != nil {
 		return err
 	}
-	ar.eof = true
 	return nil
 }
 

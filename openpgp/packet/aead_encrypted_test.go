@@ -40,7 +40,7 @@ func TestAeadRFCParse(t *testing.T) {
 			t.Error(err)
 		}
 		got, err := readDecryptedStream(rc)
-		if err != io.EOF && err != io.ErrUnexpectedEOF && err != nil {
+		if err != nil {
 			t.Error(err)
 		}
 
