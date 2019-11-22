@@ -123,10 +123,9 @@ func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 	}
 
 	// Read a chunk
-	chunkLen := ar.chunkSize
 	tagLen := ar.aead.Overhead()
 	cipherChunkBuf := new(bytes.Buffer)
-	_, errRead := io.CopyN(cipherChunkBuf, ar.reader, int64(chunkLen + tagLen))
+	_, errRead := io.CopyN(cipherChunkBuf, ar.reader, int64(ar.chunkSize + tagLen))
 	cipherChunk := cipherChunkBuf.Bytes()
 	if errRead != nil && errRead != io.EOF {
 		return 0, errRead
@@ -214,15 +213,14 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, cipher CipherFunction, mode
 // plaintext bytes for next call. When the stream is finished, Close() MUST be
 // called to append the final tag.
 func (aw *aeadEncrypter) Write(plaintextBytes []byte) (n int, err error) {
-	chunkLen := aw.chunkSize
 	// Append plaintextBytes to existing buffered bytes
 	n, err = aw.buffer.Write(plaintextBytes)
 	if err != nil {
 		return n, err
 	}
 	// Encrypt and write chunks
-	for aw.buffer.Len() >= chunkLen {
-		plainChunk := aw.buffer.Next(chunkLen)
+	for aw.buffer.Len() >= aw.chunkSize {
+		plainChunk := aw.buffer.Next(aw.chunkSize)
 		encryptedChunk, err := aw.sealChunk(plainChunk)
 		if err != nil {
 			return n, err
@@ -239,7 +237,8 @@ func (aw *aeadEncrypter) Write(plaintextBytes []byte) (n int, err error) {
 // the final authentication tag, and closes the embedded writer. This function
 // MUST be called at the end of a stream.
 func (aw *aeadEncrypter) Close() (err error) {
-	// Encrypt and write whatever is left on the buffer (it may be empty)
+	// Encrypt and write a chunk if there's buffered data left, or if we haven't
+	// written any chunks yet.
 	if aw.buffer.Len() > 0 || aw.bytesProcessed == 0 {
 		plainChunk := aw.buffer.Bytes()
 		lastEncryptedChunk, err := aw.sealChunk(plainChunk)
