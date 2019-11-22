@@ -69,38 +69,43 @@ func TestIterated(t *testing.T) {
 }
 
 var parseTests = []struct {
-	spec, in, out, salt string
-	s2kConfig Config
+	spec, in, out string
+	params Params
 }{
 	/* Simple with SHA1 */
-	{"0002", "hello", "aaf4c61d", "", Config{0, crypto.SHA1, 0}},
+	{"0002", "hello", "aaf4c61d",
+		Params{0, crypto.SHA1, 0, nil}},
 	/* Salted with SHA1 */
-	{"01020102030405060708", "hello", "f4f7d67e", "0102030405060708", Config{1, crypto.SHA1, 0}},
+	{"01020102030405060708", "hello", "f4f7d67e",
+		Params{1, crypto.SHA1, 0, []byte{ 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 }}},
 	/* Iterated with SHA1 */
-	{"03020102030405060708f1", "hello", "f2a57b7c", "0102030405060708", Config{3, crypto.SHA1, 35651584}},
+	{"03020102030405060708f1", "hello", "f2a57b7c",
+		Params{3, crypto.SHA1, 35651584, []byte{ 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 }}},
 }
 
-func TestParse(t *testing.T) {
+func TestParseIntoParams(t *testing.T) {
 	for i, test := range parseTests {
 		spec, _ := hex.DecodeString(test.spec)
 		buf := bytes.NewBuffer(spec)
-		f, s2kconfig, salt, err := ParseWithConfig(buf)
+		params, err := ParseIntoParams(buf)
 		if err != nil {
-			t.Errorf("%d: Parse returned error: %s", i, err)
+			t.Errorf("%d: ParseIntoParams returned error: %s", i, err)
 			continue
 		}
 
-		expectedSalt, _ := hex.DecodeString(test.salt)
-		if !bytes.Equal(salt, expectedSalt) {
-			t.Errorf("%d: Wrong salt, got: %x want: %x", i, salt, expectedSalt)
-		}
-
-		if test.s2kConfig != s2kconfig {
-			t.Errorf("%d: Wrong s2kconfig, got: %+v want: %+v", i, s2kconfig, test.s2kConfig)
+		if test.params.mode != params.mode || test.params.hash != params.hash || test.params.count != params.count ||
+			!bytes.Equal(test.params.salt, params.salt) {
+			t.Errorf("%d: Wrong s2kconfig, got: %+v want: %+v", i, params, test.params)
 		}
 
 		expectedHash, _ := hex.DecodeString(test.out)
 		out := make([]byte, len(expectedHash))
+
+		f, err := params.Function()
+		if err != nil {
+			t.Errorf("%d: params.Function() returned error: %s", i, err)
+			continue
+		}
 		f(out, []byte(test.in))
 		if !bytes.Equal(out, expectedHash) {
 			t.Errorf("%d: Wrong output got: %x want: %x", i, out, expectedHash)

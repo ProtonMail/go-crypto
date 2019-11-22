@@ -17,7 +17,7 @@ import (
 )
 
 // Config collects configuration parameters for s2k key-stretching
-// transformatioms. A nil *Config is valid and results in all default
+// transformations. A nil *Config is valid and results in all default
 // values. Currently, Config is used only by the Serialize function in
 // this package.
 type Config struct {
@@ -39,6 +39,21 @@ type Config struct {
 	S2KCount int
 }
 
+// Params contains all the parameters of the s2k packet
+type Params struct {
+	// mode is the mode of s2k function.
+	// It can be 0 (simple), 1(salted), 3(iterated)
+	// 2(reserved) 100-110(private/experimental).
+	mode uint8
+	// Hash is the hash function used in any of the modes
+	hash crypto.Hash
+	// count is used to determine how many rounds of hashing are to
+	// be performed in s2k mode 3. See RFC 4880 Section 3.7.1.3.
+	count int
+	// salt is a byte array to use as a salt in hashing process
+	salt []byte
+}
+
 func (c *Config) hash() crypto.Hash {
 	if c == nil || uint(c.Hash) == 0 {
 		return crypto.SHA256
@@ -47,25 +62,43 @@ func (c *Config) hash() crypto.Hash {
 	return c.Hash
 }
 
-// EncodedCount get encoded count
-func (c *Config) EncodedCount() uint8 {
-	return c.encodedCount()
+// Generate generates valid parameters from given configuration.
+// It will enforce salted + hashed s2k method
+func (c *Config) Generate(rand io.Reader) (Params, error) {
+	params := Params{
+		mode:  3, // Enforce salted + hashed method
+		count: c.getCount(),
+		hash:  c.Hash,
+		salt:  make([]byte, 8),
+	}
+
+	if _, err := io.ReadFull(rand, params.salt); err != nil {
+		return Params{}, err
+	}
+
+	return params, nil
 }
 
-func (c *Config) encodedCount() uint8 {
+// EncodedCount get encoded count
+func (c *Config) EncodedCount() uint8 {
+	return encodeCount(c.getCount())
+}
+
+func (c *Config) getCount() int {
 	if c == nil || c.S2KCount == 0 {
-		return 224 // The common case. Correspoding to 16777216
+		return 16777216
 	}
 
 	i := c.S2KCount
+
 	switch {
 	case i < 65536:
-		i = 65536
+		return 65536
 	case i > 65011712:
-		i = 65011712
+		return 65011712
 	}
 
-	return encodeCount(i)
+	return i
 }
 
 // encodeCount converts an iterative "count" in the range 1024 to
@@ -160,14 +193,18 @@ func Iterated(out []byte, h hash.Hash, in []byte, salt []byte, count int) {
 // Parse reads a binary specification for a string-to-key transformation from r
 // and returns a function which performs that transform.
 func Parse(r io.Reader) (f func(out, in []byte), err error) {
-	f, _, _, err = ParseWithConfig(r)
-	return
+	params, err := ParseIntoParams(r)
+	if err != nil {
+		return nil, err
+	}
+
+	return params.Function()
 }
 
-// ParseWithConfig reads a binary specification for a string-to-key transformation from r
+// ParseIntoParams reads a binary specification for a string-to-key transformation from r
 // and returns a function which performs that transform, the relative s2k configuration,
 // and the salt as a []byte
-func ParseWithConfig(r io.Reader) (f func(out, in []byte), s2kConfig Config, salt []byte, err error) {
+func ParseIntoParams(r io.Reader) (params Params, err error) {
 	var buf [9]byte
 
 	_, err = io.ReadFull(r, buf[:2])
@@ -177,52 +214,87 @@ func ParseWithConfig(r io.Reader) (f func(out, in []byte), s2kConfig Config, sal
 
 	hashObj, ok := HashIdToHash(buf[1])
 	if !ok {
-		return nil, Config{}, nil, errors.UnsupportedError("hashObj for S2K function: " + strconv.Itoa(int(buf[1])))
+		return Params{}, errors.UnsupportedError("hash for S2K function: " + strconv.Itoa(int(buf[1])))
 	}
 	if !hashObj.Available() {
-		return nil, Config{}, nil, errors.UnsupportedError("hashObj not available: " + strconv.Itoa(int(hashObj)))
+		return Params{}, errors.UnsupportedError("hash not available: " + strconv.Itoa(int(hashObj)))
 	}
-	h := hashObj.New()
 
-	s2kConfig = Config{
-		S2KMode:  buf[0],
-		S2KCount: 0,
-		Hash:     hashObj,
+	params = Params{
+		mode:  buf[0],
+		count: 0,
+		hash:  hashObj,
+		salt:  nil,
 	}
 
 	switch buf[0] {
 	case 0:
-		f := func(out, in []byte) {
-			Simple(out, h, in)
-		}
-
-		s2kConfig.S2KMode = 0
-		return f, s2kConfig, nil, nil
+		params.mode = 0
+		return params, nil
 	case 1:
 		_, err = io.ReadFull(r, buf[:8])
 		if err != nil {
-			return nil, Config{}, nil, err
-		}
-		f := func(out, in []byte) {
-			Salted(out, h, in, buf[:8])
+			return Params{}, err
 		}
 
-		return f, s2kConfig, buf[:8], nil
+		params.salt = buf[:8]
+		return params, nil
 	case 3:
 		_, err = io.ReadFull(r, buf[:9])
 		if err != nil {
-			return nil, Config{}, nil, err
-		}
-		count := decodeCount(buf[8])
-		f := func(out, in []byte) {
-			Iterated(out, h, in, buf[:8], count)
+			return Params{}, err
 		}
 
-		s2kConfig.S2KCount = count
-		return f, s2kConfig, buf[:8], nil
+		params.count = decodeCount(buf[8])
+		params.salt = buf[:8]
+		return params, nil
 	}
 
-	return nil, Config{}, nil, errors.UnsupportedError("S2K function")
+	return Params{}, errors.UnsupportedError("S2K function")
+}
+
+func (params *Params) Function () (f func(out, in []byte), err error) {
+	switch params.mode {
+	case 0:
+		f := func(out, in []byte) {
+			Simple(out, params.hash.New(), in)
+		}
+
+		return f, nil
+	case 1:
+		f := func(out, in []byte) {
+			Salted(out, params.hash.New(), in, params.salt)
+		}
+
+		return f, nil
+	case 3:
+		f := func(out, in []byte) {
+			Iterated(out, params.hash.New(), in, params.salt, params.count)
+		}
+
+		return f, nil
+	}
+
+	return nil, errors.UnsupportedError("S2K function")
+}
+
+func (params *Params) Serialize (encodedKeyBuf io.Writer) (err error) {
+	if _, err = encodedKeyBuf.Write([]byte{params.mode}); err != nil {
+		return
+	}
+
+	hashID, ok := HashToHashId(params.hash)
+	if !ok {
+		return errors.UnsupportedError("no such hash")
+	}
+	if _, err = encodedKeyBuf.Write([]byte{hashID}); err != nil {
+		return
+	}
+	if _, err = encodedKeyBuf.Write(params.salt); err != nil {
+		return
+	}
+	_, err = encodedKeyBuf.Write([]byte{encodeCount(params.count)})
+	return
 }
 
 // Serialize salts and stretches the given passphrase and writes the
@@ -230,21 +302,16 @@ func ParseWithConfig(r io.Reader) (f func(out, in []byte), s2kConfig Config, sal
 // w. The key stretching can be configured with c, which may be
 // nil. In that case, sensible defaults will be used.
 func Serialize(w io.Writer, key []byte, rand io.Reader, passphrase []byte, c *Config) error {
-	var buf [11]byte
-	buf[0] = 3 /* iterated and salted */
-	buf[1], _ = HashToHashId(c.hash())
-	salt := buf[2:10]
-	if _, err := io.ReadFull(rand, salt); err != nil {
+	params, err := c.Generate(rand)
+	if err != nil {
 		return err
 	}
-	encodedCount := c.encodedCount()
-	count := decodeCount(encodedCount)
-	buf[10] = encodedCount
-	if _, err := w.Write(buf[:]); err != nil {
+	err = params.Serialize(w)
+	if err != nil {
 		return err
 	}
 
-	Iterated(key, c.hash().New(), passphrase, salt, count)
+	Iterated(key, params.hash.New(), passphrase, params.salt, params.count)
 	return nil
 }
 
