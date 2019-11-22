@@ -74,13 +74,13 @@ var parseTests = []struct {
 }{
 	/* Simple with SHA1 */
 	{"0002", "hello", "aaf4c61d",
-		Params{0, crypto.SHA1, 0, nil}},
+		Params{0, 0x02, 0, nil}},
 	/* Salted with SHA1 */
 	{"01020102030405060708", "hello", "f4f7d67e",
-		Params{1, crypto.SHA1, 0, []byte{ 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 }}},
+		Params{1, 0x02, 0, []byte{ 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 }}},
 	/* Iterated with SHA1 */
 	{"03020102030405060708f1", "hello", "f2a57b7c",
-		Params{3, crypto.SHA1, 35651584, []byte{ 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 }}},
+		Params{3, 0x02, 0xf1, []byte{ 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 }}},
 }
 
 func TestParseIntoParams(t *testing.T) {
@@ -93,7 +93,7 @@ func TestParseIntoParams(t *testing.T) {
 			continue
 		}
 
-		if test.params.mode != params.mode || test.params.hash != params.hash || test.params.count != params.count ||
+		if test.params.mode != params.mode || test.params.hashID != params.hashID || test.params.countByte != params.countByte ||
 			!bytes.Equal(test.params.salt, params.salt) {
 			t.Errorf("%d: Wrong s2kconfig, got: %+v want: %+v", i, params, test.params)
 		}

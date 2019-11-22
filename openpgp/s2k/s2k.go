@@ -45,11 +45,11 @@ type Params struct {
 	// It can be 0 (simple), 1(salted), 3(iterated)
 	// 2(reserved) 100-110(private/experimental).
 	mode uint8
-	// Hash is the hash function used in any of the modes
-	hash crypto.Hash
-	// count is used to determine how many rounds of hashing are to
+	// hashID is the ID of the hash function used in any of the modes
+	hashID byte
+	// countByte is used to determine how many rounds of hashing are to
 	// be performed in s2k mode 3. See RFC 4880 Section 3.7.1.3.
-	count int
+	countByte byte
 	// salt is a byte array to use as a salt in hashing process
 	salt []byte
 }
@@ -65,11 +65,16 @@ func (c *Config) hash() crypto.Hash {
 // Generate generates valid parameters from given configuration.
 // It will enforce salted + hashed s2k method
 func (c *Config) Generate(rand io.Reader) (Params, error) {
+	hashID, ok := HashToHashId(c.Hash)
+	if !ok {
+		return Params{}, errors.UnsupportedError("no such hash")
+	}
+
 	params := Params{
-		mode:  3, // Enforce salted + hashed method
-		count: c.getCount(),
-		hash:  c.Hash,
-		salt:  make([]byte, 8),
+		mode:      3, 				// Enforce salted + hashed method
+		countByte: c.EncodedCount(),
+		hashID:    hashID,
+		salt:      make([]byte, 8),
 	}
 
 	if _, err := io.ReadFull(rand, params.salt); err != nil {
@@ -81,24 +86,20 @@ func (c *Config) Generate(rand io.Reader) (Params, error) {
 
 // EncodedCount get encoded count
 func (c *Config) EncodedCount() uint8 {
-	return encodeCount(c.getCount())
-}
-
-func (c *Config) getCount() int {
 	if c == nil || c.S2KCount == 0 {
-		return 16777216
+		return 224 // The common case. Corresponding to 16777216
 	}
 
 	i := c.S2KCount
 
 	switch {
 	case i < 65536:
-		return 65536
+		i = 65536
 	case i > 65011712:
-		return 65011712
+		i = 65011712
 	}
 
-	return i
+	return encodeCount(i)
 }
 
 // encodeCount converts an iterative "count" in the range 1024 to
@@ -212,19 +213,11 @@ func ParseIntoParams(r io.Reader) (params Params, err error) {
 		return
 	}
 
-	hashObj, ok := HashIdToHash(buf[1])
-	if !ok {
-		return Params{}, errors.UnsupportedError("hash for S2K function: " + strconv.Itoa(int(buf[1])))
-	}
-	if !hashObj.Available() {
-		return Params{}, errors.UnsupportedError("hash not available: " + strconv.Itoa(int(hashObj)))
-	}
-
 	params = Params{
-		mode:  buf[0],
-		count: 0,
-		hash:  hashObj,
-		salt:  nil,
+		mode:      buf[0],
+		countByte: 0x00,
+		hashID:    buf[1],
+		salt:      nil,
 	}
 
 	switch buf[0] {
@@ -245,7 +238,7 @@ func ParseIntoParams(r io.Reader) (params Params, err error) {
 			return Params{}, err
 		}
 
-		params.count = decodeCount(buf[8])
+		params.countByte = buf[8]
 		params.salt = buf[:8]
 		return params, nil
 	}
@@ -254,22 +247,30 @@ func ParseIntoParams(r io.Reader) (params Params, err error) {
 }
 
 func (params *Params) Function () (f func(out, in []byte), err error) {
+	hashObj, ok := HashIdToHash(params.hashID)
+	if !ok {
+		return nil, errors.UnsupportedError("hash for S2K function: " + strconv.Itoa(int(params.hashID)))
+	}
+	if !hashObj.Available() {
+		return nil, errors.UnsupportedError("hash not available: " + strconv.Itoa(int(hashObj)))
+	}
+
 	switch params.mode {
 	case 0:
 		f := func(out, in []byte) {
-			Simple(out, params.hash.New(), in)
+			Simple(out, hashObj.New(), in)
 		}
 
 		return f, nil
 	case 1:
 		f := func(out, in []byte) {
-			Salted(out, params.hash.New(), in, params.salt)
+			Salted(out, hashObj.New(), in, params.salt)
 		}
 
 		return f, nil
 	case 3:
 		f := func(out, in []byte) {
-			Iterated(out, params.hash.New(), in, params.salt, params.count)
+			Iterated(out, hashObj.New(), in, params.salt, decodeCount(params.countByte))
 		}
 
 		return f, nil
@@ -282,18 +283,13 @@ func (params *Params) Serialize (encodedKeyBuf io.Writer) (err error) {
 	if _, err = encodedKeyBuf.Write([]byte{params.mode}); err != nil {
 		return
 	}
-
-	hashID, ok := HashToHashId(params.hash)
-	if !ok {
-		return errors.UnsupportedError("no such hash")
-	}
-	if _, err = encodedKeyBuf.Write([]byte{hashID}); err != nil {
+	if _, err = encodedKeyBuf.Write([]byte{params.hashID}); err != nil {
 		return
 	}
 	if _, err = encodedKeyBuf.Write(params.salt); err != nil {
 		return
 	}
-	_, err = encodedKeyBuf.Write([]byte{encodeCount(params.count)})
+	_, err = encodedKeyBuf.Write([]byte{params.countByte})
 	return
 }
 
@@ -311,7 +307,11 @@ func Serialize(w io.Writer, key []byte, rand io.Reader, passphrase []byte, c *Co
 		return err
 	}
 
-	Iterated(key, params.hash.New(), passphrase, params.salt, params.count)
+	f, err := params.Function()
+	if err != nil {
+		return err
+	}
+	f(key, passphrase)
 	return nil
 }
 
