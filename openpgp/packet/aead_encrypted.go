@@ -108,10 +108,6 @@ func (ae *AEADEncrypted) decrypt(key []byte) (io.ReadCloser, error) {
 // buffers extra decrypted bytes. It returns the number of bytes copied into dst
 // and an error.
 func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
-	if len(dst) == 0 {
-		return 0, errors.AEADError("argument of Read must have positive length")
-	}
-
 	// Return buffered plaintext bytes from previous calls
 	if ar.buffer.Len() > 0 {
 		return ar.buffer.Read(dst)

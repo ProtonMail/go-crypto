@@ -392,7 +392,7 @@ func randomStream(key []byte, ptLen int, config *Config) (*bytes.Buffer, []byte,
 func readDecryptedStream(rc io.ReadCloser) (got []byte, err error) {
 	for {
 		// Read a random number of bytes, until the end of the packet.
-		decrypted := make([]byte, mathrand.Intn(200)+1)
+		decrypted := make([]byte, mathrand.Intn(200))
 		n, err := rc.Read(decrypted)
 		decrypted = decrypted[:n]
 		got = append(got, decrypted...)
