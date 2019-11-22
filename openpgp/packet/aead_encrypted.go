@@ -165,8 +165,8 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, cipher CipherFunction, mode
 	if err != nil {
 		return nil, err
 	}
-	// Data for en/decryption: tag, version, cipher, aead mode, chunk size
 
+	// Data for en/decryption: tag, version, cipher, aead mode, chunk size
 	aeadConf := config.AEAD()
 	prefix := []byte{
 		0xD4,

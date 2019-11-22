@@ -207,8 +207,8 @@ func SerializeSymmetricKeyEncrypted(w io.Writer, passphrase []byte, config *Conf
 	case 4:
 		packetLength = 2 /* header */ + len(s2kBytes) + 1 /* cipher type */ + keySize
 	case 5:
-		nonceLen := config.AEADConfig.Mode().NonceLength()
-		tagLen := config.AEADConfig.Mode().TagLength()
+		nonceLen := config.AEAD().Mode().NonceLength()
+		tagLen := config.AEAD().Mode().TagLength()
 		packetLength = 3 + len(s2kBytes) + nonceLen + keySize + tagLen
 	}
 	err = serializeHeader(w, packetTypeSymmetricKeyEncrypted, packetLength)
@@ -224,7 +224,7 @@ func SerializeSymmetricKeyEncrypted(w io.Writer, passphrase []byte, config *Conf
 
 	if version == 5 {
 		// AEAD mode
-		buf = append(buf, byte(config.AEADConfig.Mode()))
+		buf = append(buf, byte(config.AEAD().Mode()))
 	}
 	_, err = w.Write(buf)
 	if err != nil {
@@ -255,10 +255,10 @@ func SerializeSymmetricKeyEncrypted(w io.Writer, passphrase []byte, config *Conf
 		}
 	case 5:
 		blockCipher := cipherFunc.new(keyEncryptingKey)
-		mode := config.AEADConfig.Mode()
+		mode := config.AEAD().Mode()
 		aead := mode.new(blockCipher)
 		// Sample nonce using random reader
-		nonce := make([]byte, config.AEADConfig.Mode().NonceLength())
+		nonce := make([]byte, config.AEAD().Mode().NonceLength())
 		_, err = io.ReadFull(config.Random(), nonce)
 		if err != nil {
 			return
