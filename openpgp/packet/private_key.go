@@ -39,12 +39,12 @@ type PrivateKey struct {
 	sha1Checksum  bool
 	iv            []byte
 
-	// Full parameters of s2k packet
-	s2kParams s2k.Params
 	// Type of encryption of the S2K packet
 	// Allowed values are 0 (Not encrypted), 254 (SHA1), or
 	// 255 (2-byte checksum)
-	s2kType S2KType
+	s2kType       S2KType
+	// Full parameters of the S2K packet
+	s2kParams     *s2k.Params
 }
 
 //S2KType s2k packet type
@@ -380,13 +380,13 @@ func (pk *PrivateKey) Encrypt(passphrase []byte) error {
 
 	//Default config of private key encryption
 	pk.cipher = CipherAES256
-	s2kConfig := s2k.Config{
+	s2kConfig := &s2k.Config{
 		S2KMode:  3, //Iterated
 		S2KCount: 65536,
-		Hash:  crypto.SHA256,
+		Hash:     crypto.SHA256,
 	}
 
-	pk.s2kParams, err = s2kConfig.Generate(rand.Reader)
+	pk.s2kParams, err = s2k.Generate(rand.Reader, s2kConfig)
 	privateKeyBytes := privateKeyBuf.Bytes()
 	key := make([]byte, pk.cipher.KeySize())
 
