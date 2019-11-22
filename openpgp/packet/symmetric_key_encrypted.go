@@ -27,7 +27,6 @@ type SymmetricKeyEncrypted struct {
 	s2k          func(out, in []byte)
 	aeadNonce    []byte
 	encryptedKey []byte
-	aeadTag      []byte
 }
 
 func (ske *SymmetricKeyEncrypted) parse(r io.Reader) error {
@@ -103,8 +102,8 @@ func (ske *SymmetricKeyEncrypted) parseV5(r io.Reader) error {
 
 	// Encrypted key and final tag follow
 	tagLen := ske.Mode.TagLength()
-	ekAndTag := make([]byte, maxSessionKeySizeInBytes+tagLen)
-	n, err = readFull(r, ekAndTag)
+	encryptedKey := make([]byte, maxSessionKeySizeInBytes+tagLen)
+	n, err = readFull(r, encryptedKey)
 	if err != nil && err != io.ErrUnexpectedEOF {
 		return err
 	}
@@ -114,9 +113,7 @@ func (ske *SymmetricKeyEncrypted) parseV5(r io.Reader) error {
 	if n == maxSessionKeySizeInBytes+tagLen {
 		return errors.UnsupportedError("oversized encrypted session key")
 	}
-	sep := n - tagLen
-	ske.encryptedKey = ekAndTag[:sep]
-	ske.aeadTag = ekAndTag[sep:n]
+	ske.encryptedKey = encryptedKey[:n]
 	return nil
 }
 
@@ -165,9 +162,8 @@ func (ske *SymmetricKeyEncrypted) decryptV5(key []byte) ([]byte, error) {
 	blockCipher := CipherFunction(ske.CipherFunc).new(key)
 	aead := ske.Mode.new(blockCipher)
 
-	ciphertext := append(ske.encryptedKey, ske.aeadTag...)
 	adata := []byte{0xc3, byte(5), byte(ske.CipherFunc), byte(ske.Mode)}
-	plaintextKey, err := aead.Open(nil, ske.aeadNonce, ciphertext, adata)
+	plaintextKey, err := aead.Open(nil, ske.aeadNonce, ske.encryptedKey, adata)
 	if err != nil {
 		return nil, err
 	}
