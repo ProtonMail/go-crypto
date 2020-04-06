@@ -205,11 +205,16 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 	return
 }
 
+// SerializeForHash serializes the part of the key for the fingerprinting hash
+func (pk *PublicKey) SerializeForHash(h io.Writer) {
+	pk.SerializeSignaturePrefix(h)
+	pk.serializeWithoutHeaders(h)
+}
+
 func (pk *PublicKey) setFingerPrintAndKeyId() {
 	// RFC 4880, section 12.2
 	fingerPrint := sha1.New()
-	pk.SerializeSignaturePrefix(fingerPrint)
-	pk.serializeWithoutHeaders(fingerPrint)
+	pk.SerializeForHash(fingerPrint)
 	copy(pk.Fingerprint[:], fingerPrint.Sum(nil))
 	pk.KeyId = binary.BigEndian.Uint64(pk.Fingerprint[12:20])
 }
