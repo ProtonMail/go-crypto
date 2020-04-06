@@ -116,6 +116,13 @@ func (pk *PublicKeyV3) parseRSA(r io.Reader) (err error) {
 	return
 }
 
+// SerializeForHash serializes the PublicKey to w with the special packet
+// header format needed for hashing. See RFC 4880, section 5.2.4.
+func (pk *PublicKeyV3) SerializeForHash(w io.Writer) error {
+	pk.SerializeSignaturePrefix(w)
+	return pk.serializeWithoutHeaders(w)
+}
+
 // SerializeSignaturePrefix writes the prefix for this public key to the given Writer.
 // The prefix is used when calculating a signature over this public key. See
 // RFC 4880, section 5.2.4.
@@ -152,13 +159,6 @@ func (pk *PublicKeyV3) Serialize(w io.Writer) (err error) {
 		return
 	}
 	return pk.serializeWithoutHeaders(w)
-}
-
-// SerializeForHash serializes the PublicKey to h with the special packet header format needed for hashing.
-// See RFC 4880, section 5.2.4.
-func (pk *PublicKeyV3) SerializeForHash(h io.Writer) error {
-	pk.SerializeSignaturePrefix(h)
-	return pk.serializeWithoutHeaders(h)
 }
 
 // serializeWithoutHeaders marshals the PublicKey to w in the form of an
