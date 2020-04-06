@@ -117,7 +117,7 @@ func (pk *PublicKeyV3) parseRSA(r io.Reader) (err error) {
 }
 
 // SerializeForHash serializes the PublicKey to w with the special packet
-// header format needed for hashing. See RFC 4880, section 5.2.4.
+// header format needed for hashing.
 func (pk *PublicKeyV3) SerializeForHash(w io.Writer) error {
 	pk.SerializeSignaturePrefix(w)
 	return pk.serializeWithoutHeaders(w)
