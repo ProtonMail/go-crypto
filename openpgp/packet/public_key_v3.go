@@ -154,6 +154,13 @@ func (pk *PublicKeyV3) Serialize(w io.Writer) (err error) {
 	return pk.serializeWithoutHeaders(w)
 }
 
+// SerializeForHash serializes the PublicKey to h with the special packet header format needed for hashing.
+// See RFC 4880, section 5.2.4.
+func (pk *PublicKeyV3) SerializeForHash(h io.Writer) error {
+	pk.SerializeSignaturePrefix(h)
+	return pk.serializeWithoutHeaders(h)
+}
+
 // serializeWithoutHeaders marshals the PublicKey to w in the form of an
 // OpenPGP public key packet, not including the packet header.
 func (pk *PublicKeyV3) serializeWithoutHeaders(w io.Writer) (err error) {

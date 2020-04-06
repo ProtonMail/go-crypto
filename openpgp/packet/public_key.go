@@ -206,7 +206,8 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 	return
 }
 
-// SerializeForHash serializes the part of the key for the fingerprinting hash
+// SerializeForHash serializes the PublicKey to h with the special packet header format needed for hashing.
+// See RFC 4880, section 5.2.4.
 func (pk *PublicKey) SerializeForHash(h io.Writer) error {
 	pk.SerializeSignaturePrefix(h)
 	return pk.serializeWithoutHeaders(h)
