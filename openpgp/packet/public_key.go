@@ -57,6 +57,7 @@ type PublicKey struct {
 // signingKey provides a convenient abstraction over signature verification
 // for v3 and v4 public keys.
 type signingKey interface {
+	SerializeForHash(io.Writer) error
 	SerializeSignaturePrefix(io.Writer)
 	serializeWithoutHeaders(io.Writer) error
 }
@@ -208,8 +209,7 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 func (pk *PublicKey) setFingerPrintAndKeyId() {
 	// RFC 4880, section 12.2
 	fingerPrint := sha1.New()
-	pk.SerializeSignaturePrefix(fingerPrint)
-	pk.serializeWithoutHeaders(fingerPrint)
+	pk.SerializeForHash(fingerPrint)
 	copy(pk.Fingerprint[:], fingerPrint.Sum(nil))
 	pk.KeyId = binary.BigEndian.Uint64(pk.Fingerprint[12:20])
 }
@@ -409,10 +409,17 @@ func (pk *PublicKey) parseEdDSA(r io.Reader) (err error) {
 	return
 }
 
+// SerializeForHash serializes the PublicKey to w with the special packet
+// header format needed for hashing.
+func (pk *PublicKey) SerializeForHash(w io.Writer) error {
+	pk.SerializeSignaturePrefix(w)
+	return pk.serializeWithoutHeaders(w)
+}
+
 // SerializeSignaturePrefix writes the prefix for this public key to the given Writer.
 // The prefix is used when calculating a signature over this public key. See
 // RFC 4880, section 5.2.4.
-func (pk *PublicKey) SerializeSignaturePrefix(h io.Writer) {
+func (pk *PublicKey) SerializeSignaturePrefix(w io.Writer) {
 	var pLength uint16
 	switch pk.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoRSASignOnly:
@@ -441,7 +448,7 @@ func (pk *PublicKey) SerializeSignaturePrefix(h io.Writer) {
 		panic("unknown public key algorithm")
 	}
 	pLength += 6
-	h.Write([]byte{0x99, byte(pLength >> 8), byte(pLength)})
+	w.Write([]byte{0x99, byte(pLength >> 8), byte(pLength)})
 	return
 }
 
@@ -676,10 +683,12 @@ func keySignatureHash(pk, signed signingKey, hashFunc crypto.Hash) (h hash.Hash,
 	h = hashFunc.New()
 
 	// RFC 4880, section 5.2.4
-	pk.SerializeSignaturePrefix(h)
-	pk.serializeWithoutHeaders(h)
-	signed.SerializeSignaturePrefix(h)
-	signed.serializeWithoutHeaders(h)
+	err = pk.SerializeForHash(h)
+	if err != nil {
+		return nil, err
+	}
+
+	err = signed.SerializeForHash(h)
 	return
 }
 
@@ -721,8 +730,7 @@ func keyRevocationHash(pk signingKey, hashFunc crypto.Hash) (h hash.Hash, err er
 	h = hashFunc.New()
 
 	// RFC 4880, section 5.2.4
-	pk.SerializeSignaturePrefix(h)
-	pk.serializeWithoutHeaders(h)
+	err = pk.SerializeForHash(h)
 
 	return
 }
