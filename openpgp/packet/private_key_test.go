@@ -10,10 +10,10 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	mathrand "math/rand"
 	"crypto/x509"
 	"encoding/hex"
 	"hash"
+	mathrand "math/rand"
 	"testing"
 	"time"
 
@@ -34,16 +34,6 @@ var privateKeyTests = []struct {
 		time.Unix(0x4df9ee1a, 0),
 	},
 }
-
-const (
-	// Amount of iterations of random tests
-	iterations = 1 << 10
-	// For slow algorithms
-	iterationsShort = 1 << 5
-	// Message length of random test messages
-	maxMessageLength = 1 << 10
-)
-
 
 func TestExternalPrivateKeyRead(t *testing.T) {
 	for i, test := range privateKeyTests {
@@ -80,7 +70,7 @@ func TestExternalPrivateKeyRead(t *testing.T) {
 
 // En/decryption of private keys provided externally, with random passwords
 func TestExternalPrivateKeyEncryptDecrypt(t *testing.T) {
-	for j := 0; j < iterationsShort; j++ {
+	for j := 0; j < iterationsSlow; j++ {
 		for i, test := range privateKeyTests {
 			packet, err := Read(readerFromHex(test.privateKeyHex))
 			if err != nil {
@@ -112,7 +102,7 @@ func TestExternalPrivateKeyEncryptDecrypt(t *testing.T) {
 			}
 
 			// Try to decrypt with incorrect password
-			incorrect:= make([]byte, 1 + mathrand.Intn(30))
+			incorrect := make([]byte, 1+mathrand.Intn(30))
 			for rand.Read(incorrect); bytes.Equal(incorrect, randomPassword); {
 				rand.Read(incorrect)
 			}
@@ -164,7 +154,7 @@ func TestExternalRSAPrivateKey(t *testing.T) {
 			E: rsaPriv.PublicKey.E,
 			N: rsaPriv.PublicKey.N,
 		},
-		D: rsaPriv.D,
+		D:      rsaPriv.D,
 		Primes: rsaPriv.Primes,
 	}
 	xrsaPriv.Precompute()
@@ -258,7 +248,7 @@ type rsaSigner struct {
 }
 
 func TestRandomRSASignerPrivateKeys(t *testing.T) {
-	for i := 0; i < iterationsShort; i++ {
+	for i := 0; i < iterationsSlow; i++ {
 		// Generate random key
 		rsaPriv, err := rsa.GenerateKey(rand.Reader, 1024)
 		if err != nil {

@@ -8,16 +8,22 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
-	"golang.org/x/crypto/openpgp/errors"
 	"io"
 	"io/ioutil"
 	"testing"
+
+	"golang.org/x/crypto/openpgp/errors"
 )
 
 const (
-	iterations         = 500
-	iterationsSlow     = 10
+	// Amount of iterations of random tests
+	iterations = 500
+	// For slow algorithms
+	iterationsSlow = 10
+	// For very slow algorithms
 	iterationsVerySlow = 5
+	// Message length of random test messages
+	maxMessageLength = 1 << 10
 )
 
 func TestReadFull(t *testing.T) {
