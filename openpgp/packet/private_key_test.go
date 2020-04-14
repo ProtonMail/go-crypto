@@ -21,6 +21,8 @@ import (
 	"golang.org/x/crypto/rsa"
 )
 
+const maxMessageLength = 1 << 10
+
 var privateKeyTests = []struct {
 	privateKeyHex string
 	creationTime  time.Time
