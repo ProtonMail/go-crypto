@@ -69,66 +69,64 @@ func TestExternalPrivateKeyRead(t *testing.T) {
 }
 
 // En/decryption of private keys provided externally, with random passwords
-func TestExternalPrivateKeyEncryptDecrypt(t *testing.T) {
-	for j := 0; j < iterationsSlow; j++ {
-		for i, test := range privateKeyTests {
-			packet, err := Read(readerFromHex(test.privateKeyHex))
-			if err != nil {
-				t.Errorf("#%d: failed to parse: %s", i, err)
-				continue
-			}
+func TestExternalPrivateKeyEncryptDecryptRandomizeSlow(t *testing.T) {
+	for i, test := range privateKeyTests {
+		packet, err := Read(readerFromHex(test.privateKeyHex))
+		if err != nil {
+			t.Errorf("#%d: failed to parse: %s", i, err)
+			continue
+		}
 
-			privKey := packet.(*PrivateKey)
+		privKey := packet.(*PrivateKey)
 
-			if !privKey.Encrypted {
-				t.Errorf("#%d: private key isn't encrypted", i)
-				continue
-			}
+		if !privKey.Encrypted {
+			t.Errorf("#%d: private key isn't encrypted", i)
+			continue
+		}
 
-			// Decrypt with the correct password
-			err = privKey.Decrypt([]byte("testing"))
-			if err != nil {
-				t.Errorf("#%d: failed to decrypt: %s", i, err)
-				continue
-			}
+		// Decrypt with the correct password
+		err = privKey.Decrypt([]byte("testing"))
+		if err != nil {
+			t.Errorf("#%d: failed to decrypt: %s", i, err)
+			continue
+		}
 
-			// Encrypt with another (possibly empty) password
-			randomPassword := make([]byte, mathrand.Intn(30))
-			rand.Read(randomPassword)
-			err = privKey.Encrypt(randomPassword)
-			if err != nil {
-				t.Errorf("#%d: failed to encrypt: %s", i, err)
-				continue
-			}
+		// Encrypt with another (possibly empty) password
+		randomPassword := make([]byte, mathrand.Intn(30))
+		rand.Read(randomPassword)
+		err = privKey.Encrypt(randomPassword)
+		if err != nil {
+			t.Errorf("#%d: failed to encrypt: %s", i, err)
+			continue
+		}
 
-			// Try to decrypt with incorrect password
-			incorrect := make([]byte, 1+mathrand.Intn(30))
-			for rand.Read(incorrect); bytes.Equal(incorrect, randomPassword); {
-				rand.Read(incorrect)
-			}
-			err = privKey.Decrypt(incorrect)
-			if err == nil {
-				t.Errorf("#%d: decrypted with incorrect password\nPassword is:%vDecrypted with:%v", i, randomPassword, incorrect)
-				continue
-			}
+		// Try to decrypt with incorrect password
+		incorrect := make([]byte, 1+mathrand.Intn(30))
+		for rand.Read(incorrect); bytes.Equal(incorrect, randomPassword); {
+			rand.Read(incorrect)
+		}
+		err = privKey.Decrypt(incorrect)
+		if err == nil {
+			t.Errorf("#%d: decrypted with incorrect password\nPassword is:%vDecrypted with:%v", i, randomPassword, incorrect)
+			continue
+		}
 
-			// Try to decrypt with old password
-			err = privKey.Decrypt([]byte("testing"))
-			if err == nil {
-				t.Errorf("#%d: decrypted with old password", i)
-				continue
-			}
+		// Try to decrypt with old password
+		err = privKey.Decrypt([]byte("testing"))
+		if err == nil {
+			t.Errorf("#%d: decrypted with old password", i)
+			continue
+		}
 
-			// Decrypt with correct password
-			err = privKey.Decrypt(randomPassword)
-			if err != nil {
-				t.Errorf("#%d: failed to decrypt: %s", i, err)
-				continue
-			}
+		// Decrypt with correct password
+		err = privKey.Decrypt(randomPassword)
+		if err != nil {
+			t.Errorf("#%d: failed to decrypt: %s", i, err)
+			continue
+		}
 
-			if !privKey.CreationTime.Equal(test.creationTime) || privKey.Encrypted {
-				t.Errorf("#%d: bad result, got: %#v", i, privKey)
-			}
+		if !privKey.CreationTime.Equal(test.creationTime) || privKey.Encrypted {
+			t.Errorf("#%d: bad result, got: %#v", i, privKey)
 		}
 	}
 }
@@ -176,7 +174,7 @@ func TestExternalRSAPrivateKey(t *testing.T) {
 		PubKeyAlgo: PubKeyAlgoRSA,
 		Hash:       crypto.SHA256,
 	}
-	for j := 0; j < iterations; j++ {
+	for j := 0; j < 256; j++ {
 		msg := make([]byte, maxMessageLength)
 		rand.Read(msg)
 
@@ -197,49 +195,47 @@ func TestExternalRSAPrivateKey(t *testing.T) {
 	}
 }
 
-func TestRandomECDSAPrivateKeys(t *testing.T) {
-	for i := 0; i < iterations; i++ {
-		ecdsaPriv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-		if err != nil {
-			t.Fatal(err)
-		}
+func TestECDSAPrivateKeysRandomizeFast(t *testing.T) {
+	ecdsaPriv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-		var buf bytes.Buffer
-		if err := NewECDSAPrivateKey(time.Now(), ecdsaPriv).Serialize(&buf); err != nil {
-			t.Fatal(err)
-		}
+	var buf bytes.Buffer
+	if err := NewECDSAPrivateKey(time.Now(), ecdsaPriv).Serialize(&buf); err != nil {
+		t.Fatal(err)
+	}
 
-		p, err := Read(&buf)
-		if err != nil {
-			t.Fatal(err)
-		}
+	p, err := Read(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-		priv, ok := p.(*PrivateKey)
-		if !ok {
-			t.Fatal("didn't parse private key")
-		}
+	priv, ok := p.(*PrivateKey)
+	if !ok {
+		t.Fatal("didn't parse private key")
+	}
 
-		sig := &Signature{
-			PubKeyAlgo: PubKeyAlgoECDSA,
-			Hash:       crypto.SHA256,
-		}
-		msg := make([]byte, mathrand.Intn(maxMessageLength))
-		rand.Read(msg)
+	sig := &Signature{
+		PubKeyAlgo: PubKeyAlgoECDSA,
+		Hash:       crypto.SHA256,
+	}
+	msg := make([]byte, mathrand.Intn(maxMessageLength))
+	rand.Read(msg)
 
-		h, err := populateHash(sig.Hash, msg)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := sig.Sign(h, priv, nil); err != nil {
-			t.Fatal(err)
-		}
+	h, err := populateHash(sig.Hash, msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sig.Sign(h, priv, nil); err != nil {
+		t.Fatal(err)
+	}
 
-		if h, err = populateHash(sig.Hash, msg); err != nil {
-			t.Fatal(err)
-		}
-		if err := priv.VerifySignature(h, sig); err != nil {
-			t.Fatal(err)
-		}
+	if h, err = populateHash(sig.Hash, msg); err != nil {
+		t.Fatal(err)
+	}
+	if err := priv.VerifySignature(h, sig); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -247,52 +243,50 @@ type rsaSigner struct {
 	*rsa.PrivateKey
 }
 
-func TestRandomRSASignerPrivateKeys(t *testing.T) {
-	for i := 0; i < iterationsSlow; i++ {
-		// Generate random key
-		rsaPriv, err := rsa.GenerateKey(rand.Reader, 1024)
-		if err != nil {
-			t.Fatal(err)
-		}
+func TestRSASignerPrivateKeysRandomizeSlow(t *testing.T) {
+	// Generate random key
+	rsaPriv, err := rsa.GenerateKey(rand.Reader, 1024)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-		priv := NewSignerPrivateKey(time.Now(), &rsaSigner{rsaPriv})
+	priv := NewSignerPrivateKey(time.Now(), &rsaSigner{rsaPriv})
 
-		sig := &Signature{
-			PubKeyAlgo: PubKeyAlgoRSA,
-			Hash:       crypto.SHA256,
-		}
+	sig := &Signature{
+		PubKeyAlgo: PubKeyAlgoRSA,
+		Hash:       crypto.SHA256,
+	}
 
-		// Sign random message
-		msg := make([]byte, maxMessageLength)
-		h, err := populateHash(sig.Hash, msg)
+	// Sign random message
+	msg := make([]byte, maxMessageLength)
+	h, err := populateHash(sig.Hash, msg)
 
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := sig.Sign(h, priv, nil); err != nil {
-			t.Fatal(err)
-		}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sig.Sign(h, priv, nil); err != nil {
+		t.Fatal(err)
+	}
 
-		if h, err = populateHash(sig.Hash, msg); err != nil {
-			t.Fatal(err)
-		}
+	if h, err = populateHash(sig.Hash, msg); err != nil {
+		t.Fatal(err)
+	}
 
-		// Verify signature
-		if err := priv.VerifySignature(h, sig); err != nil {
-			t.Fatal(err)
-		}
+	// Verify signature
+	if err := priv.VerifySignature(h, sig); err != nil {
+		t.Fatal(err)
+	}
 
-		// Try to verify signature with wrong key
-		incorrectRsaPriv, err := rsa.GenerateKey(rand.Reader, 1024)
-		if err != nil {
-			t.Fatal(err)
-		}
-		incorrectPriv := NewSignerPrivateKey(time.Now(), &rsaSigner{incorrectRsaPriv})
-		if err = incorrectPriv.VerifySignature(h, sig); err == nil {
-			t.Fatalf(
-				"Verified signature with incorrect key.\nCorrect key:  \n%v\nIncorrect key:\n%v\nSignature:%v",
-				priv, incorrectPriv, sig)
-		}
+	// Try to verify signature with wrong key
+	incorrectRsaPriv, err := rsa.GenerateKey(rand.Reader, 1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	incorrectPriv := NewSignerPrivateKey(time.Now(), &rsaSigner{incorrectRsaPriv})
+	if err = incorrectPriv.VerifySignature(h, sig); err == nil {
+		t.Fatalf(
+			"Verified signature with incorrect key.\nCorrect key:  \n%v\nIncorrect key:\n%v\nSignature:%v",
+			priv, incorrectPriv, sig)
 	}
 }
 
@@ -300,101 +294,95 @@ type ecdsaSigner struct {
 	*ecdsa.PrivateKey
 }
 
-func TestRandomECDSASignerPrivateKeys(t *testing.T) {
-	for i := 0; i < iterations; i++ {
-		ecdsaPriv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-		if err != nil {
-			t.Fatal(err)
-		}
+func TestECDSASignerPrivateKeysRandomizeFast(t *testing.T) {
+	ecdsaPriv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-		priv := NewSignerPrivateKey(time.Now(), &ecdsaSigner{ecdsaPriv})
+	priv := NewSignerPrivateKey(time.Now(), &ecdsaSigner{ecdsaPriv})
 
-		if priv.PubKeyAlgo != PubKeyAlgoECDSA {
-			t.Fatal("NewSignerPrivateKey should have made an ECSDA private key")
-		}
+	if priv.PubKeyAlgo != PubKeyAlgoECDSA {
+		t.Fatal("NewSignerPrivateKey should have made an ECSDA private key")
+	}
 
-		sig := &Signature{
-			PubKeyAlgo: PubKeyAlgoECDSA,
-			Hash:       crypto.SHA256,
-		}
-		msg := make([]byte, mathrand.Intn(maxMessageLength))
-		rand.Read(msg)
+	sig := &Signature{
+		PubKeyAlgo: PubKeyAlgoECDSA,
+		Hash:       crypto.SHA256,
+	}
+	msg := make([]byte, mathrand.Intn(maxMessageLength))
+	rand.Read(msg)
 
-		h, err := populateHash(sig.Hash, msg)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := sig.Sign(h, priv, nil); err != nil {
-			t.Fatal(err)
-		}
+	h, err := populateHash(sig.Hash, msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sig.Sign(h, priv, nil); err != nil {
+		t.Fatal(err)
+	}
 
-		if h, err = populateHash(sig.Hash, msg); err != nil {
-			t.Fatal(err)
-		}
-		if err := priv.VerifySignature(h, sig); err != nil {
-			t.Fatal(err)
-		}
+	if h, err = populateHash(sig.Hash, msg); err != nil {
+		t.Fatal(err)
+	}
+	if err := priv.VerifySignature(h, sig); err != nil {
+		t.Fatal(err)
 	}
 }
 
-func TestEdDSASignerPrivateKey(t *testing.T) {
-	for i := 0; i < iterations; i++ {
-		_, eddsaPriv, err := ed25519.GenerateKey(rand.Reader)
-		if err != nil {
-			t.Fatal(err)
-		}
+func TestEdDSASignerPrivateKeyRandomizeFast(t *testing.T) {
+	_, eddsaPriv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-		priv := NewSignerPrivateKey(time.Now(), eddsaPriv)
+	priv := NewSignerPrivateKey(time.Now(), eddsaPriv)
 
-		if priv.PubKeyAlgo != PubKeyAlgoEdDSA {
-			t.Fatal("NewSignerPrivateKey should have made a EdDSA private key")
-		}
+	if priv.PubKeyAlgo != PubKeyAlgoEdDSA {
+		t.Fatal("NewSignerPrivateKey should have made a EdDSA private key")
+	}
 
-		sig := &Signature{
-			PubKeyAlgo: PubKeyAlgoEdDSA,
-			Hash:       crypto.SHA256,
-		}
-		msg := make([]byte, maxMessageLength)
-		rand.Read(msg)
+	sig := &Signature{
+		PubKeyAlgo: PubKeyAlgoEdDSA,
+		Hash:       crypto.SHA256,
+	}
+	msg := make([]byte, maxMessageLength)
+	rand.Read(msg)
 
-		h, err := populateHash(sig.Hash, msg)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := sig.Sign(h, priv, nil); err != nil {
-			t.Fatal(err)
-		}
-		if h, err = populateHash(sig.Hash, msg); err != nil {
-			t.Fatal(err)
-		}
-		if err := priv.VerifySignature(h, sig); err != nil {
-			t.Fatal(err)
-		}
+	h, err := populateHash(sig.Hash, msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sig.Sign(h, priv, nil); err != nil {
+		t.Fatal(err)
+	}
+	if h, err = populateHash(sig.Hash, msg); err != nil {
+		t.Fatal(err)
+	}
+	if err := priv.VerifySignature(h, sig); err != nil {
+		t.Fatal(err)
 	}
 }
 
 // Tests correctness when encrypting an EdDSA private key with a password.
-func TestEncryptDecryptEdDSAPrivateKey(t *testing.T) {
+func TestEncryptDecryptEdDSAPrivateKeyRandomizeFast(t *testing.T) {
 	password := make([]byte, 20)
 	_, err := rand.Read(password)
 	if err != nil {
 		panic(err)
 	}
-	for i := 0; i < iterations; i++ {
-		_, primaryKey, err := ed25519.GenerateKey(rand.Reader)
-		if err != nil {
-			panic(err)
-		}
-		privKey := *NewEdDSAPrivateKey(time.Now(), primaryKey)
-		copiedPrivKey := make([]byte, len(primaryKey))
-		copy(copiedPrivKey, privKey.PrivateKey.(ed25519.PrivateKey))
-		// Encrypt private key with random passphrase
-		privKey.Encrypt(password)
-		// Decrypt and check correctness
-		privKey.Decrypt(password)
-		if !bytes.Equal(privKey.PrivateKey.(ed25519.PrivateKey), copiedPrivKey) {
-			t.Fatalf("Private key was not correctly decrypted:\ngot:\n%v\nwant:\n%v", privKey.PrivateKey, copiedPrivKey)
-		}
+	_, primaryKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		panic(err)
+	}
+	privKey := *NewEdDSAPrivateKey(time.Now(), primaryKey)
+	copiedPrivKey := make([]byte, len(primaryKey))
+	copy(copiedPrivKey, privKey.PrivateKey.(ed25519.PrivateKey))
+	// Encrypt private key with random passphrase
+	privKey.Encrypt(password)
+	// Decrypt and check correctness
+	privKey.Decrypt(password)
+	if !bytes.Equal(privKey.PrivateKey.(ed25519.PrivateKey), copiedPrivKey) {
+		t.Fatalf("Private key was not correctly decrypted:\ngot:\n%v\nwant:\n%v", privKey.PrivateKey, copiedPrivKey)
 	}
 }
 

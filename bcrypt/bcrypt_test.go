@@ -6,40 +6,36 @@ package bcrypt
 
 import (
 	"bytes"
-	"fmt"
-	"testing"
 	"crypto/rand"
+	"fmt"
 	mathrand "math/rand"
+	"testing"
 )
 
 const (
-	// For randomized tests (slow algorithms)
-	iterationsShort = 1 << 3
 	maxPasswordLength = 80
 )
 
-func TestRandomBcryptMismatch(t *testing.T) {
-	for i := 0; i < iterationsShort; i++ {
-		pass := make([]byte, mathrand.Intn(maxPasswordLength))
-		rand.Read(pass)
-		hp, err := GenerateFromPassword(pass, 0)
-		if err != nil {
-			t.Fatalf("GenerateFromPassword error: %s", err)
-		}
+func TestRandomBcryptMismatchRandomizeSlow(t *testing.T) {
+	pass := make([]byte, mathrand.Intn(maxPasswordLength))
+	rand.Read(pass)
+	hp, err := GenerateFromPassword(pass, 0)
+	if err != nil {
+		t.Fatalf("GenerateFromPassword error: %s", err)
+	}
 
-		if CompareHashAndPassword(hp, pass) != nil {
-			t.Errorf("%v should hash %s correctly", hp, pass)
-		}
+	if CompareHashAndPassword(hp, pass) != nil {
+		t.Errorf("%v should hash %s correctly", hp, pass)
+	}
 
-		notPass := make([]byte, mathrand.Intn(maxPasswordLength))
-		for rand.Read(notPass); bytes.Equal(notPass, pass); {
-			rand.Read(notPass)
-		}
+	notPass := make([]byte, mathrand.Intn(maxPasswordLength))
+	for rand.Read(notPass); bytes.Equal(notPass, pass); {
+		rand.Read(notPass)
+	}
 
-		err = CompareHashAndPassword(hp, notPass)
-		if err != ErrMismatchedHashAndPassword {
-			t.Errorf("%v and %s should be mismatched", hp, notPass)
-		}
+	err = CompareHashAndPassword(hp, notPass)
+	if err != ErrMismatchedHashAndPassword {
+		t.Errorf("%v and %s should be mismatched", hp, notPass)
 	}
 }
 
@@ -234,4 +230,3 @@ func BenchmarkDefaultCost(b *testing.B) {
 		GenerateFromPassword(passwd, DefaultCost)
 	}
 }
-

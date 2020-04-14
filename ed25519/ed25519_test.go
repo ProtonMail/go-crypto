@@ -10,8 +10,8 @@ import (
 	"compress/gzip"
 	"crypto"
 	"crypto/rand"
-	mathrand "math/rand"
 	"encoding/hex"
+	mathrand "math/rand"
 	"os"
 	"strings"
 	"testing"
@@ -20,10 +20,6 @@ import (
 )
 
 const (
-	// Amount of iterations of random tests
-	iterations = 1 << 10
-	// For slow algorithms
-	iterationsShort = 1 << 5
 	// Message length of random test messages
 	maxMessageLength = 1 << 10
 )
@@ -55,57 +51,53 @@ func TestUnmarshalMarshal(t *testing.T) {
 	}
 }
 
-func TestSignVerify(t *testing.T) {
-	for i := 0; i < iterations; i++ {
-		public, private, _ := GenerateKey(rand.Reader)
+func TestSignVerifyRandomizeSlow(t *testing.T) {
+	public, private, _ := GenerateKey(rand.Reader)
 
-		message := make([]byte, mathrand.Intn(maxMessageLength))
-		if _, err := rand.Read(message); err != nil {
-			panic(err)
-		}
-		sig := Sign(private, message)
-		if !Verify(public, message, sig) {
-			t.Errorf("valid signature rejected")
-		}
-		wrongMessage := make([]byte, 1+mathrand.Intn(maxMessageLength))
-		for rand.Read(wrongMessage); bytes.Equal(wrongMessage, message); {
-			rand.Read(wrongMessage)
-		}
-		if Verify(public, wrongMessage, sig) {
-			t.Errorf("signature of different message accepted")
-		}
+	message := make([]byte, mathrand.Intn(maxMessageLength))
+	if _, err := rand.Read(message); err != nil {
+		panic(err)
+	}
+	sig := Sign(private, message)
+	if !Verify(public, message, sig) {
+		t.Errorf("valid signature rejected")
+	}
+	wrongMessage := make([]byte, 1+mathrand.Intn(maxMessageLength))
+	for rand.Read(wrongMessage); bytes.Equal(wrongMessage, message); {
+		rand.Read(wrongMessage)
+	}
+	if Verify(public, wrongMessage, sig) {
+		t.Errorf("signature of different message accepted")
 	}
 }
 
-func TestCryptoSigner(t *testing.T) {
-	for i := 0; i < iterations; i++ {
-		public, private, _ := GenerateKey(rand.Reader)
+func TestCryptoSignerRandomizeSlow(t *testing.T) {
+	public, private, _ := GenerateKey(rand.Reader)
 
-		signer := crypto.Signer(private)
+	signer := crypto.Signer(private)
 
-		publicInterface := signer.Public()
-		public2, ok := publicInterface.(PublicKey)
-		if !ok {
-			t.Fatalf("expected PublicKey from Public() but got %T", publicInterface)
-		}
+	publicInterface := signer.Public()
+	public2, ok := publicInterface.(PublicKey)
+	if !ok {
+		t.Fatalf("expected PublicKey from Public() but got %T", publicInterface)
+	}
 
-		if !bytes.Equal(public, public2) {
-			t.Errorf("public keys do not match: original:%x vs Public():%x", public, public2)
-		}
+	if !bytes.Equal(public, public2) {
+		t.Errorf("public keys do not match: original:%x vs Public():%x", public, public2)
+	}
 
-		message := make([]byte, mathrand.Intn(maxMessageLength))
-		if _, err := rand.Read(message); err != nil {
-			panic(err)
-		}
-		var noHash crypto.Hash
-		signature, err := signer.Sign(rand.Reader, message, noHash)
-		if err != nil {
-			t.Fatalf("error from Sign(): %s", err)
-		}
+	message := make([]byte, mathrand.Intn(maxMessageLength))
+	if _, err := rand.Read(message); err != nil {
+		panic(err)
+	}
+	var noHash crypto.Hash
+	signature, err := signer.Sign(rand.Reader, message, noHash)
+	if err != nil {
+		t.Fatalf("error from Sign(): %s", err)
+	}
 
-		if !Verify(public, message, signature) {
-			t.Errorf("Verify failed on signature from Sign()")
-		}
+	if !Verify(public, message, signature) {
+		t.Errorf("Verify failed on signature from Sign()")
 	}
 }
 

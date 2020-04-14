@@ -7,8 +7,8 @@ package eax
 import (
 	"bytes"
 	"crypto/aes"
-	"crypto/rand"
 	"crypto/cipher"
+	"crypto/rand"
 	"encoding/hex"
 	mathrand "math/rand"
 	"testing"
@@ -16,7 +16,6 @@ import (
 
 const (
 	blockLength = 16
-	iterations  = 20
 	maxLength   = 1 << 12
 )
 
@@ -138,7 +137,7 @@ func TestSealIncorrectNonceLength(t *testing.T) {
 			t.Errorf("Eax.Seal didn't panic on exceedingly long nonce")
 		}
 	}()
-	longNonce := make([]byte, e.NonceSize() + 1)
+	longNonce := make([]byte, e.NonceSize()+1)
 	e.Seal(nil, longNonce, nil, nil)
 }
 
@@ -156,10 +155,11 @@ func TestOpenIncorrectNonceLength(t *testing.T) {
 			t.Errorf("Eax.Open didn't panic on exceedingly long nonce")
 		}
 	}()
-	longNonce := make([]byte, e.NonceSize() + 1)
+	longNonce := make([]byte, e.NonceSize()+1)
 	_, err = e.Open(nil, longNonce, nil, nil)
 	// Let the Open procedure panic
-	if err != nil {}
+	if err != nil {
+	}
 }
 
 func TestOpenShortCiphertext(t *testing.T) {
@@ -179,82 +179,77 @@ func TestOpenShortCiphertext(t *testing.T) {
 }
 
 // Generates random examples and tests correctness
-func TestEncryptDecryptRandomVectorsWithPreviousData(t *testing.T) {
+func TestEncryptDecryptVectorsWithPreviousDataRandomizeSlow(t *testing.T) {
 	// Considering AES
 	allowedKeyLengths := []int{16, 24, 32}
 	for _, keyLength := range allowedKeyLengths {
-		for i := 0; i < iterations; i++ {
-			pt := make([]byte, mathrand.Intn(maxLength))
-			header := make([]byte, mathrand.Intn(maxLength))
-			key := make([]byte, keyLength)
-			nonce := make([]byte, 1+mathrand.Intn(blockLength))
-			previousData := make([]byte, mathrand.Intn(maxLength-2*blockLength))
-			// Populate items with crypto/rand
-			itemsToRandomize := [][]byte{pt, header, key, nonce, previousData}
-			for _, item := range itemsToRandomize {
-				_, err := rand.Read(item)
-				if err != nil {
-					panic(err)
-				}
-			}
-			aesCipher, err := aes.NewCipher(key)
-			if err != nil {
-				panic(err)
-			}
-			eax, errEax := NewEAX(aesCipher)
-			if errEax != nil {
-				panic(errEax)
-			}
-			newData := eax.Seal(previousData, nonce, pt, header)
-			ct := newData[len(previousData):]
-			decrypted, err := eax.Open(nil, nonce, ct, header)
-			if err != nil {
-				t.Errorf(
-					`Decrypt refused valid tag (not displaying long output)`)
-					break
-			}
-			if !bytes.Equal(pt, decrypted) {
-				t.Errorf(
-					`Random Encrypt/Decrypt error (plaintexts don't match)`)
-					break
-			}
-		}
-	}
-}
-
-func TestRejectTamperedCiphertext(t *testing.T) {
-	for i := 0; i < iterations; i++ {
 		pt := make([]byte, mathrand.Intn(maxLength))
 		header := make([]byte, mathrand.Intn(maxLength))
-		key := make([]byte, blockLength)
-		nonce := make([]byte, blockLength)
-		itemsToRandomize := [][]byte{pt, header, key, nonce}
+		key := make([]byte, keyLength)
+		nonce := make([]byte, 1+mathrand.Intn(blockLength))
+		previousData := make([]byte, mathrand.Intn(maxLength-2*blockLength))
+		// Populate items with crypto/rand
+		itemsToRandomize := [][]byte{pt, header, key, nonce, previousData}
 		for _, item := range itemsToRandomize {
 			_, err := rand.Read(item)
 			if err != nil {
 				panic(err)
 			}
 		}
-		aesCipher, errAes := aes.NewCipher(key)
-		if errAes != nil {
-			panic(errAes)
+		aesCipher, err := aes.NewCipher(key)
+		if err != nil {
+			panic(err)
 		}
 		eax, errEax := NewEAX(aesCipher)
 		if errEax != nil {
 			panic(errEax)
 		}
-		ct := eax.Seal(nil, nonce, pt, header)
-		// Change one byte of ct (could affect either the tag or the ciphertext)
-		tampered := make([]byte, len(ct))
-		copy(tampered, ct)
-		for bytes.Equal(tampered, ct) {
-			tampered[mathrand.Intn(len(ct))] = byte(mathrand.Intn(len(ct)))
-		}
-		_, err := eax.Open(nil, nonce, tampered, header)
-		if err == nil {
-			t.Errorf(`Tampered ciphertext was not refused decryption`)
+		newData := eax.Seal(previousData, nonce, pt, header)
+		ct := newData[len(previousData):]
+		decrypted, err := eax.Open(nil, nonce, ct, header)
+		if err != nil {
+			t.Errorf(
+				`Decrypt refused valid tag (not displaying long output)`)
 			break
 		}
+		if !bytes.Equal(pt, decrypted) {
+			t.Errorf(
+				`Random Encrypt/Decrypt error (plaintexts don't match)`)
+			break
+		}
+	}
+}
+
+func TestRejectTamperedCiphertextRandomizeSlow(t *testing.T) {
+	pt := make([]byte, mathrand.Intn(maxLength))
+	header := make([]byte, mathrand.Intn(maxLength))
+	key := make([]byte, blockLength)
+	nonce := make([]byte, blockLength)
+	itemsToRandomize := [][]byte{pt, header, key, nonce}
+	for _, item := range itemsToRandomize {
+		_, err := rand.Read(item)
+		if err != nil {
+			panic(err)
+		}
+	}
+	aesCipher, errAes := aes.NewCipher(key)
+	if errAes != nil {
+		panic(errAes)
+	}
+	eax, errEax := NewEAX(aesCipher)
+	if errEax != nil {
+		panic(errEax)
+	}
+	ct := eax.Seal(nil, nonce, pt, header)
+	// Change one byte of ct (could affect either the tag or the ciphertext)
+	tampered := make([]byte, len(ct))
+	copy(tampered, ct)
+	for bytes.Equal(tampered, ct) {
+		tampered[mathrand.Intn(len(ct))] = byte(mathrand.Intn(len(ct)))
+	}
+	_, err := eax.Open(nil, nonce, tampered, header)
+	if err == nil {
+		t.Errorf(`Tampered ciphertext was not refused decryption`)
 	}
 }
 
@@ -276,7 +271,8 @@ func TestParameters(t *testing.T) {
 		}
 		_, errEax := NewEAX(aesCipher)
 		// Don't panic here, let the New* procedure panic
-		if errEax != nil { }
+		if errEax != nil {
+		}
 	})
 	t.Run("Should return error on too long tagSize", func(st *testing.T) {
 		tagSize := blockLength + 1 + mathrand.Intn(12)
@@ -323,7 +319,7 @@ func BenchmarkEncrypt(b *testing.B) {
 	if errAes != nil {
 		panic(errAes)
 	}
-	eax, errEax:= NewEAX(aesCipher)
+	eax, errEax := NewEAX(aesCipher)
 	if errEax != nil {
 		panic(errEax)
 	}
@@ -349,7 +345,7 @@ func BenchmarkDecrypt(b *testing.B) {
 	if errAes != nil {
 		panic(errAes)
 	}
-	eax, errEax:= NewEAX(aesCipher)
+	eax, errEax := NewEAX(aesCipher)
 	if errEax != nil {
 		panic(errEax)
 	}
