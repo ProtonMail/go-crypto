@@ -144,7 +144,7 @@ func (e *EncryptedKey) Serialize(w io.Writer) error {
 
 	err := serializeHeader(w, packetTypeEncryptedKey, 1 /* version */ +8 /* key id */ +1 /* algo */ +mpiLen)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	w.Write([]byte{encryptedKeyVersion})
