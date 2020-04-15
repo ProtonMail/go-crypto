@@ -57,7 +57,7 @@ func TestSignVerifyRandomizeSlow(t *testing.T) {
 
 	message := make([]byte, mathrand.Intn(maxMessageLength))
 	if _, err := rand.Read(message); err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 	sig := ed25519.Sign(private, message)
 	if !ed25519.Verify(public, message, sig) {
@@ -89,7 +89,7 @@ func TestCryptoSignerRandomizeSlow(t *testing.T) {
 
 	message := make([]byte, mathrand.Intn(maxMessageLength))
 	if _, err := rand.Read(message); err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 	var noHash crypto.Hash
 	signature, err := signer.Sign(rand.Reader, message, noHash)

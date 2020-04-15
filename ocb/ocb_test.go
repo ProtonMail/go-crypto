@@ -32,7 +32,7 @@ func TestZeroHash(t *testing.T) {
 	// Key is shared by all test vectors
 	aesCipher, err := aes.NewCipher(testKey)
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 	o := ocb{
 		block:     aesCipher,
@@ -49,10 +49,10 @@ func TestZeroHash(t *testing.T) {
 func TestNewOCBIncorrectNonceLength(t *testing.T) {
 	aesCipher, err := aes.NewCipher(make([]byte, 16))
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
-	e, errOcb := NewOCBWithNonceAndTagSize(aesCipher, 0, 16)
-	if errOcb == nil || e != nil {
+	e, err := NewOCBWithNonceAndTagSize(aesCipher, 0, 16)
+	if err == nil || e != nil {
 		t.Errorf("OCB with nonceLength 0 was not rejected")
 	}
 }
@@ -60,11 +60,11 @@ func TestNewOCBIncorrectNonceLength(t *testing.T) {
 func TestSealIncorrectNonceLength(t *testing.T) {
 	aesCipher, err := aes.NewCipher(make([]byte, 16))
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
-	o, errOcb := NewOCBWithNonceAndTagSize(aesCipher, 15, 16)
-	if errOcb != nil {
-		panic(errOcb)
+	o, err := NewOCBWithNonceAndTagSize(aesCipher, 15, 16)
+	if err != nil {
+		t.Fatal(err)
 	}
 	defer func() {
 		if r := recover(); r == nil {
@@ -78,11 +78,11 @@ func TestSealIncorrectNonceLength(t *testing.T) {
 func TestOpenIncorrectNonceLength(t *testing.T) {
 	aesCipher, err := aes.NewCipher(make([]byte, 16))
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
-	o, errOcb := NewOCBWithNonceAndTagSize(aesCipher, 15, 16)
-	if errOcb != nil {
-		panic(errOcb)
+	o, err := NewOCBWithNonceAndTagSize(aesCipher, 15, 16)
+	if err != nil {
+		t.Fatal(err)
 	}
 	defer func() {
 		if r := recover(); r == nil {
@@ -99,11 +99,11 @@ func TestOpenIncorrectNonceLength(t *testing.T) {
 func TestOpenShortCiphertext(t *testing.T) {
 	aesCipher, err := aes.NewCipher(make([]byte, 16))
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
-	o, errOcb := NewOCBWithNonceAndTagSize(aesCipher, 15, 16)
-	if errOcb != nil {
-		panic(errOcb)
+	o, err := NewOCBWithNonceAndTagSize(aesCipher, 15, 16)
+	if err != nil {
+		t.Fatal(err)
 	}
 	shortCt := make([]byte, o.Overhead()-1)
 	pt, err := o.Open(nil, nil, nil, shortCt)
@@ -116,11 +116,11 @@ func TestEncryptDecryptRFC7253TestVectors(t *testing.T) {
 	// Key is shared by all test vectors
 	aesCipher, err := aes.NewCipher(testKey)
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 	ocbInstance, errO := NewOCB(aesCipher)
 	if errO != nil {
-		panic(errO)
+		t.Fatal(err)
 	}
 	for _, test := range rfc7253testVectors {
 		nonce, _ := hex.DecodeString(test.nonce)
@@ -167,11 +167,11 @@ func TestEncryptDecryptRFC7253TagLen96(t *testing.T) {
 	targetCt, _ := hex.DecodeString(test.ciphertext)
 	aesCipher, err := aes.NewCipher(key)
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
-	ocbInstance, errO := NewOCBWithNonceAndTagSize(aesCipher, len(nonce), 96/8)
-	if errO != nil {
-		panic(errO)
+	ocbInstance, err := NewOCBWithNonceAndTagSize(aesCipher, len(nonce), 96/8)
+	if err != nil {
+		t.Fatal(err)
 	}
 	ct := ocbInstance.Seal(nil, nonce, targetPt, adata)
 	if !bytes.Equal(ct, targetCt) {
@@ -206,11 +206,11 @@ func TestEncryptDecryptRFC7253DifferentKeySizes(t *testing.T) {
 
 		aesCipher, err := aes.NewCipher(key)
 		if err != nil {
-			panic(err)
+			t.Fatal(err)
 		}
 		ocbInstance, err := NewOCBWithNonceAndTagSize(aesCipher, 12, tagLen/8)
 		if err != nil {
-			panic(err)
+			t.Fatal(err)
 		}
 		C := make([]byte, 0)
 		ending := make([]byte, 4)
@@ -252,16 +252,16 @@ func TestEncryptDecryptGoTestVectors(t *testing.T) {
 		key, _ := hex.DecodeString(test.key)
 		aesCipher, err := aes.NewCipher(key)
 		if err != nil {
-			panic(err)
+			t.Fatal(err)
 		}
 		nonce, _ := hex.DecodeString(test.nonce)
 		adata, _ := hex.DecodeString(test.header)
 		targetPt, _ := hex.DecodeString(test.plaintext)
 		targetCt, _ := hex.DecodeString(test.ciphertext)
 		tagSize := len(targetCt) - len(targetPt)
-		ocbInstance, errO := NewOCBWithNonceAndTagSize(aesCipher, len(nonce), tagSize)
-		if errO != nil {
-			panic(errO)
+		ocbInstance, err := NewOCBWithNonceAndTagSize(aesCipher, len(nonce), tagSize)
+		if err != nil {
+			t.Fatal(err)
 		}
 		// Encrypt
 		ct := ocbInstance.Seal(nil, nonce, targetPt, adata)
@@ -314,11 +314,11 @@ func TestEncryptDecryptVectorsWithPreviousDataRandomizeSlow(t *testing.T) {
 		}
 		aesCipher, err := aes.NewCipher(key)
 		if err != nil {
-			panic(err)
+			t.Fatal(err)
 		}
-		ocb, errO := NewOCB(aesCipher)
-		if errO != nil {
-			panic(errO)
+		ocb, err := NewOCB(aesCipher)
+		if err != nil {
+			t.Fatal(err)
 		}
 		newData := ocb.Seal(previousData, nonce, pt, header)
 		ct := newData[len(previousData):]
@@ -350,11 +350,11 @@ func TestRejectTamperedCiphertextRandomizeSlow(t *testing.T) {
 	}
 	aesCipher, err := aes.NewCipher(key)
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 	ocb, errO := NewOCB(aesCipher)
 	if errO != nil {
-		panic(errO)
+		t.Fatal(err)
 	}
 	ct := ocb.Seal(nil, nonce, pt, header)
 	// Change one byte of ct (could affect either the tag or the ciphertext)
@@ -376,7 +376,7 @@ func TestParameters(t *testing.T) {
 	key := make([]byte, blockLength)
 	aesCipher, err := aes.NewCipher(key)
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 	t.Run("Should return error on too long tagSize", func(st *testing.T) {
 		tagSize := blockLength + 1 + mathrand.Intn(12)
@@ -422,11 +422,11 @@ func BenchmarkEncrypt(b *testing.B) {
 	}
 	aesCipher, err := aes.NewCipher(key)
 	if err != nil {
-		panic(err)
+		b.Fatal(err)
 	}
-	ocb, errO := NewOCB(aesCipher)
-	if errO != nil {
-		panic(errO)
+	ocb, err := NewOCB(aesCipher)
+	if err != nil {
+		b.Fatal(err)
 	}
 	for i := 0; i < b.N; i++ {
 		ocb.Seal(nil, nonce, pt, header)
@@ -448,17 +448,17 @@ func BenchmarkDecrypt(b *testing.B) {
 	}
 	aesCipher, err := aes.NewCipher(key)
 	if err != nil {
-		panic(err)
+		b.Fatal(err)
 	}
 	ocb, errO := NewOCB(aesCipher)
 	if errO != nil {
-		panic(errO)
+		b.Fatal(err)
 	}
 	ct := ocb.Seal(nil, nonce, pt, header)
 	for i := 0; i < b.N; i++ {
 		_, err := ocb.Open(nil, nonce, ct, header)
 		if err != nil {
-			panic(err)
+			b.Fatal(err)
 		}
 	}
 }
