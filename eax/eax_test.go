@@ -38,11 +38,11 @@ func TestEncryptDecryptEAXTestVectors(t *testing.T) {
 		targetCt, _ := hex.DecodeString(test.ciphertext)
 		aesCipher, err := aes.NewCipher(key)
 		if err != nil {
-			panic(err)
+			t.Fatal(err)
 		}
-		eax, errEax := NewEAX(aesCipher)
-		if errEax != nil {
-			panic(errEax)
+		eax, err := NewEAX(aesCipher)
+		if err != nil {
+			t.Fatal(err)
 		}
 
 		ct := eax.Seal(nil, nonce, targetPt, adata)
@@ -80,11 +80,11 @@ func TestEncryptDecryptGoTestVectors(t *testing.T) {
 		targetCt, _ := hex.DecodeString(test.ciphertext)
 		aesCipher, err := aes.NewCipher(key)
 		if err != nil {
-			panic(err)
+			t.Fatal(err)
 		}
 		eax, errEax := NewEAX(aesCipher)
 		if errEax != nil {
-			panic(errEax)
+			t.Fatal(err)
 		}
 
 		ct := eax.Seal(nil, nonce, targetPt, adata)
@@ -115,7 +115,7 @@ func TestEncryptDecryptGoTestVectors(t *testing.T) {
 func TestNewEaxIncorrectNonceLength(t *testing.T) {
 	aesCipher, err := aes.NewCipher(make([]byte, 16))
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 	e, errEax := NewEAXWithNonceAndTagSize(aesCipher, 0, 16)
 	if errEax == nil || e != nil {
@@ -126,11 +126,11 @@ func TestNewEaxIncorrectNonceLength(t *testing.T) {
 func TestSealIncorrectNonceLength(t *testing.T) {
 	aesCipher, err := aes.NewCipher(make([]byte, 16))
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 	e, errEax := NewEAXWithNonceAndTagSize(aesCipher, 16, 16)
 	if errEax != nil {
-		panic(errEax)
+		t.Fatal(err)
 	}
 	defer func() {
 		if r := recover(); r == nil {
@@ -144,11 +144,11 @@ func TestSealIncorrectNonceLength(t *testing.T) {
 func TestOpenIncorrectNonceLength(t *testing.T) {
 	aesCipher, err := aes.NewCipher(make([]byte, 16))
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 	e, errEax := NewEAXWithNonceAndTagSize(aesCipher, 16, 16)
 	if errEax != nil {
-		panic(errEax)
+		t.Fatal(err)
 	}
 	defer func() {
 		if r := recover(); r == nil {
@@ -165,11 +165,11 @@ func TestOpenIncorrectNonceLength(t *testing.T) {
 func TestOpenShortCiphertext(t *testing.T) {
 	aesCipher, err := aes.NewCipher(make([]byte, 16))
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 	e, errEax := NewEAXWithNonceAndTagSize(aesCipher, 16, 16)
 	if errEax != nil {
-		panic(errEax)
+		t.Fatal(err)
 	}
 	shortCt := make([]byte, e.Overhead()-1)
 	pt, err := e.Open(nil, nil, nil, shortCt)
@@ -193,16 +193,16 @@ func TestEncryptDecryptVectorsWithPreviousDataRandomizeSlow(t *testing.T) {
 		for _, item := range itemsToRandomize {
 			_, err := rand.Read(item)
 			if err != nil {
-				panic(err)
+				t.Fatal(err)
 			}
 		}
 		aesCipher, err := aes.NewCipher(key)
 		if err != nil {
-			panic(err)
+			t.Fatal(err)
 		}
 		eax, errEax := NewEAX(aesCipher)
 		if errEax != nil {
-			panic(errEax)
+			t.Fatal(errEax)
 		}
 		newData := eax.Seal(previousData, nonce, pt, header)
 		ct := newData[len(previousData):]
@@ -229,16 +229,16 @@ func TestRejectTamperedCiphertextRandomizeSlow(t *testing.T) {
 	for _, item := range itemsToRandomize {
 		_, err := rand.Read(item)
 		if err != nil {
-			panic(err)
+			t.Fatal(err)
 		}
 	}
 	aesCipher, errAes := aes.NewCipher(key)
 	if errAes != nil {
-		panic(errAes)
+		t.Fatal(errAes)
 	}
 	eax, errEax := NewEAX(aesCipher)
 	if errEax != nil {
-		panic(errEax)
+		t.Fatal(errEax)
 	}
 	ct := eax.Seal(nil, nonce, pt, header)
 	// Change one byte of ct (could affect either the tag or the ciphertext)
@@ -267,7 +267,7 @@ func TestParameters(t *testing.T) {
 		}()
 		aesCipher, errAes := aes.NewCipher(key)
 		if errAes != nil {
-			panic(errAes)
+			t.Fatal(errAes)
 		}
 		_, errEax := NewEAX(aesCipher)
 		// Don't panic here, let the New* procedure panic
@@ -280,7 +280,7 @@ func TestParameters(t *testing.T) {
 		key := make([]byte, blockLength)
 		aesCipher, errAes := aes.NewCipher(key)
 		if errAes != nil {
-			panic(errAes)
+			t.Fatal(errAes)
 		}
 		_, err := NewEAXWithNonceAndTagSize(aesCipher, nonceSize, tagSize)
 		if err == nil {
@@ -293,7 +293,7 @@ func TestParameters(t *testing.T) {
 		tagSize := 12 + mathrand.Intn(blockLength-11)
 		aesCipher, errAes := aes.NewCipher(key)
 		if errAes != nil {
-			panic(errAes)
+			t.Fatal(errAes)
 		}
 		_, err := NewEAXWithNonceAndTagSize(aesCipher, nonceSize, tagSize)
 		if err != nil {
@@ -312,16 +312,16 @@ func BenchmarkEncrypt(b *testing.B) {
 	for _, item := range itemsToRandomize {
 		_, err := rand.Read(item)
 		if err != nil {
-			panic(err)
+			b.Fatal(err)
 		}
 	}
 	aesCipher, errAes := aes.NewCipher(key)
 	if errAes != nil {
-		panic(errAes)
+		b.Fatal(errAes)
 	}
 	eax, errEax := NewEAX(aesCipher)
 	if errEax != nil {
-		panic(errEax)
+		b.Fatal(errEax)
 	}
 	for i := 0; i < b.N; i++ {
 		eax.Seal(nil, nonce, pt, header)
@@ -338,22 +338,22 @@ func BenchmarkDecrypt(b *testing.B) {
 	for _, item := range itemsToRandomize {
 		_, err := rand.Read(item)
 		if err != nil {
-			panic(err)
+			b.Fatal(err)
 		}
 	}
 	aesCipher, errAes := aes.NewCipher(key)
 	if errAes != nil {
-		panic(errAes)
+		b.Fatal(errAes)
 	}
 	eax, errEax := NewEAX(aesCipher)
 	if errEax != nil {
-		panic(errEax)
+		b.Fatal(errEax)
 	}
 	ct := eax.Seal(nil, nonce, pt, header)
 	for i := 0; i < b.N; i++ {
 		_, err := eax.Open(nil, nonce, ct, header)
 		if err != nil {
-			panic(err)
+			b.Fatal(err)
 		}
 	}
 }

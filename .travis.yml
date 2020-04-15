@@ -2,8 +2,8 @@ language: go
 
 script:
   - go test -short ./...
-  - go test ./... -run RandomizeFast -count=500
-  - go test ./... -run RandomizeSlow -count=10
+  - go test ./... -run RandomizeFast -count=512
+  - go test ./... -run RandomizeSlow -count=32
 
 go_import_path: golang.org/x/crypto
 
