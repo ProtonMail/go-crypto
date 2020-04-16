@@ -88,7 +88,8 @@ func ReadMessage(r io.Reader, keyring KeyRing, prompt PromptFunction, config *pa
 
 	var symKeys []*packet.SymmetricKeyEncrypted
 	var pubKeys []keyEnvelopePair
-	var se *packet.SymmetricallyEncrypted
+	// Integrity protected encrypted packet: SymmetricallyEncrypted or AEADEncrypted
+	var edp packet.EncryptedDataPacket
 
 	packets := packet.NewReader(r)
 	md = new(MessageDetails)
@@ -128,7 +129,11 @@ ParsePackets:
 				pubKeys = append(pubKeys, keyEnvelopePair{k, p})
 			}
 		case *packet.SymmetricallyEncrypted:
-			se = p
+			edp = p
+			break ParsePackets
+		case *packet.AEADEncrypted:
+			// edp = p.(*EncryptedDataPacket)
+			edp = p
 			break ParsePackets
 		case *packet.Compressed, *packet.LiteralData, *packet.OnePassSignature:
 			// This message isn't encrypted.
@@ -158,15 +163,13 @@ FindKey:
 			}
 			if !pk.key.PrivateKey.Encrypted {
 				if len(pk.encryptedKey.Key) == 0 {
-					err = pk.encryptedKey.Decrypt(pk.key.PrivateKey, config)
-					if err != nil {
-						return nil, err
+					errDec := pk.encryptedKey.Decrypt(pk.key.PrivateKey, config)
+					if errDec != nil {
+						continue
 					}
 				}
-				if len(pk.encryptedKey.Key) == 0 {
-					continue
-				}
-				decrypted, err = se.Decrypt(pk.encryptedKey.CipherFunc, pk.encryptedKey.Key)
+				// Try to decrypt symmetrically encrypted
+				decrypted, err = edp.Decrypt(pk.encryptedKey.CipherFunc, pk.encryptedKey.Key)
 				if err != nil && err != errors.ErrKeyIncorrect {
 					return nil, err
 				}
@@ -202,7 +205,7 @@ FindKey:
 			for _, s := range symKeys {
 				key, cipherFunc, err := s.Decrypt(passphrase)
 				if err == nil {
-					decrypted, err = se.Decrypt(cipherFunc, key)
+					decrypted, err = edp.Decrypt(cipherFunc, key)
 					if err != nil && err != errors.ErrKeyIncorrect {
 						return nil, err
 					}
@@ -412,7 +415,7 @@ func CheckDetachedSignatureAndHash(keyring KeyRing, signed, signature io.Reader,
 			if hashFunc == expectedHash {
 				break
 			}
-			if i + 1 == expectedHashesLen {
+			if i+1 == expectedHashesLen {
 				return nil, errors.StructuralError("hash algorithm mismatch with cleartext message headers")
 			}
 		}

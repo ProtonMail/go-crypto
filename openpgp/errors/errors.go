@@ -84,3 +84,20 @@ type UnknownPacketTypeError uint8
 func (upte UnknownPacketTypeError) Error() string {
 	return "openpgp: unknown packet type: " + strconv.Itoa(int(upte))
 }
+
+// AEADError indicates that there is a problem when initializing or using a
+// AEAD instance, configuration struct, nonces or index values.
+type AEADError string
+
+func (ae AEADError) Error() string {
+	return "openpgp: aead error: " + string(ae)
+}
+
+// ErrDummyPrivateKey results when operations are attempted on a private key
+// that is just a dummy key. See
+// https://git.gnupg.org/cgi-bin/gitweb.cgi?p=gnupg.git;a=blob;f=doc/DETAILS;h=fe55ae16ab4e26d8356dc574c9e8bc935e71aef1;hb=23191d7851eae2217ecdac6484349849a24fd94a#l1109
+type ErrDummyPrivateKey string
+
+func (dke ErrDummyPrivateKey) Error() string {
+	return "openpgp: s2k GNU dummy key: " + string(dke)
+}

@@ -56,6 +56,7 @@ type Signature struct {
 
 	SigLifetimeSecs, KeyLifetimeSecs                        *uint32
 	PreferredSymmetric, PreferredHash, PreferredCompression []uint8
+	PreferredAEAD                                           []uint8
 	IssuerKeyId                                             *uint64
 	IsPrimaryId                                             *bool
 
@@ -69,9 +70,9 @@ type Signature struct {
 	RevocationReason     *uint8
 	RevocationReasonText string
 
-	// MDC is set if this signature has a feature packet that indicates
-	// support for MDC subpackets.
-	MDC bool
+	// MDC (resp. AEAD) is set if this signature has a feature subpacket that
+	// indicates support for MDC (resp. AEAD) packets.
+	MDC, AEAD bool
 
 	// EmbeddedSignature, if non-nil, is a signature of the parent key, by
 	// this key. This prevents an attacker from claiming another's signing
@@ -224,6 +225,7 @@ const (
 	reasonForRevocationSubpacket signatureSubpacketType = 29
 	featuresSubpacket            signatureSubpacketType = 30
 	embeddedSignatureSubpacket   signatureSubpacketType = 32
+	prefAeadAlgosSubpacket       signatureSubpacketType = 34
 )
 
 // parseSignatureSubpacket parses a single subpacket. len(subpacket) is >= 1.
@@ -308,6 +310,13 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		}
 		sig.PreferredSymmetric = make([]byte, len(subpacket))
 		copy(sig.PreferredSymmetric, subpacket)
+	case prefAeadAlgosSubpacket:
+		// Preferred symmetric algorithms, section 5.2.3.8
+		if !isHashed {
+			return
+		}
+		sig.PreferredAEAD = make([]byte, len(subpacket))
+		copy(sig.PreferredAEAD, subpacket)
 	case issuerSubpacket:
 		// Issuer, section 5.2.3.5
 		if len(subpacket) != 8 {
@@ -380,9 +389,18 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 	case featuresSubpacket:
 		// Features subpacket, section 5.2.3.24 specifies a very general
 		// mechanism for OpenPGP implementations to signal support for new
-		// features. In practice, the subpacket is used exclusively to
-		// indicate support for MDC-protected encryption.
-		sig.MDC = len(subpacket) >= 1 && subpacket[0]&1 == 1
+		// features.
+		if !isHashed {
+			return
+		}
+		if len(subpacket) > 0 {
+			if subpacket[0]&0x01 != 0 {
+				sig.MDC = true
+			}
+			if subpacket[0]&0x02 != 0 {
+				sig.AEAD = true
+			}
+		}
 	case embeddedSignatureSubpacket:
 		// Only usage is in signatures that cross-certify
 		// signing subkeys. section 5.2.3.26 describes the
@@ -530,6 +548,9 @@ func (sig *Signature) signPrepareHash(h hash.Hash) (digest []byte, err error) {
 // On success, the signature is stored in sig. Call Serialize to write it out.
 // If config is nil, sensible defaults will be used.
 func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err error) {
+	if priv.Dummy() {
+		return errors.ErrDummyPrivateKey("dummy key found")
+	}
 	sig.outSubpackets = sig.buildSubpackets()
 	digest, err := sig.signPrepareHash(h)
 	if err != nil {
@@ -606,6 +627,9 @@ func unwrapECDSASig(b []byte) (r, s *big.Int, err error) {
 // Serialize to write it out.
 // If config is nil, sensible defaults will be used.
 func (sig *Signature) SignUserId(id string, pub *PublicKey, priv *PrivateKey, config *Config) error {
+	if priv.Dummy() {
+		return errors.ErrDummyPrivateKey("dummy key found")
+	}
 	h, err := userIdSignatureHash(id, pub, sig.Hash)
 	if err != nil {
 		return err
@@ -617,6 +641,9 @@ func (sig *Signature) SignUserId(id string, pub *PublicKey, priv *PrivateKey, co
 // success, the signature is stored in sig. Call Serialize to write it out.
 // If config is nil, sensible defaults will be used.
 func (sig *Signature) SignKey(pub *PublicKey, priv *PrivateKey, config *Config) error {
+	if priv.Dummy() {
+		return errors.ErrDummyPrivateKey("dummy key found")
+	}
 	h, err := keySignatureHash(&priv.PublicKey, pub, sig.Hash)
 	if err != nil {
 		return err
@@ -747,7 +774,19 @@ func (sig *Signature) buildSubpackets() (subpackets []outputSubpacket) {
 		subpackets = append(subpackets, outputSubpacket{true, keyFlagsSubpacket, false, []byte{flags}})
 	}
 
-	// The following subpackets may only appear in self-signatures
+	// The following subpackets may only appear in self-signatures.
+
+	var features = byte(0x00)
+	if sig.MDC {
+		features |= 0x01
+	}
+	if sig.AEAD {
+		features |= 0x02
+	}
+
+	if features != 0x00 {
+		subpackets = append(subpackets, outputSubpacket{true, featuresSubpacket, false, []byte{features}})
+	}
 
 	if sig.KeyLifetimeSecs != nil && *sig.KeyLifetimeSecs != 0 {
 		keyLifetime := make([]byte, 4)
@@ -763,12 +802,17 @@ func (sig *Signature) buildSubpackets() (subpackets []outputSubpacket) {
 		subpackets = append(subpackets, outputSubpacket{true, prefSymmetricAlgosSubpacket, false, sig.PreferredSymmetric})
 	}
 
+
 	if len(sig.PreferredHash) > 0 {
 		subpackets = append(subpackets, outputSubpacket{true, prefHashAlgosSubpacket, false, sig.PreferredHash})
 	}
 
 	if len(sig.PreferredCompression) > 0 {
 		subpackets = append(subpackets, outputSubpacket{true, prefCompressionSubpacket, false, sig.PreferredCompression})
+	}
+
+	if len(sig.PreferredAEAD) > 0 {
+		subpackets = append(subpackets, outputSubpacket{true, prefAeadAlgosSubpacket, false, sig.PreferredAEAD})
 	}
 
 	return

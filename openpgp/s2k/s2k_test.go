@@ -70,30 +70,65 @@ func TestIterated(t *testing.T) {
 
 var parseTests = []struct {
 	spec, in, out string
+	dummyKey bool
+	params Params
 }{
 	/* Simple with SHA1 */
-	{"0002", "hello", "aaf4c61d"},
+	{"0002", "hello", "aaf4c61d", false,
+		Params{0, 0x02, nil, 0}},
 	/* Salted with SHA1 */
-	{"01020102030405060708", "hello", "f4f7d67e"},
+	{"01020102030405060708", "hello", "f4f7d67e", false,
+		Params{1, 0x02, []byte{ 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 }, 0}},
 	/* Iterated with SHA1 */
-	{"03020102030405060708f1", "hello", "f2a57b7c"},
+	{"03020102030405060708f1", "hello", "f2a57b7c", false,
+		Params{3, 0x02, []byte{ 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 }, 0xf1}},
+	/* GNU dummy S2K */
+	{"6502474e5501", "", "", true,
+		Params{101, 0x02, nil, 0}},
 }
 
-func TestParse(t *testing.T) {
+func TestParseIntoParams(t *testing.T) {
 	for i, test := range parseTests {
 		spec, _ := hex.DecodeString(test.spec)
 		buf := bytes.NewBuffer(spec)
-		f, err := Parse(buf)
+		params, err := ParseIntoParams(buf)
 		if err != nil {
-			t.Errorf("%d: Parse returned error: %s", i, err)
+			t.Errorf("%d: ParseIntoParams returned error: %s", i, err)
 			continue
 		}
 
-		expected, _ := hex.DecodeString(test.out)
-		out := make([]byte, len(expected))
-		f(out, []byte(test.in))
-		if !bytes.Equal(out, expected) {
-			t.Errorf("%d: output got: %x want: %x", i, out, expected)
+		if test.params.mode != params.mode || test.params.hashId != params.hashId || test.params.countByte != params.countByte ||
+			!bytes.Equal(test.params.salt, params.salt) {
+			t.Errorf("%d: Wrong s2kconfig, got: %+v want: %+v", i, params, test.params)
+		}
+
+		if params.Dummy() != test.dummyKey {
+			t.Errorf("%d: Got GNU dummy %v, expected %v", i, params.Dummy(), test.dummyKey)
+		}
+
+		if !test.dummyKey {
+			expectedHash, _ := hex.DecodeString(test.out)
+			out := make([]byte, len(expectedHash))
+
+			f, err := params.Function()
+			if err != nil {
+				t.Errorf("%d: params.Function() returned error: %s", i, err)
+				continue
+			}
+			f(out, []byte(test.in))
+			if !bytes.Equal(out, expectedHash) {
+				t.Errorf("%d: Wrong output got: %x want: %x", i, out, expectedHash)
+			}
+		}
+
+		var reserialized bytes.Buffer
+		err = params.Serialize(&reserialized)
+		if err != nil {
+			t.Errorf("%d: params.Serialize() returned error: %s", i, err)
+			continue
+		}
+		if !bytes.Equal(reserialized.Bytes(), spec) {
+			t.Errorf("%d: Wrong reserialized got: %x want: %x", i, reserialized.Bytes(), spec)
 		}
 		if testing.Short() {
 			break

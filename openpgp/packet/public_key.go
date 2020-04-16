@@ -54,6 +54,7 @@ type PublicKey struct {
 // signingKey provides a convenient abstraction over signature verification
 // for v3 and v4 public keys.
 type signingKey interface {
+	SerializeForHash(io.Writer) error
 	SerializeSignaturePrefix(io.Writer)
 	serializeWithoutHeaders(io.Writer) error
 }
@@ -125,14 +126,14 @@ func NewECDSAPublicKey(creationTime time.Time, pub *ecdsa.PublicKey) *PublicKey 
 func NewECDHPublicKey(creationTime time.Time, pub *ecdh.PublicKey) *PublicKey {
 	var pk *PublicKey
 	var curveInfo *ecc.CurveInfo
-	var kdf = encoding.NewOID([]byte{ 0x1, pub.Hash.Id(), pub.Cipher.Id() })
+	var kdf = encoding.NewOID([]byte{0x1, pub.Hash.Id(), pub.Cipher.Id()})
 	if pub.CurveType == ecc.Curve25519 {
 		pk = &PublicKey{
 			CreationTime: creationTime,
 			PubKeyAlgo:   PubKeyAlgoECDH,
 			PublicKey:    pub,
 			p:            encoding.NewMPI(pub.X.Bytes()),
-			kdf: kdf,
+			kdf:          kdf,
 		}
 		curveInfo = ecc.FindByName("Curve25519")
 	} else {
@@ -141,7 +142,7 @@ func NewECDHPublicKey(creationTime time.Time, pub *ecdh.PublicKey) *PublicKey {
 			PubKeyAlgo:   PubKeyAlgoECDH,
 			PublicKey:    pub,
 			p:            encoding.NewMPI(elliptic.Marshal(pub.Curve, pub.X, pub.Y)),
-			kdf: kdf,
+			kdf:          kdf,
 		}
 		curveInfo = ecc.FindByCurve(pub.Curve)
 	}
@@ -208,8 +209,7 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 func (pk *PublicKey) setFingerPrintAndKeyId() {
 	// RFC 4880, section 12.2
 	fingerPrint := sha1.New()
-	pk.SerializeSignaturePrefix(fingerPrint)
-	pk.serializeWithoutHeaders(fingerPrint)
+	pk.SerializeForHash(fingerPrint)
 	copy(pk.Fingerprint[:], fingerPrint.Sum(nil))
 	pk.KeyId = binary.BigEndian.Uint64(pk.Fingerprint[12:20])
 }
@@ -345,7 +345,7 @@ func (pk *PublicKey) parseECDH(r io.Reader) (err error) {
 	c := curveInfo.Curve
 	cType := curveInfo.CurveType
 
-	var x, y *big.Int;
+	var x, y *big.Int
 	if cType == ecc.Curve25519 {
 		x = new(big.Int)
 		x.SetBytes(pk.p.Bytes())
@@ -373,9 +373,9 @@ func (pk *PublicKey) parseECDH(r io.Reader) (err error) {
 
 	pk.PublicKey = &ecdh.PublicKey{
 		CurveType: cType,
-		Curve: c,
-		X:     x,
-		Y:     y,
+		Curve:     c,
+		X:         x,
+		Y:         y,
 		KDF: ecdh.KDF{
 			Hash:   kdfHash,
 			Cipher: kdfCipher,
@@ -409,10 +409,17 @@ func (pk *PublicKey) parseEdDSA(r io.Reader) (err error) {
 	return
 }
 
+// SerializeForHash serializes the PublicKey to w with the special packet
+// header format needed for hashing.
+func (pk *PublicKey) SerializeForHash(w io.Writer) error {
+	pk.SerializeSignaturePrefix(w)
+	return pk.serializeWithoutHeaders(w)
+}
+
 // SerializeSignaturePrefix writes the prefix for this public key to the given Writer.
 // The prefix is used when calculating a signature over this public key. See
 // RFC 4880, section 5.2.4.
-func (pk *PublicKey) SerializeSignaturePrefix(h io.Writer) {
+func (pk *PublicKey) SerializeSignaturePrefix(w io.Writer) {
 	var pLength uint16
 	switch pk.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoRSASignOnly:
@@ -441,7 +448,8 @@ func (pk *PublicKey) SerializeSignaturePrefix(h io.Writer) {
 		panic("unknown public key algorithm")
 	}
 	pLength += 6
-	h.Write([]byte{0x99, byte(pLength >> 8), byte(pLength)})
+	w.Write([]byte{0x99, byte(pLength >> 8), byte(pLength)})
+	return
 }
 
 // Serialize writes the serialized contents of the given PublicKey into the
@@ -677,14 +685,12 @@ func keySignatureHash(pk, signed signingKey, hashFunc crypto.Hash) (h hash.Hash,
 	h = hashFunc.New()
 
 	// RFC 4880, section 5.2.4
-	pk.SerializeSignaturePrefix(h)
-	if err = pk.serializeWithoutHeaders(h); err != nil {
+	err = pk.SerializeForHash(h)
+	if err != nil {
 		return nil, err
 	}
-	signed.SerializeSignaturePrefix(h)
-	if err = signed.serializeWithoutHeaders(h); err != nil {
-		return nil, err
-	}
+
+	err = signed.SerializeForHash(h)
 	return
 }
 
@@ -726,10 +732,8 @@ func keyRevocationHash(pk signingKey, hashFunc crypto.Hash) (h hash.Hash, err er
 	h = hashFunc.New()
 
 	// RFC 4880, section 5.2.4
-	pk.SerializeSignaturePrefix(h)
-	if err = pk.serializeWithoutHeaders(h); err != nil {
-		return nil, err
-	}
+	err = pk.SerializeForHash(h)
+
 	return
 }
 
