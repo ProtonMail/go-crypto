@@ -336,7 +336,7 @@ func ReadEntity(packets *packet.Reader) (*Entity, error) {
 	var revocations []*packet.Signature
 EachPacket:
 	for {
-		p, err = packets.Next()
+		p, err := packets.Next()
 		if err == io.EOF {
 			break
 		} else if err != nil {

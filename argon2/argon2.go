@@ -43,7 +43,7 @@ import (
 	"golang.org/x/crypto/blake2b"
 )
 
-// Version represents the Argon2 version implemented by this package.
+// The Argon2 version implemented by this package.
 const Version = 0x13
 
 const (
