@@ -96,8 +96,8 @@ func (d0 *digest) Sum(in []byte) []byte {
 	var tmp [64]byte
 	tmp[0] = 0x80
 	if tc%64 < 56 {
-		_, err := d.Write(tmp[0 : 56-tc%64])
-		if err != nil {
+		if _, err := d.Write(tmp[0 : 56-tc%64]); err != nil {
+			// Impossible
 			panic(err)
 		}
 	} else {

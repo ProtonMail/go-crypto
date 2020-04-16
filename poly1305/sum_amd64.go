@@ -11,8 +11,8 @@ func update(state *macState, msg []byte)
 
 func sum(out *[16]byte, m []byte, key *[32]byte) {
 	h := newMAC(key)
-	_, err := h.Write(m)
-	if err != nil {
+	if _, err := h.Write(m); err != nil {
+		// Impossible
 		panic(err)
 	}
 	h.Sum(out)

@@ -27,8 +27,8 @@ import "encoding/binary"
 
 func sumGeneric(out *[TagSize]byte, msg []byte, key *[32]byte) {
 	h := newMACGeneric(key)
-	_, err := h.Write(msg)
-	if err != nil {
+	if _, err := h.Write(msg); err != nil {
+		// Impossible
 		panic(err)
 	}
 	h.Sum(out)

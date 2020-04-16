@@ -165,11 +165,8 @@ FindKey:
 				if len(pk.encryptedKey.Key) == 0 {
 					errDec := pk.encryptedKey.Decrypt(pk.key.PrivateKey, config)
 					if errDec != nil {
-						return nil, errDec
+						continue
 					}
-				}
-				if len(pk.encryptedKey.Key) == 0 {
-					continue
 				}
 				// Try to decrypt symmetrically encrypted
 				decrypted, err = edp.Decrypt(pk.encryptedKey.CipherFunc, pk.encryptedKey.Key)
@@ -418,7 +415,7 @@ func CheckDetachedSignatureAndHash(keyring KeyRing, signed, signature io.Reader,
 			if hashFunc == expectedHash {
 				break
 			}
-			if i + 1 == expectedHashesLen {
+			if i+1 == expectedHashesLen {
 				return nil, errors.StructuralError("hash algorithm mismatch with cleartext message headers")
 			}
 		}
