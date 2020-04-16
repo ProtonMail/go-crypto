@@ -18,10 +18,10 @@ func init() {
 	crypto.RegisterHash(crypto.MD4, New)
 }
 
-// Size of an MD4 checksum in bytes.
+// The size of an MD4 checksum in bytes.
 const Size = 16
 
-// BlockSize of MD4 in bytes.
+// The blocksize of MD4 in bytes.
 const BlockSize = 64
 
 const (

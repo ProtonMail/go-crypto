@@ -22,10 +22,10 @@ func init() {
 	crypto.RegisterHash(crypto.RIPEMD160, New)
 }
 
-// Size of the checksum in bytes.
+// The size of the checksum in bytes.
 const Size = 20
 
-// BlockSize of	the hash algorithm in bytes.
+// The block size of the hash algorithm in bytes.
 const BlockSize = 64
 
 const (

@@ -77,7 +77,7 @@ func (or *OpaqueReader) Next() (op *OpaquePacket, err error) {
 	op = &OpaquePacket{Tag: uint8(tag), Reason: err}
 	err = op.parse(contents)
 	if err != nil {
-		_, err = consumeAll(contents)
+		consumeAll(contents)
 	}
 	return
 }

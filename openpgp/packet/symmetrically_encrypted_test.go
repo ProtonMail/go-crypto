@@ -8,10 +8,11 @@ import (
 	"bytes"
 	"crypto/sha1"
 	"encoding/hex"
-	"golang.org/x/crypto/openpgp/errors"
 	"io"
 	"io/ioutil"
 	"testing"
+
+	"golang.org/x/crypto/openpgp/errors"
 )
 
 // TestReader wraps a []byte and returns reads of a specific length.
@@ -36,7 +37,7 @@ func (t *testReader) Read(buf []byte) (n int, err error) {
 	return
 }
 
-// TODO(zugzwang): Why is this test inactive, and more importantly, not passing?
+// TODO: This test is inactive, and not passing.
 func testMDCReader(t *testing.T) {
 	mdcPlaintext, _ := hex.DecodeString(mdcPlaintextHex)
 

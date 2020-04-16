@@ -18,7 +18,7 @@ package xtea // import "golang.org/x/crypto/xtea"
 
 import "strconv"
 
-// BlockSize is the XTEA block size in bytes.
+// The XTEA block size in bytes.
 const BlockSize = 8
 
 // A Cipher is an instance of an XTEA cipher using a particular key.

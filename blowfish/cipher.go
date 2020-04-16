@@ -18,7 +18,7 @@ package blowfish // import "golang.org/x/crypto/blowfish"
 
 import "strconv"
 
-// BlockSize is the Blowfish block size in bytes.
+// The Blowfish block size in bytes.
 const BlockSize = 8
 
 // A Cipher is an instance of Blowfish encryption using a particular key.

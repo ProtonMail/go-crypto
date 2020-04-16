@@ -245,7 +245,7 @@ FindLiteralData:
 		}
 		switch p := p.(type) {
 		case *packet.Compressed:
-			if err = packets.Push(p.Body); err != nil {
+			if err := packets.Push(p.Body); err != nil {
 				return nil, err
 			}
 		case *packet.OnePassSignature:
@@ -435,7 +435,7 @@ func CheckDetachedSignatureAndHash(keyring KeyRing, signed, signature io.Reader,
 		return nil, err
 	}
 
-	if _, err = io.Copy(wrappedHash, signed); err != nil && err != io.EOF {
+	if _, err := io.Copy(wrappedHash, signed); err != nil && err != io.EOF {
 		return nil, err
 	}
 

@@ -117,7 +117,7 @@ func (sig *SignatureV3) Serialize(w io.Writer) (err error) {
 		return
 	}
 
-	// Write the issuer long key Id
+	// Write the issuer long key ID
 	binary.BigEndian.PutUint64(buf[:8], sig.IssuerKeyId)
 	if _, err = w.Write(buf[:8]); err != nil {
 		return

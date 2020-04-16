@@ -25,13 +25,13 @@ import (
 )
 
 const (
-	// BlockSize is the blocksize of BLAKE2s in bytes.
+	// The blocksize of BLAKE2s in bytes.
 	BlockSize = 64
 
-	// Size is the hash size of BLAKE2s-256 in bytes.
+	// The hash size of BLAKE2s-256 in bytes.
 	Size = 32
 
-	// Size128 is the hash size of BLAKE2s-128 in bytes.
+	// The hash size of BLAKE2s-128 in bytes.
 	Size128 = 16
 )
 

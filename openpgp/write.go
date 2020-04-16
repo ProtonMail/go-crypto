@@ -249,7 +249,7 @@ func writeAndSign(payload io.WriteCloser, candidateHashes []uint8, signed *Entit
 			KeyId:      signer.KeyId,
 			IsLast:     true,
 		}
-		if err = ops.Serialize(payload); err != nil {
+		if err := ops.Serialize(payload); err != nil {
 			return nil, err
 		}
 	}
@@ -371,12 +371,12 @@ func encrypt(ciphertext io.Writer, to []*Entity, signed *Entity, hints *FileHint
 	}
 
 	symKey := make([]byte, cipher.KeySize())
-	if _, err = io.ReadFull(config.Random(), symKey); err != nil {
+	if _, err := io.ReadFull(config.Random(), symKey); err != nil {
 		return nil, err
 	}
 
 	for _, key := range encryptKeys {
-		if err = packet.SerializeEncryptedKey(ciphertext, key.PublicKey, cipher, symKey, config); err != nil {
+		if err := packet.SerializeEncryptedKey(ciphertext, key.PublicKey, cipher, symKey, config); err != nil {
 			return nil, err
 		}
 	}
