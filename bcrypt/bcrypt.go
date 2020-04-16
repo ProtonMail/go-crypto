@@ -24,21 +24,23 @@ const (
 	DefaultCost int = 10 // the cost that will actually be set if a cost below MinCost is passed into GenerateFromPassword
 )
 
-// ErrMismatchedHashAndPassword is returned from CompareHashAndPassword when a password and hash do not match.
+// ErrMismatchedHashAndPassword is returned when a password and a bcrypt hash
+// do not match.
 var ErrMismatchedHashAndPassword = errors.New("crypto/bcrypt: hashedPassword is not the hash of the given password")
 
-// ErrHashTooShort is returned from CompareHashAndPassword when a hash is too short to be a bcrypt hash.
+// ErrHashTooShort is returned when a hash is too short to be a bcrypt hash.
 var ErrHashTooShort = errors.New("crypto/bcrypt: hashedSecret too short to be a bcrypted password")
 
-// HashVersionTooNewError is returned from CompareHashAndPassword when a hash
-// was created with a bcrypt algorithm newer than this implementation.
+// HashVersionTooNewError is returned when a hash was created with a bcrypt
+// algorithm newer than this implementation.
 type HashVersionTooNewError byte
 
 func (hv HashVersionTooNewError) Error() string {
 	return fmt.Sprintf("crypto/bcrypt: bcrypt algorithm version '%c' requested is newer than current version '%c'", byte(hv), majorVersion)
 }
 
-// InvalidHashPrefixError is returned from CompareHashAndPassword when a hash starts with something other than '$'
+// InvalidHashPrefixError is returned when a hash is prefixed with anything
+// other than '$'
 type InvalidHashPrefixError byte
 
 func (ih InvalidHashPrefixError) Error() string {
