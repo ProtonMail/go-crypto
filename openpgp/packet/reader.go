@@ -43,7 +43,7 @@ func (r *Reader) Next() (p Packet, err error) {
 			r.readers = r.readers[:len(r.readers)-1]
 			continue
 		}
-		// TODO: Refuse unknown packets, instead of ignoring them.
+		// TODO: Add strict mode that rejects unknown packets, instead of ignoring them.
 		if _, ok := err.(errors.UnknownPacketTypeError); !ok {
 			return nil, err
 		}
