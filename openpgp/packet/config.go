@@ -7,10 +7,12 @@ package packet
 import (
 	"crypto"
 	"crypto/rand"
-	"math/big"
 	"io"
+	"math/big"
 	"time"
 
+	"golang.org/x/crypto/openpgp/internal/algorithm"
+	"golang.org/x/crypto/openpgp/s2k"
 )
 
 // Config collects a number of parameters along with sensible defaults.
@@ -74,7 +76,24 @@ func (c *Config) Hash() crypto.Hash {
 	if c == nil || uint(c.DefaultHash) == 0 {
 		return crypto.SHA256
 	}
-	return c.DefaultHash
+	_, ok := s2k.HashToHashId(c.DefaultHash)
+	if ok {
+		return c.DefaultHash
+	}
+	return crypto.SHA256
+}
+
+func (c *Config) PreferredHashAlgorithms() []uint8 {
+	mustId, _ := s2k.HashToHashId(crypto.SHA256)
+	if c == nil {
+		return []uint8{mustId}
+	}
+	switch c.DefaultHash {
+	case crypto.SHA224, crypto.SHA384, crypto.SHA512, crypto.SHA1, crypto.MD5, crypto.RIPEMD160:
+		id, _ := s2k.HashToHashId(c.DefaultHash)
+		return []uint8{id, mustId}
+	}
+	return []uint8{mustId}
 }
 
 func (c *Config) Cipher() CipherFunction {
@@ -82,6 +101,18 @@ func (c *Config) Cipher() CipherFunction {
 		return CipherAES128
 	}
 	return c.DefaultCipher
+}
+
+func (c *Config) PreferredSymmetricAlgorithms() []uint8 {
+	mustId:= algorithm.AES128.Id()
+	if c == nil {
+		return []uint8{mustId}
+	}
+	switch c.DefaultCipher {
+	case CipherAES192, CipherAES256, CipherCAST5, Cipher3DES:
+		return []uint8{uint8(c.DefaultCipher), mustId}
+	}
+	return []uint8{mustId}
 }
 
 func (c *Config) Now() time.Time {
@@ -103,6 +134,20 @@ func (c *Config) PasswordHashIterations() int {
 		return 0
 	}
 	return c.S2KCount
+}
+
+func (c *Config) RSAModulusBits() int {
+	if c == nil || c.RSABits == 0 {
+		return 2048
+	}
+	return c.RSABits
+}
+
+func (c *Config) PublicKeyAlgorithm() PublicKeyAlgorithm {
+	if c == nil || c.Algorithm == 0 {
+		return PubKeyAlgoRSA
+	}
+	return c.Algorithm
 }
 
 func (c *Config) AEAD() *AEADConfig {

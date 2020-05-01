@@ -26,6 +26,17 @@ func (conf *AEADConfig) Mode() AEADMode {
 	return mode
 }
 
+func (conf *AEADConfig) PreferredAEADModes() []uint8 {
+	if conf == nil {
+		return []uint8{}
+	}
+	switch conf.DefaultMode {
+	case AEADModeEAX, AEADModeOCB:
+		return []uint8{uint8(conf.DefaultMode)}
+	}
+	return []uint8{}
+}
+
 // ChunkSizeByte returns the byte indicating the chunk size. The effective
 // chunk size is computed with the formula uint64(1) << (chunkSizeByte + 6)
 func (conf *AEADConfig) ChunkSizeByte() byte {
