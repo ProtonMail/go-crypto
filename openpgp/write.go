@@ -438,7 +438,9 @@ type signatureWriter struct {
 }
 
 func (s signatureWriter) Write(data []byte) (int, error) {
-	s.wrappedHash.Write(data)
+	if n, err := s.wrappedHash.Write(data); err != nil {
+		return n, err
+	}
 	flag := 0
 	switch s.sigType {
 	case packet.SigTypeBinary:

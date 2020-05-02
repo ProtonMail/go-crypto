@@ -70,6 +70,7 @@ func (r *Reader) Unread(p Packet) {
 	r.q = append(r.q, p)
 }
 
+// NewReader returns a new Reader from the given io.Reader.
 func NewReader(r io.Reader) *Reader {
 	return &Reader{
 		q:       nil,

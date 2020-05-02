@@ -11,7 +11,6 @@ import (
 )
 
 var bigZero = big.NewInt(0)
-var bigOne = big.NewInt(1)
 var bigTwo = big.NewInt(2)
 
 // smallPrimes is a list of small, prime numbers that allows us to rapidly

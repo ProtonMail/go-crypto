@@ -63,6 +63,8 @@ type Config struct {
 	AEADConfig *AEADConfig
 }
 
+// Random returns the random reader of the given Config. If Rand is
+// not set, it returns rand.Reader from the crypto/rand package.
 func (c *Config) Random() io.Reader {
 	if c == nil || c.Rand == nil {
 		return rand.Reader
@@ -70,6 +72,8 @@ func (c *Config) Random() io.Reader {
 	return c.Rand
 }
 
+// Hash returns the default hash algorithm of the given Config. If it is
+// not set, it returns SHA256 from the crypto package.
 func (c *Config) Hash() crypto.Hash {
 	if c == nil || uint(c.DefaultHash) == 0 {
 		return crypto.SHA256
@@ -77,6 +81,8 @@ func (c *Config) Hash() crypto.Hash {
 	return c.DefaultHash
 }
 
+// Cipher returns the default block cipher algorithm of the given Config. If it
+// is not set, it returns CipherAES128 (defined in the packet package).
 func (c *Config) Cipher() CipherFunction {
 	if c == nil || uint8(c.DefaultCipher) == 0 {
 		return CipherAES128
@@ -84,6 +90,7 @@ func (c *Config) Cipher() CipherFunction {
 	return c.DefaultCipher
 }
 
+// Now returns the time attribute of the given Config.
 func (c *Config) Now() time.Time {
 	if c == nil || c.Time == nil {
 		return time.Now()
@@ -91,6 +98,7 @@ func (c *Config) Now() time.Time {
 	return c.Time()
 }
 
+// Compression returns the default compression algorithm of the given Config.
 func (c *Config) Compression() CompressionAlgo {
 	if c == nil {
 		return CompressionNone
@@ -98,6 +106,8 @@ func (c *Config) Compression() CompressionAlgo {
 	return c.DefaultCompressionAlgo
 }
 
+// PasswordHashIterations returns the S2KCount attribute of the given Config,
+// or 0 if the attribute is not set.
 func (c *Config) PasswordHashIterations() int {
 	if c == nil || c.S2KCount == 0 {
 		return 0

@@ -36,6 +36,7 @@ type PublicKeyV3 struct {
 	n, e encoding.Field
 }
 
+// TODO: This function is unused. Should be deprecated
 // newRSAPublicKeyV3 returns a PublicKey that wraps the given rsa.PublicKey.
 // Included here for testing purposes only. RFC 4880, section 5.5.2:
 // "an implementation MUST NOT generate a V3 key, but MAY accept it."
@@ -137,9 +138,9 @@ func (pk *PublicKeyV3) SerializeSignaturePrefix(w io.Writer) {
 	}
 	pLength += 6
 	w.Write([]byte{0x99, byte(pLength >> 8), byte(pLength)})
-	return
 }
 
+// Serialize writes the serialized PublicKeyV3 to the given writer.
 func (pk *PublicKeyV3) Serialize(w io.Writer) (err error) {
 	length := 8 // 8 byte header
 

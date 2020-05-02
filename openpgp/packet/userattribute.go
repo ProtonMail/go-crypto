@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 )
 
+// UserAttrImageSubpacket is used to encode an image. See RFC 4880, 5.12.1.
 const UserAttrImageSubpacket = 1
 
 // UserAttribute is capable of storing other types of data about a user
@@ -71,7 +72,7 @@ func (uat *UserAttribute) Serialize(w io.Writer) (err error) {
 	for _, sp := range uat.Contents {
 		err = sp.Serialize(&buf)
 		if err != nil {
-			return err
+			return
 		}
 	}
 	if err = serializeHeader(w, packetTypeUserAttribute, buf.Len()); err != nil {

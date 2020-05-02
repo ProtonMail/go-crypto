@@ -16,7 +16,7 @@ import (
 	"golang.org/x/crypto/openpgp/internal/ecc"
 )
 
-// Generates a private-public key-pair.
+// x25519GenerateKeyPairBytes generates a private-public key-pair.
 // 'priv' is a private key; a scalar belonging to the set
 // 2^{254} + 8 * [0, 2^{251}), in order to avoid the small subgroup of the
 // curve. 'pub' is simply 'priv' * G where G is the base point.
@@ -28,7 +28,7 @@ func x25519GenerateKeyPairBytes(rand io.Reader) (priv [32]byte, pub [32]byte, er
 	helper.SetString("27742317777372353535851937790883648493", 10)
 	n.Add(n, helper)
 
-	for true {
+	for {
 		_, err = io.ReadFull(rand, priv[:])
 		if err != nil {
 			return
@@ -48,7 +48,6 @@ func x25519GenerateKeyPairBytes(rand io.Reader) (priv [32]byte, pub [32]byte, er
 		curve25519.ScalarBaseMult(&pub, &priv)
 		return
 	}
-	return
 }
 
 // X25519GenerateKey samples the key pair according to the correct distribution.
@@ -82,6 +81,8 @@ func X25519GenerateKey(rand io.Reader, kdf KDF) (priv *PrivateKey, err error) {
 	return priv, nil
 }
 
+// X25519Encrypt is the Encrypt procedure of the ecdh package when the public
+// key is set with curve 25519.
 func X25519Encrypt(random io.Reader, pub *PublicKey, msg, curveOID, fingerprint []byte) (vsG, c []byte, err error) {
 	d, ephemeralKey, err := x25519GenerateKeyPairBytes(random)
 	if err != nil {
@@ -114,6 +115,8 @@ func X25519Encrypt(random io.Reader, pub *PublicKey, msg, curveOID, fingerprint 
 	return vsg[:], c, nil
 }
 
+// X25519Decrypt is the Encrypt procedure of the ecdh package when the public
+// key is set with curve 25519.
 func X25519Decrypt(priv *PrivateKey, vsG, m, curveOID, fingerprint []byte) (msg []byte, err error) {
 	var zb, d, ephemeralKey [32]byte
 	if len(vsG) != 33 || vsG[0] != 0x40 {

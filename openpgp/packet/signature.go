@@ -22,8 +22,8 @@ import (
 	"golang.org/x/crypto/openpgp/s2k"
 )
 
+// See RFC 4880, section 5.2.3.21 for details.
 const (
-	// See RFC 4880, section 5.2.3.21 for details.
 	KeyFlagCertify = 1 << iota
 	KeyFlagSign
 	KeyFlagEncryptCommunications
@@ -488,7 +488,6 @@ func serializeSubpackets(to []byte, subpackets []outputSubpacket, hashed bool) {
 			to = to[n:]
 		}
 	}
-	return
 }
 
 // SigExpired returns whether sig is a signature that has expired or is created
@@ -561,9 +560,9 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 	switch priv.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly:
 		// supports both *rsa.PrivateKey and crypto.Signer
-		sigdata, err := priv.PrivateKey.(crypto.Signer).Sign(config.Random(), digest, sig.Hash)
+		sigData, err := priv.PrivateKey.(crypto.Signer).Sign(config.Random(), digest, sig.Hash)
 		if err == nil {
-			sig.RSASignature = encoding.NewMPI(sigdata)
+			sig.RSASignature = encoding.NewMPI(sigData)
 		}
 	case PubKeyAlgoDSA:
 		dsaPriv := priv.PrivateKey.(*dsa.PrivateKey)
@@ -595,10 +594,10 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 			sig.ECDSASigS = new(encoding.MPI).SetBig(s)
 		}
 	case PubKeyAlgoEdDSA:
-		sigdata, err := priv.PrivateKey.(crypto.Signer).Sign(config.Random(), digest, crypto.Hash(0))
+		sigData, err := priv.PrivateKey.(crypto.Signer).Sign(config.Random(), digest, crypto.Hash(0))
 		if err == nil {
-			sig.EdDSASigR = encoding.NewMPI(sigdata[:32])
-			sig.EdDSASigS = encoding.NewMPI(sigdata[32:])
+			sig.EdDSASigR = encoding.NewMPI(sigData[:32])
+			sig.EdDSASigS = encoding.NewMPI(sigData[32:])
 		}
 	default:
 		err = errors.UnsupportedError("public key algorithm: " + strconv.Itoa(int(sig.PubKeyAlgo)))
@@ -799,7 +798,6 @@ func (sig *Signature) buildSubpackets() (subpackets []outputSubpacket) {
 	if len(sig.PreferredSymmetric) > 0 {
 		subpackets = append(subpackets, outputSubpacket{true, prefSymmetricAlgosSubpacket, false, sig.PreferredSymmetric})
 	}
-
 
 	if len(sig.PreferredHash) > 0 {
 		subpackets = append(subpackets, outputSubpacket{true, prefHashAlgosSubpacket, false, sig.PreferredHash})

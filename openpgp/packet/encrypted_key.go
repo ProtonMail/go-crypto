@@ -152,9 +152,15 @@ func (e *EncryptedKey) Serialize(w io.Writer) error {
 		return err
 	}
 
-	w.Write([]byte{encryptedKeyVersion})
-	binary.Write(w, binary.BigEndian, e.KeyId)
-	w.Write([]byte{byte(e.Algo)})
+	if _, err = w.Write([]byte{encryptedKeyVersion}); err != nil {
+		return err
+	}
+	if err = binary.Write(w, binary.BigEndian, e.KeyId); err != nil {
+		return err
+	}
+	if _, err = w.Write([]byte{byte(e.Algo)}); err != nil {
+		return err
+	}
 
 	switch e.Algo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly:

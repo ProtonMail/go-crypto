@@ -76,7 +76,7 @@ func TestPublicKeyV3Serialize(t *testing.T) {
 	if packet, err = Read(bytes.NewBuffer(serializeBuf.Bytes())); err != nil {
 		t.Fatalf("#%d: Read error (from serialized data): %s", i, err)
 	}
-	if pk, ok = packet.(*PublicKeyV3); !ok {
+	if _, ok = packet.(*PublicKeyV3); !ok {
 		t.Fatalf("#%d: failed to parse serialized data, got: %#v", i, packet)
 	}
 }

@@ -1,5 +1,6 @@
 package ecc
 
+// CurveType determines the type of the curve being used.
 type CurveType uint8
 
 const (

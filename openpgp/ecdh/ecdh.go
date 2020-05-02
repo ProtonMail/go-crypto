@@ -18,11 +18,13 @@ import (
 	"golang.org/x/crypto/openpgp/internal/ecc"
 )
 
+// KDF is the Key Derivation Function as Specified in RFC 6637, section 7.
 type KDF struct {
 	Hash   algorithm.Hash
 	Cipher algorithm.Cipher
 }
 
+// PublicKey represents an ECDH public key.
 type PublicKey struct {
 	ecc.CurveType
 	elliptic.Curve
@@ -30,11 +32,13 @@ type PublicKey struct {
 	KDF
 }
 
+// PrivateKey represents an ECDH private key.
 type PrivateKey struct {
-	PublicKey
 	D []byte
+	PublicKey
 }
 
+// GenerateKey returns a PrivateKey object and an eventual error.
 func GenerateKey(c elliptic.Curve, kdf KDF, rand io.Reader) (priv *PrivateKey, err error) {
 	priv = new(PrivateKey)
 	priv.PublicKey.Curve = c
@@ -43,6 +47,10 @@ func GenerateKey(c elliptic.Curve, kdf KDF, rand io.Reader) (priv *PrivateKey, e
 	return
 }
 
+// Encrypt encrypts the given message to the given key. It first generates the
+// shared secret from the given random reader, and proceeds to encrypt. It
+// returns the generated key pair in compressed form, the ciphertext, and an
+// eventual error.
 func Encrypt(random io.Reader, pub *PublicKey, msg, curveOID, fingerprint []byte) (vsG, c []byte, err error) {
 	if len(msg) > 40 {
 		return nil, nil, errors.New("ecdh: message too long")
@@ -86,6 +94,8 @@ func Encrypt(random io.Reader, pub *PublicKey, msg, curveOID, fingerprint []byte
 
 }
 
+// Decrypt decrypts the given message with the given private key. It returns a
+// plaintext and an eventual error.
 func Decrypt(priv *PrivateKey, vsG, m, curveOID, fingerprint []byte) (msg []byte, err error) {
 	if priv.PublicKey.CurveType == ecc.Curve25519 {
 		return X25519Decrypt(priv, vsG, m, curveOID, fingerprint)

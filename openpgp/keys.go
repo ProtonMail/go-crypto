@@ -5,9 +5,9 @@
 package openpgp
 
 import (
+	goerrors "errors"
 	"io"
 	"time"
-	goerrors "errors"
 
 	"golang.org/x/crypto/openpgp/armor"
 	"golang.org/x/crypto/openpgp/errors"
@@ -183,7 +183,7 @@ func (el EntityList) KeysById(id uint64) (keys []Key) {
 	return
 }
 
-// KeysByIdAndUsage returns the set of keys with the given id that also meet
+// KeysByIdUsage returns the set of keys with the given id that also meet
 // the key usage given by requiredUsage.  The requiredUsage is expressed as
 // the bitwise-OR of packet.KeyFlag* values.
 func (el EntityList) KeysByIdUsage(id uint64, requiredUsage byte) (keys []Key) {
@@ -345,7 +345,7 @@ EachPacket:
 
 		switch pkt := p.(type) {
 		case *packet.UserId:
-			if err := addUserID(e, packets, pkt); err != nil {
+			if err = addUserID(e, packets, pkt); err != nil {
 				return nil, err
 			}
 		case *packet.Signature:
@@ -359,7 +359,7 @@ EachPacket:
 			// Else, ignoring the signature as it does not follow anything
 			// we would know to attach it to.
 		case *packet.PrivateKey:
-			if pkt.IsSubkey == false {
+			if !pkt.IsSubkey {
 				packets.Unread(p)
 				break EachPacket
 			}
@@ -368,7 +368,7 @@ EachPacket:
 				return nil, err
 			}
 		case *packet.PublicKey:
-			if pkt.IsSubkey == false {
+			if !pkt.IsSubkey {
 				packets.Unread(p)
 				break EachPacket
 			}

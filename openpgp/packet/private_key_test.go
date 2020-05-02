@@ -158,7 +158,7 @@ func TestExternalRSAPrivateKey(t *testing.T) {
 		Primes: rsaPriv.Primes,
 	}
 	xrsaPriv.Precompute()
-	if err := NewRSAPrivateKey(time.Now(), xrsaPriv).Serialize(&buf); err != nil {
+	if err = NewRSAPrivateKey(time.Now(), xrsaPriv).Serialize(&buf); err != nil {
 		t.Fatal(err)
 	}
 
@@ -204,7 +204,7 @@ func TestECDSAPrivateKeysRandomizeFast(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := NewECDSAPrivateKey(time.Now(), ecdsaPriv).Serialize(&buf); err != nil {
+	if err = NewECDSAPrivateKey(time.Now(), ecdsaPriv).Serialize(&buf); err != nil {
 		t.Fatal(err)
 	}
 
@@ -229,14 +229,14 @@ func TestECDSAPrivateKeysRandomizeFast(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := sig.Sign(h, priv, nil); err != nil {
+	if err = sig.Sign(h, priv, nil); err != nil {
 		t.Fatal(err)
 	}
 
 	if h, err = populateHash(sig.Hash, msg); err != nil {
 		t.Fatal(err)
 	}
-	if err := priv.VerifySignature(h, sig); err != nil {
+	if err = priv.VerifySignature(h, sig); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -266,7 +266,7 @@ func TestRSASignerPrivateKeysRandomizeSlow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := sig.Sign(h, priv, nil); err != nil {
+	if err = sig.Sign(h, priv, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -319,14 +319,14 @@ func TestECDSASignerPrivateKeysRandomizeFast(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := sig.Sign(h, priv, nil); err != nil {
+	if err = sig.Sign(h, priv, nil); err != nil {
 		t.Fatal(err)
 	}
 
 	if h, err = populateHash(sig.Hash, msg); err != nil {
 		t.Fatal(err)
 	}
-	if err := priv.VerifySignature(h, sig); err != nil {
+	if err = priv.VerifySignature(h, sig); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -354,7 +354,7 @@ func TestEdDSASignerPrivateKeyRandomizeFast(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := sig.Sign(h, priv, nil); err != nil {
+	if err = sig.Sign(h, priv, nil); err != nil {
 		t.Fatal(err)
 	}
 	if h, err = populateHash(sig.Hash, msg); err != nil {
