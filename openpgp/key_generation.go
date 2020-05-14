@@ -7,7 +7,6 @@ package openpgp
 import (
 	"crypto"
 	"math/big"
-	"time"
 
 	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/openpgp/ecdh"
@@ -30,20 +29,19 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 	}
 
 	// Generate a primary key with one subkey
-	var primary, sub *packet.PrivateKey
-	var err error
-
-	switch config.PublicKeyAlgorithm() {
-	case packet.PubKeyAlgoRSA:
-		primary, sub, err = rsaGen(config, creationTime)
-	case packet.PubKeyAlgoEdDSA:
-		primary, sub, err = eddsaGen(config, creationTime)
-	default:
-		return nil, errors.InvalidArgumentError("unsupported public key algorithm")
-	}
+	primaryPrivRaw, err := newSigner(config)
 	if err != nil {
 		return nil, err
 	}
+	primary := packet.NewSignerPrivateKey(creationTime, primaryPrivRaw)
+
+	subPrivRaw, err := newDecrypter(config)
+	if err != nil {
+		return nil, err
+	}
+	sub := packet.NewDecrypterPrivateKey(creationTime, subPrivRaw)
+	sub.IsSubkey = true
+	sub.PublicKey.IsSubkey = true
 
 	subKey := Subkey{
 		PrivateKey: sub,
@@ -119,55 +117,46 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 	}, nil
 }
 
-// Generates a primary key and a subkey with RSA and the given config.
-func rsaGen(config *packet.Config, creationTime time.Time) (primary *packet.PrivateKey, sub *packet.PrivateKey, err error) {
-	bits := config.RSAModulusBits()
-	var primaryPrimes []*big.Int
-	if config != nil && len(config.RSAPrimes) >= 2 {
-		primaryPrimes = config.RSAPrimes[0:2]
+// Generates a signing key
+func newSigner(config *packet.Config) (signer crypto.Signer, err error) {
+	switch config.PublicKeyAlgorithm() {
+	case packet.PubKeyAlgoRSA:
+		bits := config.RSAModulusBits()
+		var primaryPrimes []*big.Int
+		if config != nil && len(config.RSAPrimes) >= 2 {
+			primaryPrimes = config.RSAPrimes[0:2]
+			config.RSAPrimes = config.RSAPrimes[2:]
+		}
+		return rsa.GenerateKeyWithPrimes(config.Random(), bits, primaryPrimes)
+	case packet.PubKeyAlgoEdDSA:
+		_, priv, err := ed25519.GenerateKey(config.Random())
+		if err != nil {
+			return nil, err
+		}
+		return &priv, nil
+	default:
+		return nil, errors.InvalidArgumentError("unsupported public key algorithm")
 	}
-	primaryPrivRaw, err := rsa.GenerateKeyWithPrimes(config.Random(), bits, primaryPrimes)
-	if err != nil {
-		return nil, nil, err
-	}
-	primary = packet.NewRSAPrivateKey(creationTime, primaryPrivRaw)
-	primary.PublicKey = *packet.NewRSAPublicKey(creationTime, &primaryPrivRaw.PublicKey)
-
-	var subkeyPrimes []*big.Int
-	if config != nil && len(config.RSAPrimes) >= 4 {
-		subkeyPrimes = config.RSAPrimes[2:4]
-	}
-	subPrivRaw, err := rsa.GenerateKeyWithPrimes(config.Random(), bits, subkeyPrimes)
-	if err != nil {
-		return nil, nil, err
-	}
-	sub = packet.NewRSAPrivateKey(creationTime, subPrivRaw)
-	sub.PublicKey = *packet.NewRSAPublicKey(creationTime, &subPrivRaw.PublicKey)
-	sub.IsSubkey = true
-	sub.PublicKey.IsSubkey = true
-	return
 }
 
-// Generates a primary key and a subkey with EdDSA and the given config.
-func eddsaGen(config *packet.Config, creationTime time.Time) (primary *packet.PrivateKey, sub *packet.PrivateKey, err error) {
-	primaryPubRaw, primaryPrivRaw, err := ed25519.GenerateKey(config.Random())
-	if err != nil {
-		return nil, nil, err
+// Generates an encryption/decryption key
+func newDecrypter(config *packet.Config) (decrypter interface{}, err error) {
+	switch config.PublicKeyAlgorithm() {
+	case packet.PubKeyAlgoRSA:
+		bits := config.RSAModulusBits()
+		var primaryPrimes []*big.Int
+		if config != nil && len(config.RSAPrimes) >= 2 {
+			primaryPrimes = config.RSAPrimes[0:2]
+			config.RSAPrimes = config.RSAPrimes[2:]
+		}
+		return rsa.GenerateKeyWithPrimes(config.Random(), bits, primaryPrimes)
+	case packet.PubKeyAlgoEdDSA: // When passing EdDSA, we generate an ECDH subkey
+		var kdf = ecdh.KDF{
+			Hash:   algorithm.SHA512,
+			Cipher: algorithm.AES256,
+		}
+		return ecdh.X25519GenerateKey(config.Random(), kdf)
+	default:
+		return nil, errors.InvalidArgumentError("unsupported public key algorithm")
 	}
-	primary = packet.NewEdDSAPrivateKey(creationTime, primaryPrivRaw)
-	primary.PublicKey = *packet.NewEdDSAPublicKey(creationTime, primaryPubRaw)
-
-	var kdf = ecdh.KDF{
-		Hash:   algorithm.SHA512,
-		Cipher: algorithm.AES256,
-	}
-	subPrivRaw, err := ecdh.X25519GenerateKey(config.Random(), kdf)
-	if err != nil {
-		return nil, nil, err
-	}
-	sub = packet.NewECDHPrivateKey(creationTime, subPrivRaw)
-	sub.PublicKey = *packet.NewECDHPublicKey(creationTime, &subPrivRaw.PublicKey)
-	sub.IsSubkey = true
-	sub.PublicKey.IsSubkey = true
-	return
 }
