@@ -28,41 +28,13 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 		return nil, errors.InvalidArgumentError("user id field contained invalid characters")
 	}
 
-	// Generate a primary key with one subkey
+	// Generate a primary signing key
 	primaryPrivRaw, err := newSigner(config)
 	if err != nil {
 		return nil, err
 	}
 	primary := packet.NewSignerPrivateKey(creationTime, primaryPrivRaw)
 
-	subPrivRaw, err := newDecrypter(config)
-	if err != nil {
-		return nil, err
-	}
-	sub := packet.NewDecrypterPrivateKey(creationTime, subPrivRaw)
-	sub.IsSubkey = true
-	sub.PublicKey.IsSubkey = true
-
-	subKey := Subkey{
-		PrivateKey: sub,
-		PublicKey:  &sub.PublicKey,
-		Sig: &packet.Signature{
-			CreationTime:              creationTime,
-			SigType:                   packet.SigTypeSubkeyBinding,
-			PubKeyAlgo:                config.PublicKeyAlgorithm(),
-			Hash:                      config.Hash(),
-			FlagsValid:                true,
-			FlagEncryptStorage:        true,
-			FlagEncryptCommunications: true,
-			IssuerKeyId:               &primary.PublicKey.KeyId,
-		},
-	}
-
-	// Binding signatures
-	err = subKey.Sig.SignKey(subKey.PublicKey, primary, config)
-	if err != nil {
-		return nil, err
-	}
 	isPrimaryId := true
 	selfSignature := &packet.Signature{
 		SigType:            packet.SigTypePositiveCert,
@@ -97,15 +69,45 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 		selfSignature.PreferredAEAD = append(selfSignature.PreferredAEAD, uint8(packet.AEADModeEAX))
 	}
 
+	// User ID binding signature
 	err = selfSignature.SignUserId(uid.Id, &primary.PublicKey, primary, config)
 	if err != nil {
 		return nil, err
 	}
 
+	// Generate an encryption subkey
+	subPrivRaw, err := newDecrypter(config)
+	if err != nil {
+		return nil, err
+	}
+	sub := packet.NewDecrypterPrivateKey(creationTime, subPrivRaw)
+	sub.IsSubkey = true
+	sub.PublicKey.IsSubkey = true
+
+	subKey := Subkey{
+		PublicKey:  &sub.PublicKey,
+		PrivateKey: sub,
+		Sig: &packet.Signature{
+			CreationTime:              creationTime,
+			SigType:                   packet.SigTypeSubkeyBinding,
+			PubKeyAlgo:                config.PublicKeyAlgorithm(),
+			Hash:                      config.Hash(),
+			FlagsValid:                true,
+			FlagEncryptStorage:        true,
+			FlagEncryptCommunications: true,
+			IssuerKeyId:               &primary.PublicKey.KeyId,
+		},
+	}
+
+	// Subkey binding signature
+	err = subKey.Sig.SignKey(subKey.PublicKey, primary, config)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Entity{
-		PrivateKey: primary,
 		PrimaryKey: &primary.PublicKey,
-		Subkeys: []Subkey{subKey},
+		PrivateKey: primary,
 		Identities: map[string]*Identity{
 			uid.Id: &Identity{
 				Name:          uid.Id,
@@ -114,6 +116,7 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 				Signatures:    []*packet.Signature{selfSignature},
 			},
 		},
+		Subkeys: []Subkey{subKey},
 	}, nil
 }
 
