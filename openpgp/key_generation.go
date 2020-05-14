@@ -5,6 +5,7 @@
 package openpgp
 
 import (
+	"crypto"
 	"math/big"
 	"time"
 
@@ -70,9 +71,6 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 		PubKeyAlgo:         config.PublicKeyAlgorithm(),
 		Hash:               config.Hash(),
 		CreationTime:       creationTime,
-		PreferredSymmetric: config.PreferredSymmetricAlgorithms(),
-		PreferredHash:      config.PreferredHashAlgorithms(),
-		PreferredAEAD:      config.AEAD().PreferredAEADModes(),
 		IssuerKeyId:        &primary.PublicKey.KeyId,
 		IsPrimaryId:        &isPrimaryId,
 		FlagsValid:         true,
@@ -81,6 +79,26 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 		MDC:                true, // true by default, see 5.8 vs. 5.14
 		AEAD:               config.AEAD() != nil,
 	}
+
+	// Set the PreferredHash for the SelfSignature from the packet.Config.
+	// If it is not the must-implement algorithm from rfc4880bis, append that.
+	selfSignature.PreferredHash = []uint8{hashToHashId(config.Hash())}
+	if (config.Hash() != crypto.SHA256) {
+		selfSignature.PreferredHash = append(selfSignature.PreferredHash, hashToHashId(crypto.SHA256))
+	}
+
+	// Likewise for DefaultCipher.
+	selfSignature.PreferredSymmetric = []uint8{uint8(config.Cipher())}
+	if (config.Cipher() != packet.CipherAES128) {
+		selfSignature.PreferredSymmetric = append(selfSignature.PreferredSymmetric, uint8(packet.CipherAES128))
+	}
+
+	// And for DefaultMode.
+	selfSignature.PreferredAEAD = []uint8{uint8(config.AEAD().Mode())}
+	if (config.AEAD().Mode() != packet.AEADModeEAX) {
+		selfSignature.PreferredAEAD = append(selfSignature.PreferredAEAD, uint8(packet.AEADModeEAX))
+	}
+
 	err = selfSignature.SignUserId(uid.Id, &primary.PublicKey, primary, config)
 	if err != nil {
 		return nil, err
