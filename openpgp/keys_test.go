@@ -749,7 +749,7 @@ func TestRevokeKey(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = entity.RevokeKey(0, "Key revocation", nil)
+	err = entity.RevokeKey(packet.NoReason, "Key revocation", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -776,7 +776,7 @@ func TestRevokeKeyWithConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = entity.RevokeKey(0, "Key revocation", c)
+	err = entity.RevokeKey(packet.NoReason, "Key revocation", c)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -805,7 +805,7 @@ func TestRevokeSubkey(t *testing.T) {
 	}
 
 	sk := &entity.Subkeys[0]
-	err = entity.RevokeSubkey(sk, 0, "Key revocation", nil)
+	err = entity.RevokeSubkey(sk, packet.NoReason, "Key revocation", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -852,7 +852,7 @@ func TestRevokeSubkeyWithAnotherEntity(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = newEntity.RevokeSubkey(&sk, 0, "Key revocation", nil)
+	err = newEntity.RevokeSubkey(&sk, packet.NoReason, "Key revocation", nil)
 	if err == nil {
 		t.Fatal("Entity was able to revoke a subkey owned by a different entity")
 	}
@@ -867,7 +867,7 @@ func TestRevokeSubkeyWithInvalidSignature(t *testing.T) {
 	sk := entity.Subkeys[0]
 	sk.Sig = &packet.Signature{}
 
-	err = entity.RevokeSubkey(&sk, 0, "Key revocation", nil)
+	err = entity.RevokeSubkey(&sk, packet.NoReason, "Key revocation", nil)
 	if err == nil {
 		t.Fatal("Entity was able to revoke a subkey with invalid signature")
 	}
@@ -884,7 +884,7 @@ func TestRevokeSubkeyWithConfig(t *testing.T) {
 	}
 
 	sk := entity.Subkeys[0]
-	err = entity.RevokeSubkey(&sk, 0, "Key revocation", c)
+	err = entity.RevokeSubkey(&sk, packet.NoReason, "Key revocation", c)
 	if err != nil {
 		t.Fatal(err)
 	}
