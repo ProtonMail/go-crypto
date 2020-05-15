@@ -648,18 +648,18 @@ func TestAddSubkey(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = entity.AddSubkey(false, false, nil)
-	if err == nil {
-		t.Fatal("Generated subkey that supports neither signing not encryption")
-	}
-
-	err = entity.AddSubkey(true, true, nil)
+	err = entity.AddSigningSubkey(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if len(entity.Subkeys) != 2 {
-		t.Fatalf("Expected 2 subkeys, got %d", len(entity.Subkeys))
+	err = entity.AddEncryptionSubkey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(entity.Subkeys) != 3 {
+		t.Fatalf("Expected 3 subkeys, got %d", len(entity.Subkeys))
 	}
 
 	for _, sk := range entity.Subkeys {
@@ -681,24 +681,50 @@ func TestAddSubkey(t *testing.T) {
 func TestAddSubkeyWithConfig(t *testing.T) {
 	c := &packet.Config{
 		DefaultHash: crypto.SHA512,
+		Algorithm: packet.PubKeyAlgoEdDSA,
 	}
-	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", c)
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = entity.AddSubkey(true, true, c)
+	err = entity.AddSigningSubkey(c)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if len(entity.Subkeys) != 2 {
-		t.Fatalf("Expected 2 subkeys, got %d", len(entity.Subkeys))
+	err = entity.AddEncryptionSubkey(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(entity.Subkeys) != 3 {
+		t.Fatalf("Expected 3 subkeys, got %d", len(entity.Subkeys))
+	}
+
+	if entity.Subkeys[1].PublicKey.PubKeyAlgo != packet.PubKeyAlgoEdDSA {
+		t.Fatalf("Expected subkey algorithm: %v, got: %v", packet.PubKeyAlgoEdDSA,
+			entity.Subkeys[1].PublicKey.PubKeyAlgo)
+	}
+
+	if entity.Subkeys[2].PublicKey.PubKeyAlgo != packet.PubKeyAlgoECDH {
+		t.Fatalf("Expected subkey algorithm: %v, got: %v", packet.PubKeyAlgoECDH,
+			entity.Subkeys[2].PublicKey.PubKeyAlgo)
 	}
 
 	if entity.Subkeys[1].Sig.Hash != c.DefaultHash {
 		t.Fatalf("Expected subkey hash method: %v, got: %v", c.DefaultHash,
 			entity.Subkeys[1].Sig.Hash)
+	}
+
+	if entity.Subkeys[1].Sig.EmbeddedSignature.Hash != c.DefaultHash {
+		t.Fatalf("Expected subkey hash method: %v, got: %v", c.DefaultHash,
+			entity.Subkeys[1].Sig.EmbeddedSignature.Hash)
+	}
+
+	if entity.Subkeys[2].Sig.Hash != c.DefaultHash {
+		t.Fatalf("Expected subkey hash method: %v, got: %v", c.DefaultHash,
+			entity.Subkeys[2].Sig.Hash)
 	}
 
 	for _, sk := range entity.Subkeys {
@@ -708,6 +734,13 @@ func TestAddSubkeyWithConfig(t *testing.T) {
 		}
 	}
 
+	serializedEntity := bytes.NewBuffer(nil)
+	entity.SerializePrivate(serializedEntity, nil)
+
+	_, err = ReadEntity(packet.NewReader(bytes.NewBuffer(serializedEntity.Bytes())))
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestRevokeKey(t *testing.T) {

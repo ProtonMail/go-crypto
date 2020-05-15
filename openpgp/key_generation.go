@@ -38,7 +38,7 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 	isPrimaryId := true
 	selfSignature := &packet.Signature{
 		SigType:            packet.SigTypePositiveCert,
-		PubKeyAlgo:         config.PublicKeyAlgorithm(),
+		PubKeyAlgo:         primary.PublicKey.PubKeyAlgo,
 		Hash:               config.Hash(),
 		CreationTime:       creationTime,
 		IssuerKeyId:        &primary.PublicKey.KeyId,
@@ -90,7 +90,7 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 		Sig: &packet.Signature{
 			CreationTime:              creationTime,
 			SigType:                   packet.SigTypeSubkeyBinding,
-			PubKeyAlgo:                config.PublicKeyAlgorithm(),
+			PubKeyAlgo:                primary.PublicKey.PubKeyAlgo,
 			Hash:                      config.Hash(),
 			FlagsValid:                true,
 			FlagEncryptStorage:        true,
@@ -120,50 +120,79 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 	}, nil
 }
 
-// AddSubkey adds a RSA/RSA keypair as a subkey to the Entity. If canSign is true, then
-// the subkey will support signing. If canEncrypt is true, then the subkey supports encryption.
+// AddSigningSubkey adds a signing keypair as a subkey to the Entity.
 // If config is nil, sensible defaults will be used.
-func (e *Entity) AddSubkey(canSign bool, canEncrypt bool, config *packet.Config) error {
-	if !canSign && !canEncrypt {
-		return errors.InvalidArgumentError("subkey must support encryption and/or signing")
-	}
+func (e *Entity) AddSigningSubkey(config *packet.Config) error {
 	creationTime := config.Now()
 
-	bits := config.RSAModulusBits()
-	key, err := rsa.GenerateKey(config.Random(), bits)
+	subPrivRaw, err := newSigner(config)
 	if err != nil {
 		return err
 	}
+	sub := packet.NewSignerPrivateKey(creationTime, subPrivRaw)
 
 	subkey := Subkey{
-		PublicKey:  packet.NewRSAPublicKey(creationTime, &key.PublicKey),
-		PrivateKey: packet.NewRSAPrivateKey(creationTime, key),
+		PublicKey:  &sub.PublicKey,
+		PrivateKey: sub,
 		Sig: &packet.Signature{
 			CreationTime:              creationTime,
 			SigType:                   packet.SigTypeSubkeyBinding,
-			PubKeyAlgo:                packet.PubKeyAlgoRSA,
+			PubKeyAlgo:                e.PrimaryKey.PubKeyAlgo,
 			Hash:                      config.Hash(),
 			FlagsValid:                true,
-			FlagEncryptStorage:        canEncrypt,
-			FlagEncryptCommunications: canEncrypt,
-			FlagSign:                  canSign,
+			FlagSign:                  true,
 			IssuerKeyId:               &e.PrimaryKey.KeyId,
 		},
 	}
 
-	if canSign {
-		embeddedSig := &packet.Signature{
-			CreationTime: creationTime,
-			SigType:      packet.SigTypePrimaryKeyBinding,
-			PubKeyAlgo:   packet.PubKeyAlgoRSA,
-			Hash:         config.Hash(),
-			IssuerKeyId:  &e.PrimaryKey.KeyId,
-		}
-		err = embeddedSig.CrossSignKey(subkey.PublicKey, e.PrimaryKey, subkey.PrivateKey, config)
-		if err != nil {
-			return err
-		}
-		subkey.Sig.EmbeddedSignature = embeddedSig
+	embeddedSig := &packet.Signature{
+		CreationTime: creationTime,
+		SigType:      packet.SigTypePrimaryKeyBinding,
+		PubKeyAlgo:   subkey.PublicKey.PubKeyAlgo,
+		Hash:         config.Hash(),
+		IssuerKeyId:  &e.PrimaryKey.KeyId,
+	}
+	err = embeddedSig.CrossSignKey(subkey.PublicKey, e.PrimaryKey, subkey.PrivateKey, config)
+	if err != nil {
+		return err
+	}
+	subkey.Sig.EmbeddedSignature = embeddedSig
+
+	subkey.PublicKey.IsSubkey = true
+	subkey.PrivateKey.IsSubkey = true
+	if err = subkey.Sig.SignKey(subkey.PublicKey, e.PrivateKey, config); err != nil {
+		return err
+	}
+
+	e.Subkeys = append(e.Subkeys, subkey)
+	return nil
+}
+
+
+// AddEncryptionSubkey adds an encryption keypair as a subkey to the Entity.
+// If config is nil, sensible defaults will be used.
+func (e *Entity) AddEncryptionSubkey(config *packet.Config) error {
+	creationTime := config.Now()
+
+	subPrivRaw, err := newDecrypter(config)
+	if err != nil {
+		return err
+	}
+	sub := packet.NewDecrypterPrivateKey(creationTime, subPrivRaw)
+
+	subkey := Subkey{
+		PublicKey:  &sub.PublicKey,
+		PrivateKey: sub,
+		Sig: &packet.Signature{
+			CreationTime:              creationTime,
+			SigType:                   packet.SigTypeSubkeyBinding,
+			PubKeyAlgo:                e.PrimaryKey.PubKeyAlgo,
+			Hash:                      config.Hash(),
+			FlagsValid:                true,
+			FlagEncryptStorage:        true,
+			FlagEncryptCommunications: true,
+			IssuerKeyId:               &e.PrimaryKey.KeyId,
+		},
 	}
 
 	subkey.PublicKey.IsSubkey = true
@@ -209,7 +238,9 @@ func newDecrypter(config *packet.Config) (decrypter interface{}, err error) {
 			config.RSAPrimes = config.RSAPrimes[2:]
 		}
 		return rsa.GenerateKeyWithPrimes(config.Random(), bits, primaryPrimes)
-	case packet.PubKeyAlgoEdDSA: // When passing EdDSA, we generate an ECDH subkey
+	case packet.PubKeyAlgoEdDSA:
+		fallthrough // When passing EdDSA, we generate an ECDH subkey
+	case packet.PubKeyAlgoECDH:
 		var kdf = ecdh.KDF{
 			Hash:   algorithm.SHA512,
 			Cipher: algorithm.AES256,
