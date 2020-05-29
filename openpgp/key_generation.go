@@ -142,21 +142,20 @@ func (e *Entity) AddSigningSubkey(config *packet.Config) error {
 			FlagsValid:                true,
 			FlagSign:                  true,
 			IssuerKeyId:               &e.PrimaryKey.KeyId,
+			EmbeddedSignature:         &packet.Signature{
+				CreationTime: creationTime,
+				SigType:      packet.SigTypePrimaryKeyBinding,
+				PubKeyAlgo:   sub.PublicKey.PubKeyAlgo,
+				Hash:         config.Hash(),
+				IssuerKeyId:  &e.PrimaryKey.KeyId,
+			},
 		},
 	}
 
-	embeddedSig := &packet.Signature{
-		CreationTime: creationTime,
-		SigType:      packet.SigTypePrimaryKeyBinding,
-		PubKeyAlgo:   subkey.PublicKey.PubKeyAlgo,
-		Hash:         config.Hash(),
-		IssuerKeyId:  &e.PrimaryKey.KeyId,
-	}
-	err = embeddedSig.CrossSignKey(subkey.PublicKey, e.PrimaryKey, subkey.PrivateKey, config)
+	err = subkey.Sig.EmbeddedSignature.CrossSignKey(subkey.PublicKey, e.PrimaryKey, subkey.PrivateKey, config)
 	if err != nil {
 		return err
 	}
-	subkey.Sig.EmbeddedSignature = embeddedSig
 
 	subkey.PublicKey.IsSubkey = true
 	subkey.PrivateKey.IsSubkey = true
