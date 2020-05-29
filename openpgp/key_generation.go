@@ -37,35 +37,35 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 
 	isPrimaryId := true
 	selfSignature := &packet.Signature{
-		SigType:            packet.SigTypePositiveCert,
-		PubKeyAlgo:         primary.PublicKey.PubKeyAlgo,
-		Hash:               config.Hash(),
-		CreationTime:       creationTime,
-		IssuerKeyId:        &primary.PublicKey.KeyId,
-		IsPrimaryId:        &isPrimaryId,
-		FlagsValid:         true,
-		FlagSign:           true,
-		FlagCertify:        true,
-		MDC:                true, // true by default, see 5.8 vs. 5.14
-		AEAD:               config.AEAD() != nil,
+		SigType:      packet.SigTypePositiveCert,
+		PubKeyAlgo:   primary.PublicKey.PubKeyAlgo,
+		Hash:         config.Hash(),
+		CreationTime: creationTime,
+		IssuerKeyId:  &primary.PublicKey.KeyId,
+		IsPrimaryId:  &isPrimaryId,
+		FlagsValid:   true,
+		FlagSign:     true,
+		FlagCertify:  true,
+		MDC:          true, // true by default, see 5.8 vs. 5.14
+		AEAD:         config.AEAD() != nil,
 	}
 
 	// Set the PreferredHash for the SelfSignature from the packet.Config.
 	// If it is not the must-implement algorithm from rfc4880bis, append that.
 	selfSignature.PreferredHash = []uint8{hashToHashId(config.Hash())}
-	if (config.Hash() != crypto.SHA256) {
+	if config.Hash() != crypto.SHA256 {
 		selfSignature.PreferredHash = append(selfSignature.PreferredHash, hashToHashId(crypto.SHA256))
 	}
 
 	// Likewise for DefaultCipher.
 	selfSignature.PreferredSymmetric = []uint8{uint8(config.Cipher())}
-	if (config.Cipher() != packet.CipherAES128) {
+	if config.Cipher() != packet.CipherAES128 {
 		selfSignature.PreferredSymmetric = append(selfSignature.PreferredSymmetric, uint8(packet.CipherAES128))
 	}
 
 	// And for DefaultMode.
 	selfSignature.PreferredAEAD = []uint8{uint8(config.AEAD().Mode())}
-	if (config.AEAD().Mode() != packet.AEADModeEAX) {
+	if config.AEAD().Mode() != packet.AEADModeEAX {
 		selfSignature.PreferredAEAD = append(selfSignature.PreferredAEAD, uint8(packet.AEADModeEAX))
 	}
 
@@ -135,14 +135,14 @@ func (e *Entity) AddSigningSubkey(config *packet.Config) error {
 		PublicKey:  &sub.PublicKey,
 		PrivateKey: sub,
 		Sig: &packet.Signature{
-			CreationTime:              creationTime,
-			SigType:                   packet.SigTypeSubkeyBinding,
-			PubKeyAlgo:                e.PrimaryKey.PubKeyAlgo,
-			Hash:                      config.Hash(),
-			FlagsValid:                true,
-			FlagSign:                  true,
-			IssuerKeyId:               &e.PrimaryKey.KeyId,
-			EmbeddedSignature:         &packet.Signature{
+			CreationTime: creationTime,
+			SigType:      packet.SigTypeSubkeyBinding,
+			PubKeyAlgo:   e.PrimaryKey.PubKeyAlgo,
+			Hash:         config.Hash(),
+			FlagsValid:   true,
+			FlagSign:     true,
+			IssuerKeyId:  &e.PrimaryKey.KeyId,
+			EmbeddedSignature: &packet.Signature{
 				CreationTime: creationTime,
 				SigType:      packet.SigTypePrimaryKeyBinding,
 				PubKeyAlgo:   sub.PublicKey.PubKeyAlgo,
@@ -166,7 +166,6 @@ func (e *Entity) AddSigningSubkey(config *packet.Config) error {
 	e.Subkeys = append(e.Subkeys, subkey)
 	return nil
 }
-
 
 // AddEncryptionSubkey adds an encryption keypair as a subkey to the Entity.
 // If config is nil, sensible defaults will be used.
