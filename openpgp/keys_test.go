@@ -678,6 +678,42 @@ func TestAddSubkey(t *testing.T) {
 	}
 }
 
+func TestAddSubkeySerialized(t *testing.T) {
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = entity.AddSigningSubkey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = entity.AddEncryptionSubkey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	serializedEntity := bytes.NewBuffer(nil)
+	entity.SerializePrivateWithoutSigning(serializedEntity, nil)
+
+	entity, err = ReadEntity(packet.NewReader(bytes.NewBuffer(serializedEntity.Bytes())))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(entity.Subkeys) != 3 {
+		t.Fatalf("Expected 3 subkeys, got %d", len(entity.Subkeys))
+	}
+
+	for _, sk := range entity.Subkeys {
+		err = entity.PrimaryKey.VerifyKeySignature(sk.PublicKey, sk.Sig)
+		if err != nil {
+			t.Errorf("Invalid subkey signature: %v", err)
+		}
+	}
+}
+
 func TestAddSubkeyWithConfig(t *testing.T) {
 	c := &packet.Config{
 		DefaultHash: crypto.SHA512,
@@ -740,6 +776,71 @@ func TestAddSubkeyWithConfig(t *testing.T) {
 	_, err = ReadEntity(packet.NewReader(bytes.NewBuffer(serializedEntity.Bytes())))
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestAddSubkeyWithConfigSerialized(t *testing.T) {
+	c := &packet.Config{
+		DefaultHash: crypto.SHA512,
+		Algorithm: packet.PubKeyAlgoEdDSA,
+	}
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = entity.AddSigningSubkey(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = entity.AddEncryptionSubkey(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	serializedEntity := bytes.NewBuffer(nil)
+	entity.SerializePrivateWithoutSigning(serializedEntity, nil)
+
+	entity, err = ReadEntity(packet.NewReader(bytes.NewBuffer(serializedEntity.Bytes())))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(entity.Subkeys) != 3 {
+		t.Fatalf("Expected 3 subkeys, got %d", len(entity.Subkeys))
+	}
+
+	if entity.Subkeys[1].PublicKey.PubKeyAlgo != packet.PubKeyAlgoEdDSA {
+		t.Fatalf("Expected subkey algorithm: %v, got: %v", packet.PubKeyAlgoEdDSA,
+			entity.Subkeys[1].PublicKey.PubKeyAlgo)
+	}
+
+	if entity.Subkeys[2].PublicKey.PubKeyAlgo != packet.PubKeyAlgoECDH {
+		t.Fatalf("Expected subkey algorithm: %v, got: %v", packet.PubKeyAlgoECDH,
+			entity.Subkeys[2].PublicKey.PubKeyAlgo)
+	}
+
+	if entity.Subkeys[1].Sig.Hash != c.DefaultHash {
+		t.Fatalf("Expected subkey hash method: %v, got: %v", c.DefaultHash,
+			entity.Subkeys[1].Sig.Hash)
+	}
+
+	if entity.Subkeys[1].Sig.EmbeddedSignature.Hash != c.DefaultHash {
+		t.Fatalf("Expected subkey hash method: %v, got: %v", c.DefaultHash,
+			entity.Subkeys[1].Sig.EmbeddedSignature.Hash)
+	}
+
+	if entity.Subkeys[2].Sig.Hash != c.DefaultHash {
+		t.Fatalf("Expected subkey hash method: %v, got: %v", c.DefaultHash,
+			entity.Subkeys[2].Sig.Hash)
+	}
+
+	for _, sk := range entity.Subkeys {
+		err = entity.PrimaryKey.VerifyKeySignature(sk.PublicKey, sk.Sig)
+		if err != nil {
+			t.Errorf("Invalid subkey signature: %v", err)
+		}
 	}
 }
 
