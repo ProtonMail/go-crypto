@@ -377,7 +377,6 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 	case reasonForRevocationSubpacket:
 		// Reason For Revocation, section 5.2.3.23
 		if !isHashed {
-			err = errors.StructuralError("revocation reason subpacket in non-hashed area")
 			return
 		}
 		if len(subpacket) == 0 {
