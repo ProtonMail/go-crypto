@@ -554,13 +554,12 @@ func (e *Entity) serializePrivate(w io.Writer, config *packet.Config, reSign boo
 			if err != nil {
 				return
 			}
-		}
-		// Re-sign the embedded signature as well if it exists.
-		if reSign && subkey.Sig.EmbeddedSignature != nil {
-			err = subkey.Sig.EmbeddedSignature.CrossSignKey(subkey.PublicKey, e.PrimaryKey,
-				subkey.PrivateKey, config)
-			if err != nil {
-				return err
+			if subkey.Sig.EmbeddedSignature != nil {
+				err = subkey.Sig.EmbeddedSignature.CrossSignKey(subkey.PublicKey, e.PrimaryKey,
+					subkey.PrivateKey, config)
+				if err != nil {
+					return
+				}
 			}
 		}
 		err = subkey.Sig.Serialize(w)
