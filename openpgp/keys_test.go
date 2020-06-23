@@ -10,7 +10,30 @@ import (
 	"golang.org/x/crypto/openpgp/armor"
 	"golang.org/x/crypto/openpgp/errors"
 	"golang.org/x/crypto/openpgp/packet"
+	"golang.org/x/crypto/openpgp/internal/algorithm"
 )
+
+var hashes = []crypto.Hash{
+	crypto.MD5,
+	crypto.SHA1,
+	crypto.SHA224,
+	crypto.SHA256,
+	crypto.SHA384,
+	crypto.SHA512,
+}
+
+var ciphers = []packet.CipherFunction{
+	packet.Cipher3DES,
+	packet.CipherCAST5,
+	packet.CipherAES128,
+	packet.CipherAES192,
+	packet.CipherAES256,
+}
+
+var aeadModes = []packet.AEADMode{
+	packet.AEADModeEAX,
+	packet.AEADModeOCB,
+}
 
 func TestKeyExpiry(t *testing.T) {
 	kring, err := ReadKeyRing(readerFromHex(expiringKeyHex))
@@ -448,35 +471,39 @@ func TestIdVerification(t *testing.T) {
 	}
 }
 
-func TestNewEntityWithPreferredHash(t *testing.T) {
-	c := &packet.Config{
-		DefaultHash: crypto.SHA256,
-	}
-	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", c)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	for _, identity := range entity.Identities {
-		if len(identity.SelfSignature.PreferredHash) == 0 {
-			t.Fatal("didn't find a preferred hash in self signature")
+func TestNewEntityWithDefaultHash(t *testing.T) {
+	for _, hash := range hashes {
+		c := &packet.Config{
+			DefaultHash: hash,
 		}
-		ph := hashToHashId(c.DefaultHash)
-		if identity.SelfSignature.PreferredHash[0] != ph {
-			t.Fatalf("Expected preferred hash to be %d, got %d", ph, identity.SelfSignature.PreferredHash[0])
+		entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", c)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, identity := range entity.Identities {
+			prefs := identity.SelfSignature.PreferredHash
+			if len(prefs) == 0 {
+				t.Fatal("didn't find a preferred hash list in self signature")
+			}
+			ph := hashToHashId(c.DefaultHash)
+			if prefs[0] != ph {
+				t.Fatalf("Expected preferred hash to be %d, got %d", ph, prefs[0])
+			}
 		}
 	}
 }
 
-func TestNewEntityWithoutPreferredHash(t *testing.T) {
+func TestNewEntityNilConfigPreferredHash(t *testing.T) {
 	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	for _, identity := range entity.Identities {
-		if len(identity.SelfSignature.PreferredHash) != 0 {
-			t.Fatalf("Expected preferred hash to be empty but got length %d", len(identity.SelfSignature.PreferredHash))
+		prefs := identity.SelfSignature.PreferredHash
+		if len(prefs) != 1 {
+			t.Fatal("expected preferred hashes list to be [SHA256]")
 		}
 	}
 }
@@ -499,74 +526,64 @@ func TestNewEntityCorrectName(t *testing.T) {
 	}
 }
 
-func TestNewEntityWithPreferredSymmetric(t *testing.T) {
-	c := &packet.Config{
-		DefaultCipher: packet.CipherAES256,
-	}
-	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", c)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	for _, identity := range entity.Identities {
-		if len(identity.SelfSignature.PreferredSymmetric) == 0 {
-			t.Fatal("didn't find a preferred cipher in self signature")
+func TestNewEntityWithDefaultCipher(t *testing.T) {
+	for _, cipher := range ciphers {
+		c := &packet.Config{
+			DefaultCipher: cipher,
 		}
-		if identity.SelfSignature.PreferredSymmetric[0] != uint8(c.DefaultCipher) {
-			t.Fatalf("Expected preferred cipher to be %d, got %d", uint8(c.DefaultCipher), identity.SelfSignature.PreferredSymmetric[0])
+		entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", c)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for _, identity := range entity.Identities {
+			prefs := identity.SelfSignature.PreferredSymmetric
+			if len(prefs) == 0 {
+				t.Fatal("didn't find a preferred cipher list")
+			}
+			if prefs[0] != uint8(c.DefaultCipher) {
+				t.Fatalf("Expected preferred cipher to be %d, got %d", uint8(c.DefaultCipher), prefs[0])
+			}
 		}
 	}
 }
 
-func TestNewEntityWithoutPreferredSymmetric(t *testing.T) {
+func TestNewEntityNilConfigPreferredSymmetric(t *testing.T) {
 	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	for _, identity := range entity.Identities {
-		if len(identity.SelfSignature.PreferredSymmetric) != 0 {
-			t.Fatalf("Expected preferred cipher to be empty but got length %d", len(identity.SelfSignature.PreferredSymmetric))
+		prefs := identity.SelfSignature.PreferredSymmetric
+		if len(prefs) != 1 || prefs[0] != algorithm.AES128.Id() {
+			t.Fatal("expected preferred ciphers list to be [AES128]")
 		}
 	}
 }
 
-func TestNewEntityWithPreferredAead(t *testing.T) {
-	cfg := &packet.Config{
-		AEADConfig: &packet.AEADConfig{
-			DefaultMode: packet.AEADModeEAX,
-		},
-	}
-	entity, err := NewEntity("Botvinnik", "1.e4", "tal@chess.com", cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	for _, identity := range entity.Identities {
-		if len(identity.SelfSignature.PreferredAEAD) == 0 {
-			t.Fatal("didn't find a preferred mode in self signature")
+func TestNewEntityWithDefaultAead(t *testing.T) {
+	for _, aeadMode := range aeadModes {
+		cfg := &packet.Config{
+			AEADConfig: &packet.AEADConfig{
+				DefaultMode: aeadMode,
+			},
 		}
-		mode := identity.SelfSignature.PreferredAEAD[0]
-		if mode != uint8(cfg.AEAD().DefaultMode) {
-			t.Fatalf(
-				"Expected preferred mode to be %d, got %d",
-				uint8(cfg.AEAD().DefaultMode),
-				identity.SelfSignature.PreferredAEAD[0])
+		entity, err := NewEntity("Botvinnik", "1.e4", "tal@chess.com", cfg)
+		if err != nil {
+			t.Fatal(err)
 		}
-	}
-}
 
-func TestNewEntityWithoutPreferredAead(t *testing.T) {
-	entity, err := NewEntity("Botvinnik", "1.e4", "tal@chess.com", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	for _, identity := range entity.Identities {
-		if len(identity.SelfSignature.PreferredAEAD) != 0 {
-			t.Fatalf(
-				"Expected preferred mode to be empty but got length %d",
-				len(identity.SelfSignature.PreferredSymmetric))
+		for _, identity := range entity.Identities {
+			if len(identity.SelfSignature.PreferredAEAD) == 0 {
+				t.Fatal("didn't find a preferred mode in self signature")
+			}
+			mode := identity.SelfSignature.PreferredAEAD[0]
+			if mode != uint8(cfg.AEAD().DefaultMode) {
+				t.Fatalf("Expected preferred mode to be %d, got %d",
+					uint8(cfg.AEAD().DefaultMode),
+					identity.SelfSignature.PreferredAEAD[0])
+			}
 		}
 	}
 }
@@ -622,5 +639,364 @@ func TestEntityPrivateSerialization(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+func TestAddSubkey(t *testing.T) {
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = entity.AddSigningSubkey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = entity.AddEncryptionSubkey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(entity.Subkeys) != 3 {
+		t.Fatalf("Expected 3 subkeys, got %d", len(entity.Subkeys))
+	}
+
+	for _, sk := range entity.Subkeys {
+		err = entity.PrimaryKey.VerifyKeySignature(sk.PublicKey, sk.Sig)
+		if err != nil {
+			t.Errorf("Invalid subkey signature: %v", err)
+		}
+	}
+
+	serializedEntity := bytes.NewBuffer(nil)
+	entity.SerializePrivate(serializedEntity, nil)
+
+	_, err = ReadEntity(packet.NewReader(bytes.NewBuffer(serializedEntity.Bytes())))
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAddSubkeySerialized(t *testing.T) {
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = entity.AddSigningSubkey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = entity.AddEncryptionSubkey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	serializedEntity := bytes.NewBuffer(nil)
+	entity.SerializePrivateWithoutSigning(serializedEntity, nil)
+
+	entity, err = ReadEntity(packet.NewReader(bytes.NewBuffer(serializedEntity.Bytes())))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(entity.Subkeys) != 3 {
+		t.Fatalf("Expected 3 subkeys, got %d", len(entity.Subkeys))
+	}
+
+	for _, sk := range entity.Subkeys {
+		err = entity.PrimaryKey.VerifyKeySignature(sk.PublicKey, sk.Sig)
+		if err != nil {
+			t.Errorf("Invalid subkey signature: %v", err)
+		}
+	}
+}
+
+func TestAddSubkeyWithConfig(t *testing.T) {
+	c := &packet.Config{
+		DefaultHash: crypto.SHA512,
+		Algorithm: packet.PubKeyAlgoEdDSA,
+	}
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = entity.AddSigningSubkey(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = entity.AddEncryptionSubkey(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(entity.Subkeys) != 3 {
+		t.Fatalf("Expected 3 subkeys, got %d", len(entity.Subkeys))
+	}
+
+	if entity.Subkeys[1].PublicKey.PubKeyAlgo != packet.PubKeyAlgoEdDSA {
+		t.Fatalf("Expected subkey algorithm: %v, got: %v", packet.PubKeyAlgoEdDSA,
+			entity.Subkeys[1].PublicKey.PubKeyAlgo)
+	}
+
+	if entity.Subkeys[2].PublicKey.PubKeyAlgo != packet.PubKeyAlgoECDH {
+		t.Fatalf("Expected subkey algorithm: %v, got: %v", packet.PubKeyAlgoECDH,
+			entity.Subkeys[2].PublicKey.PubKeyAlgo)
+	}
+
+	if entity.Subkeys[1].Sig.Hash != c.DefaultHash {
+		t.Fatalf("Expected subkey hash method: %v, got: %v", c.DefaultHash,
+			entity.Subkeys[1].Sig.Hash)
+	}
+
+	if entity.Subkeys[1].Sig.EmbeddedSignature.Hash != c.DefaultHash {
+		t.Fatalf("Expected subkey hash method: %v, got: %v", c.DefaultHash,
+			entity.Subkeys[1].Sig.EmbeddedSignature.Hash)
+	}
+
+	if entity.Subkeys[2].Sig.Hash != c.DefaultHash {
+		t.Fatalf("Expected subkey hash method: %v, got: %v", c.DefaultHash,
+			entity.Subkeys[2].Sig.Hash)
+	}
+
+	for _, sk := range entity.Subkeys {
+		err = entity.PrimaryKey.VerifyKeySignature(sk.PublicKey, sk.Sig)
+		if err != nil {
+			t.Errorf("Invalid subkey signature: %v", err)
+		}
+	}
+
+	serializedEntity := bytes.NewBuffer(nil)
+	entity.SerializePrivate(serializedEntity, nil)
+
+	_, err = ReadEntity(packet.NewReader(bytes.NewBuffer(serializedEntity.Bytes())))
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAddSubkeyWithConfigSerialized(t *testing.T) {
+	c := &packet.Config{
+		DefaultHash: crypto.SHA512,
+		Algorithm: packet.PubKeyAlgoEdDSA,
+	}
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = entity.AddSigningSubkey(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = entity.AddEncryptionSubkey(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	serializedEntity := bytes.NewBuffer(nil)
+	entity.SerializePrivateWithoutSigning(serializedEntity, nil)
+
+	entity, err = ReadEntity(packet.NewReader(bytes.NewBuffer(serializedEntity.Bytes())))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(entity.Subkeys) != 3 {
+		t.Fatalf("Expected 3 subkeys, got %d", len(entity.Subkeys))
+	}
+
+	if entity.Subkeys[1].PublicKey.PubKeyAlgo != packet.PubKeyAlgoEdDSA {
+		t.Fatalf("Expected subkey algorithm: %v, got: %v", packet.PubKeyAlgoEdDSA,
+			entity.Subkeys[1].PublicKey.PubKeyAlgo)
+	}
+
+	if entity.Subkeys[2].PublicKey.PubKeyAlgo != packet.PubKeyAlgoECDH {
+		t.Fatalf("Expected subkey algorithm: %v, got: %v", packet.PubKeyAlgoECDH,
+			entity.Subkeys[2].PublicKey.PubKeyAlgo)
+	}
+
+	if entity.Subkeys[1].Sig.Hash != c.DefaultHash {
+		t.Fatalf("Expected subkey hash method: %v, got: %v", c.DefaultHash,
+			entity.Subkeys[1].Sig.Hash)
+	}
+
+	if entity.Subkeys[1].Sig.EmbeddedSignature.Hash != c.DefaultHash {
+		t.Fatalf("Expected subkey hash method: %v, got: %v", c.DefaultHash,
+			entity.Subkeys[1].Sig.EmbeddedSignature.Hash)
+	}
+
+	if entity.Subkeys[2].Sig.Hash != c.DefaultHash {
+		t.Fatalf("Expected subkey hash method: %v, got: %v", c.DefaultHash,
+			entity.Subkeys[2].Sig.Hash)
+	}
+
+	for _, sk := range entity.Subkeys {
+		err = entity.PrimaryKey.VerifyKeySignature(sk.PublicKey, sk.Sig)
+		if err != nil {
+			t.Errorf("Invalid subkey signature: %v", err)
+		}
+	}
+}
+
+func TestRevokeKey(t *testing.T) {
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = entity.RevokeKey(packet.NoReason, "Key revocation", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(entity.Revocations) == 0 {
+		t.Fatal("Revocation signature missing from entity")
+	}
+
+	for _, r := range entity.Revocations {
+		err = entity.PrimaryKey.VerifyRevocationSignature(r)
+		if err != nil {
+			t.Errorf("Invalid revocation: %v", err)
+		}
+	}
+}
+
+func TestRevokeKeyWithConfig(t *testing.T) {
+	c := &packet.Config{
+		DefaultHash: crypto.SHA512,
+	}
+
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = entity.RevokeKey(packet.NoReason, "Key revocation", c)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(entity.Revocations) == 0 {
+		t.Fatal("Revocation signature missing from entity")
+	}
+
+	if entity.Revocations[0].Hash != c.DefaultHash {
+		t.Fatalf("Expected signature hash method: %v, got: %v", c.DefaultHash,
+			entity.Revocations[0].Hash)
+	}
+
+	for _, r := range entity.Revocations {
+		err = entity.PrimaryKey.VerifyRevocationSignature(r)
+		if err != nil {
+			t.Errorf("Invalid revocation: %v", err)
+		}
+	}
+}
+
+func TestRevokeSubkey(t *testing.T) {
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sk := &entity.Subkeys[0]
+	err = entity.RevokeSubkey(sk, packet.NoReason, "Key revocation", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = sk.PublicKey.VerifySubkeyRevocationSignature(sk.Sig, entity.PrimaryKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if entity.Subkeys[0].Sig.RevocationReason == nil {
+		t.Fatal("Revocation reason was not set")
+	}
+	if entity.Subkeys[0].Sig.RevocationReasonText == "" {
+		t.Fatal("Revocation reason text was not set")
+	}
+
+	serializedEntity := bytes.NewBuffer(nil)
+	entity.SerializePrivate(serializedEntity, nil)
+
+	// Make sure revocation reason subpackets are not lost during serialization.
+	newEntity, err := ReadEntity(packet.NewReader(bytes.NewBuffer(serializedEntity.Bytes())))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if newEntity.Subkeys[0].Sig.RevocationReason == nil {
+		t.Fatal("Revocation reason lost after serialization of entity")
+	}
+	if newEntity.Subkeys[0].Sig.RevocationReasonText == "" {
+		t.Fatal("Revocation reason text lost after serialization of entity")
+	}
+}
+
+func TestRevokeSubkeyWithAnotherEntity(t *testing.T) {
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sk := entity.Subkeys[0]
+
+	newEntity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = newEntity.RevokeSubkey(&sk, packet.NoReason, "Key revocation", nil)
+	if err == nil {
+		t.Fatal("Entity was able to revoke a subkey owned by a different entity")
+	}
+}
+
+func TestRevokeSubkeyWithInvalidSignature(t *testing.T) {
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sk := entity.Subkeys[0]
+	sk.Sig = &packet.Signature{}
+
+	err = entity.RevokeSubkey(&sk, packet.NoReason, "Key revocation", nil)
+	if err == nil {
+		t.Fatal("Entity was able to revoke a subkey with invalid signature")
+	}
+}
+
+func TestRevokeSubkeyWithConfig(t *testing.T) {
+	c := &packet.Config{
+		DefaultHash: crypto.SHA512,
+	}
+
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sk := entity.Subkeys[0]
+	err = entity.RevokeSubkey(&sk, packet.NoReason, "Key revocation", c)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if sk.Sig.Hash != c.DefaultHash {
+		t.Fatalf("Expected signature hash method: %v, got: %v", c.DefaultHash,
+			sk.Sig.Hash)
+	}
+
+	err = sk.PublicKey.VerifySubkeyRevocationSignature(sk.Sig, entity.PrimaryKey)
+	if err != nil {
+		t.Fatal(err)
 	}
 }
