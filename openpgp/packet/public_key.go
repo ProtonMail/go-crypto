@@ -67,7 +67,6 @@ type signingKey interface {
 // NewRSAPublicKey returns a PublicKey that wraps the given rsa.PublicKey.
 func NewRSAPublicKey(creationTime time.Time, pub *rsa.PublicKey) *PublicKey {
 	pk := &PublicKey{
-		Version:      4,
 		CreationTime: creationTime,
 		PubKeyAlgo:   PubKeyAlgoRSA,
 		PublicKey:    pub,
@@ -82,7 +81,6 @@ func NewRSAPublicKey(creationTime time.Time, pub *rsa.PublicKey) *PublicKey {
 // NewDSAPublicKey returns a PublicKey that wraps the given dsa.PublicKey.
 func NewDSAPublicKey(creationTime time.Time, pub *dsa.PublicKey) *PublicKey {
 	pk := &PublicKey{
-		Version:      4,
 		CreationTime: creationTime,
 		PubKeyAlgo:   PubKeyAlgoDSA,
 		PublicKey:    pub,
@@ -99,7 +97,6 @@ func NewDSAPublicKey(creationTime time.Time, pub *dsa.PublicKey) *PublicKey {
 // NewElGamalPublicKey returns a PublicKey that wraps the given elgamal.PublicKey.
 func NewElGamalPublicKey(creationTime time.Time, pub *elgamal.PublicKey) *PublicKey {
 	pk := &PublicKey{
-		Version:      4,
 		CreationTime: creationTime,
 		PubKeyAlgo:   PubKeyAlgoElGamal,
 		PublicKey:    pub,
@@ -114,7 +111,6 @@ func NewElGamalPublicKey(creationTime time.Time, pub *elgamal.PublicKey) *Public
 
 func NewECDSAPublicKey(creationTime time.Time, pub *ecdsa.PublicKey) *PublicKey {
 	pk := &PublicKey{
-		Version:      4,
 		CreationTime: creationTime,
 		PubKeyAlgo:   PubKeyAlgoECDSA,
 		PublicKey:    pub,
@@ -136,7 +132,6 @@ func NewECDHPublicKey(creationTime time.Time, pub *ecdh.PublicKey) *PublicKey {
 	var kdf = encoding.NewOID([]byte{0x1, pub.Hash.Id(), pub.Cipher.Id()})
 	if pub.CurveType == ecc.Curve25519 {
 		pk = &PublicKey{
-			Version:      4,
 			CreationTime: creationTime,
 			PubKeyAlgo:   PubKeyAlgoECDH,
 			PublicKey:    pub,
@@ -146,7 +141,6 @@ func NewECDHPublicKey(creationTime time.Time, pub *ecdh.PublicKey) *PublicKey {
 		curveInfo = ecc.FindByName("Curve25519")
 	} else {
 		pk = &PublicKey{
-			Version:      4,
 			CreationTime: creationTime,
 			PubKeyAlgo:   PubKeyAlgoECDH,
 			PublicKey:    pub,
@@ -166,7 +160,6 @@ func NewECDHPublicKey(creationTime time.Time, pub *ecdh.PublicKey) *PublicKey {
 func NewEdDSAPublicKey(creationTime time.Time, pub *ed25519.PublicKey) *PublicKey {
 	curveInfo := ecc.FindByName("Ed25519")
 	pk := &PublicKey{
-		Version:      4,
 		CreationTime: creationTime,
 		PubKeyAlgo:   PubKeyAlgoEdDSA,
 		PublicKey:    pub,
@@ -518,7 +511,12 @@ func (pk *PublicKey) algorithmSpecificByteCount() int {
 // OpenPGP public key packet, not including the packet header.
 func (pk *PublicKey) serializeWithoutHeaders(w io.Writer) (err error) {
 	var buf [6]byte
-	buf[0] = byte(pk.Version)
+	switch pk.Version {
+	case 5:
+		buf[0] = 5
+	default: // Version 4
+	    buf[0] = 4
+	}
 	t := uint32(pk.CreationTime.Unix())
 	buf[1] = byte(t >> 24)
 	buf[2] = byte(t >> 16)
