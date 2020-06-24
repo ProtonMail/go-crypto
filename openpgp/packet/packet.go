@@ -356,10 +356,10 @@ func Read(r io.Reader) (p Packet, err error) {
 		if contents, version, err = peekVersion(contents); err != nil {
 			return
 		}
-		if version < 4 {
-			p = new(SignatureV3)
-		} else {
+		if version == 4 {
 			p = new(Signature)
+		} else {
+			err = errors.UnsupportedError("signature version")
 		}
 	case packetTypeSymmetricKeyEncrypted:
 		p = new(SymmetricKeyEncrypted)
@@ -377,10 +377,10 @@ func Read(r io.Reader) (p Packet, err error) {
 			return
 		}
 		isSubkey := tag == packetTypePublicSubkey
-		if version < 4 {
-			p = &PublicKeyV3{IsSubkey: isSubkey}
-		} else {
+		if version == 4 {
 			p = &PublicKey{IsSubkey: isSubkey}
+		} else {
+			err = errors.UnsupportedError("key version")
 		}
 	case packetTypeCompressed:
 		p = new(Compressed)

@@ -320,7 +320,6 @@ func TestDetachedSignature(t *testing.T) {
 	kring, _ := ReadKeyRing(readerFromHex(testKeys1And2Hex))
 	testDetachedSignature(t, kring, readerFromHex(detachedSignatureHex), signedInput, "binary", testKey1KeyId)
 	testDetachedSignature(t, kring, readerFromHex(detachedSignatureTextHex), signedInput, "text", testKey1KeyId)
-	testDetachedSignature(t, kring, readerFromHex(detachedSignatureV3TextHex), signedInput, "v3", testKey1KeyId)
 
 	incorrectSignedInput := signedInput + "X"
 	config := &packet.Config{}
@@ -469,15 +468,11 @@ func TestSignatureV3Message(t *testing.T) {
 
 	// We'll see a sig error here after reading in the UnverifiedBody above,
 	// if there was one to see.
-	if err = md.SignatureError; err != nil {
-		t.Error(err)
+	if err = md.SignatureError; err == nil {
+		t.Errorf("Expected a signature error")
 		return
 	}
 
-	if md.SignatureV3 == nil {
-		t.Errorf("No available signature after checking signature")
-		return
-	}
 	if md.Signature != nil {
 		t.Errorf("Did not expect a signature V4 back")
 		return

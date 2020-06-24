@@ -58,7 +58,6 @@ type MessageDetails struct {
 	// SignatureError error when reading from UnverifiedBody.)
 	SignatureError error               // nil if the signature is good.
 	Signature      *packet.Signature   // the signature packet itself, if v4 (default)
-	SignatureV3    *packet.SignatureV3 // the signature packet if it is a v2 or v3 signature
 
 	decrypted io.ReadCloser
 }
@@ -343,10 +342,8 @@ func (scr *signatureCheckReader) Read(buf []byte) (n int, err error) {
 			if scr.md.SignatureError == nil && scr.md.Signature.SigExpired(scr.config.Now()) {
 				scr.md.SignatureError = errors.ErrSignatureExpired
 			}
-		} else if scr.md.SignatureV3, ok = p.(*packet.SignatureV3); ok {
-			scr.md.SignatureError = scr.md.SignedBy.PublicKey.VerifySignatureV3(scr.h, scr.md.SignatureV3)
 		} else {
-			scr.md.SignatureError = errors.StructuralError("LiteralData not followed by Signature")
+			scr.md.SignatureError = errors.StructuralError("LiteralData not followed by valid signature packet")
 			return
 		}
 
@@ -399,12 +396,8 @@ func CheckDetachedSignatureAndHash(keyring KeyRing, signed, signature io.Reader,
 			issuerKeyId = *sig.IssuerKeyId
 			hashFunc = sig.Hash
 			sigType = sig.SigType
-		case *packet.SignatureV3:
-			issuerKeyId = sig.IssuerKeyId
-			hashFunc = sig.Hash
-			sigType = sig.SigType
 		default:
-			return nil, errors.StructuralError("non signature packet found")
+			return nil, errors.StructuralError("non signature or unsupported signature packet found")
 		}
 
 		for i, expectedHash := range expectedHashes {
@@ -442,10 +435,8 @@ func CheckDetachedSignatureAndHash(keyring KeyRing, signed, signature io.Reader,
 			if err == nil && sig.SigExpired(config.Now()) {
 				err = errors.ErrSignatureExpired
 			}
-		case *packet.SignatureV3:
-			err = key.PublicKey.VerifySignatureV3(h, sig)
 		default:
-			panic("unreachable")
+			return nil, errors.UnsupportedError("signature packet")
 		}
 
 		if err == errors.ErrSignatureExpired {
