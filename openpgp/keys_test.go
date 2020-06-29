@@ -3,6 +3,7 @@ package openpgp
 import (
 	"bytes"
 	"crypto"
+	_ "crypto/md5"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 )
 
 var hashes = []crypto.Hash{
+	crypto.MD5,
 	crypto.SHA1,
 	crypto.SHA224,
 	crypto.SHA256,
