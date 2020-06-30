@@ -388,17 +388,16 @@ func CheckDetachedSignatureAndHash(keyring KeyRing, signed, signature io.Reader,
 			return nil, err
 		}
 
-		switch sig := p.(type) {
-		case *packet.Signature:
-			if sig.IssuerKeyId == nil {
-				return nil, errors.StructuralError("signature doesn't have an issuer")
-			}
-			issuerKeyId = *sig.IssuerKeyId
-			hashFunc = sig.Hash
-			sigType = sig.SigType
-		default:
-			return nil, errors.StructuralError("non signature or unsupported signature packet found")
+		sig, ok := p.(*packet.Signature)
+		if !ok {
+			return nil, errors.StructuralError("non signature packet found")
 		}
+		if sig.IssuerKeyId == nil {
+			return nil, errors.StructuralError("signature doesn't have an issuer")
+		}
+		issuerKeyId = *sig.IssuerKeyId
+		hashFunc = sig.Hash
+		sigType = sig.SigType
 
 		for i, expectedHash := range expectedHashes {
 			if hashFunc == expectedHash {
@@ -429,16 +428,14 @@ func CheckDetachedSignatureAndHash(keyring KeyRing, signed, signature io.Reader,
 	}
 
 	for _, key := range keys {
-		switch sig := p.(type) {
-		case *packet.Signature:
-			err = key.PublicKey.VerifySignature(h, sig)
-			if err == nil && sig.SigExpired(config.Now()) {
-				err = errors.ErrSignatureExpired
-			}
-		default:
-			return nil, errors.UnsupportedError("signature packet")
+		sig, ok := p.(*packet.Signature)
+		if !ok {
+			return nil, errors.StructuralError("non signature packet found")
 		}
-
+		err = key.PublicKey.VerifySignature(h, sig)
+		if err == nil && sig.SigExpired(config.Now()) {
+			err = errors.ErrSignatureExpired
+		}
 		if err == errors.ErrSignatureExpired {
 			return key.Entity, err
 		}

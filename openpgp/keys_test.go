@@ -3,7 +3,6 @@ package openpgp
 import (
 	"bytes"
 	"crypto"
-	_ "crypto/md5"
 	"strings"
 	"testing"
 	"time"

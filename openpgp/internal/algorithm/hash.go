@@ -8,6 +8,8 @@ import (
 	"crypto"
 	"fmt"
 	"hash"
+
+	_ "crypto/md5"
 )
 
 // Hash is an official hash function algorithm. See RFC 4880, section 9.4.
