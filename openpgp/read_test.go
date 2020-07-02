@@ -384,6 +384,15 @@ func TestMissingHashFunction(t *testing.T) {
 	}
 }
 
+func TestRSASignatureBadMPILength(t *testing.T) {
+	kring, _ := ReadKeyRing(readerFromHex(testKeys1And2Hex))
+	config := &packet.Config{}
+	_, err := CheckDetachedSignature(kring, nil, readerFromHex(rsaSignatureBadMPIlength), config)
+	if err == nil {
+		t.Fatal("RSA Signature with malformed MPI was correctly parsed")
+	}
+}
+
 func TestReadingArmoredPrivateKey(t *testing.T) {
 	el, err := ReadArmoredKeyRing(bytes.NewBufferString(armoredPrivateKeyBlock))
 	if err != nil {

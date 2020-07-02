@@ -343,7 +343,7 @@ func (scr *signatureCheckReader) Read(buf []byte) (n int, err error) {
 				scr.md.SignatureError = errors.ErrSignatureExpired
 			}
 		} else {
-			scr.md.SignatureError = errors.StructuralError("LiteralData not followed by valid signature packet")
+			scr.md.SignatureError = errors.StructuralError("LiteralData not followed by Signature")
 			return
 		}
 
@@ -379,6 +379,7 @@ func CheckDetachedSignatureAndHash(keyring KeyRing, signed, signature io.Reader,
 
 	expectedHashesLen := len(expectedHashes)
 	packets := packet.NewReader(signature)
+	var sig *packet.Signature
 	for {
 		p, err = packets.Next()
 		if err == io.EOF {
@@ -388,7 +389,8 @@ func CheckDetachedSignatureAndHash(keyring KeyRing, signed, signature io.Reader,
 			return nil, err
 		}
 
-		sig, ok := p.(*packet.Signature)
+		var ok bool
+		sig, ok = p.(*packet.Signature)
 		if !ok {
 			return nil, errors.StructuralError("non signature packet found")
 		}
@@ -428,10 +430,6 @@ func CheckDetachedSignatureAndHash(keyring KeyRing, signed, signature io.Reader,
 	}
 
 	for _, key := range keys {
-		sig, ok := p.(*packet.Signature)
-		if !ok {
-			return nil, errors.StructuralError("non signature packet found")
-		}
 		err = key.PublicKey.VerifySignature(h, sig)
 		if err == nil && sig.SigExpired(config.Now()) {
 			err = errors.ErrSignatureExpired

@@ -160,7 +160,10 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 	switch sig.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly:
 		sig.RSASignature = new(encoding.MPI)
-		_, err = sig.RSASignature.ReadFrom(r)
+		if _, err = sig.RSASignature.ReadFrom(r); err != nil {
+			return
+		}
+
 	case PubKeyAlgoDSA:
 		sig.DSASigR = new(encoding.MPI)
 		if _, err = sig.DSASigR.ReadFrom(r); err != nil {
