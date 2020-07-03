@@ -37,7 +37,7 @@ func generateFreshTestVectors() (vectors []testVector, err error) {
 		}
 
 		// Generate keys
-		newEntity, errKG := openpgp.NewEntity(name, comment, email, config)
+		newEntity, errKG := openpgp.NewEntity(name, comment, email, nil, config)
 		if errKG != nil {
 			panic(errKG)
 		}
