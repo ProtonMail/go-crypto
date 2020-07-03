@@ -74,7 +74,7 @@ func TestSignDetachedP256(t *testing.T) {
 func TestNewEntity(t *testing.T) {
 
 	// Check bit-length with no config.
-	e, err := NewEntity("Test User", "test", "test@example.com", nil)
+	e, err := NewEntity("Test User", "test", "test@example.com", nil, nil)
 	if err != nil {
 		t.Errorf("failed to create entity: %s", err)
 		return
@@ -90,7 +90,7 @@ func TestNewEntity(t *testing.T) {
 
 	// Check bit-length with a config.
 	cfg := &packet.Config{RSABits: 1024}
-	e, err = NewEntity("Test User", "test", "test@example.com", cfg)
+	e, err = NewEntity("Test User", "test", "test@example.com", nil, cfg)
 	if err != nil {
 		t.Errorf("failed to create entity: %s", err)
 		return
