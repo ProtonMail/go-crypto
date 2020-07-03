@@ -20,7 +20,7 @@ import (
 // single identity composed of the given full name, comment and email, any of
 // which may be empty but must not contain any of "()<>\x00".
 // If config is nil, sensible defaults will be used.
-func NewEntity(name, comment, email string, config *packet.Config) (*Entity, error) {
+func NewEntity(name, comment, email string, expiration *uint32, config *packet.Config) (*Entity, error) {
 	creationTime := config.Now()
 
 	uid := packet.NewUserId(name, comment, email)
@@ -96,6 +96,7 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 			FlagEncryptStorage:        true,
 			FlagEncryptCommunications: true,
 			IssuerKeyId:               &primary.PublicKey.KeyId,
+			KeyLifetimeSecs:           expiration,
 		},
 	}
 
