@@ -156,7 +156,7 @@ func TestMultiSign(t *testing.T) {
 
 			desc := fmt.Sprintf("%d keys; %d of which will be used to verify", nKeys+nExtra, nKeys)
 			for i := 0; i < nKeys+nExtra; i++ {
-				e, err := openpgp.NewEntity("name", "comment", "email", &config)
+				e, err := openpgp.NewEntity("name", "comment", "email", nil, &config)
 				if err != nil {
 					t.Errorf("cannot create key: %v", err)
 					continue nextTest
