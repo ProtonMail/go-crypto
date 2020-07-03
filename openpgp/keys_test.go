@@ -476,7 +476,7 @@ func TestNewEntityWithDefaultHash(t *testing.T) {
 		c := &packet.Config{
 			DefaultHash: hash,
 		}
-		entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", c)
+		entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil, c)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -495,7 +495,7 @@ func TestNewEntityWithDefaultHash(t *testing.T) {
 }
 
 func TestNewEntityNilConfigPreferredHash(t *testing.T) {
-	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -509,7 +509,7 @@ func TestNewEntityNilConfigPreferredHash(t *testing.T) {
 }
 
 func TestNewEntityCorrectName(t *testing.T) {
-	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -531,7 +531,7 @@ func TestNewEntityWithDefaultCipher(t *testing.T) {
 		c := &packet.Config{
 			DefaultCipher: cipher,
 		}
-		entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", c)
+		entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil, c)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -549,7 +549,7 @@ func TestNewEntityWithDefaultCipher(t *testing.T) {
 }
 
 func TestNewEntityNilConfigPreferredSymmetric(t *testing.T) {
-	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -569,7 +569,7 @@ func TestNewEntityWithDefaultAead(t *testing.T) {
 				DefaultMode: aeadMode,
 			},
 		}
-		entity, err := NewEntity("Botvinnik", "1.e4", "tal@chess.com", cfg)
+		entity, err := NewEntity("Botvinnik", "1.e4", "tal@chess.com", nil, cfg)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -589,7 +589,7 @@ func TestNewEntityWithDefaultAead(t *testing.T) {
 }
 
 func TestNewEntityPublicSerialization(t *testing.T) {
-	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -606,7 +606,7 @@ func TestNewEntityPublicSerialization(t *testing.T) {
 }
 
 func TestNewEntityPrivateSerialization(t *testing.T) {
-	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -643,7 +643,7 @@ func TestEntityPrivateSerialization(t *testing.T) {
 }
 
 func TestAddSubkey(t *testing.T) {
-	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -679,7 +679,7 @@ func TestAddSubkey(t *testing.T) {
 }
 
 func TestAddSubkeySerialized(t *testing.T) {
-	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -719,7 +719,7 @@ func TestAddSubkeyWithConfig(t *testing.T) {
 		DefaultHash: crypto.SHA512,
 		Algorithm: packet.PubKeyAlgoEdDSA,
 	}
-	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -784,7 +784,7 @@ func TestAddSubkeyWithConfigSerialized(t *testing.T) {
 		DefaultHash: crypto.SHA512,
 		Algorithm: packet.PubKeyAlgoEdDSA,
 	}
-	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -845,7 +845,7 @@ func TestAddSubkeyWithConfigSerialized(t *testing.T) {
 }
 
 func TestRevokeKey(t *testing.T) {
-	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -872,7 +872,7 @@ func TestRevokeKeyWithConfig(t *testing.T) {
 		DefaultHash: crypto.SHA512,
 	}
 
-	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -900,7 +900,7 @@ func TestRevokeKeyWithConfig(t *testing.T) {
 }
 
 func TestRevokeSubkey(t *testing.T) {
-	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -941,14 +941,14 @@ func TestRevokeSubkey(t *testing.T) {
 }
 
 func TestRevokeSubkeyWithAnotherEntity(t *testing.T) {
-	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	sk := entity.Subkeys[0]
 
-	newEntity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	newEntity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -960,7 +960,7 @@ func TestRevokeSubkeyWithAnotherEntity(t *testing.T) {
 }
 
 func TestRevokeSubkeyWithInvalidSignature(t *testing.T) {
-	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -979,7 +979,7 @@ func TestRevokeSubkeyWithConfig(t *testing.T) {
 		DefaultHash: crypto.SHA512,
 	}
 
-	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
