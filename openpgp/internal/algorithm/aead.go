@@ -28,8 +28,9 @@ func (mode AEADMode) TagLength() int {
 		return 16
 	case AEADModeGCM:
 		return 16
+	default:
+		return 0
 	}
-	panic("Unsupported AEAD mode")
 }
 
 // NonceLength returns the length in bytes of nonces.
@@ -41,8 +42,9 @@ func (mode AEADMode) NonceLength() int {
 		return 15
 	case AEADModeGCM:
 		return 12
+	default:
+		return 0
 	}
-	panic("unsupported aead mode")
 }
 
 // New returns a fresh instance of the given mode
