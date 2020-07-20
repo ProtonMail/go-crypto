@@ -29,7 +29,7 @@ func (mode AEADMode) TagLength() int {
 	case AEADModeGCM:
 		return 16
 	default:
-		return 16
+		return 0
 	}
 }
 
@@ -43,7 +43,7 @@ func (mode AEADMode) NonceLength() int {
 	case AEADModeGCM:
 		return 12
 	default:
-		return 16
+		return 0
 	}
 }
 

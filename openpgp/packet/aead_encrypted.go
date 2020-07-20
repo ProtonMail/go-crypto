@@ -60,6 +60,9 @@ func (ae *AEADEncrypted) parse(buf io.Reader) error {
 	// Read initial nonce
 	mode := AEADMode(headerData[2])
 	nonceLen := mode.NonceLength()
+	if nonceLen < 12 {
+		return errors.AEADError("invalid nonce length")
+	}
 	initialNonce := make([]byte, nonceLen)
 	if n, err := io.ReadFull(buf, initialNonce); n < nonceLen {
 		return errors.AEADError("could not read aead nonce:" + err.Error())
