@@ -630,50 +630,6 @@ func (pk *PublicKey) VerifySignature(signed hash.Hash, sig *Signature) (err erro
 	}
 }
 
-// VerifySignatureV3 returns nil iff sig is a valid signature, made by this
-// public key, of the data hashed into signed. signed is mutated by this call.
-func (pk *PublicKey) VerifySignatureV3(signed hash.Hash, sig *SignatureV3) (err error) {
-	if !pk.CanSign() {
-		return errors.InvalidArgumentError("public key cannot generate signatures")
-	}
-
-	suffix := make([]byte, 5)
-	suffix[0] = byte(sig.SigType)
-	binary.BigEndian.PutUint32(suffix[1:], uint32(sig.CreationTime.Unix()))
-	signed.Write(suffix)
-	hashBytes := signed.Sum(nil)
-
-	if hashBytes[0] != sig.HashTag[0] || hashBytes[1] != sig.HashTag[1] {
-		return errors.SignatureError("hash tag doesn't match")
-	}
-
-	if pk.PubKeyAlgo != sig.PubKeyAlgo {
-		return errors.InvalidArgumentError("public key and signature use different algorithms")
-	}
-
-	switch pk.PubKeyAlgo {
-	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly:
-		rsaPublicKey := pk.PublicKey.(*rsa.PublicKey)
-		if err = rsa.VerifyPKCS1v15(rsaPublicKey, sig.Hash, hashBytes, padToKeySize(rsaPublicKey, sig.RSASignature.Bytes())); err != nil {
-			return errors.SignatureError("RSA verification failure")
-		}
-		return
-	case PubKeyAlgoDSA:
-		dsaPublicKey := pk.PublicKey.(*dsa.PublicKey)
-		// Need to truncate hashBytes to match FIPS 186-3 section 4.6.
-		subgroupSize := (dsaPublicKey.Q.BitLen() + 7) / 8
-		if len(hashBytes) > subgroupSize {
-			hashBytes = hashBytes[:subgroupSize]
-		}
-		if !dsa.Verify(dsaPublicKey, hashBytes, new(big.Int).SetBytes(sig.DSASigR.Bytes()), new(big.Int).SetBytes(sig.DSASigS.Bytes())) {
-			return errors.SignatureError("DSA verification failure")
-		}
-		return nil
-	default:
-		panic("shouldn't happen")
-	}
-}
-
 // keySignatureHash returns a Hash of the message that needs to be signed for
 // pk to assert a subkey relationship to signed.
 func keySignatureHash(pk, signed signingKey, hashFunc crypto.Hash) (h hash.Hash, err error) {
@@ -787,16 +743,6 @@ func (pk *PublicKey) VerifyUserIdSignature(id string, pub *PublicKey, sig *Signa
 		return err
 	}
 	return pk.VerifySignature(h, sig)
-}
-
-// VerifyUserIdSignatureV3 returns nil iff sig is a valid signature, made by this
-// public key, that id is the identity of pub.
-func (pk *PublicKey) VerifyUserIdSignatureV3(id string, pub *PublicKey, sig *SignatureV3) (err error) {
-	h, err := userIdSignatureV3Hash(id, pub, sig.Hash)
-	if err != nil {
-		return err
-	}
-	return pk.VerifySignatureV3(h, sig)
 }
 
 // KeyIdString returns the public key's fingerprint in capital hex
