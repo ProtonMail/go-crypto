@@ -250,8 +250,7 @@ FindLiteralData:
 
 			h, wrappedHash, err = hashForSignature(p.Hash, p.SigType)
 			if err != nil {
-				md = nil
-				return
+				md.SignatureError = err
 			}
 
 			md.IsSigned = true
@@ -286,13 +285,17 @@ func hashForSignature(hashId crypto.Hash, sigType packet.SignatureType) (hash.Ha
 	if !hashId.Available() {
 		return nil, nil, errors.UnsupportedError("hash not available: " + strconv.Itoa(int(hashId)))
 	}
+	var err error
+	if hashId == crypto.MD5 {
+		err = errors.SignatureError("insecure hash algorithm: MD5")
+	}
 	h := hashId.New()
 
 	switch sigType {
 	case packet.SigTypeBinary:
-		return h, h, nil
+		return h, h, err
 	case packet.SigTypeText:
-		return h, NewCanonicalTextHash(h), nil
+		return h, NewCanonicalTextHash(h), err
 	}
 
 	return nil, nil, errors.UnsupportedError("unsupported signature type: " + strconv.Itoa(int(sigType)))
@@ -400,7 +403,6 @@ func CheckDetachedSignatureAndHash(keyring KeyRing, signed, signature io.Reader,
 		issuerKeyId = *sig.IssuerKeyId
 		hashFunc = sig.Hash
 		sigType = sig.SigType
-
 		for i, expectedHash := range expectedHashes {
 			if hashFunc == expectedHash {
 				break
