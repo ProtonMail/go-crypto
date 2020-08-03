@@ -518,11 +518,7 @@ func (pk *PublicKey) algorithmSpecificByteCount() int {
 // OpenPGP public key packet, not including the packet header.
 func (pk *PublicKey) serializeWithoutHeaders(w io.Writer) (err error) {
 	var buf [6]byte
-	if pk.Version() == 5 {
-		buf[0] = 5
-	} else {
-		buf[0] = 4
-	}
+	buf[0] = byte(pk.Version())
 	t := uint32(pk.CreationTime.Unix())
 	buf[1] = byte(t >> 24)
 	buf[2] = byte(t >> 16)
