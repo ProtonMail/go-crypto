@@ -35,7 +35,7 @@ type kdfAlgorithm byte
 
 // PublicKey represents an OpenPGP public key. See RFC 4880, section 5.5.2.
 type PublicKey struct {
-	Version      int
+	version      int
 	CreationTime time.Time
 	PubKeyAlgo   PublicKeyAlgorithm
 	ByteCount    int         // Version 5 only
@@ -54,6 +54,13 @@ type PublicKey struct {
 	// kdf stores key derivation function parameters
 	// used for ECDH encryption. See RFC 6637, Section 9.
 	kdf encoding.Field
+}
+
+func (pk *PublicKey) Version() int {
+	if pk.version == 5 {
+		return 5
+	}
+	return 4
 }
 
 // signingKey provides a convenient abstraction over signature verification
@@ -183,7 +190,8 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 		return errors.UnsupportedError("public key version")
 	}
 
-	if pk.Version == 5 {
+	pk.version = int(buf[0])
+	if pk.version == 5 {
 		var n [4]byte
 		_, err = readFull(r, n[:])
 		if err != nil {
@@ -192,7 +200,6 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 		pk.ByteCount = int(uint32(n[0])<<24 | uint32(n[1])<<16 | uint32(n[2])<<8 | uint32(n[3]))
 	}
 
-	pk.Version = int(buf[0])
 	pk.CreationTime = time.Unix(int64(uint32(buf[1])<<24|uint32(buf[2])<<16|uint32(buf[3])<<8|uint32(buf[4])), 0)
 	pk.PubKeyAlgo = PublicKeyAlgorithm(buf[5])
 	switch pk.PubKeyAlgo {
@@ -221,7 +228,7 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 
 func (pk *PublicKey) setFingerPrintAndKeyId() {
 	// RFC 4880, section 12.2
-	switch pk.Version {
+	switch pk.Version() {
 	case 5:
 		fingerPrint := sha256.New()
 		pk.SerializeForHash(fingerPrint)
@@ -442,7 +449,7 @@ func (pk *PublicKey) SerializeForHash(w io.Writer) error {
 // RFC 4880, section 5.2.4.
 func (pk *PublicKey) SerializeSignaturePrefix(w io.Writer) {
 	var pLength = pk.algorithmSpecificByteCount()
-	switch pk.Version {
+	switch pk.Version() {
 	case 5:
 		pLength += 10 // version, timestamp (4), algorithm, key octet count (4).
 		w.Write([]byte{
@@ -462,7 +469,7 @@ func (pk *PublicKey) SerializeSignaturePrefix(w io.Writer) {
 func (pk *PublicKey) Serialize(w io.Writer) (err error) {
 	length := 6 // 6 byte header
 	length += pk.algorithmSpecificByteCount()
-	if pk.Version == 5 {
+	if pk.Version() == 5 {
 		length += 4 // octet key count
 	}
 	packetType := packetTypePublicKey
@@ -511,11 +518,10 @@ func (pk *PublicKey) algorithmSpecificByteCount() int {
 // OpenPGP public key packet, not including the packet header.
 func (pk *PublicKey) serializeWithoutHeaders(w io.Writer) (err error) {
 	var buf [6]byte
-	switch pk.Version {
-	case 5:
+	if pk.Version() == 5 {
 		buf[0] = 5
-	default: // Version 4
-	    buf[0] = 4
+	} else {
+		buf[0] = 4
 	}
 	t := uint32(pk.CreationTime.Unix())
 	buf[1] = byte(t >> 24)
@@ -528,7 +534,7 @@ func (pk *PublicKey) serializeWithoutHeaders(w io.Writer) (err error) {
 	if err != nil {
 		return
 	}
-	if pk.Version == 5 {
+	if pk.Version() == 5 {
 		var n [4]byte
 		algoKeyCount := pk.algorithmSpecificByteCount()
 		n[0] = byte(algoKeyCount >> 24)

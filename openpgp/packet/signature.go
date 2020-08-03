@@ -32,6 +32,7 @@ const (
 
 // Signature represents a signature. See RFC 4880, section 5.2.
 type Signature struct {
+	version    int
 	SigType    SignatureType
 	PubKeyAlgo PublicKeyAlgorithm
 	Hash       crypto.Hash
@@ -89,10 +90,11 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	if buf[0] != 4 {
+	if buf[0] != 4 && buf[0] != 5 {
 		err = errors.UnsupportedError("signature packet version " + strconv.Itoa(int(buf[0])))
 		return
 	}
+	sig.version = int(buf[0])
 
 	_, err = readFull(r, buf[:5])
 	if err != nil {
@@ -491,6 +493,21 @@ func serializeSubpackets(to []byte, subpackets []outputSubpacket, hashed bool) {
 	return
 }
 
+// Version returns the version of the signature. It defaults to version 4.
+func (sig *Signature) Version() int {
+	if sig.version == 5 {
+		return 5
+	}
+	return 4
+}
+
+// MatchVersion copies the version from the given public key (implementations
+// MUST generate version 5 signatures when using a version 5 key, and SHOULD
+// generate V4 signatures with version 4 keys).
+func (sig *Signature) MatchVersion(pk *PublicKey) {
+	sig.version = pk.Version()
+}
+
 // SigExpired returns whether sig is a signature that has expired or is created
 // in the future.
 func (sig *Signature) SigExpired(currentTime time.Time) bool {
@@ -511,7 +528,7 @@ func (sig *Signature) buildHashSuffix() (err error) {
 	var ok bool
 	l := 6 + hashedSubpacketsLen
 	sig.HashSuffix = make([]byte, l+6)
-	sig.HashSuffix[0] = 4
+	sig.HashSuffix[0] = uint8(sig.Version())
 	sig.HashSuffix[1] = uint8(sig.SigType)
 	sig.HashSuffix[2] = uint8(sig.PubKeyAlgo)
 	sig.HashSuffix[3], ok = s2k.HashToHashId(sig.Hash)
@@ -860,8 +877,7 @@ func (sig *Signature) buildSubpackets() (subpackets []outputSubpacket, err error
 		if err != nil {
 			return
 		}
-		subpackets = append(subpackets, outputSubpacket{true, embeddedSignatureSubpacket, true,
-			buf.Bytes()})
+		subpackets = append(subpackets, outputSubpacket{true, embeddedSignatureSubpacket, true, buf.Bytes()})
 	}
 
 	return
