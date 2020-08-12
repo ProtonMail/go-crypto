@@ -14,6 +14,7 @@ import (
 )
 
 var hashes = []crypto.Hash{
+	crypto.MD5,
 	crypto.SHA1,
 	crypto.SHA224,
 	crypto.SHA256,
