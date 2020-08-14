@@ -285,7 +285,6 @@ func hashForSignature(hashId crypto.Hash, sigType packet.SignatureType) (hash.Ha
 	if !hashId.Available() {
 		return nil, nil, errors.UnsupportedError("hash not available: " + strconv.Itoa(int(hashId)))
 	}
-	var err error
 	if hashId == crypto.MD5 {
 		return nil, nil, errors.SignatureError("insecure hash algorithm: MD5")
 	}
@@ -293,9 +292,9 @@ func hashForSignature(hashId crypto.Hash, sigType packet.SignatureType) (hash.Ha
 
 	switch sigType {
 	case packet.SigTypeBinary:
-		return h, h, err
+		return h, h, nil
 	case packet.SigTypeText:
-		return h, NewCanonicalTextHash(h), err
+		return h, NewCanonicalTextHash(h), nil
 	}
 
 	return nil, nil, errors.UnsupportedError("unsupported signature type: " + strconv.Itoa(int(sigType)))
