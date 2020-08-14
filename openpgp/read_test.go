@@ -6,7 +6,6 @@ package openpgp
 
 import (
 	"bytes"
-	"crypto"
 	"crypto/sha512"
 	"encoding/base64"
 	"encoding/hex"
@@ -620,61 +619,5 @@ func TestSymmetricAeadEaxOpenPGPJsMessage(t *testing.T) {
 
 	if wantHash != gotHash {
 		t.Fatal("Did not decrypt OpenPGPjs message correctly")
-	}
-}
-
-func TestMD5VerifyDetached(t *testing.T) {
-	msg := strings.NewReader("Hello, MD5 World!")
-	sig := strings.NewReader(md5Test.detachedSig)
-	// Get keyring
-	kring, err := ReadArmoredKeyRing(bytes.NewBufferString(md5Test.signer))
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = CheckArmoredDetachedSignature(kring, msg, sig, nil)
-	if err == nil {
-		t.Fatal("Expected SignatureError when using MD5")
-	}
-}
-
-func TestMD5DecryptVerify(t *testing.T) {
-	stringMsg := "Hello, MD5 World!"
-	configMD5 := &packet.Config{DefaultHash: crypto.MD5}
-	// Get keyring
-	keyTo, err := ReadArmoredKeyRing(bytes.NewBufferString(md5Test.decrypter))
-	if err != nil {
-		t.Fatal(err)
-	}
-	signer, err := ReadArmoredKeyRing(bytes.NewBufferString(md5Test.signer))
-	if err != nil {
-		t.Fatal(err)
-	}
-	kring := EntityList{keyTo[0], signer[0]}
-
-	// Unarmor string
-	raw, err := armor.Decode(strings.NewReader(string(md5Test.message)))
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	// Decrypt message
-	md, err := ReadMessage(raw.Body, kring, nil, configMD5)
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	// Check MD5 warning
-	if md.SignatureError == nil {
-		t.Fatal("Expected SignatureError when using MD5")
-	}
-
-	// Be able to read contents anyway
-	contents, err := ioutil.ReadAll(md.UnverifiedBody)
-	if err != nil && err != io.ErrUnexpectedEOF {
-		t.Fatalf("error reading UnverifiedBody: %s", err)
-	}
-	if string(contents) != stringMsg {
-		t.Fatal("Did not retrieve plaintext message")
 	}
 }

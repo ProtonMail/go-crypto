@@ -265,7 +265,7 @@ FindLiteralData:
 		}
 	}
 
-	if md.SignedBy != nil {
+	if md.SignedBy != nil && md.SignatureError == nil {
 		md.UnverifiedBody = &signatureCheckReader{packets, h, wrappedHash, md, config}
 	} else if md.decrypted != nil {
 		md.UnverifiedBody = checkReader{md}
@@ -287,7 +287,7 @@ func hashForSignature(hashId crypto.Hash, sigType packet.SignatureType) (hash.Ha
 	}
 	var err error
 	if hashId == crypto.MD5 {
-		err = errors.SignatureError("insecure hash algorithm: MD5")
+		return nil, nil, errors.SignatureError("insecure hash algorithm: MD5")
 	}
 	h := hashId.New()
 

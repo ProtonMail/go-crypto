@@ -136,7 +136,7 @@ func TestParseIntoParams(t *testing.T) {
 }
 
 func TestSerializeOK(t *testing.T) {
-	hashes := []crypto.Hash{crypto.MD5, crypto.SHA1, crypto.RIPEMD160, crypto.SHA256, crypto.SHA384, crypto.SHA512, crypto.SHA224}
+	hashes := []crypto.Hash{crypto.SHA1, crypto.RIPEMD160, crypto.SHA256, crypto.SHA384, crypto.SHA512, crypto.SHA224}
 	testCounts := []int{-1, 0, 1024, 65536, 4063232, 65011712}
 	for _, h := range hashes {
 		for _, c := range testCounts {
