@@ -282,11 +282,11 @@ FindLiteralData:
 // returns two hashes. The second should be used to hash the message itself and
 // performs any needed preprocessing.
 func hashForSignature(hashId crypto.Hash, sigType packet.SignatureType) (hash.Hash, hash.Hash, error) {
-	if !hashId.Available() {
-		return nil, nil, errors.UnsupportedError("hash not available: " + strconv.Itoa(int(hashId)))
-	}
 	if hashId == crypto.MD5 {
 		return nil, nil, errors.SignatureError("insecure hash algorithm: MD5")
+	}
+	if !hashId.Available() {
+		return nil, nil, errors.UnsupportedError("hash not available: " + strconv.Itoa(int(hashId)))
 	}
 	h := hashId.New()
 
