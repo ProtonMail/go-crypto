@@ -402,6 +402,7 @@ func CheckDetachedSignatureAndHash(keyring KeyRing, signed, signature io.Reader,
 		issuerKeyId = *sig.IssuerKeyId
 		hashFunc = sig.Hash
 		sigType = sig.SigType
+
 		for i, expectedHash := range expectedHashes {
 			if hashFunc == expectedHash {
 				break
