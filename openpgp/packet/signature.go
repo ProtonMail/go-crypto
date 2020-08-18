@@ -117,22 +117,51 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 
 	hashedSubpacketsLength := int(buf[3])<<8 | int(buf[4])
 	l := 6 + hashedSubpacketsLength
-	sig.HashSuffix = make([]byte, l+6)
-	sig.HashSuffix[0] = 4
-	copy(sig.HashSuffix[1:], buf[:5])
-	hashedSubpackets := sig.HashSuffix[6:l]
-	_, err = readFull(r, hashedSubpackets)
-	if err != nil {
-		return
+	var hashedSubpackets []byte
+	switch sig.version {
+	case 5:
+		sig.HashSuffix = make([]byte, l+10)
+		sig.HashSuffix[0] = 5
+		copy(sig.HashSuffix[1:], buf[:5])
+		hashedSubpackets = sig.HashSuffix[6:l]
+		_, err = readFull(r, hashedSubpackets)
+		if err != nil {
+			return
+		}
+		if sig.SigType == 0x00 || sig.SigType == 0x01 {
+			return errors.UnsupportedError(
+				"TODO: Document signatures, mirroring Literal Data Packet")
+		}
+		// See RFC 4880, section 5.2.4
+		trailer := sig.HashSuffix[l:]
+		trailer[0] = 5
+		trailer[1] = 0xff
+		trailer[2] = uint8(l >> 56)
+		trailer[3] = uint8(l >> 48)
+		trailer[4] = uint8(l >> 40)
+		trailer[5] = uint8(l >> 32)
+		trailer[6] = uint8(l >> 24)
+		trailer[7] = uint8(l >> 16)
+		trailer[8] = uint8(l >> 8)
+		trailer[9] = uint8(l)
+	default: // Version
+		sig.HashSuffix = make([]byte, l+6)
+		sig.HashSuffix[0] = 4
+		copy(sig.HashSuffix[1:], buf[:5])
+		hashedSubpackets = sig.HashSuffix[6:l]
+		_, err = readFull(r, hashedSubpackets)
+		if err != nil {
+			return
+		}
+		// See RFC 4880, section 5.2.4
+		trailer := sig.HashSuffix[l:]
+		trailer[0] = 4
+		trailer[1] = 0xff
+		trailer[2] = uint8(l >> 24)
+		trailer[3] = uint8(l >> 16)
+		trailer[4] = uint8(l >> 8)
+		trailer[5] = uint8(l)
 	}
-	// See RFC 4880, section 5.2.4
-	trailer := sig.HashSuffix[l:]
-	trailer[0] = 4
-	trailer[1] = 0xff
-	trailer[2] = uint8(l >> 24)
-	trailer[3] = uint8(l >> 16)
-	trailer[4] = uint8(l >> 8)
-	trailer[5] = uint8(l)
 
 	err = parseSignatureSubpackets(sig, hashedSubpackets, true)
 	if err != nil {
