@@ -283,7 +283,7 @@ FindLiteralData:
 // performs any needed preprocessing.
 func hashForSignature(hashId crypto.Hash, sigType packet.SignatureType) (hash.Hash, hash.Hash, error) {
 	if hashId == crypto.MD5 {
-		return nil, nil, errors.SignatureError("insecure hash algorithm: MD5")
+		return nil, nil, errors.UnsupportedError("insecure hash algorithm: MD5")
 	}
 	if !hashId.Available() {
 		return nil, nil, errors.UnsupportedError("hash not available: " + strconv.Itoa(int(hashId)))
