@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"testing"
 
+	"golang.org/x/crypto/eax"
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
@@ -128,6 +129,17 @@ func TestAEAD(t *testing.T) {
 				t.Fatalf("failed to construct cipher: %s", err)
 			}
 			aead, err := cipher.NewGCM(aesCipher)
+			if err != nil {
+				t.Fatalf("failed to construct cipher: %s", err)
+			}
+			return aead
+		},
+		"aes_eax_test.json": func(t *testing.T, key []byte) cipher.AEAD {
+			aesCipher, err := aes.NewCipher(key)
+			if err != nil {
+				t.Fatalf("failed to construct cipher: %s", err)
+			}
+			aead, err := eax.NewEAX(aesCipher)
 			if err != nil {
 				t.Fatalf("failed to construct cipher: %s", err)
 			}
