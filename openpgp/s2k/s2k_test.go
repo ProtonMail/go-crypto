@@ -7,7 +7,6 @@ package s2k
 import (
 	"bytes"
 	"crypto"
-	_ "crypto/md5"
 	"crypto/rand"
 	"crypto/sha1"
 	_ "crypto/sha256"
@@ -136,26 +135,23 @@ func TestParseIntoParams(t *testing.T) {
 	}
 }
 
-func TestSerialize(t *testing.T) {
-	hashes := []crypto.Hash{crypto.MD5, crypto.SHA1, crypto.RIPEMD160,
-		crypto.SHA256, crypto.SHA384, crypto.SHA512, crypto.SHA224}
+func TestSerializeOK(t *testing.T) {
+	hashes := []crypto.Hash{crypto.SHA1, crypto.RIPEMD160, crypto.SHA256, crypto.SHA384, crypto.SHA512, crypto.SHA224}
 	testCounts := []int{-1, 0, 1024, 65536, 4063232, 65011712}
 	for _, h := range hashes {
 		for _, c := range testCounts {
-			testSerializeConfig(t, &Config{Hash: h, S2KCount: c})
+			testSerializeConfigOK(t, &Config{Hash: h, S2KCount: c})
 		}
 	}
 }
 
-func testSerializeConfig(t *testing.T, c *Config) {
-	t.Logf("Running testSerializeConfig() with config: %+v", c)
-
+func testSerializeConfigOK(t *testing.T, c *Config) {
 	buf := bytes.NewBuffer(nil)
 	key := make([]byte, 16)
 	passphrase := []byte("testing")
 	err := Serialize(buf, key, rand.Reader, passphrase, c)
 	if err != nil {
-		t.Errorf("failed to serialize: %s", err)
+		t.Errorf("failed to serialize with config %+v: %s", c, err)
 		return
 	}
 
@@ -168,5 +164,16 @@ func testSerializeConfig(t *testing.T, c *Config) {
 	f(key2, passphrase)
 	if !bytes.Equal(key2, key) {
 		t.Errorf("keys don't match: %x (serialied) vs %x (parsed)", key, key2)
+	}
+}
+
+func testSerializeConfigErr(t *testing.T, c *Config) {
+	buf := bytes.NewBuffer(nil)
+	key := make([]byte, 16)
+	passphrase := []byte("testing")
+	err := Serialize(buf, key, rand.Reader, passphrase, c)
+	if err == nil {
+		t.Errorf("expected to fail serialization with config %+v", c)
+		return
 	}
 }
