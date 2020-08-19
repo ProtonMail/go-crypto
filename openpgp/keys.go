@@ -420,7 +420,7 @@ func addUserID(e *Entity, packets *packet.Reader, pkt *packet.UserId) error {
 			break
 		}
 
-		if (sig.SigType == packet.SigTypePositiveCert || sig.SigType == packet.SigTypeGenericCert) && sig.IssuerKeyId != nil && *sig.IssuerKeyId == e.PrimaryKey.KeyId {
+		if (sig.SigType == packet.SigTypePositiveCert || sig.SigType == packet.SigTypeGenericCert) && e.PrimaryKey.MatchKeyIdOrFingerprint(sig) {
 			if err = e.PrimaryKey.VerifyUserIdSignature(pkt.Id, e.PrimaryKey, sig); err != nil {
 				return errors.StructuralError("user ID self-signature invalid: " + err.Error())
 			}

@@ -59,6 +59,7 @@ type Signature struct {
 	PreferredSymmetric, PreferredHash, PreferredCompression []uint8
 	PreferredAEAD                                           []uint8
 	IssuerKeyId                                             *uint64
+	IssuerKeyFingerprint                                    []uint8
 	IsPrimaryId                                             *bool
 
 	// FlagsValid is set if any flags were given. See RFC 4880, section
@@ -256,6 +257,7 @@ const (
 	reasonForRevocationSubpacket signatureSubpacketType = 29
 	featuresSubpacket            signatureSubpacketType = 30
 	embeddedSignatureSubpacket   signatureSubpacketType = 32
+	issuerFingerprintSubpacket   signatureSubpacketType = 33
 	prefAeadAlgosSubpacket       signatureSubpacketType = 34
 )
 
@@ -450,6 +452,13 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		if sigType := sig.EmbeddedSignature.SigType; sigType != SigTypePrimaryKeyBinding {
 			return nil, errors.StructuralError("cross-signature has unexpected type " + strconv.Itoa(int(sigType)))
 		}
+	case issuerFingerprintSubpacket:
+		version, l := subpacket[0], len(subpacket[1:])
+		if version == 5 && l != 32 || version < 5 && l != 20 {
+			return nil, errors.StructuralError("bad fingerprint length")
+		}
+		sig.IssuerKeyFingerprint = make([]byte, l)
+		copy(sig.IssuerKeyFingerprint, subpacket[1:])
 	default:
 		if isCritical {
 			err = errors.UnsupportedError("unknown critical signature subpacket type " + strconv.Itoa(int(packetType)))

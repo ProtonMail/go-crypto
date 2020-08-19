@@ -49,8 +49,8 @@ func TestPublicKeyRead(t *testing.T) {
 			t.Errorf("#%d: bad creation time got:%v want:%v", i, pk.CreationTime, test.creationTime)
 		}
 		expectedFingerprint, _ := hex.DecodeString(test.hexFingerprint)
-		if !bytes.Equal(expectedFingerprint, pk.Fingerprint[:]) {
-			t.Errorf("#%d: bad fingerprint got:%x want:%x", i, pk.Fingerprint[:], expectedFingerprint)
+		if !bytes.Equal(expectedFingerprint, pk.Fingerprint) {
+			t.Errorf("#%d: bad fingerprint got:%x want:%x", i, pk.Fingerprint, expectedFingerprint)
 		}
 		if pk.KeyId != test.keyId {
 			t.Errorf("#%d: bad keyid got:%x want:%x", i, pk.KeyId, test.keyId)
