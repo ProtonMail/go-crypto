@@ -5,7 +5,6 @@
 package packet
 
 import (
-	"bytes"
 	"crypto"
 	"crypto/dsa"
 	"crypto/ecdsa"
@@ -825,16 +824,4 @@ func (pk *PublicKey) KeyExpired(sig *Signature, currentTime time.Time) bool {
 	}
 	expiry := pk.CreationTime.Add(time.Duration(*sig.KeyLifetimeSecs) * time.Second)
 	return currentTime.After(expiry)
-}
-
-// TODO (when parsing sig): the key ID of the Issuer subpacket MUST match the low 64
-// bits of the fingerprint.
-func (pk *PublicKey) MatchKeyIdOrFingerprint(sig *Signature) bool {
-	if sig.IssuerKeyId != nil && *sig.IssuerKeyId == pk.KeyId {
-		return true
-	}
-	if sig.IssuerKeyFingerprint == nil {
-		return false
-	}
-	return bytes.Equal(pk.Fingerprint, sig.IssuerKeyFingerprint)
 }

@@ -483,6 +483,18 @@ func subpacketLengthLength(length int) int {
 	return 5
 }
 
+// TODO (when parsing sig): the key ID of the Issuer subpacket MUST match the low 64
+// bits of the fingerprint.
+func (sig *Signature) MatchKeyIdOrFingerprint(pk *PublicKey) bool {
+	if sig.IssuerKeyId != nil && *sig.IssuerKeyId == pk.KeyId {
+		return true
+	}
+	if sig.IssuerKeyFingerprint == nil {
+		return false
+	}
+	return bytes.Equal(pk.Fingerprint, sig.IssuerKeyFingerprint)
+}
+
 // serializeSubpacketLength marshals the given length into to.
 func serializeSubpacketLength(to []byte, length int) int {
 	// RFC 4880, Section 4.2.2.
