@@ -351,6 +351,9 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		sig.PreferredAEAD = make([]byte, len(subpacket))
 		copy(sig.PreferredAEAD, subpacket)
 	case issuerSubpacket:
+		if sig.Version() > 4 {
+			err = errors.StructuralError("issuer subpacket found in v5 key")
+		}
 		// Issuer, section 5.2.3.5
 		if len(subpacket) != 8 {
 			err = errors.StructuralError("issuer subpacket with bad length")
@@ -843,12 +846,14 @@ func (sig *Signature) buildSubpackets() (subpackets []outputSubpacket, err error
 	binary.BigEndian.PutUint32(creationTime, uint32(sig.CreationTime.Unix()))
 	subpackets = append(subpackets, outputSubpacket{true, creationTimeSubpacket, false, creationTime})
 
-	if sig.IssuerKeyId != nil {
+	if sig.IssuerKeyId != nil && sig.Version() == 4 {
 		keyId := make([]byte, 8)
 		binary.BigEndian.PutUint64(keyId, *sig.IssuerKeyId)
 		subpackets = append(subpackets, outputSubpacket{true, issuerSubpacket, false, keyId})
 	}
-
+	if sig.IssuerKeyFingerprint != nil {
+		subpackets = append(subpackets, outputSubpacket{true, issuerFingerprintSubpacket, true, sig.IssuerKeyFingerprint})
+	}
 	if sig.SigLifetimeSecs != nil && *sig.SigLifetimeSecs != 0 {
 		sigLifetime := make([]byte, 4)
 		binary.BigEndian.PutUint32(sigLifetime, *sig.SigLifetimeSecs)
