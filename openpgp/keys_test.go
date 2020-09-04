@@ -3,14 +3,21 @@ package openpgp
 import (
 	"bytes"
 	"crypto"
+	"crypto/dsa"
+	"crypto/ecdsa"
+	"math/big"
 	"strings"
 	"testing"
 	"time"
 
+	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/openpgp/armor"
+	"golang.org/x/crypto/openpgp/ecdh"
+	"golang.org/x/crypto/openpgp/elgamal"
 	"golang.org/x/crypto/openpgp/errors"
-	"golang.org/x/crypto/openpgp/packet"
 	"golang.org/x/crypto/openpgp/internal/algorithm"
+	"golang.org/x/crypto/openpgp/packet"
+	"golang.org/x/crypto/rsa"
 )
 
 var hashes = []crypto.Hash{
@@ -716,7 +723,7 @@ func TestAddSubkeySerialized(t *testing.T) {
 func TestAddSubkeyWithConfig(t *testing.T) {
 	c := &packet.Config{
 		DefaultHash: crypto.SHA512,
-		Algorithm: packet.PubKeyAlgoEdDSA,
+		Algorithm:   packet.PubKeyAlgoEdDSA,
 	}
 	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
 	if err != nil {
@@ -781,7 +788,7 @@ func TestAddSubkeyWithConfig(t *testing.T) {
 func TestAddSubkeyWithConfigSerialized(t *testing.T) {
 	c := &packet.Config{
 		DefaultHash: crypto.SHA512,
-		Algorithm: packet.PubKeyAlgoEdDSA,
+		Algorithm:   packet.PubKeyAlgoEdDSA,
 	}
 	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
 	if err != nil {
@@ -997,5 +1004,143 @@ func TestRevokeSubkeyWithConfig(t *testing.T) {
 	err = sk.PublicKey.VerifySubkeyRevocationSignature(sk.Sig, entity.PrimaryKey)
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestKeyValidateOnDecrypt(t *testing.T) {
+	password := []byte("password")
+	// RSA
+	rsaEntity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rsaPrimaryKey := rsaEntity.PrivateKey
+	if err = rsaPrimaryKey.Encrypt(password); err != nil {
+		t.Fatal(err)
+	}
+	if err = rsaPrimaryKey.Decrypt(password); err != nil {
+		t.Fatal("Valid RSA key was marked as invalid: ", err)
+	}
+	if err = rsaPrimaryKey.Encrypt(password); err != nil {
+		t.Fatal(err)
+	}
+	// Corrupt public modulo n in primary key
+	n := rsaPrimaryKey.PublicKey.PublicKey.(*rsa.PublicKey).N
+	rsaPrimaryKey.PublicKey.PublicKey.(*rsa.PublicKey).N = new(big.Int).Add(n, big.NewInt(2))
+	err = rsaPrimaryKey.Decrypt(password)
+	if _, ok := err.(*errors.KeyInvalidError); ok {
+		t.Fatal("Failed to detect invalid RSA key")
+	}
+
+	// ECDSA
+	ecdsaKeys, err := ReadArmoredKeyRing(bytes.NewBufferString(ecdsaPrivateKey))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ecdsaPrimaryKey := ecdsaKeys[0].PrivateKey // already encrypted
+	if err := ecdsaPrimaryKey.Decrypt(password); err != nil {
+		t.Fatal("Valid ECDSA key was marked as invalid: ", err)
+	}
+	if err = ecdsaPrimaryKey.Encrypt(password); err != nil {
+		t.Fatal(err)
+	}
+	// Corrupt public X in primary key
+	X := ecdsaPrimaryKey.PublicKey.PublicKey.(*ecdsa.PublicKey).X
+	ecdsaPrimaryKey.PublicKey.PublicKey.(*ecdsa.PublicKey).X = new(big.Int).Add(X, big.NewInt(1))
+	err = ecdsaPrimaryKey.Decrypt(password)
+	if _, ok := err.(*errors.KeyInvalidError); ok {
+		t.Fatal("Failed to detect invalid ECDSA key")
+	}
+	// ECDH Nist
+	ecdsaSubkey := ecdsaKeys[0].Subkeys[0].PrivateKey
+	if err := ecdsaSubkey.Decrypt(password); err != nil {
+		t.Fatal("Valid ECDH key was marked as invalid: ", err)
+	}
+	if err = ecdsaSubkey.Encrypt(password); err != nil {
+		t.Fatal(err)
+	}
+	// Corrupt public X in subkey
+	X = ecdsaSubkey.PublicKey.PublicKey.(*ecdh.PublicKey).X
+	ecdsaSubkey.PublicKey.PublicKey.(*ecdh.PublicKey).X = new(big.Int).Add(X, big.NewInt(1))
+	err = ecdsaSubkey.Decrypt(password)
+	if _, ok := err.(*errors.KeyInvalidError); ok {
+		t.Fatal("Failed to detect invalid ECDH key")
+	}
+
+	// EdDSA
+	eddsaConfig := &packet.Config{
+		DefaultHash: crypto.SHA512,
+		Algorithm:   packet.PubKeyAlgoEdDSA,
+	}
+	eddsaEntity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", eddsaConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	eddsaPrimaryKey := eddsaEntity.PrivateKey // already encrypted
+	if err := eddsaPrimaryKey.Decrypt(password); err != nil {
+		t.Fatal("Valid EdDSA key was marked as invalid: ", err)
+	}
+	if err = eddsaPrimaryKey.Encrypt(password); err != nil {
+		t.Fatal(err)
+	}
+	pubBytes := *eddsaPrimaryKey.PublicKey.PublicKey.(*ed25519.PublicKey)
+	pubBytes[10] ^= 1
+	err = eddsaPrimaryKey.Decrypt(password)
+	if _, ok := err.(*errors.KeyInvalidError); ok {
+		t.Fatal("Failed to detect invalid EdDSA key")
+	}
+	// ECDH ed25519
+	eddsaSubkey := eddsaEntity.Subkeys[0].PrivateKey
+	if err = eddsaSubkey.Encrypt(password); err != nil {
+		t.Fatal(err)
+	}
+	if err := eddsaSubkey.Decrypt(password); err != nil {
+		t.Fatal("Valid ECDH 25519 key was marked as invalid: ", err)
+	}
+	if err = eddsaSubkey.Encrypt(password); err != nil {
+		t.Fatal(err)
+	}
+	// Corrupt public X in subkey
+	X = eddsaSubkey.PublicKey.PublicKey.(*ecdh.PublicKey).X
+	eddsaSubkey.PublicKey.PublicKey.(*ecdh.PublicKey).X = new(big.Int).Add(X, big.NewInt(1))
+	err = eddsaSubkey.Decrypt(password)
+	if _, ok := err.(*errors.KeyInvalidError); ok {
+		t.Fatal("Failed to detect invalid ECDH 25519 key")
+	}
+
+	// DSA
+	dsaKeys, err := ReadArmoredKeyRing(bytes.NewBufferString(dsaPrivateKeyWithElGamalSubkey))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dsaPrimaryKey := dsaKeys[0].PrivateKey // already encrypted
+	if err := dsaPrimaryKey.Decrypt(password); err != nil {
+		t.Fatal("Valid DSA key was marked as invalid: ", err)
+	}
+	if err = dsaPrimaryKey.Encrypt(password); err != nil {
+		t.Fatal(err)
+	}
+	// corrupt DSA generator
+	G := dsaPrimaryKey.PublicKey.PublicKey.(*dsa.PublicKey).G
+	dsaPrimaryKey.PublicKey.PublicKey.(*dsa.PublicKey).G = new(big.Int).Add(G, big.NewInt(1))
+	err = dsaPrimaryKey.Decrypt(password)
+	if _, ok := err.(*errors.KeyInvalidError); ok {
+		t.Fatal("Failed to detect invalid DSA key")
+	}
+
+	// ElGamal
+	elGamalSubkey := dsaKeys[0].Subkeys[0].PrivateKey // already encrypted
+	if err := elGamalSubkey.Decrypt(password); err != nil {
+		t.Fatal("Valid ElGamal key was marked as invalid: ", err)
+	}
+	if err = elGamalSubkey.Encrypt(password); err != nil {
+		t.Fatal(err)
+	}
+	// corrupt ElGamal generator
+	G = elGamalSubkey.PublicKey.PublicKey.(*elgamal.PublicKey).G
+	elGamalSubkey.PublicKey.PublicKey.(*elgamal.PublicKey).G = new(big.Int).Add(G, big.NewInt(1))
+	err = elGamalSubkey.Decrypt(password)
+	if _, ok := err.(*errors.KeyInvalidError); ok {
+		t.Fatal("Failed to detect invalid ElGamal key")
 	}
 }

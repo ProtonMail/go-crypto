@@ -65,6 +65,14 @@ func (ki keyIncorrectError) Error() string {
 
 var ErrKeyIncorrect error = keyIncorrectError(0)
 
+// KeyInvalidError indicates that the public key parameters are invalid
+// as they do not match the private ones
+type KeyInvalidError string
+
+func (e KeyInvalidError) Error() string {
+	return "openpgp: invalid key: " + string(e)
+}
+
 type unknownIssuerError int
 
 func (unknownIssuerError) Error() string {
