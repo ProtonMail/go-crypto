@@ -145,7 +145,7 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 		trailer[7] = uint8(l >> 16)
 		trailer[8] = uint8(l >> 8)
 		trailer[9] = uint8(l)
-	default: // Version
+	default: // Version 4
 		sig.HashSuffix = make([]byte, l+6)
 		sig.HashSuffix[0] = 4
 		copy(sig.HashSuffix[1:], buf[:5])
@@ -163,7 +163,6 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 		trailer[4] = uint8(l >> 8)
 		trailer[5] = uint8(l)
 	}
-
 	err = parseSignatureSubpackets(sig, hashedSubpackets, true)
 	if err != nil {
 		return
@@ -592,13 +591,29 @@ func (sig *Signature) buildHashSuffix() (err error) {
 	sig.HashSuffix[4] = byte(hashedSubpacketsLen >> 8)
 	sig.HashSuffix[5] = byte(hashedSubpacketsLen)
 	serializeSubpackets(sig.HashSuffix[6:l], sig.outSubpackets, true)
-	trailer := sig.HashSuffix[l:]
-	trailer[0] = 4
-	trailer[1] = 0xff
-	trailer[2] = byte(l >> 24)
-	trailer[3] = byte(l >> 16)
-	trailer[4] = byte(l >> 8)
-	trailer[5] = byte(l)
+	switch sig.version {
+	case 5:
+		sig.HashSuffix = append(sig.HashSuffix, make([]byte, 4)...)
+		trailer := sig.HashSuffix[l:]
+		trailer[0] = 5
+		trailer[1] = 0xff
+		trailer[2] = uint8(l >> 56)
+		trailer[3] = uint8(l >> 48)
+		trailer[4] = uint8(l >> 40)
+		trailer[5] = uint8(l >> 32)
+		trailer[6] = uint8(l >> 24)
+		trailer[7] = uint8(l >> 16)
+		trailer[8] = uint8(l >> 8)
+		trailer[9] = uint8(l)
+	default: // Version 4
+		trailer := sig.HashSuffix[l:]
+		trailer[0] = 4
+		trailer[1] = 0xff
+		trailer[2] = byte(l >> 24)
+		trailer[3] = byte(l >> 16)
+		trailer[4] = byte(l >> 8)
+		trailer[5] = byte(l)
+	}
 	return
 }
 
@@ -776,6 +791,9 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 	length := len(sig.HashSuffix) - 6 /* trailer not included */ +
 		2 /* length of unhashed subpackets */ + unhashedSubpacketsLen +
 		2 /* hash tag */ + sigLength
+	if sig.version == 5 {
+		length -= 4 // eight-octet instead of four-octet big endian
+	}
 	err = serializeHeader(w, packetTypeSignature, length)
 	if err != nil {
 		return
@@ -790,7 +808,12 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 
 func (sig *Signature) serializeBody(w io.Writer) (err error) {
 	unhashedSubpacketsLen := subpacketsLength(sig.outSubpackets, false)
-	_, err = w.Write(sig.HashSuffix[:len(sig.HashSuffix)-6])
+	switch sig.version {
+	case 5:
+		_, err = w.Write(sig.HashSuffix[:len(sig.HashSuffix)-10])
+	default:
+		_, err = w.Write(sig.HashSuffix[:len(sig.HashSuffix)-6])
+	}
 	if err != nil {
 		return
 	}

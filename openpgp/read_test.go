@@ -73,14 +73,6 @@ func TestReadPrivateKeyRing(t *testing.T) {
 	}
 }
 
-func TestReadPrivateKeyV5(t *testing.T) {
-	_, err := ReadArmoredKeyRing(strings.NewReader(v5PrivKey))
-	if err != nil {
-		t.Error(err)
-		return
-	}
-}
-
 func TestReadDSAKey(t *testing.T) {
 	kring, err := ReadKeyRing(readerFromHex(dsaTestKeyHex))
 	if err != nil {

@@ -34,6 +34,9 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 		return nil, err
 	}
 	primary := packet.NewSignerPrivateKey(creationTime, primaryPrivRaw)
+	if config != nil && config.V5Keys {
+		primary.SetVersion(5)
+	}
 
 	isPrimaryId := true
 	selfSignature := &packet.Signature{
@@ -49,6 +52,7 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 		MDC:          true, // true by default, see 5.8 vs. 5.14
 		AEAD:         config.AEAD() != nil,
 	}
+	selfSignature.MatchVersion(&primary.PublicKey)
 
 	// Set the PreferredHash for the SelfSignature from the packet.Config.
 	// If it is not the must-implement algorithm from rfc4880bis, append that.
@@ -83,6 +87,7 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 	sub := packet.NewDecrypterPrivateKey(creationTime, subPrivRaw)
 	sub.IsSubkey = true
 	sub.PublicKey.IsSubkey = true
+	sub.SetVersion(primary.Version())
 
 	subKey := Subkey{
 		PublicKey:  &sub.PublicKey,
@@ -151,6 +156,9 @@ func (e *Entity) AddSigningSubkey(config *packet.Config) error {
 			},
 		},
 	}
+	if config != nil && config.V5Keys {
+		subkey.PublicKey.SetVersion(5)
+	}
 
 	err = subkey.Sig.EmbeddedSignature.CrossSignKey(subkey.PublicKey, e.PrimaryKey, subkey.PrivateKey, config)
 	if err != nil {
@@ -191,6 +199,9 @@ func (e *Entity) AddEncryptionSubkey(config *packet.Config) error {
 			FlagEncryptCommunications: true,
 			IssuerKeyId:               &e.PrimaryKey.KeyId,
 		},
+	}
+	if config != nil && config.V5Keys {
+		subkey.PublicKey.SetVersion(5)
 	}
 
 	subkey.PublicKey.IsSubkey = true

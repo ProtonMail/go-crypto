@@ -468,7 +468,6 @@ func addSubkey(e *Entity, packets *packet.Reader, pub *packet.PublicKey, priv *p
 		case packet.SigTypeSubkeyRevocation:
 			subKey.Sig = sig
 		case packet.SigTypeSubkeyBinding:
-
 			if shouldReplaceSubkeySig(subKey.Sig, sig) {
 				subKey.Sig = sig
 			}

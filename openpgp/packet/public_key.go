@@ -63,6 +63,14 @@ func (pk *PublicKey) Version() int {
 	return 4
 }
 
+func (pk *PublicKey) SetVersion(v int) {
+	if v < 4 || v > 5 {
+		panic("unsupported version")
+	}
+	pk.version = v
+	pk.ByteCount = pk.algorithmSpecificByteCount()
+}
+
 // signingKey provides a convenient abstraction over signature verification
 // for v3 and v4 public keys.
 type signingKey interface {
@@ -199,7 +207,6 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 		}
 		pk.ByteCount = int(uint32(n[0])<<24 | uint32(n[1])<<16 | uint32(n[2])<<8 | uint32(n[3]))
 	}
-
 	pk.CreationTime = time.Unix(int64(uint32(buf[1])<<24|uint32(buf[2])<<16|uint32(buf[3])<<8|uint32(buf[4])), 0)
 	pk.PubKeyAlgo = PublicKeyAlgorithm(buf[5])
 	switch pk.PubKeyAlgo {
@@ -612,7 +619,6 @@ func (pk *PublicKey) VerifySignature(signed hash.Hash, sig *Signature) (err erro
 
 	signed.Write(sig.HashSuffix)
 	hashBytes := signed.Sum(nil)
-
 	if hashBytes[0] != sig.HashTag[0] || hashBytes[1] != sig.HashTag[1] {
 		return errors.SignatureError("hash tag doesn't match")
 	}
