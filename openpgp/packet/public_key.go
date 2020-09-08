@@ -56,6 +56,8 @@ type PublicKey struct {
 	kdf encoding.Field
 }
 
+// Version returns the version of the key. Version 3 is no longer supported,
+// version 4 is the default.
 func (pk *PublicKey) Version() int {
 	if pk.version == 5 {
 		return 5
@@ -63,12 +65,12 @@ func (pk *PublicKey) Version() int {
 	return 4
 }
 
-func (pk *PublicKey) SetVersion(v int) {
-	if v < 4 || v > 5 {
-		panic("unsupported version")
-	}
-	pk.version = v
+// UpgradeToV5 updates the version of the key to v5, and updates all necessary
+// fields.
+func (pk *PublicKey) UpgradeToV5() {
+	pk.version = 5
 	pk.ByteCount = pk.algorithmSpecificByteCount()
+	pk.setFingerPrintAndKeyId()
 }
 
 // signingKey provides a convenient abstraction over signature verification

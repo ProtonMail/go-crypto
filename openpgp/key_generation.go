@@ -35,7 +35,7 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 	}
 	primary := packet.NewSignerPrivateKey(creationTime, primaryPrivRaw)
 	if config != nil && config.V5Keys {
-		primary.SetVersion(5)
+		primary.UpgradeToV5()
 	}
 
 	isPrimaryId := true
@@ -87,7 +87,9 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 	sub := packet.NewDecrypterPrivateKey(creationTime, subPrivRaw)
 	sub.IsSubkey = true
 	sub.PublicKey.IsSubkey = true
-	sub.SetVersion(primary.Version())
+	if config != nil && config.V5Keys {
+		sub.UpgradeToV5()
+	}
 
 	subKey := Subkey{
 		PublicKey:  &sub.PublicKey,
@@ -157,7 +159,7 @@ func (e *Entity) AddSigningSubkey(config *packet.Config) error {
 		},
 	}
 	if config != nil && config.V5Keys {
-		subkey.PublicKey.SetVersion(5)
+		subkey.PublicKey.UpgradeToV5()
 	}
 
 	err = subkey.Sig.EmbeddedSignature.CrossSignKey(subkey.PublicKey, e.PrimaryKey, subkey.PrivateKey, config)
@@ -201,7 +203,7 @@ func (e *Entity) AddEncryptionSubkey(config *packet.Config) error {
 		},
 	}
 	if config != nil && config.V5Keys {
-		subkey.PublicKey.SetVersion(5)
+		subkey.PublicKey.UpgradeToV5()
 	}
 
 	subkey.PublicKey.IsSubkey = true

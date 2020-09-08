@@ -555,9 +555,14 @@ func (sig *Signature) Version() int {
 
 // MatchVersion copies the version from the given public key (implementations
 // MUST generate version 5 signatures when using a version 5 key, and SHOULD
-// generate V4 signatures with version 4 keys).
+// generate V4 signatures with version 4 keys). If the key is V5, it upgrades
+// the signature with the necessary fields.
 func (sig *Signature) MatchVersion(pk *PublicKey) {
 	sig.version = pk.Version()
+	if sig.version == 5 {
+		sig.IssuerKeyId = nil
+		sig.IssuerKeyFingerprint = pk.Fingerprint
+	}
 }
 
 // SigExpired returns whether sig is a signature that has expired or is created
@@ -637,6 +642,7 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 	if priv.Dummy() {
 		return errors.ErrDummyPrivateKey("dummy key found")
 	}
+	sig.MatchVersion(&priv.PublicKey)
 	sig.outSubpackets, err = sig.buildSubpackets()
 	if err != nil {
 		return err
@@ -875,7 +881,9 @@ func (sig *Signature) buildSubpackets() (subpackets []outputSubpacket, err error
 		subpackets = append(subpackets, outputSubpacket{true, issuerSubpacket, false, keyId})
 	}
 	if sig.IssuerKeyFingerprint != nil {
-		subpackets = append(subpackets, outputSubpacket{true, issuerFingerprintSubpacket, true, sig.IssuerKeyFingerprint})
+		contents := []uint8{uint8(sig.Version())}
+		contents = append(contents, sig.IssuerKeyFingerprint...)
+		subpackets = append(subpackets, outputSubpacket{true, issuerFingerprintSubpacket, false, contents})
 	}
 	if sig.SigLifetimeSecs != nil && *sig.SigLifetimeSecs != 0 {
 		sigLifetime := make([]byte, 4)
