@@ -22,8 +22,7 @@ func TestReadPrivateForeignV5Key(t *testing.T) {
 	}
 }
 
-// TODO
-func testReadPrivateEncryptedV5Key(t *testing.T) {
+func TestReadPrivateEncryptedV5Key(t *testing.T) {
 	c := &packet.Config{V5Keys: true}
 	e, err := NewEntity("V5 Key Owner", "V5 Key", "v5@pm.me", c)
 	if err != nil {

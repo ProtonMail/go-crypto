@@ -301,36 +301,44 @@ func (pk *PrivateKey) serializeDummy(w io.Writer) error {
 }
 
 func (pk *PrivateKey) serializeEncrypted(w io.Writer) error {
-	privateKeyBuf := bytes.NewBuffer(nil)
-	encodedKeyBuf := bytes.NewBuffer(nil)
-	encodedKeyBuf.Write([]byte{uint8(pk.s2kType)})
-	if pk.Version() == 5 {
-		encodedKeyBuf.Write([]byte{0x00}) /* no optional fields */
-	}
-	encodedKeyBuf.Write([]byte{uint8(pk.cipher)})
-	err := pk.s2kParams.Serialize(encodedKeyBuf)
+	v5 := pk.Version() == 5
+	encodedKeyBuf := bytes.NewBuffer([]byte{uint8(pk.s2kType)})
+
+	// Optional parameters
+	optionalParamsBuf := bytes.NewBuffer(nil)
+	optionalParamsBuf.Write([]byte{uint8(pk.cipher)})
+	err := pk.s2kParams.Serialize(optionalParamsBuf)
 	if err != nil {
 		return err
 	}
+	optionalParamsBuf.Write(pk.iv)
+
+	if v5 {
+		optionalParamsLength := uint8(optionalParamsBuf.Len())
+		encodedKeyBuf.Write([]byte{optionalParamsLength})
+	}
+	encodedKeyBuf.Write(optionalParamsBuf.Bytes())
+
+	// Key material and checksum
 	if pk.Version() == 5 {
 		secretMaterialCount := len(pk.encryptedData)
-		encodedKeyBuf.Write([]byte{
+		byteCount := []byte{
 			byte(secretMaterialCount >> 24),
 			byte(secretMaterialCount >> 16),
 			byte(secretMaterialCount >> 8),
 			byte(secretMaterialCount),
-		})
+		}
+		encodedKeyBuf.Write(byteCount)
 	}
 
+	privateKeyBuf := bytes.NewBuffer(nil)
 	privateKeyBuf.Write(pk.encryptedData)
 
 	encodedKey := encodedKeyBuf.Bytes()
 	privateKeyBytes := privateKeyBuf.Bytes()
 
 	w.Write(encodedKey)
-	w.Write(pk.iv)
 	w.Write(privateKeyBytes)
-
 	return nil
 }
 
