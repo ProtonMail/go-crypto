@@ -1,17 +1,17 @@
 package integrationtests
 
 import (
-	"time"
 	"bytes"
 	"crypto"
 	"crypto/rand"
+	mathrand "math/rand"
+	"strings"
+	"time"
+
 	"golang.org/x/crypto/openpgp"
 	"golang.org/x/crypto/openpgp/armor"
 	"golang.org/x/crypto/openpgp/packet"
-	mathrand "math/rand"
-	"strings"
 )
-
 
 // This function produces random test vectors: generates keys according to the
 // given settings, associates a random message for each key. It returns the
@@ -24,9 +24,13 @@ func generateFreshTestVectors() (vectors []testVector, err error) {
 		name, email, comment, password, message := randEntityData()
 
 		// Only for verbose display
-		pkAlgoNames := map[packet.PublicKeyAlgorithm]string {
-			packet.PubKeyAlgoRSA: "rsa_fresh",
-			packet.PubKeyAlgoEdDSA: "ed25519_fresh",
+		v := "_v4"
+		if config.V5Keys {
+			v = "_v5"
+		}
+		pkAlgoNames := map[packet.PublicKeyAlgorithm]string{
+			packet.PubKeyAlgoRSA:   "rsa_fresh" + v,
+			packet.PubKeyAlgoEdDSA: "ed25519_fresh" + v,
 		}
 
 		newVector := testVector{
@@ -69,7 +73,6 @@ func generateFreshTestVectors() (vectors []testVector, err error) {
 		privateKey, _ := armorWithType(serialized, "PGP PRIVATE KEY BLOCK")
 		newVector.PrivateKey = privateKey
 		newVector.PublicKey, _ = publicKey(privateKey)
-
 		vectors = append(vectors, newVector)
 	}
 	return vectors, err
@@ -206,20 +209,20 @@ func randConfig() *packet.Config {
 	}
 	ciph := ciphers[mathrand.Intn(len(ciphers))]
 
-	compAlgos := []packet.CompressionAlgo {
+	compAlgos := []packet.CompressionAlgo{
 		packet.CompressionNone,
 		packet.CompressionZIP,
 		packet.CompressionZLIB,
 	}
 	compAlgo := compAlgos[mathrand.Intn(len(compAlgos))]
 
-	pkAlgos := []packet.PublicKeyAlgorithm {
+	pkAlgos := []packet.PublicKeyAlgorithm{
 		packet.PubKeyAlgoRSA,
 		packet.PubKeyAlgoEdDSA,
 	}
 	pkAlgo := pkAlgos[mathrand.Intn(len(pkAlgos))]
 
-	aeadModes := []packet.AEADMode {
+	aeadModes := []packet.AEADMode{
 		packet.AEADModeEAX,
 		packet.AEADModeOCB,
 		packet.AEADModeExperimentalGCM,
@@ -242,18 +245,25 @@ func randConfig() *packet.Config {
 		}
 	}
 
-	level := mathrand.Intn(11)-1
+	level := mathrand.Intn(11) - 1
 	compConf := &packet.CompressionConfig{level}
 
+	var v5 bool
+	// TODO:
+	// if mathrand.Int()%2 == 0 {
+	// 	v5 = true
+	// }
+
 	return &packet.Config{
-		Rand: rand.Reader,
-		DefaultHash: hash,
-		DefaultCipher: ciph,
+		V5Keys:                 v5,
+		Rand:                   rand.Reader,
+		DefaultHash:            hash,
+		DefaultCipher:          ciph,
 		DefaultCompressionAlgo: compAlgo,
-		CompressionConfig: compConf,
-		S2KCount: 1024 + mathrand.Intn(65010689),
-		RSABits: rsaBits,
-		Algorithm: pkAlgo,
-		AEADConfig: &aeadConf,
+		CompressionConfig:      compConf,
+		S2KCount:               1024 + mathrand.Intn(65010689),
+		RSABits:                rsaBits,
+		Algorithm:              pkAlgo,
+		AEADConfig:             &aeadConf,
 	}
 }

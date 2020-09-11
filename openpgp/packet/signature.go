@@ -560,7 +560,6 @@ func (sig *Signature) Version() int {
 func (sig *Signature) MatchVersion(pk *PublicKey) {
 	sig.version = pk.Version()
 	if sig.version == 5 {
-		sig.IssuerKeyId = nil
 		sig.IssuerKeyFingerprint = pk.Fingerprint
 	}
 }
@@ -873,7 +872,9 @@ type outputSubpacket struct {
 func (sig *Signature) buildSubpackets() (subpackets []outputSubpacket, err error) {
 	creationTime := make([]byte, 4)
 	binary.BigEndian.PutUint32(creationTime, uint32(sig.CreationTime.Unix()))
-	subpackets = append(subpackets, outputSubpacket{true, creationTimeSubpacket, false, creationTime})
+	subpackets = []outputSubpacket{
+		outputSubpacket{true, creationTimeSubpacket, false, creationTime},
+	}
 
 	if sig.IssuerKeyId != nil && sig.Version() == 4 {
 		keyId := make([]byte, 8)
@@ -881,8 +882,7 @@ func (sig *Signature) buildSubpackets() (subpackets []outputSubpacket, err error
 		subpackets = append(subpackets, outputSubpacket{true, issuerSubpacket, false, keyId})
 	}
 	if sig.IssuerKeyFingerprint != nil {
-		contents := []uint8{uint8(sig.Version())}
-		contents = append(contents, sig.IssuerKeyFingerprint...)
+		contents := append([]uint8{uint8(sig.Version())}, sig.IssuerKeyFingerprint...)
 		subpackets = append(subpackets, outputSubpacket{true, issuerFingerprintSubpacket, false, contents})
 	}
 	if sig.SigLifetimeSecs != nil && *sig.SigLifetimeSecs != 0 {
