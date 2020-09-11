@@ -233,7 +233,6 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 			return
 		}
 	}
-
 	if !pk.Encrypted {
 		return pk.parsePrivateKey(pk.encryptedData)
 	}
@@ -255,130 +254,108 @@ func mod64kHash(d []byte) uint16 {
 }
 
 func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
-	buf := bytes.NewBuffer(nil)
-	err = pk.PublicKey.serializeWithoutHeaders(buf)
+	contents := bytes.NewBuffer(nil)
+	err = pk.PublicKey.serializeWithoutHeaders(contents)
 	if err != nil {
 		return
 	}
 
-	privateKeyBuf := bytes.NewBuffer(nil)
+	priv := bytes.NewBuffer(nil)
 	if pk.Dummy() {
-		err = pk.serializeDummy(privateKeyBuf)
+		err = pk.serializeDummy(priv)
 	} else if pk.Encrypted {
-		err = pk.serializeEncrypted(privateKeyBuf)
+		err = pk.serializeEncrypted(priv)
 	} else {
-		err = pk.serializeUnencrypted(privateKeyBuf)
+		err = pk.serializeUnencrypted(priv)
 	}
 	if err != nil {
 		return
 	}
 
 	ptype := packetTypePrivateKey
-	contents := buf.Bytes()
-	privateKeyBytes := privateKeyBuf.Bytes()
 	if pk.IsSubkey {
 		ptype = packetTypePrivateSubkey
 	}
-	err = serializeHeader(w, ptype, len(contents)+len(privateKeyBytes))
+	err = serializeHeader(w, ptype, contents.Len()+priv.Len())
 	if err != nil {
 		return
 	}
-	_, err = w.Write(contents)
+	_, err = io.Copy(w, contents)
 	if err != nil {
 		return
 	}
-	_, err = w.Write(privateKeyBytes)
+	_, err = io.Copy(w, priv)
 	if err != nil {
 		return
 	}
 	return
 }
 
-func (pk *PrivateKey) serializeDummy(w io.Writer) error {
-	w.Write([]byte{uint8(pk.s2kType)})
-	w.Write([]byte{uint8(pk.cipher)})
-	return pk.s2kParams.Serialize(w)
+func (pk *PrivateKey) serializeDummy(w io.Writer) (err error) {
+	v5 := pk.Version() == 5
+	if _, err = w.Write([]byte{uint8(pk.s2kType)}); err != nil {
+		return
+	}
+
+	opt := bytes.NewBuffer([]byte{uint8(pk.cipher)})
+	if err = pk.s2kParams.Serialize(opt); err != nil {
+		return
+	}
+	if v5 {
+		if _, err = w.Write([]byte{uint8(opt.Len())}); err != nil {
+			return
+		}
+	}
+	io.Copy(w, opt)
+	return
 }
 
 func (pk *PrivateKey) serializeEncrypted(w io.Writer) error {
-	v5 := pk.Version() == 5
-	encodedKeyBuf := bytes.NewBuffer([]byte{uint8(pk.s2kType)})
-
-	// Optional parameters
-	optionalParamsBuf := bytes.NewBuffer(nil)
-	optionalParamsBuf.Write([]byte{uint8(pk.cipher)})
-	err := pk.s2kParams.Serialize(optionalParamsBuf)
+	encoded := bytes.NewBuffer([]byte{uint8(pk.s2kType)})
+	opt := bytes.NewBuffer([]byte{uint8(pk.cipher)})
+	err := pk.s2kParams.Serialize(opt)
 	if err != nil {
 		return err
 	}
-	optionalParamsBuf.Write(pk.iv)
-
-	if v5 {
-		optionalParamsLength := uint8(optionalParamsBuf.Len())
-		encodedKeyBuf.Write([]byte{optionalParamsLength})
-	}
-	encodedKeyBuf.Write(optionalParamsBuf.Bytes())
-
-	// Key material and checksum
+	opt.Write(pk.iv)
 	if pk.Version() == 5 {
-		secretMaterialCount := len(pk.encryptedData)
-		byteCount := []byte{
-			byte(secretMaterialCount >> 24),
-			byte(secretMaterialCount >> 16),
-			byte(secretMaterialCount >> 8),
-			byte(secretMaterialCount),
-		}
-		encodedKeyBuf.Write(byteCount)
+		encoded.Write([]byte{uint8(opt.Len())})
 	}
+	io.Copy(encoded, opt)
 
-	privateKeyBuf := bytes.NewBuffer(nil)
-	privateKeyBuf.Write(pk.encryptedData)
-
-	encodedKey := encodedKeyBuf.Bytes()
-	privateKeyBytes := privateKeyBuf.Bytes()
-
-	w.Write(encodedKey)
-	w.Write(privateKeyBytes)
+	if pk.Version() == 5 {
+		s := len(pk.encryptedData)
+		encoded.Write([]byte{byte(s>>24), byte(s>>16), byte(s>>8), byte(s)})
+	}
+	io.Copy(w, encoded)
+	w.Write(pk.encryptedData)
 	return nil
 }
 
 func (pk *PrivateKey) serializeUnencrypted(w io.Writer) (err error) {
-	headers := bytes.NewBuffer(nil)
-	headers.Write([]byte{uint8(S2KNON)} /* no encryption */)
+	encoded := bytes.NewBuffer([]byte{uint8(S2KNON)}) /* no encryption */
 	if pk.Version() == 5 {
-		headers.Write([]byte{0x00}) /* no optional fields */
+		encoded.Write([]byte{0x00}) /* no optional fields */
 	}
-	privBuf := bytes.NewBuffer(nil)
-	err = pk.serializePrivateKey(privBuf)
+	priv := bytes.NewBuffer(nil)
+	err = pk.serializePrivateKey(priv)
 	if err != nil {
 		return err
 	}
-	privBytes, privLength := privBuf.Bytes(), privBuf.Len()
+	l := priv.Len() // Private material count
 	if pk.sha1Checksum {
 		h := sha1.New()
-		h.Write(privBytes)
-		sum := h.Sum(nil)
-		privBytes = append(privBytes, sum...)
+		io.Copy(h, priv)
+		priv.Write(h.Sum(nil))
 	} else {
-		checksum := mod64kHash(privBytes)
-		var checksumBytes [2]byte
-		checksumBytes[0] = byte(checksum >> 8)
-		checksumBytes[1] = byte(checksum)
-		privBytes = append(privBytes, checksumBytes[:]...)
+		checksum := mod64kHash(priv.Bytes())
+		priv.Write([]byte{byte(checksum>>8), byte(checksum)})
 	}
-	if pk.Version() == 5 { /* secret key material count */
-		_, err = headers.Write([]byte{
-			byte(privLength >> 24),
-			byte(privLength >> 16),
-			byte(privLength >> 8),
-			byte(privLength),
-		})
-		if err != nil {
-			return
-		}
+	if pk.Version() == 5 {
+		encoded.Write([]byte{byte(l>>24), byte(l>>16), byte(l>>8), byte(l)})
 	}
-	w.Write(headers.Bytes())
-	w.Write(privBytes)
+	io.Copy(w, encoded)
+	io.Copy(w, priv)
 	return
 }
 
@@ -470,8 +447,8 @@ func (pk *PrivateKey) Decrypt(passphrase []byte) error {
 
 // Encrypt encrypts an unencrypted private key using a passphrase.
 func (pk *PrivateKey) Encrypt(passphrase []byte) error {
-	privateKeyBuf := bytes.NewBuffer(nil)
-	err := pk.serializePrivateKey(privateKeyBuf)
+	priv := bytes.NewBuffer(nil)
+	err := pk.serializePrivateKey(priv)
 	if err != nil {
 		return err
 	}
@@ -485,7 +462,6 @@ func (pk *PrivateKey) Encrypt(passphrase []byte) error {
 	}
 
 	pk.s2kParams, err = s2k.Generate(rand.Reader, s2kConfig)
-	privateKeyBytes := privateKeyBuf.Bytes()
 	key := make([]byte, pk.cipher.KeySize())
 
 	pk.sha1Checksum = true
@@ -505,25 +481,21 @@ func (pk *PrivateKey) Encrypt(passphrase []byte) error {
 	if pk.sha1Checksum {
 		pk.s2kType = S2KSHA1
 		h := sha1.New()
-		h.Write(privateKeyBytes)
-		sum := h.Sum(nil)
-		privateKeyBytes = append(privateKeyBytes, sum...)
+		h.Write(priv.Bytes())
+		priv.Write(h.Sum(nil))
 	} else {
 		pk.s2kType = S2KCHECKSUM
 		var sum uint16
-		for i := 0; i < len(privateKeyBytes); i++ {
-			sum += uint16(privateKeyBytes[i])
+		buf := priv.Bytes()
+		for i := 0; i < priv.Len(); i++ {
+			sum += uint16(buf[i])
 		}
-		privateKeyBytes = append(privateKeyBytes, uint8(sum>>8))
-		privateKeyBytes = append(privateKeyBytes, uint8(sum))
+		priv.Write([]byte{uint8(sum>>8), uint8(sum)})
 	}
 
-	pk.encryptedData = make([]byte, len(privateKeyBytes))
-
-	cfb.XORKeyStream(pk.encryptedData, privateKeyBytes)
-
+	pk.encryptedData = make([]byte, priv.Len())
+	cfb.XORKeyStream(pk.encryptedData, priv.Bytes())
 	pk.Encrypted = true
-
 	pk.PrivateKey = nil
 	return err
 }

@@ -118,9 +118,6 @@ func checkV5Key(t *testing.T, ent *Entity) {
 		if key.Version() != 5 {
 			t.Errorf("wrong key version %d", key.Version())
 		}
-		if key.ByteCount == 0 {
-			t.Errorf("no byte count")
-		}
 		if len(key.Fingerprint) != 32 {
 			t.Errorf("Wrong fingerprint length: %d", len(key.Fingerprint))
 		}

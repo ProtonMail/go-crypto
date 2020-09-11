@@ -38,7 +38,6 @@ type PublicKey struct {
 	version      int
 	CreationTime time.Time
 	PubKeyAlgo   PublicKeyAlgorithm
-	ByteCount    int         // Version 5 only
 	PublicKey    interface{} // *rsa.PublicKey, *dsa.PublicKey, *ecdsa.PublicKey or *eddsa.PublicKey
 	Fingerprint  []byte
 	KeyId        uint64
@@ -69,7 +68,6 @@ func (pk *PublicKey) Version() int {
 // fields.
 func (pk *PublicKey) UpgradeToV5() {
 	pk.version = 5
-	pk.ByteCount = pk.algorithmSpecificByteCount()
 	pk.setFingerPrintAndKeyId()
 }
 
@@ -207,7 +205,8 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 		if err != nil {
 			return
 		}
-		pk.ByteCount = int(uint32(n[0])<<24 | uint32(n[1])<<16 | uint32(n[2])<<8 | uint32(n[3]))
+		// TODO: Use this counter against byte counts
+		// = int(uint32(n[0])<<24 | uint32(n[1])<<16 | uint32(n[2])<<8 | uint32(n[3]))
 	}
 	pk.CreationTime = time.Unix(int64(uint32(buf[1])<<24|uint32(buf[2])<<16|uint32(buf[3])<<8|uint32(buf[4])), 0)
 	pk.PubKeyAlgo = PublicKeyAlgorithm(buf[5])
