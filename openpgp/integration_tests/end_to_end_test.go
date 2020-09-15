@@ -245,8 +245,8 @@ func signVerifyTest(
 	skFrom, pkFrom openpgp.EntityList,
 	binary bool,
 ) {
-	signed := skFrom[0]
-	if err := signed.PrivateKey.Decrypt([]byte(from.Password)); err != nil {
+	signer := skFrom[0]
+	if err := signer.PrivateKey.Decrypt([]byte(from.Password)); err != nil {
 		t.Error(err)
 	}
 
@@ -268,9 +268,9 @@ func signVerifyTest(
 	buf := new(bytes.Buffer)
 	var errSign error
 	if binary {
-		errSign = openpgp.ArmoredDetachSign(buf, signed, message, nil)
+		errSign = openpgp.ArmoredDetachSign(buf, signer, message, nil)
 	} else {
-		errSign = openpgp.ArmoredDetachSignText(buf, signed, message, nil)
+		errSign = openpgp.ArmoredDetachSignText(buf, signer, message, nil)
 	}
 	if errSign != nil {
 		t.Error(errSign)
@@ -306,7 +306,7 @@ func signVerifyTest(
 		if otherSigner == nil {
 			t.Fatalf("signer is nil")
 		}
-		if otherSigner.PrimaryKey.KeyId != signed.PrimaryKey.KeyId {
+		if otherSigner.PrimaryKey.KeyId != signer.PrimaryKey.KeyId {
 			t.Errorf(
 				"wrong signer got:%x want:%x", otherSigner.PrimaryKey.KeyId, 0)
 		}
@@ -322,17 +322,21 @@ func signVerifyTest(
 		t.Error(errSeek)
 	}
 
-	signer, err := openpgp.CheckArmoredDetachedSignature(
+	sigSigner, err := openpgp.CheckArmoredDetachedSignature(
 		pkFrom, message, signatureReader, nil)
 
 	if err != nil {
 		t.Fatalf("signature error: %s", err)
 	}
-	if signer == nil {
+	if sigSigner == nil {
 		t.Fatalf("signer is nil")
 	}
-	if signer.PrimaryKey.KeyId != signed.PrimaryKey.KeyId {
-		t.Errorf("wrong signer got:%x want:%x", signer.PrimaryKey.KeyId, 0)
+	if sigSigner.PrimaryKey.KeyId != signer.PrimaryKey.KeyId {
+		t.Errorf(
+			"wrong signer got:%x want:%x",
+			sigSigner.PrimaryKey.KeyId,
+			signer.PrimaryKey.KeyId,
+		)
 	}
 }
 

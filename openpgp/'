@@ -11,6 +11,7 @@ import (
 	"crypto/ecdsa"
 	"encoding/asn1"
 	"encoding/binary"
+	"fmt"
 	"hash"
 	"io"
 	"math/big"
@@ -117,12 +118,70 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 	}
 
 	hashedSubpacketsLength := int(buf[3])<<8 | int(buf[4])
-	hashedSubpackets := make([]byte, hashedSubpacketsLength)
-	_, err = readFull(r, hashedSubpackets)
-	if err != nil {
-		return
+	l := 6 + hashedSubpacketsLength
+	var hashedSubpackets []byte
+	switch sig.version {
+	case 5:
+		hashedFields := bytes.NewBuffer([]byte{0x05})
+		sig.HashSuffix = make([]byte, l)
+		sig.HashSuffix[0] = 0x05
+		println()
+		fmt.Println(hashedFields.Bytes())
+		fmt.Println(sig.HashSuffix)
+		println()
+		copy(sig.HashSuffix[1:], buf[:5])
+		hashedFields.Write(buf[:5])
+		println()
+		fmt.Println(hashedFields.Bytes())
+		fmt.Println(sig.HashSuffix)
+		println()
+		hashedSubpackets = sig.HashSuffix[6:l]
+		_, err = readFull(r, hashedSubpackets)
+		if err != nil {
+			return
+		}
+		hashedFields.Write(hashedSubpackets)
+		println()
+		fmt.Println(hashedFields.Bytes())
+		fmt.Println(sig.HashSuffix)
+		println()
+		if sig.SigType == SigTypeBinary || sig.SigType == SigTypeText {
+			l += 6
+			sig.HashSuffix = append(sig.HashSuffix, []byte{
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			}...)
+		}
+		// See RFC 4880, section 5.2.4
+		trailer := make([]byte, 10)
+		trailer[0] = 0x05
+		trailer[1] = 0xff
+		trailer[2] = uint8(l >> 56)
+		trailer[3] = uint8(l >> 48)
+		trailer[4] = uint8(l >> 40)
+		trailer[5] = uint8(l >> 32)
+		trailer[6] = uint8(l >> 24)
+		trailer[7] = uint8(l >> 16)
+		trailer[8] = uint8(l >> 8)
+		trailer[9] = uint8(l)
+		sig.HashSuffix = append(sig.HashSuffix, trailer...)
+	default: // Version 4
+		sig.HashSuffix = make([]byte, l+6)
+		sig.HashSuffix[0] = 4
+		copy(sig.HashSuffix[1:], buf[:5])
+		hashedSubpackets = sig.HashSuffix[6:l]
+		_, err = readFull(r, hashedSubpackets)
+		if err != nil {
+			return
+		}
+		// See RFC 4880, section 5.2.4
+		trailer := sig.HashSuffix[l:]
+		trailer[0] = 4
+		trailer[1] = 0xff
+		trailer[2] = uint8(l >> 24)
+		trailer[3] = uint8(l >> 16)
+		trailer[4] = uint8(l >> 8)
+		trailer[5] = uint8(l)
 	}
-	sig.buildHashSuffix(hashedSubpackets)
 	err = parseSignatureSubpackets(sig, hashedSubpackets, true)
 	if err != nil {
 		return
@@ -544,52 +603,51 @@ func (sig *Signature) SigExpired(currentTime time.Time) bool {
 }
 
 // buildHashSuffix constructs the HashSuffix member of sig in preparation for signing.
-func (sig *Signature) buildHashSuffix(hashedSubpackets []byte) (err error) {
-	hash, ok := s2k.HashToHashId(sig.Hash)
+func (sig *Signature) buildHashSuffix() (err error) {
+	hashedSubpacketsLen := subpacketsLength(sig.outSubpackets, true)
+
+	var ok bool
+	l := 6 + hashedSubpacketsLen
+	sig.HashSuffix = make([]byte, l+6)
+	sig.HashSuffix[0] = uint8(sig.Version())
+	sig.HashSuffix[1] = uint8(sig.SigType)
+	sig.HashSuffix[2] = uint8(sig.PubKeyAlgo)
+	sig.HashSuffix[3], ok = s2k.HashToHashId(sig.Hash)
 	if !ok {
 		sig.HashSuffix = nil
 		return errors.InvalidArgumentError("hash cannot be represented in OpenPGP: " + strconv.Itoa(int(sig.Hash)))
 	}
-
-	hashedFields := bytes.NewBuffer([]byte{
-		uint8(sig.Version()),
-		uint8(sig.SigType),
-		uint8(sig.PubKeyAlgo),
-		uint8(hash),
-		uint8(len(hashedSubpackets) >> 8),
-		uint8(len(hashedSubpackets)),
-	})
-	hashedFields.Write(hashedSubpackets)
-
-
-	l := 6 + len(hashedSubpackets)
+	sig.HashSuffix[4] = byte(hashedSubpacketsLen >> 8)
+	sig.HashSuffix[5] = byte(hashedSubpacketsLen)
+	serializeSubpackets(sig.HashSuffix[6:l], sig.outSubpackets, true)
 	switch sig.version {
 	case 5:
-		if sig.SigType == SigTypeBinary || sig.SigType == SigTypeText {
-			l += 6
-			hashedFields.Write([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
-		}
-		hashedFields.Write([]byte{0x05, 0xff})
-		hashedFields.Write([]byte{
-			uint8(l >> 56), uint8(l >> 48), uint8(l >> 40), uint8(l >> 32),
-			uint8(l >> 24), uint8(l >> 16), uint8(l >> 8), uint8(l),
-		})
+		sig.HashSuffix = append(sig.HashSuffix, make([]byte, 4)...)
+		trailer := sig.HashSuffix[l:]
+		trailer[0] = 5
+		trailer[1] = 0xff
+		trailer[2] = uint8(l >> 56)
+		trailer[3] = uint8(l >> 48)
+		trailer[4] = uint8(l >> 40)
+		trailer[5] = uint8(l >> 32)
+		trailer[6] = uint8(l >> 24)
+		trailer[7] = uint8(l >> 16)
+		trailer[8] = uint8(l >> 8)
+		trailer[9] = uint8(l)
 	default: // Version 4
-		hashedFields.Write([]byte{0x04, 0xff})
-		hashedFields.Write([]byte{
-			uint8(l >> 24), uint8(l >> 16), uint8(l >> 8), uint8(l),
-		})
+		trailer := sig.HashSuffix[l:]
+		trailer[0] = 4
+		trailer[1] = 0xff
+		trailer[2] = byte(l >> 24)
+		trailer[3] = byte(l >> 16)
+		trailer[4] = byte(l >> 8)
+		trailer[5] = byte(l)
 	}
-	sig.HashSuffix = make([]byte, hashedFields.Len())
-	copy(sig.HashSuffix, hashedFields.Bytes())
 	return
 }
 
 func (sig *Signature) signPrepareHash(h hash.Hash) (digest []byte, err error) {
-	hashedSubpacketsLen := subpacketsLength(sig.outSubpackets, true)
-	hashedSubpackets := make([]byte, hashedSubpacketsLen)
-	serializeSubpackets(hashedSubpackets, sig.outSubpackets, true)
-	err = sig.buildHashSuffix(hashedSubpackets)
+	err = sig.buildHashSuffix()
 	if err != nil {
 		return
 	}
@@ -770,6 +828,7 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 	if err != nil {
 		return
 	}
+
 	err = sig.serializeBody(w)
 	if err != nil {
 		return err
@@ -779,14 +838,12 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 
 func (sig *Signature) serializeBody(w io.Writer) (err error) {
 	unhashedSubpacketsLen := subpacketsLength(sig.outSubpackets, false)
-	fields := sig.HashSuffix[:len(sig.HashSuffix)-6]
-	if sig.Version() == 5 {
-		fields = fields[:len(fields)-4]
-		if sig.SigType == SigTypeBinary || sig.SigType == SigTypeText {
-			fields = fields[:len(fields)-6]
-		}
+	switch sig.version {
+	case 5:
+		_, err = w.Write(sig.HashSuffix[:len(sig.HashSuffix)-10])
+	default:
+		_, err = w.Write(sig.HashSuffix[:len(sig.HashSuffix)-6])
 	}
-	_, err = w.Write(fields)
 	if err != nil {
 		return
 	}

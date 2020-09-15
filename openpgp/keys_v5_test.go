@@ -68,21 +68,6 @@ func TestReadPrivateEncryptedV5Key(t *testing.T) {
 	checkV5Key(t, el[0])
 }
 
-// TODO
-func testDetachedSignatureV5Key(t *testing.T) {
-	// Signature from
-	// mailarchive.ietf.org/arch/msg/openpgp/9SheW_LENE0Kxf7haNllovPyAdY/
-	kring, err := ReadArmoredKeyRing(strings.NewReader(v5PrivKey))
-	if err != nil {
-		t.Fatal(err)
-	}
-	sig := strings.NewReader(v5detachedSig)
-	_, err = CheckArmoredDetachedSignature(kring, nil, sig, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestReadPrivateSerializeForeignV5Key(t *testing.T) {
 	for _, str := range foreignKeys {
 		el, err := ReadArmoredKeyRing(strings.NewReader(str))
