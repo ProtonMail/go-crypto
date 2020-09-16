@@ -43,10 +43,11 @@ func GenerateKey(c elliptic.Curve, kdf KDF, rand io.Reader) (priv *PrivateKey, e
 	return
 }
 
-func Encrypt(random io.Reader, pub *PublicKey, msg, curveOID, fingerprint []byte) (vsG, c []byte, err error) {
+func Encrypt(random io.Reader, pub *PublicKey, msg, curveOID, fgpt []byte) (vsG, c []byte, err error) {
 	if len(msg) > 40 {
 		return nil, nil, errors.New("ecdh: message too long")
 	}
+	fingerprint := fgpt[:20] // For v5 keys the 20 leftmost octets are used.
 	// the sender MAY use 21, 13, and 5 bytes of padding for AES-128,
 	// AES-192, and AES-256, respectively, to provide the same number of
 	// octets, 40 total, as an input to the key wrapping method.
@@ -86,7 +87,8 @@ func Encrypt(random io.Reader, pub *PublicKey, msg, curveOID, fingerprint []byte
 
 }
 
-func Decrypt(priv *PrivateKey, vsG, m, curveOID, fingerprint []byte) (msg []byte, err error) {
+func Decrypt(priv *PrivateKey, vsG, m, curveOID, fgpt []byte) (msg []byte, err error) {
+	fingerprint := fgpt[:20] // For v5 keys the 20 leftmost octets are used.
 	if priv.PublicKey.CurveType == ecc.Curve25519 {
 		return X25519Decrypt(priv, vsG, m, curveOID, fingerprint)
 	}

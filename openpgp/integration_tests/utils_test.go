@@ -24,13 +24,13 @@ func generateFreshTestVectors() (vectors []testVector, err error) {
 		name, email, comment, password, message := randEntityData()
 
 		// Only for verbose display
-		v := "_v4"
+		v := "v4"
 		if config.V5Keys {
-			v = "_v5"
+			v = "v5"
 		}
 		pkAlgoNames := map[packet.PublicKeyAlgorithm]string{
-			packet.PubKeyAlgoRSA:   "rsa_fresh" + v,
-			packet.PubKeyAlgoEdDSA: "ed25519_fresh" + v,
+			packet.PubKeyAlgoRSA:   "rsa_" + v,
+			packet.PubKeyAlgoEdDSA: "ed25519_" + v,
 		}
 
 		newVector := testVector{
@@ -249,10 +249,9 @@ func randConfig() *packet.Config {
 	compConf := &packet.CompressionConfig{level}
 
 	var v5 bool
-	// TODO:
-	// if mathrand.Int()%2 == 0 {
-	// 	v5 = true
-	// }
+	if mathrand.Int()%2 == 0 {
+		v5 = true
+	}
 
 	return &packet.Config{
 		V5Keys:                 v5,
