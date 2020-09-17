@@ -303,13 +303,6 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		}
 		sig.PreferredSymmetric = make([]byte, len(subpacket))
 		copy(sig.PreferredSymmetric, subpacket)
-	case prefAeadAlgosSubpacket:
-		// Preferred symmetric algorithms, section 5.2.3.8
-		if !isHashed {
-			return
-		}
-		sig.PreferredAEAD = make([]byte, len(subpacket))
-		copy(sig.PreferredAEAD, subpacket)
 	case issuerSubpacket:
 		if sig.Version() > 4 {
 			err = errors.StructuralError("issuer subpacket found in v5 key")
@@ -431,6 +424,13 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		} else {
 			*sig.IssuerKeyId = binary.BigEndian.Uint64(subpacket[13:21])
 		}
+	case prefAeadAlgosSubpacket:
+		// Preferred symmetric algorithms, section 5.2.3.8
+		if !isHashed {
+			return
+		}
+		sig.PreferredAEAD = make([]byte, len(subpacket))
+		copy(sig.PreferredAEAD, subpacket)
 	default:
 		if isCritical {
 			err = errors.UnsupportedError("unknown critical signature subpacket type " + strconv.Itoa(int(packetType)))
@@ -455,9 +455,7 @@ func subpacketLengthLength(length int) int {
 	return 5
 }
 
-// TODO (when parsing sig): the key ID of the Issuer subpacket MUST match the low 64
-// bits of the fingerprint.
-func (sig *Signature) MatchKeyIdOrFingerprint(pk *PublicKey) bool {
+func (sig *Signature) CheckKeyIdOrFingerprint(pk *PublicKey) bool {
 	if sig.IssuerKeyId != nil && *sig.IssuerKeyId == pk.KeyId {
 		return true
 	}
@@ -851,11 +849,11 @@ func (sig *Signature) buildSubpackets() (subpackets []outputSubpacket, err error
 	if sig.IssuerKeyId != nil && sig.Version() == 4 {
 		keyId := make([]byte, 8)
 		binary.BigEndian.PutUint64(keyId, *sig.IssuerKeyId)
-		subpackets = append(subpackets, outputSubpacket{true, issuerSubpacket, false, keyId})
+		subpackets = append(subpackets, outputSubpacket{true, issuerSubpacket, true, keyId})
 	}
 	if sig.IssuerKeyFingerprint != nil {
 		contents := append([]uint8{uint8(sig.Version())}, sig.IssuerKeyFingerprint...)
-		subpackets = append(subpackets, outputSubpacket{true, issuerFingerprintSubpacket, false, contents})
+		subpackets = append(subpackets, outputSubpacket{true, issuerFingerprintSubpacket, true, contents})
 	}
 	if sig.SigLifetimeSecs != nil && *sig.SigLifetimeSecs != 0 {
 		sigLifetime := make([]byte, 4)

@@ -51,7 +51,7 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 		FlagCertify:  true,
 		MDC:          true, // true by default, see 5.8 vs. 5.14
 		AEAD:         config.AEAD() != nil,
-		V5Keys:       config.V5Keys,
+		V5Keys:       config != nil && config.V5Keys,
 	}
 	selfSignature.MatchVersion(&primary.PublicKey)
 
