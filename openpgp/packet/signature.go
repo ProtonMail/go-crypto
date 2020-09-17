@@ -72,9 +72,10 @@ type Signature struct {
 	RevocationReason     *uint8
 	RevocationReasonText string
 
-	// MDC (resp. AEAD) is set if this signature has a feature subpacket that
-	// indicates support for MDC (resp. AEAD) packets.
-	MDC, AEAD bool
+	// In a self-signature, these features are set there is a features
+	// subpacket indicating that the issuer implementation supports these
+	// features (section 5.2.5.25).
+	MDC, AEAD, V5Keys bool
 
 	// EmbeddedSignature, if non-nil, is a signature of the parent key, by
 	// this key. This prevents an attacker from claiming another's signing
@@ -394,6 +395,9 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 			}
 			if subpacket[0]&0x02 != 0 {
 				sig.AEAD = true
+			}
+			if subpacket[0]&0x04 != 0 {
+				sig.V5Keys = true
 			}
 		}
 	case embeddedSignatureSubpacket:
@@ -886,6 +890,9 @@ func (sig *Signature) buildSubpackets() (subpackets []outputSubpacket, err error
 	}
 	if sig.AEAD {
 		features |= 0x02
+	}
+	if sig.V5Keys {
+		features |= 0x04
 	}
 
 	if features != 0x00 {
