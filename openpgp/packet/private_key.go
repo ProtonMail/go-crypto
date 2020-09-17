@@ -292,36 +292,35 @@ func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 }
 
 func (pk *PrivateKey) serializeDummy(w io.Writer) (err error) {
-	v5 := pk.Version() == 5
 	if _, err = w.Write([]byte{uint8(pk.s2kType)}); err != nil {
 		return
 	}
 
-	opt := bytes.NewBuffer([]byte{uint8(pk.cipher)})
-	if err = pk.s2kParams.Serialize(opt); err != nil {
+	optional := bytes.NewBuffer([]byte{uint8(pk.cipher)})
+	if err = pk.s2kParams.Serialize(optional); err != nil {
 		return
 	}
-	if v5 {
-		if _, err = w.Write([]byte{uint8(opt.Len())}); err != nil {
+	if pk.Version() == 5 {
+		if _, err = w.Write([]byte{uint8(optional.Len())}); err != nil {
 			return
 		}
 	}
-	io.Copy(w, opt)
+	io.Copy(w, optional)
 	return
 }
 
 func (pk *PrivateKey) serializeEncrypted(w io.Writer) error {
 	encoded := bytes.NewBuffer([]byte{uint8(pk.s2kType)})
-	opt := bytes.NewBuffer([]byte{uint8(pk.cipher)})
-	err := pk.s2kParams.Serialize(opt)
+	optional := bytes.NewBuffer([]byte{uint8(pk.cipher)})
+	err := pk.s2kParams.Serialize(optional)
 	if err != nil {
 		return err
 	}
-	opt.Write(pk.iv)
+	optional.Write(pk.iv)
 	if pk.Version() == 5 {
-		encoded.Write([]byte{uint8(opt.Len())})
+		encoded.Write([]byte{uint8(optional.Len())})
 	}
-	io.Copy(encoded, opt)
+	io.Copy(encoded, optional)
 
 	if pk.Version() == 5 {
 		s := len(pk.encryptedData)

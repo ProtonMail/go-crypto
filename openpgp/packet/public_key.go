@@ -236,14 +236,13 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 
 func (pk *PublicKey) setFingerPrintAndKeyId() {
 	// RFC 4880, section 12.2
-	switch pk.Version() {
-	case 5:
+	if pk.Version() == 5 {
 		fingerPrint := sha256.New()
 		pk.SerializeForHash(fingerPrint)
 		pk.Fingerprint = make([]byte, 32)
 		copy(pk.Fingerprint, fingerPrint.Sum(nil))
 		pk.KeyId = binary.BigEndian.Uint64(pk.Fingerprint[:8])
-	default: // Version 4
+	} else {
 		fingerPrint := sha1.New()
 		pk.SerializeForHash(fingerPrint)
 		pk.Fingerprint = make([]byte, 20)
@@ -459,8 +458,7 @@ func (pk *PublicKey) SerializeForHash(w io.Writer) error {
 // RFC 4880, section 5.2.4.
 func (pk *PublicKey) SerializeSignaturePrefix(w io.Writer) {
 	var pLength = pk.algorithmSpecificByteCount()
-	switch pk.Version() {
-	case 5:
+	if pk.Version() == 5 {
 		pLength += 10 // version, timestamp (4), algorithm, key octet count (4).
 		w.Write([]byte{
 			0x9A,
@@ -469,11 +467,10 @@ func (pk *PublicKey) SerializeSignaturePrefix(w io.Writer) {
 			byte(pLength >> 8),
 			byte(pLength),
 		})
-	default: // Version 4
-		pLength += 6
-		w.Write([]byte{0x99, byte(pLength >> 8), byte(pLength)})
+		return
 	}
-	return
+	pLength += 6
+	w.Write([]byte{0x99, byte(pLength >> 8), byte(pLength)})
 }
 
 func (pk *PublicKey) Serialize(w io.Writer) (err error) {

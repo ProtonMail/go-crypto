@@ -53,7 +53,7 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 		AEAD:         config.AEAD() != nil,
 		V5Keys:       config != nil && config.V5Keys,
 	}
-	selfSignature.MatchVersion(&primary.PublicKey)
+	selfSignature.MatchIssuerVersion(&primary.PublicKey)
 
 	// Set the PreferredHash for the SelfSignature from the packet.Config.
 	// If it is not the must-implement algorithm from rfc4880bis, append that.

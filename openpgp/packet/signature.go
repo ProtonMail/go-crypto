@@ -521,14 +521,14 @@ func (sig *Signature) Version() int {
 	return 4
 }
 
-// MatchVersion copies the version from the given public key (implementations
-// MUST generate version 5 signatures when using a version 5 key, and SHOULD
-// generate V4 signatures with version 4 keys). If the key is V5, it upgrades
-// the signature with the necessary fields.
-func (sig *Signature) MatchVersion(pk *PublicKey) {
-	sig.version = pk.Version()
+// MatchIssuerVersion copies the version from the issuer public key
+// (implementations MUST generate version 5 signatures when using a version 5
+// key, and SHOULD generate V4 signatures with version 4 keys). If the key is
+// V5, it upgrades the signature with the necessary fields.
+func (sig *Signature) MatchIssuerVersion(issuer *PublicKey) {
+	sig.version = issuer.Version()
 	if sig.version == 5 {
-		sig.IssuerKeyFingerprint = pk.Fingerprint
+		sig.IssuerKeyFingerprint = issuer.Fingerprint
 	}
 }
 
@@ -565,8 +565,7 @@ func (sig *Signature) buildHashSuffix(hashedSubpackets []byte) (err error) {
 
 
 	l := 6 + len(hashedSubpackets)
-	switch sig.version {
-	case 5:
+	if sig.Version() == 5 {
 		if sig.SigType == SigTypeBinary || sig.SigType == SigTypeText {
 			l += 6
 			hashedFields.Write([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
@@ -576,7 +575,7 @@ func (sig *Signature) buildHashSuffix(hashedSubpackets []byte) (err error) {
 			uint8(l >> 56), uint8(l >> 48), uint8(l >> 40), uint8(l >> 32),
 			uint8(l >> 24), uint8(l >> 16), uint8(l >> 8), uint8(l),
 		})
-	default: // Version 4
+	} else {
 		hashedFields.Write([]byte{0x04, 0xff})
 		hashedFields.Write([]byte{
 			uint8(l >> 24), uint8(l >> 16), uint8(l >> 8), uint8(l),
@@ -610,7 +609,7 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 	if priv.Dummy() {
 		return errors.ErrDummyPrivateKey("dummy key found")
 	}
-	sig.MatchVersion(&priv.PublicKey)
+	sig.MatchIssuerVersion(&priv.PublicKey)
 	sig.outSubpackets, err = sig.buildSubpackets()
 	if err != nil {
 		return err
@@ -765,7 +764,7 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 	length := len(sig.HashSuffix) - 6 /* trailer not included */ +
 		2 /* length of unhashed subpackets */ + unhashedSubpacketsLen +
 		2 /* hash tag */ + sigLength
-	if sig.version == 5 {
+	if sig.Version() == 5 {
 		length -= 4 // eight-octet instead of four-octet big endian
 	}
 	err = serializeHeader(w, packetTypeSignature, length)
