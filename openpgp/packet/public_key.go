@@ -205,8 +205,6 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 		if err != nil {
 			return
 		}
-		// TODO: Use this counter against byte counts
-		// = int(uint32(n[0])<<24 | uint32(n[1])<<16 | uint32(n[2])<<8 | uint32(n[3]))
 	}
 	pk.CreationTime = time.Unix(int64(uint32(buf[1])<<24|uint32(buf[2])<<16|uint32(buf[3])<<8|uint32(buf[4])), 0)
 	pk.PubKeyAlgo = PublicKeyAlgorithm(buf[5])
@@ -524,28 +522,20 @@ func (pk *PublicKey) algorithmSpecificByteCount() int {
 // serializeWithoutHeaders marshals the PublicKey to w in the form of an
 // OpenPGP public key packet, not including the packet header.
 func (pk *PublicKey) serializeWithoutHeaders(w io.Writer) (err error) {
-	var buf [6]byte
-	buf[0] = byte(pk.Version())
 	t := uint32(pk.CreationTime.Unix())
-	buf[1] = byte(t >> 24)
-	buf[2] = byte(t >> 16)
-	buf[3] = byte(t >> 8)
-	buf[4] = byte(t)
-	buf[5] = byte(pk.PubKeyAlgo)
-
-	_, err = w.Write(buf[:])
-	if err != nil {
+	if _, err = w.Write([]byte{
+		byte(pk.Version()),
+		byte(t >> 24), byte(t >> 16), byte(t >> 8), byte(t),
+		byte(pk.PubKeyAlgo),
+	}); err != nil {
 		return
 	}
+
 	if pk.Version() == 5 {
-		var n [4]byte
-		algoKeyCount := pk.algorithmSpecificByteCount()
-		n[0] = byte(algoKeyCount >> 24)
-		n[1] = byte(algoKeyCount >> 16)
-		n[2] = byte(algoKeyCount >> 8)
-		n[3] = byte(algoKeyCount)
-		_, err = w.Write(n[:])
-		if err != nil {
+		n := pk.algorithmSpecificByteCount()
+		if _, err = w.Write([]byte{
+			byte(n >> 24), byte(n >> 16), byte(n >> 8), byte(n),
+		}); err != nil {
 			return
 		}
 	}

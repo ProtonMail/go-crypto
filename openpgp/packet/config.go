@@ -61,7 +61,7 @@ type Config struct {
 	// implementations, as well as future versions of this library.**
 	AEADConfig *AEADConfig
 	// V5Keys configures version 5 key generation. If false, this package still
-	// supports version 5 and signatures, but generates version 4 keys.
+	// supports version 5 keys, but produces version 4 keys.
 	V5Keys bool
 }
 

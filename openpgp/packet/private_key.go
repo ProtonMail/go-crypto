@@ -160,12 +160,11 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 		return
 	}
 	pk.s2kType = S2KType(buf[0])
+	var optCount [1]byte
 	if v5 {
-		var oct [1]byte
-		if _, err = readFull(r, oct[:]); err != nil {
+		if _, err = readFull(r, optCount[:]); err != nil {
 			return
 		}
-		// TODO: Check this count against optional fields
 	}
 
 	switch pk.s2kType {

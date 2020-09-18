@@ -254,7 +254,7 @@ func serializeEncryptedKeyElGamal(w io.Writer, rand io.Reader, header [10]byte, 
 }
 
 func serializeEncryptedKeyECDH(w io.Writer, rand io.Reader, header [10]byte, pub *ecdh.PublicKey, keyBlock []byte, oid encoding.Field, fingerPrint []byte) error {
-	vsG, c, err := ecdh.Encrypt(rand, pub, keyBlock, oid.EncodedBytes(), fingerPrint[:20])
+	vsG, c, err := ecdh.Encrypt(rand, pub, keyBlock, oid.EncodedBytes(), fingerPrint)
 	if err != nil {
 		return errors.InvalidArgumentError("ECDH encryption failed: " + err.Error())
 	}
