@@ -68,7 +68,6 @@ func detachSign(w io.Writer, signer *Entity, message io.Reader, sigType packet.S
 	}
 
 	sig := new(packet.Signature)
-	sig.MatchIssuerVersion(&signer.PrivateKey.PublicKey)
 	sig.SigType = sigType
 	sig.PubKeyAlgo = signer.PrivateKey.PubKeyAlgo
 	sig.Hash = config.Hash()
