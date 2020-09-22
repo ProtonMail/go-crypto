@@ -527,9 +527,7 @@ func (sig *Signature) Version() int {
 // V5, it upgrades the signature with the necessary fields.
 func (sig *Signature) MatchIssuerVersion(issuer *PublicKey) {
 	sig.version = issuer.Version()
-	if sig.version == 5 {
-		sig.IssuerKeyFingerprint = issuer.Fingerprint
-	}
+	sig.IssuerKeyFingerprint = issuer.Fingerprint
 }
 
 // SigExpired returns whether sig is a signature that has expired or is created
