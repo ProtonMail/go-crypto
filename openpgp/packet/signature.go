@@ -513,15 +513,6 @@ func serializeSubpackets(to []byte, subpackets []outputSubpacket, hashed bool) {
 	return
 }
 
-// MatchIssuerVersion copies the version from the issuer public key
-// (implementations MUST generate version 5 signatures when using a version 5
-// key, and SHOULD generate V4 signatures with version 4 keys). If the key is
-// V5, it upgrades the signature with the necessary fields.
-func (sig *Signature) MatchIssuerVersion(issuer *PublicKey) {
-	sig.Version = issuer.Version
-	sig.IssuerKeyFingerprint = issuer.Fingerprint
-}
-
 // SigExpired returns whether sig is a signature that has expired or is created
 // in the future.
 func (sig *Signature) SigExpired(currentTime time.Time) bool {
@@ -599,7 +590,8 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 	if priv.Dummy() {
 		return errors.ErrDummyPrivateKey("dummy key found")
 	}
-	sig.MatchIssuerVersion(&priv.PublicKey)
+	sig.Version = priv.PublicKey.Version
+	sig.IssuerKeyFingerprint = priv.PublicKey.Fingerprint
 	sig.outSubpackets, err = sig.buildSubpackets()
 	if err != nil {
 		return err
