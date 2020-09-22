@@ -195,7 +195,7 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 		return
 	}
 	if buf[0] != 4 && buf[0] != 5 {
-		return errors.UnsupportedError("public key version")
+		return errors.UnsupportedError("public key version " + strconv.Itoa(int(buf[0])))
 	}
 
 	pk.version = int(buf[0])
