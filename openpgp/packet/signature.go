@@ -32,7 +32,7 @@ const (
 
 // Signature represents a signature. See RFC 4880, section 5.2.
 type Signature struct {
-	version    int
+	Version    int
 	SigType    SignatureType
 	PubKeyAlgo PublicKeyAlgorithm
 	Hash       crypto.Hash
@@ -96,7 +96,7 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 		err = errors.UnsupportedError("signature packet version " + strconv.Itoa(int(buf[0])))
 		return
 	}
-	sig.version = int(buf[0])
+	sig.Version = int(buf[0])
 
 	_, err = readFull(r, buf[:5])
 	if err != nil {
@@ -304,7 +304,7 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		sig.PreferredSymmetric = make([]byte, len(subpacket))
 		copy(sig.PreferredSymmetric, subpacket)
 	case issuerSubpacket:
-		if sig.Version() > 4 {
+		if sig.Version > 4 {
 			err = errors.StructuralError("issuer subpacket found in v5 key")
 		}
 		// Issuer, section 5.2.3.5
@@ -513,20 +513,12 @@ func serializeSubpackets(to []byte, subpackets []outputSubpacket, hashed bool) {
 	return
 }
 
-// Version returns the version of the signature. It defaults to version 4.
-func (sig *Signature) Version() int {
-	if sig.version == 5 {
-		return 5
-	}
-	return 4
-}
-
 // MatchIssuerVersion copies the version from the issuer public key
 // (implementations MUST generate version 5 signatures when using a version 5
 // key, and SHOULD generate V4 signatures with version 4 keys). If the key is
 // V5, it upgrades the signature with the necessary fields.
 func (sig *Signature) MatchIssuerVersion(issuer *PublicKey) {
-	sig.version = issuer.Version()
+	sig.Version = issuer.Version
 	sig.IssuerKeyFingerprint = issuer.Fingerprint
 }
 
@@ -552,7 +544,7 @@ func (sig *Signature) buildHashSuffix(hashedSubpackets []byte) (err error) {
 	}
 
 	hashedFields := bytes.NewBuffer([]byte{
-		uint8(sig.Version()),
+		uint8(sig.Version),
 		uint8(sig.SigType),
 		uint8(sig.PubKeyAlgo),
 		uint8(hash),
@@ -563,7 +555,7 @@ func (sig *Signature) buildHashSuffix(hashedSubpackets []byte) (err error) {
 
 
 	l := 6 + len(hashedSubpackets)
-	if sig.Version() == 5 {
+	if sig.Version == 5 {
 		if sig.SigType == SigTypeBinary || sig.SigType == SigTypeText {
 			l += 6
 			hashedFields.Write([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
@@ -762,7 +754,7 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 	length := len(sig.HashSuffix) - 6 /* trailer not included */ +
 		2 /* length of unhashed subpackets */ + unhashedSubpacketsLen +
 		2 /* hash tag */ + sigLength
-	if sig.Version() == 5 {
+	if sig.Version == 5 {
 		length -= 4 // eight-octet instead of four-octet big endian
 	}
 	err = serializeHeader(w, packetTypeSignature, length)
@@ -779,7 +771,7 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 func (sig *Signature) serializeBody(w io.Writer) (err error) {
 	unhashedSubpacketsLen := subpacketsLength(sig.outSubpackets, false)
 	fields := sig.HashSuffix[:len(sig.HashSuffix)-6]
-	if sig.Version() == 5 {
+	if sig.Version == 5 {
 		fields = fields[:len(fields)-4]
 		if sig.SigType == SigTypeBinary || sig.SigType == SigTypeText {
 			fields = fields[:len(fields)-6]
@@ -839,17 +831,15 @@ type outputSubpacket struct {
 func (sig *Signature) buildSubpackets() (subpackets []outputSubpacket, err error) {
 	creationTime := make([]byte, 4)
 	binary.BigEndian.PutUint32(creationTime, uint32(sig.CreationTime.Unix()))
-	subpackets = []outputSubpacket{
-		outputSubpacket{true, creationTimeSubpacket, false, creationTime},
-	}
+	subpackets = append(subpackets, outputSubpacket{true, creationTimeSubpacket, false, creationTime})
 
-	if sig.IssuerKeyId != nil && sig.Version() == 4 {
+	if sig.IssuerKeyId != nil && sig.Version == 4 {
 		keyId := make([]byte, 8)
 		binary.BigEndian.PutUint64(keyId, *sig.IssuerKeyId)
 		subpackets = append(subpackets, outputSubpacket{true, issuerSubpacket, true, keyId})
 	}
 	if sig.IssuerKeyFingerprint != nil {
-		contents := append([]uint8{uint8(sig.Version())}, sig.IssuerKeyFingerprint...)
+		contents := append([]uint8{uint8(sig.Version)}, sig.IssuerKeyFingerprint...)
 		subpackets = append(subpackets, outputSubpacket{true, issuerFingerprintSubpacket, true, contents})
 	}
 	if sig.SigLifetimeSecs != nil && *sig.SigLifetimeSecs != 0 {

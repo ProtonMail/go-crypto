@@ -152,7 +152,7 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	v5 := pk.PublicKey.Version() == 5
+	v5 := pk.PublicKey.Version == 5
 
 	var buf [1]byte
 	_, err = readFull(r, buf[:])
@@ -299,7 +299,7 @@ func (pk *PrivateKey) serializeDummy(w io.Writer) (err error) {
 	if err = pk.s2kParams.Serialize(optional); err != nil {
 		return
 	}
-	if pk.Version() == 5 {
+	if pk.Version == 5 {
 		if _, err = w.Write([]byte{uint8(optional.Len())}); err != nil {
 			return
 		}
@@ -316,12 +316,12 @@ func (pk *PrivateKey) serializeEncrypted(w io.Writer) error {
 		return err
 	}
 	optional.Write(pk.iv)
-	if pk.Version() == 5 {
+	if pk.Version == 5 {
 		encoded.Write([]byte{uint8(optional.Len())})
 	}
 	io.Copy(encoded, optional)
 
-	if pk.Version() == 5 {
+	if pk.Version == 5 {
 		s := len(pk.encryptedData)
 		encoded.Write([]byte{byte(s>>24), byte(s>>16), byte(s>>8), byte(s)})
 	}
@@ -332,7 +332,7 @@ func (pk *PrivateKey) serializeEncrypted(w io.Writer) error {
 
 func (pk *PrivateKey) serializeUnencrypted(w io.Writer) (err error) {
 	encoded := bytes.NewBuffer([]byte{uint8(S2KNON)}) /* no encryption */
-	if pk.Version() == 5 {
+	if pk.Version == 5 {
 		encoded.Write([]byte{0x00}) /* no optional fields */
 	}
 	priv := bytes.NewBuffer(nil)
@@ -349,7 +349,7 @@ func (pk *PrivateKey) serializeUnencrypted(w io.Writer) (err error) {
 		checksum := mod64kHash(priv.Bytes())
 		priv.Write([]byte{byte(checksum>>8), byte(checksum)})
 	}
-	if pk.Version() == 5 {
+	if pk.Version == 5 {
 		encoded.Write([]byte{byte(l>>24), byte(l>>16), byte(l>>8), byte(l)})
 	}
 	io.Copy(w, encoded)

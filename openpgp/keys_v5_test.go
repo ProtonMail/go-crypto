@@ -100,8 +100,8 @@ func TestNewEntityV5Key(t *testing.T) {
 
 func checkV5Key(t *testing.T, ent *Entity) {
 	key := ent.PrimaryKey
-		if key.Version() != 5 {
-			t.Errorf("wrong key version %d", key.Version())
+		if key.Version != 5 {
+			t.Errorf("wrong key version %d", key.Version)
 		}
 		if len(key.Fingerprint) != 32 {
 			t.Errorf("Wrong fingerprint length: %d", len(key.Fingerprint))
@@ -115,8 +115,8 @@ func checkV5Key(t *testing.T, ent *Entity) {
 		if sig == nil {
 			continue
 		}
-		if sig.Version() != 5 {
-			t.Errorf("wrong signature version %d", sig.Version())
+		if sig.Version != 5 {
+			t.Errorf("wrong signature version %d", sig.Version)
 		}
 		fgptLen := len(sig.IssuerKeyFingerprint)
 		if fgptLen!= 32 {

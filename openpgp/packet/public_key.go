@@ -35,7 +35,7 @@ type kdfAlgorithm byte
 
 // PublicKey represents an OpenPGP public key. See RFC 4880, section 5.5.2.
 type PublicKey struct {
-	version      int
+	Version      int
 	CreationTime time.Time
 	PubKeyAlgo   PublicKeyAlgorithm
 	PublicKey    interface{} // *rsa.PublicKey, *dsa.PublicKey, *ecdsa.PublicKey or *eddsa.PublicKey
@@ -55,19 +55,10 @@ type PublicKey struct {
 	kdf encoding.Field
 }
 
-// Version returns the version of the key. Version 3 is no longer supported,
-// version 4 is the default.
-func (pk *PublicKey) Version() int {
-	if pk.version == 5 {
-		return 5
-	}
-	return 4
-}
-
 // UpgradeToV5 updates the version of the key to v5, and updates all necessary
 // fields.
 func (pk *PublicKey) UpgradeToV5() {
-	pk.version = 5
+	pk.Version = 5
 	pk.setFingerPrintAndKeyId()
 }
 
@@ -82,6 +73,7 @@ type signingKey interface {
 // NewRSAPublicKey returns a PublicKey that wraps the given rsa.PublicKey.
 func NewRSAPublicKey(creationTime time.Time, pub *rsa.PublicKey) *PublicKey {
 	pk := &PublicKey{
+		Version:      4,
 		CreationTime: creationTime,
 		PubKeyAlgo:   PubKeyAlgoRSA,
 		PublicKey:    pub,
@@ -96,6 +88,7 @@ func NewRSAPublicKey(creationTime time.Time, pub *rsa.PublicKey) *PublicKey {
 // NewDSAPublicKey returns a PublicKey that wraps the given dsa.PublicKey.
 func NewDSAPublicKey(creationTime time.Time, pub *dsa.PublicKey) *PublicKey {
 	pk := &PublicKey{
+		Version:      4,
 		CreationTime: creationTime,
 		PubKeyAlgo:   PubKeyAlgoDSA,
 		PublicKey:    pub,
@@ -112,6 +105,7 @@ func NewDSAPublicKey(creationTime time.Time, pub *dsa.PublicKey) *PublicKey {
 // NewElGamalPublicKey returns a PublicKey that wraps the given elgamal.PublicKey.
 func NewElGamalPublicKey(creationTime time.Time, pub *elgamal.PublicKey) *PublicKey {
 	pk := &PublicKey{
+		Version:      4,
 		CreationTime: creationTime,
 		PubKeyAlgo:   PubKeyAlgoElGamal,
 		PublicKey:    pub,
@@ -126,6 +120,7 @@ func NewElGamalPublicKey(creationTime time.Time, pub *elgamal.PublicKey) *Public
 
 func NewECDSAPublicKey(creationTime time.Time, pub *ecdsa.PublicKey) *PublicKey {
 	pk := &PublicKey{
+		Version:      4,
 		CreationTime: creationTime,
 		PubKeyAlgo:   PubKeyAlgoECDSA,
 		PublicKey:    pub,
@@ -147,6 +142,7 @@ func NewECDHPublicKey(creationTime time.Time, pub *ecdh.PublicKey) *PublicKey {
 	var kdf = encoding.NewOID([]byte{0x1, pub.Hash.Id(), pub.Cipher.Id()})
 	if pub.CurveType == ecc.Curve25519 {
 		pk = &PublicKey{
+			Version:      4,
 			CreationTime: creationTime,
 			PubKeyAlgo:   PubKeyAlgoECDH,
 			PublicKey:    pub,
@@ -156,6 +152,7 @@ func NewECDHPublicKey(creationTime time.Time, pub *ecdh.PublicKey) *PublicKey {
 		curveInfo = ecc.FindByName("Curve25519")
 	} else {
 		pk = &PublicKey{
+			Version:      4,
 			CreationTime: creationTime,
 			PubKeyAlgo:   PubKeyAlgoECDH,
 			PublicKey:    pub,
@@ -175,6 +172,7 @@ func NewECDHPublicKey(creationTime time.Time, pub *ecdh.PublicKey) *PublicKey {
 func NewEdDSAPublicKey(creationTime time.Time, pub *ed25519.PublicKey) *PublicKey {
 	curveInfo := ecc.FindByName("Ed25519")
 	pk := &PublicKey{
+		Version:      4,
 		CreationTime: creationTime,
 		PubKeyAlgo:   PubKeyAlgoEdDSA,
 		PublicKey:    pub,
@@ -198,8 +196,8 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 		return errors.UnsupportedError("public key version " + strconv.Itoa(int(buf[0])))
 	}
 
-	pk.version = int(buf[0])
-	if pk.version == 5 {
+	pk.Version = int(buf[0])
+	if pk.Version == 5 {
 		var n [4]byte
 		_, err = readFull(r, n[:])
 		if err != nil {
@@ -234,7 +232,7 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 
 func (pk *PublicKey) setFingerPrintAndKeyId() {
 	// RFC 4880, section 12.2
-	if pk.Version() == 5 {
+	if pk.Version == 5 {
 		fingerPrint := sha256.New()
 		pk.SerializeForHash(fingerPrint)
 		pk.Fingerprint = make([]byte, 32)
@@ -456,7 +454,7 @@ func (pk *PublicKey) SerializeForHash(w io.Writer) error {
 // RFC 4880, section 5.2.4.
 func (pk *PublicKey) SerializeSignaturePrefix(w io.Writer) {
 	var pLength = pk.algorithmSpecificByteCount()
-	if pk.Version() == 5 {
+	if pk.Version == 5 {
 		pLength += 10 // version, timestamp (4), algorithm, key octet count (4).
 		w.Write([]byte{
 			0x9A,
@@ -474,7 +472,7 @@ func (pk *PublicKey) SerializeSignaturePrefix(w io.Writer) {
 func (pk *PublicKey) Serialize(w io.Writer) (err error) {
 	length := 6 // 6 byte header
 	length += pk.algorithmSpecificByteCount()
-	if pk.Version() == 5 {
+	if pk.Version == 5 {
 		length += 4 // octet key count
 	}
 	packetType := packetTypePublicKey
@@ -524,14 +522,14 @@ func (pk *PublicKey) algorithmSpecificByteCount() int {
 func (pk *PublicKey) serializeWithoutHeaders(w io.Writer) (err error) {
 	t := uint32(pk.CreationTime.Unix())
 	if _, err = w.Write([]byte{
-		byte(pk.Version()),
+		byte(pk.Version),
 		byte(t >> 24), byte(t >> 16), byte(t >> 8), byte(t),
 		byte(pk.PubKeyAlgo),
 	}); err != nil {
 		return
 	}
 
-	if pk.Version() == 5 {
+	if pk.Version == 5 {
 		n := pk.algorithmSpecificByteCount()
 		if _, err = w.Write([]byte{
 			byte(n >> 24), byte(n >> 16), byte(n >> 8), byte(n),
