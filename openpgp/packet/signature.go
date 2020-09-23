@@ -456,13 +456,10 @@ func subpacketLengthLength(length int) int {
 }
 
 func (sig *Signature) CheckKeyIdOrFingerprint(pk *PublicKey) bool {
-	if sig.IssuerKeyId != nil && *sig.IssuerKeyId == pk.KeyId {
-		return true
+	if sig.IssuerFingerprint != nil && len(sig.IssuerFingerprint) >= 20 {
+		return bytes.Equal(sig.IssuerFingerprint, pk.Fingerprint)
 	}
-	if sig.IssuerFingerprint == nil {
-		return false
-	}
-	return bytes.Equal(pk.Fingerprint, sig.IssuerFingerprint)
+	return sig.IssuerKeyId != nil && *sig.IssuerKeyId == pk.KeyId
 }
 
 // serializeSubpacketLength marshals the given length into to.
