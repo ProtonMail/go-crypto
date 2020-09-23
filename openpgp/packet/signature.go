@@ -59,7 +59,7 @@ type Signature struct {
 	PreferredSymmetric, PreferredHash, PreferredCompression []uint8
 	PreferredAEAD                                           []uint8
 	IssuerKeyId                                             *uint64
-	IssuerKeyFingerprint                                    []uint8
+	IssuerFingerprint                                    []uint8
 	IsPrimaryId                                             *bool
 
 	// FlagsValid is set if any flags were given. See RFC 4880, section
@@ -416,8 +416,8 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		if v < 5 && l != 20 || v == 5 && l != 32 {
 			return nil, errors.StructuralError("bad fingerprint length")
 		}
-		sig.IssuerKeyFingerprint = make([]byte, l)
-		copy(sig.IssuerKeyFingerprint, subpacket[1:])
+		sig.IssuerFingerprint = make([]byte, l)
+		copy(sig.IssuerFingerprint, subpacket[1:])
 		sig.IssuerKeyId = new(uint64)
 		if v == 5 {
 			*sig.IssuerKeyId = binary.BigEndian.Uint64(subpacket[1:9])
@@ -459,10 +459,10 @@ func (sig *Signature) CheckKeyIdOrFingerprint(pk *PublicKey) bool {
 	if sig.IssuerKeyId != nil && *sig.IssuerKeyId == pk.KeyId {
 		return true
 	}
-	if sig.IssuerKeyFingerprint == nil {
+	if sig.IssuerFingerprint == nil {
 		return false
 	}
-	return bytes.Equal(pk.Fingerprint, sig.IssuerKeyFingerprint)
+	return bytes.Equal(pk.Fingerprint, sig.IssuerFingerprint)
 }
 
 // serializeSubpacketLength marshals the given length into to.
@@ -591,7 +591,7 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 		return errors.ErrDummyPrivateKey("dummy key found")
 	}
 	sig.Version = priv.PublicKey.Version
-	sig.IssuerKeyFingerprint = priv.PublicKey.Fingerprint
+	sig.IssuerFingerprint = priv.PublicKey.Fingerprint
 	sig.outSubpackets, err = sig.buildSubpackets()
 	if err != nil {
 		return err
@@ -830,8 +830,8 @@ func (sig *Signature) buildSubpackets() (subpackets []outputSubpacket, err error
 		binary.BigEndian.PutUint64(keyId, *sig.IssuerKeyId)
 		subpackets = append(subpackets, outputSubpacket{true, issuerSubpacket, true, keyId})
 	}
-	if sig.IssuerKeyFingerprint != nil {
-		contents := append([]uint8{uint8(sig.Version)}, sig.IssuerKeyFingerprint...)
+	if sig.IssuerFingerprint != nil {
+		contents := append([]uint8{uint8(sig.Version)}, sig.IssuerFingerprint...)
 		subpackets = append(subpackets, outputSubpacket{true, issuerFingerprintSubpacket, true, contents})
 	}
 	if sig.SigLifetimeSecs != nil && *sig.SigLifetimeSecs != 0 {

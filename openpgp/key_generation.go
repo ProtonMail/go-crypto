@@ -42,20 +42,20 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 
 	isPrimaryId := true
 	selfSignature := &packet.Signature{
-		Version:              primary.PublicKey.Version,
-		SigType:              packet.SigTypePositiveCert,
-		PubKeyAlgo:           primary.PublicKey.PubKeyAlgo,
-		Hash:                 config.Hash(),
-		CreationTime:         creationTime,
-		IssuerKeyId:          &primary.PublicKey.KeyId,
-		IssuerKeyFingerprint: primary.PublicKey.Fingerprint,
-		IsPrimaryId:          &isPrimaryId,
-		FlagsValid:           true,
-		FlagSign:             true,
-		FlagCertify:          true,
-		MDC:                  true, // true by default, see 5.8 vs. 5.14
-		AEAD:                 config.AEAD() != nil,
-		V5Keys:               config != nil && config.V5Keys,
+		Version:           primary.PublicKey.Version,
+		SigType:           packet.SigTypePositiveCert,
+		PubKeyAlgo:        primary.PublicKey.PubKeyAlgo,
+		Hash:              config.Hash(),
+		CreationTime:      creationTime,
+		IssuerKeyId:       &primary.PublicKey.KeyId,
+		IssuerFingerprint: primary.PublicKey.Fingerprint,
+		IsPrimaryId:       &isPrimaryId,
+		FlagsValid:        true,
+		FlagSign:          true,
+		FlagCertify:       true,
+		MDC:               true, // true by default, see 5.8 vs. 5.14
+		AEAD:              config.AEAD() != nil,
+		V5Keys:            config != nil && config.V5Keys,
 	}
 
 	// Set the PreferredHash for the SelfSignature from the packet.Config.

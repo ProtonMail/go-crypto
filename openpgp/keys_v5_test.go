@@ -118,7 +118,7 @@ func checkV5Key(t *testing.T, ent *Entity) {
 		if sig.Version != 5 {
 			t.Errorf("wrong signature version %d", sig.Version)
 		}
-		fgptLen := len(sig.IssuerKeyFingerprint)
+		fgptLen := len(sig.IssuerFingerprint)
 		if fgptLen!= 32 {
 			t.Errorf("Wrong fingerprint length in signature: %d", fgptLen)
 		}
