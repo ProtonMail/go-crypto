@@ -131,13 +131,13 @@ func SymmetricallyEncrypt(ciphertext io.Writer, passphrase []byte, hints *FileHi
 		}
 	}
 
-	literaldata := w
+	literalData := w
 	if algo := config.Compression(); algo != packet.CompressionNone {
 		var compConfig *packet.CompressionConfig
 		if config != nil {
 			compConfig = config.CompressionConfig
 		}
-		literaldata, err = packet.SerializeCompressed(w, algo, compConfig)
+		literalData, err = packet.SerializeCompressed(w, algo, compConfig)
 		if err != nil {
 			return
 		}
@@ -147,7 +147,7 @@ func SymmetricallyEncrypt(ciphertext io.Writer, passphrase []byte, hints *FileHi
 	if !hints.ModTime.IsZero() {
 		epochSeconds = uint32(hints.ModTime.Unix())
 	}
-	return packet.SerializeLiteral(literaldata, hints.IsBinary, hints.FileName, epochSeconds)
+	return packet.SerializeLiteral(literalData, hints.IsBinary, hints.FileName, epochSeconds)
 }
 
 // intersectPreferences mutates and returns a prefix of a that contains only
@@ -280,7 +280,15 @@ func writeAndSign(payload io.WriteCloser, candidateHashes []uint8, signed *Entit
 		if err != nil {
 			return nil, err
 		}
-		return signatureWriter{payload, literalData, hash, wrappedHash, h, signer, sigType, config}, nil
+		metadata := &packet.LiteralData{
+			Format:   't',
+			FileName: hints.FileName,
+			Time:     epochSeconds,
+		}
+		if hints.IsBinary {
+			metadata.Format = 'b'
+		}
+		return signatureWriter{payload, literalData, hash, wrappedHash, h, signer, sigType, config, metadata}, nil
 	}
 	return literalData, nil
 }
@@ -435,6 +443,7 @@ type signatureWriter struct {
 	signer        *packet.PrivateKey
 	sigType       packet.SignatureType
 	config        *packet.Config
+	metadata      *packet.LiteralData // Protected by v5 keys only
 }
 
 func (s signatureWriter) Write(data []byte) (int, error) {
@@ -456,6 +465,7 @@ func (s signatureWriter) Close() error {
 		Hash:         s.hashType,
 		CreationTime: s.config.Now(),
 		IssuerKeyId:  &s.signer.KeyId,
+		Metadata:      s.metadata,
 	}
 
 	if err := sig.Sign(s.h, s.signer, s.config); err != nil {

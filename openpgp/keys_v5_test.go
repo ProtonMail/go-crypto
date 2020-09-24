@@ -2,9 +2,11 @@ package openpgp
 
 import (
 	"bytes"
+	"io/ioutil"
 	"strings"
 	"testing"
 
+	"golang.org/x/crypto/openpgp/armor"
 	"golang.org/x/crypto/openpgp/packet"
 )
 
@@ -19,6 +21,40 @@ func TestReadPrivateForeignV5Key(t *testing.T) {
 			t.Fatal(err)
 		}
 		checkV5Key(t, kring[0])
+	}
+}
+
+func TestV5ForeignSignedMessage(t *testing.T) {
+	kring, err := ReadArmoredKeyRing(strings.NewReader(v5PrivKey))
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg := strings.NewReader(v5PrivKeyMsg)
+	// Unarmor
+	block, err := armor.Decode(msg)
+	if err != nil {
+		return
+	}
+	md, err := ReadMessage(block.Body, kring, nil, nil)
+	if md.SignedBy == nil {
+		t.Fatal("incorrect signer")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Consume UnverifiedBody
+	body, err := ioutil.ReadAll(md.UnverifiedBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(body, []byte("test")) {
+		t.Fatal("bad body")
+	}
+	if md.SignatureError != nil {
+		t.Fatal(md.SignatureError)
+	}
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 

@@ -602,6 +602,9 @@ func (pk *PublicKey) VerifySignature(signed hash.Hash, sig *Signature) (err erro
 	if !pk.CanSign() {
 		return errors.InvalidArgumentError("public key cannot generate signatures")
 	}
+	if sig.Version == 5 && (sig.SigType == 0x00 || sig.SigType == 0x01) {
+		sig.AddMetadataToHashSuffix()
+	}
 	signed.Write(sig.HashSuffix)
 	hashBytes := signed.Sum(nil)
 	if hashBytes[0] != sig.HashTag[0] || hashBytes[1] != sig.HashTag[1] {

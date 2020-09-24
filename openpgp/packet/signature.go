@@ -42,6 +42,12 @@ type Signature struct {
 	// HashTag contains the first two bytes of the hash for fast rejection
 	// of bad signed data.
 	HashTag      [2]byte
+
+	// Metadata includes format, filename and time, and is protected by v5
+	// signatures of type 0x00 or 0x01. This metadata is included into the hash
+	// computation; if nil, six 0x00 bytes are used instead. See section 5.2.4.
+	Metadata *LiteralData
+
 	CreationTime time.Time
 
 	RSASignature         encoding.Field
@@ -59,7 +65,7 @@ type Signature struct {
 	PreferredSymmetric, PreferredHash, PreferredCompression []uint8
 	PreferredAEAD                                           []uint8
 	IssuerKeyId                                             *uint64
-	IssuerFingerprint                                    []uint8
+	IssuerFingerprint                                       []byte
 	IsPrimaryId                                             *bool
 
 	// FlagsValid is set if any flags were given. See RFC 4880, section
@@ -541,13 +547,8 @@ func (sig *Signature) buildHashSuffix(hashedSubpackets []byte) (err error) {
 	})
 	hashedFields.Write(hashedSubpackets)
 
-
 	l := 6 + len(hashedSubpackets)
 	if sig.Version == 5 {
-		if sig.SigType == SigTypeBinary || sig.SigType == SigTypeText {
-			l += 6
-			hashedFields.Write([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00})
-		}
 		hashedFields.Write([]byte{0x05, 0xff})
 		hashedFields.Write([]byte{
 			uint8(l >> 56), uint8(l >> 48), uint8(l >> 40), uint8(l >> 32),
@@ -572,6 +573,9 @@ func (sig *Signature) signPrepareHash(h hash.Hash) (digest []byte, err error) {
 	if err != nil {
 		return
 	}
+	if sig.Version == 5 && (sig.SigType == 0x00 || sig.SigType == 0x01) {
+		sig.AddMetadataToHashSuffix()
+	}
 
 	h.Write(sig.HashSuffix)
 	digest = h.Sum(nil)
@@ -589,7 +593,7 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 	}
 	sig.Version = priv.PublicKey.Version
 	sig.IssuerFingerprint = priv.PublicKey.Fingerprint
-	sig.outSubpackets, err = sig.buildSubpackets()
+	sig.outSubpackets, err = sig.buildSubpackets(priv.PublicKey)
 	if err != nil {
 		return err
 	}
@@ -597,7 +601,6 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 	if err != nil {
 		return
 	}
-
 	switch priv.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly:
 		// supports both *rsa.PrivateKey and crypto.Signer
@@ -817,7 +820,7 @@ type outputSubpacket struct {
 	contents      []byte
 }
 
-func (sig *Signature) buildSubpackets() (subpackets []outputSubpacket, err error) {
+func (sig *Signature) buildSubpackets(issuer PublicKey) (subpackets []outputSubpacket, err error) {
 	creationTime := make([]byte, 4)
 	binary.BigEndian.PutUint32(creationTime, uint32(sig.CreationTime.Unix()))
 	subpackets = append(subpackets, outputSubpacket{true, creationTimeSubpacket, false, creationTime})
@@ -828,7 +831,7 @@ func (sig *Signature) buildSubpackets() (subpackets []outputSubpacket, err error
 		subpackets = append(subpackets, outputSubpacket{true, issuerSubpacket, true, keyId})
 	}
 	if sig.IssuerFingerprint != nil {
-		contents := append([]uint8{uint8(sig.Version)}, sig.IssuerFingerprint...)
+		contents := append([]uint8{uint8(issuer.Version)}, sig.IssuerFingerprint...)
 		subpackets = append(subpackets, outputSubpacket{true, issuerFingerprintSubpacket, true, contents})
 	}
 	if sig.SigLifetimeSecs != nil && *sig.SigLifetimeSecs != 0 {
@@ -916,4 +919,52 @@ func (sig *Signature) buildSubpackets() (subpackets []outputSubpacket, err error
 	}
 
 	return
+}
+
+// AddMetadataToHashSuffix modifies the current hash suffix to include metadata
+// (format, filename, and time). Version 5 keys protect this data including it
+// in the hash computation. See section 5.2.4.
+func (sig *Signature) AddMetadataToHashSuffix() {
+	if sig == nil || sig.Version != 5 {
+		return
+	}
+	if sig.SigType != 0x00 && sig.SigType != 0x01 {
+		return
+	}
+	lit := sig.Metadata
+	if lit == nil {
+		// This will translate into six 0x00 bytes.
+		lit = &LiteralData{}
+	}
+
+	// Extract the current byte count
+	n := sig.HashSuffix[len(sig.HashSuffix)-8:]
+	l := uint64(
+		uint64(n[0])<<56 | uint64(n[1])<<48 | uint64(n[2])<<40 | uint64(n[3])<<32 |
+		uint64(n[4])<<24 | uint64(n[5])<<16 | uint64(n[6])<<8  | uint64(n[7]))
+
+	suffix := bytes.NewBuffer(nil)
+	suffix.Write(sig.HashSuffix[:l])
+
+	// Add the metadata
+	var buf [4]byte
+	buf[0] = lit.Format
+	fileName := lit.FileName
+	if len(lit.FileName) > 255 {
+		fileName = fileName[:255]
+	}
+	buf[1] = byte(len(fileName))
+	suffix.Write(buf[:2])
+	suffix.Write([]byte(lit.FileName))
+	binary.BigEndian.PutUint32(buf[:], lit.Time)
+	suffix.Write(buf[:])
+
+	// Update the counter and restore trailing bytes
+	l = uint64(suffix.Len())
+	suffix.Write([]byte{0x05, 0xff})
+	suffix.Write([]byte{
+		uint8(l >> 56), uint8(l >> 48), uint8(l >> 40), uint8(l >> 32),
+		uint8(l >> 24), uint8(l >> 16), uint8(l >> 8), uint8(l),
+	})
+	sig.HashSuffix = suffix.Bytes()
 }
