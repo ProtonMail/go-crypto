@@ -137,15 +137,13 @@ func randName() string {
 
 func randFileHints() *openpgp.FileHints {
 	fileNameRunes := runes[:66]
-	fileName := make([]rune, 1+mathrand.Intn(20))
-	// Filenames are truncated to 256 bytes.
+	fileName := make([]rune, 1+mathrand.Intn(255))
 	for i := range fileName {
 		fileName[i] = fileNameRunes[mathrand.Intn(len(fileNameRunes))]
 	}
 
 	return &openpgp.FileHints{
-		// IsBinary: mathrand.Intn(2) == 0,
-		IsBinary: false,
+		IsBinary: mathrand.Intn(2) == 0,
 		FileName: string(fileName),
 		ModTime: time.Now(),
 	}
