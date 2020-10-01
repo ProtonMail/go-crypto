@@ -99,6 +99,7 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 		PublicKey:  &sub.PublicKey,
 		PrivateKey: sub,
 		Sig: &packet.Signature{
+			Version:                   primary.PublicKey.Version,
 			CreationTime:              creationTime,
 			SigType:                   packet.SigTypeSubkeyBinding,
 			PubKeyAlgo:                primary.PublicKey.PubKeyAlgo,
@@ -146,6 +147,7 @@ func (e *Entity) AddSigningSubkey(config *packet.Config) error {
 		PublicKey:  &sub.PublicKey,
 		PrivateKey: sub,
 		Sig: &packet.Signature{
+			Version:      e.PrimaryKey.Version,
 			CreationTime: creationTime,
 			SigType:      packet.SigTypeSubkeyBinding,
 			PubKeyAlgo:   e.PrimaryKey.PubKeyAlgo,
@@ -154,6 +156,7 @@ func (e *Entity) AddSigningSubkey(config *packet.Config) error {
 			FlagSign:     true,
 			IssuerKeyId:  &e.PrimaryKey.KeyId,
 			EmbeddedSignature: &packet.Signature{
+				Version:      e.PrimaryKey.Version,
 				CreationTime: creationTime,
 				SigType:      packet.SigTypePrimaryKeyBinding,
 				PubKeyAlgo:   sub.PublicKey.PubKeyAlgo,
@@ -196,6 +199,7 @@ func (e *Entity) AddEncryptionSubkey(config *packet.Config) error {
 		PublicKey:  &sub.PublicKey,
 		PrivateKey: sub,
 		Sig: &packet.Signature{
+			Version:                   e.PrimaryKey.Version,
 			CreationTime:              creationTime,
 			SigType:                   packet.SigTypeSubkeyBinding,
 			PubKeyAlgo:                e.PrimaryKey.PubKeyAlgo,

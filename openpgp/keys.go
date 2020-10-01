@@ -619,6 +619,7 @@ func (e *Entity) SignIdentity(identity string, signer *Entity, config *packet.Co
 	}
 
 	sig := &packet.Signature{
+		Version:      signer.PrivateKey.Version,
 		SigType:      packet.SigTypeGenericCert,
 		PubKeyAlgo:   signer.PrivateKey.PubKeyAlgo,
 		Hash:         config.Hash(),
@@ -638,6 +639,7 @@ func (e *Entity) SignIdentity(identity string, signer *Entity, config *packet.Co
 func (e *Entity) RevokeKey(reason packet.ReasonForRevocation, reasonText string, config *packet.Config) error {
 	reasonCode := uint8(reason)
 	revSig := &packet.Signature{
+		Version:              e.PrimaryKey.Version,
 		CreationTime:         config.Now(),
 		SigType:              packet.SigTypeKeyRevocation,
 		PubKeyAlgo:           packet.PubKeyAlgoRSA,
@@ -664,6 +666,7 @@ func (e *Entity) RevokeSubkey(sk *Subkey, reason packet.ReasonForRevocation, rea
 
 	reasonCode := uint8(reason)
 	revSig := &packet.Signature{
+		Version:              e.PrimaryKey.Version,
 		CreationTime:         config.Now(),
 		SigType:              packet.SigTypeSubkeyRevocation,
 		PubKeyAlgo:           packet.PubKeyAlgoRSA,

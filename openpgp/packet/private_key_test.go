@@ -173,6 +173,7 @@ func TestExternalRSAPrivateKey(t *testing.T) {
 	}
 
 	sig := &Signature{
+		Version:    4,
 		PubKeyAlgo: PubKeyAlgoRSA,
 		Hash:       crypto.SHA256,
 	}
@@ -219,6 +220,7 @@ func TestECDSAPrivateKeysRandomizeFast(t *testing.T) {
 	}
 
 	sig := &Signature{
+		Version:    4,
 		PubKeyAlgo: PubKeyAlgoECDSA,
 		Hash:       crypto.SHA256,
 	}
@@ -255,6 +257,7 @@ func TestRSASignerPrivateKeysRandomizeSlow(t *testing.T) {
 	priv := NewSignerPrivateKey(time.Now(), &rsaSigner{rsaPriv})
 
 	sig := &Signature{
+		Version:    4,
 		PubKeyAlgo: PubKeyAlgoRSA,
 		Hash:       crypto.SHA256,
 	}
@@ -309,6 +312,7 @@ func TestECDSASignerPrivateKeysRandomizeFast(t *testing.T) {
 	}
 
 	sig := &Signature{
+		Version:    4,
 		PubKeyAlgo: PubKeyAlgoECDSA,
 		Hash:       crypto.SHA256,
 	}
@@ -344,6 +348,7 @@ func TestEdDSASignerPrivateKeyRandomizeFast(t *testing.T) {
 	}
 
 	sig := &Signature{
+		Version:    4,
 		PubKeyAlgo: PubKeyAlgoEdDSA,
 		Hash:       crypto.SHA256,
 	}
