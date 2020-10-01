@@ -153,15 +153,16 @@ func encDecTest(t *testing.T, from testVector, testVectors []testVector) {
 			pkTo := readArmoredPk(t, to.PublicKey)
 			skTo := readArmoredSk(t, to.PrivateKey, to.Password)
 			message := randMessage()
+			hints := randFileHints()
 
 			// Encrypt message
-			signed := skFrom[0]
-			errDec := signed.PrivateKey.Decrypt([]byte(from.Password))
+			signer := skFrom[0]
+			errDec := signer.PrivateKey.Decrypt([]byte(from.Password))
 			if errDec != nil {
 				t.Error(errDec)
 			}
 			buf := new(bytes.Buffer)
-			w, err := openpgp.Encrypt(buf, pkTo[:1], signed, nil, from.config)
+			w, err := openpgp.Encrypt(buf, pkTo[:1], signer, hints, from.config)
 			if err != nil {
 				t.Fatalf("Error in Encrypt: %s", err)
 			}
@@ -199,7 +200,7 @@ func encDecTest(t *testing.T, from testVector, testVectors []testVector) {
 			if !md.IsEncrypted {
 				t.Fatal("The message should be encrypted")
 			}
-			signKey, _ := signed.SigningKey(time.Now())
+			signKey, _ := signer.SigningKey(time.Now())
 			expectedKeyID := signKey.PublicKey.KeyId
 			if md.SignedByKeyId != expectedKeyID {
 				t.Fatalf(
@@ -227,7 +228,7 @@ func encDecTest(t *testing.T, from testVector, testVectors []testVector) {
 			}
 
 			if md.SignatureError != nil {
-				t.Errorf("Signature error: %s", md.SignatureError)
+				t.Fatalf("Signature error: %s", md.SignatureError)
 			}
 			if md.Signature == nil {
 				t.Error("Signature missing")

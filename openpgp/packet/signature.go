@@ -103,7 +103,6 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 		return
 	}
 	sig.Version = int(buf[0])
-
 	_, err = readFull(r, buf[:5])
 	if err != nil {
 		return
@@ -761,19 +760,14 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 }
 
 func (sig *Signature) serializeBody(w io.Writer) (err error) {
-	unhashedSubpacketsLen := subpacketsLength(sig.outSubpackets, false)
-	fields := sig.HashSuffix[:len(sig.HashSuffix)-6]
-	if sig.Version == 5 {
-		fields = fields[:len(fields)-4]
-		if sig.SigType == SigTypeBinary || sig.SigType == SigTypeText {
-			fields = fields[:len(fields)-6]
-		}
-	}
+	hashedSubpacketsLen := int(sig.HashSuffix[4])<<8 | int(sig.HashSuffix[5])
+	fields := sig.HashSuffix[:6+hashedSubpacketsLen]
 	_, err = w.Write(fields)
 	if err != nil {
 		return
 	}
 
+	unhashedSubpacketsLen := subpacketsLength(sig.outSubpackets, false)
 	unhashedSubpackets := make([]byte, 2+unhashedSubpacketsLen)
 	unhashedSubpackets[0] = byte(unhashedSubpacketsLen >> 8)
 	unhashedSubpackets[1] = byte(unhashedSubpacketsLen)

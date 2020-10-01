@@ -117,7 +117,7 @@ func publicKey(privateKey string) (string, error) {
 	return outString, nil
 }
 
-var runes = []rune("abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKMNOPQRSTUVWXYZ.:;?/!@#$%^&*{}[]_'\"-+~()<>")
+var runes = []rune("abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKMNOPQRSTUVWXYZ.@-_:;?/!#$%^&*{}[]'\"+~()<>")
 
 func randName() string {
 	firstName := make([]rune, 8)
@@ -133,6 +133,22 @@ func randName() string {
 	}
 
 	return string(firstName) + " " + string(lastName)
+}
+
+func randFileHints() *openpgp.FileHints {
+	fileNameRunes := runes[:66]
+	fileName := make([]rune, 1+mathrand.Intn(20))
+	// Filenames are truncated to 256 bytes.
+	for i := range fileName {
+		fileName[i] = fileNameRunes[mathrand.Intn(len(fileNameRunes))]
+	}
+
+	return &openpgp.FileHints{
+		// IsBinary: mathrand.Intn(2) == 0,
+		IsBinary: false,
+		FileName: string(fileName),
+		ModTime: time.Now(),
+	}
 }
 
 func randEmail() string {
