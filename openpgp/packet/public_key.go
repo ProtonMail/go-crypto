@@ -59,7 +59,7 @@ type PublicKey struct {
 // fields.
 func (pk *PublicKey) UpgradeToV5() {
 	pk.Version = 5
-	pk.setFingerPrintAndKeyId()
+	pk.setFingerprintAndKeyId()
 }
 
 // signingKey provides a convenient abstraction over signature verification
@@ -81,7 +81,7 @@ func NewRSAPublicKey(creationTime time.Time, pub *rsa.PublicKey) *PublicKey {
 		e:            new(encoding.MPI).SetBig(big.NewInt(int64(pub.E))),
 	}
 
-	pk.setFingerPrintAndKeyId()
+	pk.setFingerprintAndKeyId()
 	return pk
 }
 
@@ -98,7 +98,7 @@ func NewDSAPublicKey(creationTime time.Time, pub *dsa.PublicKey) *PublicKey {
 		y:            new(encoding.MPI).SetBig(pub.Y),
 	}
 
-	pk.setFingerPrintAndKeyId()
+	pk.setFingerprintAndKeyId()
 	return pk
 }
 
@@ -114,7 +114,7 @@ func NewElGamalPublicKey(creationTime time.Time, pub *elgamal.PublicKey) *Public
 		y:            new(encoding.MPI).SetBig(pub.Y),
 	}
 
-	pk.setFingerPrintAndKeyId()
+	pk.setFingerprintAndKeyId()
 	return pk
 }
 
@@ -132,7 +132,7 @@ func NewECDSAPublicKey(creationTime time.Time, pub *ecdsa.PublicKey) *PublicKey 
 		panic("unknown elliptic curve")
 	}
 	pk.oid = curveInfo.Oid
-	pk.setFingerPrintAndKeyId()
+	pk.setFingerprintAndKeyId()
 	return pk
 }
 
@@ -165,7 +165,7 @@ func NewECDHPublicKey(creationTime time.Time, pub *ecdh.PublicKey) *PublicKey {
 		panic("unknown elliptic curve")
 	}
 	pk.oid = curveInfo.Oid
-	pk.setFingerPrintAndKeyId()
+	pk.setFingerprintAndKeyId()
 	return pk
 }
 
@@ -181,7 +181,7 @@ func NewEdDSAPublicKey(creationTime time.Time, pub *ed25519.PublicKey) *PublicKe
 		p: encoding.NewMPI(append([]byte{0x40}, *pub...)),
 	}
 
-	pk.setFingerPrintAndKeyId()
+	pk.setFingerprintAndKeyId()
 	return pk
 }
 
@@ -226,23 +226,23 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 		return
 	}
 
-	pk.setFingerPrintAndKeyId()
+	pk.setFingerprintAndKeyId()
 	return
 }
 
-func (pk *PublicKey) setFingerPrintAndKeyId() {
+func (pk *PublicKey) setFingerprintAndKeyId() {
 	// RFC 4880, section 12.2
 	if pk.Version == 5 {
-		fingerPrint := sha256.New()
-		pk.SerializeForHash(fingerPrint)
+		fingerprint := sha256.New()
+		pk.SerializeForHash(fingerprint)
 		pk.Fingerprint = make([]byte, 32)
-		copy(pk.Fingerprint, fingerPrint.Sum(nil))
+		copy(pk.Fingerprint, fingerprint.Sum(nil))
 		pk.KeyId = binary.BigEndian.Uint64(pk.Fingerprint[:8])
 	} else {
-		fingerPrint := sha1.New()
-		pk.SerializeForHash(fingerPrint)
+		fingerprint := sha1.New()
+		pk.SerializeForHash(fingerprint)
 		pk.Fingerprint = make([]byte, 20)
-		copy(pk.Fingerprint, fingerPrint.Sum(nil))
+		copy(pk.Fingerprint, fingerprint.Sum(nil))
 		pk.KeyId = binary.BigEndian.Uint64(pk.Fingerprint[12:20])
 	}
 }

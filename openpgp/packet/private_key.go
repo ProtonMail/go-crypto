@@ -217,7 +217,7 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 		if err != nil {
 			return
 		}
-		count := int(uint32(n[0])<<24 | uint32(n[1])<<16 | uint32(n[2])<<8 | uint32(n[3]))
+		count := uint32(uint32(n[0])<<24 | uint32(n[1])<<16 | uint32(n[2])<<8 | uint32(n[3]))
 		if !pk.Encrypted {
 			count = count+2 /* two octet checksum */
 		}
@@ -484,9 +484,8 @@ func (pk *PrivateKey) Encrypt(passphrase []byte) error {
 	} else {
 		pk.s2kType = S2KCHECKSUM
 		var sum uint16
-		buf := priv.Bytes()
-		for i := 0; i < priv.Len(); i++ {
-			sum += uint16(buf[i])
+		for _, b := range priv.Bytes() {
+			sum += uint16(b)
 		}
 		priv.Write([]byte{uint8(sum>>8), uint8(sum)})
 	}

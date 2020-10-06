@@ -546,7 +546,7 @@ func (sig *Signature) buildHashSuffix(hashedSubpackets []byte) (err error) {
 	})
 	hashedFields.Write(hashedSubpackets)
 
-	l := 6 + len(hashedSubpackets)
+	var l uint64 = uint64(6 + len(hashedSubpackets))
 	if sig.Version == 5 {
 		hashedFields.Write([]byte{0x05, 0xff})
 		hashedFields.Write([]byte{
@@ -760,7 +760,7 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 }
 
 func (sig *Signature) serializeBody(w io.Writer) (err error) {
-	hashedSubpacketsLen := int(sig.HashSuffix[4])<<8 | int(sig.HashSuffix[5])
+	hashedSubpacketsLen := uint16(uint16(sig.HashSuffix[4])<<8) | uint16(sig.HashSuffix[5])
 	fields := sig.HashSuffix[:6+hashedSubpacketsLen]
 	_, err = w.Write(fields)
 	if err != nil {

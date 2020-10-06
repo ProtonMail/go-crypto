@@ -466,7 +466,7 @@ func (s signatureWriter) Close() error {
 		Hash:         s.hashType,
 		CreationTime: s.config.Now(),
 		IssuerKeyId:  &s.signer.KeyId,
-		Metadata:      s.metadata,
+		Metadata:     s.metadata,
 	}
 
 	if err := sig.Sign(s.h, s.signer, s.config); err != nil {
