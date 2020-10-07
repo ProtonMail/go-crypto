@@ -443,7 +443,7 @@ type signatureWriter struct {
 	signer        *packet.PrivateKey
 	sigType       packet.SignatureType
 	config        *packet.Config
-	metadata      *packet.LiteralData // Protected by v5 keys only
+	metadata      *packet.LiteralData // V5 signatures protect document metadata
 }
 
 func (s signatureWriter) Write(data []byte) (int, error) {

@@ -78,9 +78,9 @@ type Signature struct {
 	RevocationReason     *uint8
 	RevocationReasonText string
 
-	// In a self-signature, these features are set there is a features
-	// subpacket indicating that the issuer implementation supports these
-	// features (section 5.2.5.25).
+	// In a self-signature, these flags are set there is a features subpacket
+	// indicating that the issuer implementation supports these features
+	// (section 5.2.5.25).
 	MDC, AEAD, V5Keys bool
 
 	// EmbeddedSignature, if non-nil, is a signature of the parent key, by
