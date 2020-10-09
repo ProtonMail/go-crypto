@@ -52,7 +52,20 @@ func WriteCanonical(cw io.Writer, buf []byte, s *int) (int, error) {
 func ReadCanonical(r io.Reader, buf []byte, s *int) (int, error) {
 	j := 0
 	i := 0
-	l, err := r.Read(buf)
+	var err error
+
+	if *s == 1 {
+		_, err = r.Read(buf[:1])
+		if buf[0] != '\n' {
+			buf[j] = '\r'
+			j += 1
+		}
+		buf[j] = buf[0]
+		j += 1
+		*s = 0
+	}
+
+	l, err := r.Read(buf[j:])
 	for i < l {
 		c := buf[i]
 		switch *s {

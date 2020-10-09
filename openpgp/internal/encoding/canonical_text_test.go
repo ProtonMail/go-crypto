@@ -6,6 +6,7 @@ package encoding
 
 import (
 	"bytes"
+	"io/ioutil"
 	"testing"
 )
 
@@ -40,15 +41,14 @@ func testCanonicalTextWriteCloser(t *testing.T, input, expected string) {
 
 func testCanonicalTextReader(t *testing.T, input, expected string) {
 	r := bytes.NewBuffer([]byte(input))
-	out := make([]byte, len(input) + 1)
 	c := NewCanonicalTextReader(r)
-	l, err := c.Read(out)
+	out, err := ioutil.ReadAll(c)
 	if err != nil {
 		t.Errorf("unexpected error on input: %x", input)
 	}
 
-	if expected != string(out[:l]) {
-		t.Errorf("input: %x got: %x want: %x", input, string(out[:l]), expected)
+	if expected != string(out) {
+		t.Errorf("input: %x got: %x want: %x", input, string(out), expected)
 	}
 }
 
