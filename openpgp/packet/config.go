@@ -60,6 +60,17 @@ type Config struct {
 	// **Note: using this option may break compatibility with other OpenPGP
 	// implementations, as well as future versions of this library.**
 	AEADConfig *AEADConfig
+	// "The validity period of the key.  This is the number of seconds after
+	// the key creation time that the key expires.  If this is not present
+	// or has a value of zero, the key never expires.  This is found only on
+	// a self-signature.""
+	// https://tools.ietf.org/html/rfc4880#section-5.2.3.6
+	KeyLifetimeSecs uint32
+	// "The validity period of the signature.  This is the number of seconds
+	// after the signature creation time that the signature expires.  If
+	// this is not present or has a value of zero, it never expires."
+	// https://tools.ietf.org/html/rfc4880#section-5.2.3.10
+	SigLifetimeSecs uint32
 }
 
 func (c *Config) Random() io.Reader {

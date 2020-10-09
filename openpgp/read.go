@@ -56,8 +56,8 @@ type MessageDetails struct {
 	// been consumed. Once EOF has been seen, the following fields are
 	// valid. (An authentication code failure is reported as a
 	// SignatureError error when reading from UnverifiedBody.)
-	SignatureError error               // nil if the signature is good.
-	Signature      *packet.Signature   // the signature packet itself, if v4 (default)
+	SignatureError error             // nil if the signature is good.
+	Signature      *packet.Signature // the signature packet itself, if v4 (default)
 
 	decrypted io.ReadCloser
 }
@@ -433,14 +433,15 @@ func CheckDetachedSignatureAndHash(keyring KeyRing, signed, signature io.Reader,
 
 	for _, key := range keys {
 		err = key.PublicKey.VerifySignature(h, sig)
-		if err == nil && sig.SigExpired(config.Now()) {
-			err = errors.ErrSignatureExpired
-		}
-		if err == errors.ErrSignatureExpired {
-			return key.Entity, err
-		}
-
 		if err == nil {
+			now := config.Now()
+			if sig.SigExpired(now) {
+				return key.Entity, errors.ErrSignatureExpired
+			}
+			if key.PublicKey.KeyExpired(key.SelfSignature, now) {
+				return key.Entity, errors.ErrKeyExpired
+			}
+
 			return key.Entity, nil
 		}
 	}
