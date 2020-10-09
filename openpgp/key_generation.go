@@ -124,6 +124,7 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 // If config is nil, sensible defaults will be used.
 func (e *Entity) AddSigningSubkey(config *packet.Config) error {
 	creationTime := config.Now()
+	keyLifetimeSecs := config.KeyLifetime()
 
 	subPrivRaw, err := newSigner(config)
 	if err != nil {
@@ -136,7 +137,7 @@ func (e *Entity) AddSigningSubkey(config *packet.Config) error {
 		PrivateKey: sub,
 		Sig: &packet.Signature{
 			CreationTime:    creationTime,
-			KeyLifetimeSecs: &config.KeyLifetimeSecs,
+			KeyLifetimeSecs: &keyLifetimeSecs,
 			SigType:         packet.SigTypeSubkeyBinding,
 			PubKeyAlgo:      e.PrimaryKey.PubKeyAlgo,
 			Hash:            config.Hash(),
@@ -172,6 +173,7 @@ func (e *Entity) AddSigningSubkey(config *packet.Config) error {
 // If config is nil, sensible defaults will be used.
 func (e *Entity) AddEncryptionSubkey(config *packet.Config) error {
 	creationTime := config.Now()
+	keyLifetimeSecs := config.KeyLifetime()
 
 	subPrivRaw, err := newDecrypter(config)
 	if err != nil {
@@ -184,7 +186,7 @@ func (e *Entity) AddEncryptionSubkey(config *packet.Config) error {
 		PrivateKey: sub,
 		Sig: &packet.Signature{
 			CreationTime:              creationTime,
-			KeyLifetimeSecs:           &config.KeyLifetimeSecs,
+			KeyLifetimeSecs:           &keyLifetimeSecs,
 			SigType:                   packet.SigTypeSubkeyBinding,
 			PubKeyAlgo:                e.PrimaryKey.PubKeyAlgo,
 			Hash:                      config.Hash(),

@@ -101,6 +101,22 @@ func (c *Config) Now() time.Time {
 	return c.Time()
 }
 
+// KeyLifetime returns the validity period of the key.
+func (c *Config) KeyLifetime() uint32 {
+	if c == nil {
+		return 0
+	}
+	return c.KeyLifetimeSecs
+}
+
+// SigLifetime returns the validity period of the signature.
+func (c *Config) SigLifetime() uint32 {
+	if c == nil {
+		return 0
+	}
+	return c.SigLifetimeSecs
+}
+
 func (c *Config) Compression() CompressionAlgo {
 	if c == nil {
 		return CompressionNone
