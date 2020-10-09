@@ -101,7 +101,8 @@ func detachSign(w io.Writer, privateKey *packet.PrivateKey, message io.Reader, s
 	sig.PubKeyAlgo = privateKey.PubKeyAlgo
 	sig.Hash = config.Hash()
 	sig.CreationTime = config.Now()
-	sig.SigLifetimeSecs = &config.SigLifetimeSecs
+	sigLifetimeSecs := config.SigLifetime()
+	sig.SigLifetimeSecs = &sigLifetimeSecs
 	sig.IssuerKeyId = &privateKey.KeyId
 
 	h, wrappedHash, err := hashForSignature(sig.Hash, sig.SigType)
