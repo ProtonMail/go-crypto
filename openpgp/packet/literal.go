@@ -6,6 +6,7 @@ package packet
 
 import (
 	"encoding/binary"
+	"golang.org/x/crypto/openpgp/internal/encoding"
 	"io"
 )
 
@@ -47,7 +48,12 @@ func (l *LiteralData) parse(r io.Reader) (err error) {
 	}
 
 	l.Time = binary.BigEndian.Uint32(buf[:4])
-	l.Body = r
+	if l.IsBinary {
+		l.Body = r
+	} else {
+		l.Body = encoding.NewCanonicalTextReader(r)
+	}
+
 	return
 }
 
@@ -84,6 +90,10 @@ func SerializeLiteral(w io.WriteCloser, isBinary bool, fileName string, time uin
 		return
 	}
 
-	plaintext = inner
+	if isBinary {
+		plaintext = inner
+	} else {
+		plaintext = encoding.NewCanonicalTextWriteCloser(inner)
+	}
 	return
 }

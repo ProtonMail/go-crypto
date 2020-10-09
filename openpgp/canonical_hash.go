@@ -5,8 +5,8 @@
 package openpgp
 
 import (
+	"golang.org/x/crypto/openpgp/internal/encoding"
 	"hash"
-	"io"
 )
 
 // NewCanonicalTextHash reformats text written to it into the canonical
@@ -20,31 +20,8 @@ type canonicalTextHash struct {
 	s int
 }
 
-var newline = []byte{'\r', '\n'}
-
-func writeCanonical(cw io.Writer, buf []byte, s *int) (int, error) {
-	start := 0
-	for i, c := range buf {
-		switch *s {
-		case 0:
-			if c == '\r' {
-				*s = 1
-			} else if c == '\n' {
-				cw.Write(buf[start:i])
-				cw.Write(newline)
-				start = i + 1
-			}
-		case 1:
-			*s = 0
-		}
-	}
-
-	cw.Write(buf[start:])
-	return len(buf), nil
-}
-
 func (cth *canonicalTextHash) Write(buf []byte) (int, error) {
-	return writeCanonical(cth.h, buf, &cth.s)
+	return encoding.WriteCanonical(cth.h, buf, &cth.s)
 }
 
 func (cth *canonicalTextHash) Sum(in []byte) []byte {
