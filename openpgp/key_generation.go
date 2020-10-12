@@ -36,8 +36,6 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 	primary := packet.NewSignerPrivateKey(creationTime, primaryPrivRaw)
 	if config != nil && config.V5Keys {
 		primary.UpgradeToV5()
-	} else {
-		primary.Version = 4
 	}
 
 	isPrimaryId := true
