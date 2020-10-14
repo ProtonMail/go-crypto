@@ -476,15 +476,16 @@ func (pk *PrivateKey) Encrypt(passphrase []byte) error {
 	}
 	cfb := cipher.NewCFBEncrypter(block, pk.iv)
 
+	privKeyBytes := priv.Bytes()
 	if pk.sha1Checksum {
 		pk.s2kType = S2KSHA1
 		h := sha1.New()
-		h.Write(priv.Bytes())
+		h.Write(privKeyBytes)
 		priv.Write(h.Sum(nil))
 	} else {
 		pk.s2kType = S2KCHECKSUM
 		var sum uint16
-		for _, b := range priv.Bytes() {
+		for _, b := range privKeyBytes {
 			sum += uint16(b)
 		}
 		priv.Write([]byte{uint8(sum>>8), uint8(sum)})
