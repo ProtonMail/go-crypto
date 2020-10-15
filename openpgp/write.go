@@ -21,14 +21,14 @@ import (
 // already have been decrypted) and writes the signature to w.
 // If config is nil, sensible defaults will be used.
 func DetachSign(w io.Writer, signer *Entity, message io.Reader, config *packet.Config) error {
-	return detachSign(w, signer.PrivateKey, message, packet.SigTypeBinary, config)
+	return detachSign(w, signer, message, packet.SigTypeBinary, config)
 }
 
 // ArmoredDetachSign signs message with the private key from signer (which
 // must already have been decrypted) and writes an armored signature to w.
 // If config is nil, sensible defaults will be used.
 func ArmoredDetachSign(w io.Writer, signer *Entity, message io.Reader, config *packet.Config) (err error) {
-	return armoredDetachSign(w, signer.PrivateKey, message, packet.SigTypeBinary, config)
+	return armoredDetachSign(w, signer, message, packet.SigTypeBinary, config)
 }
 
 // DetachSignText signs message (after canonicalising the line endings) with
@@ -36,7 +36,7 @@ func ArmoredDetachSign(w io.Writer, signer *Entity, message io.Reader, config *p
 // writes the signature to w.
 // If config is nil, sensible defaults will be used.
 func DetachSignText(w io.Writer, signer *Entity, message io.Reader, config *packet.Config) error {
-	return detachSign(w, signer.PrivateKey, message, packet.SigTypeText, config)
+	return detachSign(w, signer, message, packet.SigTypeText, config)
 }
 
 // ArmoredDetachSignText signs message (after canonicalising the line endings)
@@ -44,66 +44,41 @@ func DetachSignText(w io.Writer, signer *Entity, message io.Reader, config *pack
 // and writes an armored signature to w.
 // If config is nil, sensible defaults will be used.
 func ArmoredDetachSignText(w io.Writer, signer *Entity, message io.Reader, config *packet.Config) error {
-	return armoredDetachSign(w, signer.PrivateKey, message, packet.SigTypeText, config)
+	return armoredDetachSign(w, signer, message, packet.SigTypeText, config)
 }
 
-// NewDetachSign signs message with the privateKey (which must already have been
-// decrypted) and writes the signature to w. If config is nil, sensible
-// defaults will be used.
-func NewDetachSign(w io.Writer, privateKey *packet.PrivateKey, message io.Reader, config *packet.Config) error {
-	return detachSign(w, privateKey, message, packet.SigTypeBinary, config)
-}
-
-// NewArmoredDetachSign signs message with the privateKey (which must already
-// have been decrypted) and writes an armored signature to w. If config is
-// nil, sensible defaults will be used.
-func NewArmoredDetachSign(w io.Writer, privateKey *packet.PrivateKey, message io.Reader, config *packet.Config) (err error) {
-	return armoredDetachSign(w, privateKey, message, packet.SigTypeBinary, config)
-}
-
-// NewDetachSignText signs message (after canonicalising the line endings)
-// with the privateKey (which must already have been decrypted) and writes
-// the signature to w. If config is nil, sensible defaults will be used.
-func NewDetachSignText(w io.Writer, privateKey *packet.PrivateKey, message io.Reader, config *packet.Config) error {
-	return detachSign(w, privateKey, message, packet.SigTypeText, config)
-}
-
-// NewArmoredDetachSignText signs message (after canonicalising the line
-// endings) with the privateKey (which must already have been decrypted) and
-// writes an armored signature to w. If config is nil, sensible defaults will
-// be used.
-func NewArmoredDetachSignText(w io.Writer, privateKey *packet.PrivateKey, message io.Reader, config *packet.Config) error {
-	return armoredDetachSign(w, privateKey, message, packet.SigTypeText, config)
-}
-
-func armoredDetachSign(w io.Writer, privateKey *packet.PrivateKey, message io.Reader, sigType packet.SignatureType, config *packet.Config) (err error) {
+func armoredDetachSign(w io.Writer, signer *Entity, message io.Reader, sigType packet.SignatureType, config *packet.Config) (err error) {
 	out, err := armor.Encode(w, SignatureType, nil)
 	if err != nil {
 		return
 	}
-	err = detachSign(out, privateKey, message, sigType, config)
+	err = detachSign(out, signer, message, sigType, config)
 	if err != nil {
 		return
 	}
 	return out.Close()
 }
 
-func detachSign(w io.Writer, privateKey *packet.PrivateKey, message io.Reader, sigType packet.SignatureType, config *packet.Config) (err error) {
-	if privateKey == nil {
-		return errors.InvalidArgumentError("signing key doesn't have a private key")
+func detachSign(w io.Writer, signer *Entity, message io.Reader, sigType packet.SignatureType, config *packet.Config) (err error) {
+	signingKey, ok := signer.SigningKey(config.Now())
+	if !ok {
+		return errors.InvalidArgumentError("no valid signing keys")
 	}
-	if privateKey.Encrypted {
-		return errors.InvalidArgumentError("signing key is encrypted")
+	if signingKey.PrivateKey == nil {
+		return errors.InvalidArgumentError("signing subkey doesn't have a private key")
+	}
+	if signingKey.PrivateKey.Encrypted {
+		return errors.InvalidArgumentError("signing subkey is encrypted")
 	}
 
 	sig := new(packet.Signature)
 	sig.SigType = sigType
-	sig.PubKeyAlgo = privateKey.PubKeyAlgo
+	sig.PubKeyAlgo = signingKey.PrivateKey.PubKeyAlgo
 	sig.Hash = config.Hash()
 	sig.CreationTime = config.Now()
 	sigLifetimeSecs := config.SigLifetime()
 	sig.SigLifetimeSecs = &sigLifetimeSecs
-	sig.IssuerKeyId = &privateKey.KeyId
+	sig.IssuerKeyId = &signingKey.PrivateKey.KeyId
 
 	h, wrappedHash, err := hashForSignature(sig.Hash, sig.SigType)
 	if err != nil {
@@ -113,7 +88,7 @@ func detachSign(w io.Writer, privateKey *packet.PrivateKey, message io.Reader, s
 		return err
 	}
 
-	err = sig.Sign(h, privateKey, config)
+	err = sig.Sign(h, signingKey.PrivateKey, config)
 	if err != nil {
 		return
 	}

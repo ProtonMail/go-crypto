@@ -441,7 +441,6 @@ func CheckDetachedSignatureAndHash(keyring KeyRing, signed, signature io.Reader,
 			if key.PublicKey.KeyExpired(key.SelfSignature, now) {
 				return key.Entity, errors.ErrKeyExpired
 			}
-
 			return key.Entity, nil
 		}
 	}
