@@ -65,10 +65,10 @@ func detachSign(w io.Writer, signer *Entity, message io.Reader, sigType packet.S
 		return errors.InvalidArgumentError("no valid signing keys")
 	}
 	if signingKey.PrivateKey == nil {
-		return errors.InvalidArgumentError("signing subkey doesn't have a private key")
+		return errors.InvalidArgumentError("signing key doesn't have a private key")
 	}
 	if signingKey.PrivateKey.Encrypted {
-		return errors.InvalidArgumentError("signing subkey is encrypted")
+		return errors.InvalidArgumentError("signing key is encrypted")
 	}
 
 	sig := new(packet.Signature)
