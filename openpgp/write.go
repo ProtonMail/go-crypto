@@ -60,19 +60,25 @@ func armoredDetachSign(w io.Writer, signer *Entity, message io.Reader, sigType p
 }
 
 func detachSign(w io.Writer, signer *Entity, message io.Reader, sigType packet.SignatureType, config *packet.Config) (err error) {
-	if signer.PrivateKey == nil {
+	signingKey, ok := signer.SigningKey(config.Now())
+	if !ok {
+		return errors.InvalidArgumentError("no valid signing keys")
+	}
+	if signingKey.PrivateKey == nil {
 		return errors.InvalidArgumentError("signing key doesn't have a private key")
 	}
-	if signer.PrivateKey.Encrypted {
+	if signingKey.PrivateKey.Encrypted {
 		return errors.InvalidArgumentError("signing key is encrypted")
 	}
 
 	sig := new(packet.Signature)
 	sig.SigType = sigType
-	sig.PubKeyAlgo = signer.PrivateKey.PubKeyAlgo
+	sig.PubKeyAlgo = signingKey.PrivateKey.PubKeyAlgo
 	sig.Hash = config.Hash()
 	sig.CreationTime = config.Now()
-	sig.IssuerKeyId = &signer.PrivateKey.KeyId
+	sigLifetimeSecs := config.SigLifetime()
+	sig.SigLifetimeSecs = &sigLifetimeSecs
+	sig.IssuerKeyId = &signingKey.PrivateKey.KeyId
 
 	h, wrappedHash, err := hashForSignature(sig.Hash, sig.SigType)
 	if err != nil {
@@ -82,7 +88,7 @@ func detachSign(w io.Writer, signer *Entity, message io.Reader, sigType packet.S
 		return err
 	}
 
-	err = sig.Sign(h, signer.PrivateKey, config)
+	err = sig.Sign(h, signingKey.PrivateKey, config)
 	if err != nil {
 		return
 	}
