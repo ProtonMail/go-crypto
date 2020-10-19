@@ -5,9 +5,9 @@
 package openpgp
 
 import (
+	goerrors "errors"
 	"io"
 	"time"
-	goerrors "errors"
 
 	"golang.org/x/crypto/openpgp/armor"
 	"golang.org/x/crypto/openpgp/errors"

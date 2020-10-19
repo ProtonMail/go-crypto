@@ -371,7 +371,7 @@ func TestUnknownHashFunction(t *testing.T) {
 
 func TestMissingHashFunction(t *testing.T) {
 	// missingHashFunctionHex contains a signature packet that uses
-	// RIPEMD160, which isn't compiled in.  Since that's the only signature
+	// RIPEMD160, which isn't compiled in. Since that's the only signature
 	// packet we don't find any suitable packets and end up with ErrUnknownIssuer
 	kring, _ := ReadKeyRing(readerFromHex(testKeys1And2Hex))
 	config := &packet.Config{}

@@ -56,8 +56,8 @@ type MessageDetails struct {
 	// been consumed. Once EOF has been seen, the following fields are
 	// valid. (An authentication code failure is reported as a
 	// SignatureError error when reading from UnverifiedBody.)
-	SignatureError error               // nil if the signature is good.
-	Signature      *packet.Signature   // the signature packet itself, if v4 (default)
+	SignatureError error             // nil if the signature is good.
+	Signature      *packet.Signature // the signature packet itself, if v4 (default)
 
 	decrypted io.ReadCloser
 }
@@ -250,8 +250,7 @@ FindLiteralData:
 
 			h, wrappedHash, err = hashForSignature(p.Hash, p.SigType)
 			if err != nil {
-				md = nil
-				return
+				md.SignatureError = err
 			}
 
 			md.IsSigned = true
@@ -266,7 +265,7 @@ FindLiteralData:
 		}
 	}
 
-	if md.SignedBy != nil {
+	if md.SignedBy != nil && md.SignatureError == nil {
 		md.UnverifiedBody = &signatureCheckReader{packets, h, wrappedHash, md, config}
 	} else if md.decrypted != nil {
 		md.UnverifiedBody = checkReader{md}
@@ -283,6 +282,9 @@ FindLiteralData:
 // returns two hashes. The second should be used to hash the message itself and
 // performs any needed preprocessing.
 func hashForSignature(hashId crypto.Hash, sigType packet.SignatureType) (hash.Hash, hash.Hash, error) {
+	if hashId == crypto.MD5 {
+		return nil, nil, errors.UnsupportedError("insecure hash algorithm: MD5")
+	}
 	if !hashId.Available() {
 		return nil, nil, errors.UnsupportedError("hash not available: " + strconv.Itoa(int(hashId)))
 	}
@@ -435,14 +437,14 @@ func CheckDetachedSignatureAndHash(keyring KeyRing, signed, signature io.Reader,
 
 	for _, key := range keys {
 		err = key.PublicKey.VerifySignature(h, sig)
-		if err == nil && sig.SigExpired(config.Now()) {
-			err = errors.ErrSignatureExpired
-		}
-		if err == errors.ErrSignatureExpired {
-			return key.Entity, err
-		}
-
 		if err == nil {
+			now := config.Now()
+			if sig.SigExpired(now) {
+				return key.Entity, errors.ErrSignatureExpired
+			}
+			if key.PublicKey.KeyExpired(key.SelfSignature, now) {
+				return key.Entity, errors.ErrKeyExpired
+			}
 			return key.Entity, nil
 		}
 	}
