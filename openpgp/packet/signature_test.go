@@ -41,6 +41,7 @@ func TestSignatureReserialize(t *testing.T) {
 
 func TestSignUserId(t *testing.T) {
 	sig := &Signature{
+		Version:    4,
 		SigType:    SigTypeGenericCert,
 		PubKeyAlgo: PubKeyAlgoRSA,
 		Hash:       0, // invalid hash function

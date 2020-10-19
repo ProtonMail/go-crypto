@@ -965,7 +965,7 @@ func TestRevokeSubkeyWithInvalidSignature(t *testing.T) {
 	}
 
 	sk := entity.Subkeys[0]
-	sk.Sig = &packet.Signature{}
+	sk.Sig = &packet.Signature{Version: 4}
 
 	err = entity.RevokeSubkey(&sk, packet.NoReason, "Key revocation", nil)
 	if err == nil {

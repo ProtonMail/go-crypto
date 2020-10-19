@@ -60,6 +60,9 @@ type Config struct {
 	// **Note: using this option may break compatibility with other OpenPGP
 	// implementations, as well as future versions of this library.**
 	AEADConfig *AEADConfig
+	// V5Keys configures version 5 key generation. If false, this package still
+	// supports version 5 keys, but produces version 4 keys.
+	V5Keys bool
 	// "The validity period of the key.  This is the number of seconds after
 	// the key creation time that the key expires.  If this is not present
 	// or has a value of zero, the key never expires.  This is found only on

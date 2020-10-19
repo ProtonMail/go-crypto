@@ -11,6 +11,7 @@ import (
 
 // LiteralData represents an encrypted file. See RFC 4880, section 5.9.
 type LiteralData struct {
+	Format   uint8
 	IsBinary bool
 	FileName string
 	Time     uint32 // Unix epoch time. Either creation time or modification time. 0 means undefined.
@@ -31,7 +32,8 @@ func (l *LiteralData) parse(r io.Reader) (err error) {
 		return
 	}
 
-	l.IsBinary = buf[0] == 'b'
+	l.Format = buf[0]
+	l.IsBinary = l.Format == 'b'
 	fileNameLen := int(buf[1])
 
 	_, err = readFull(r, buf[:fileNameLen])

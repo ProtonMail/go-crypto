@@ -10,7 +10,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/sha1"
-	_ "crypto/sha256"
+	"crypto/sha256"
 	_ "crypto/sha512"
 	"encoding/binary"
 	"fmt"
@@ -35,10 +35,11 @@ type kdfAlgorithm byte
 
 // PublicKey represents an OpenPGP public key. See RFC 4880, section 5.5.2.
 type PublicKey struct {
+	Version      int
 	CreationTime time.Time
 	PubKeyAlgo   PublicKeyAlgorithm
 	PublicKey    interface{} // *rsa.PublicKey, *dsa.PublicKey, *ecdsa.PublicKey or *eddsa.PublicKey
-	Fingerprint  [20]byte
+	Fingerprint  []byte
 	KeyId        uint64
 	IsSubkey     bool
 
@@ -54,6 +55,13 @@ type PublicKey struct {
 	kdf encoding.Field
 }
 
+// UpgradeToV5 updates the version of the key to v5, and updates all necessary
+// fields.
+func (pk *PublicKey) UpgradeToV5() {
+	pk.Version = 5
+	pk.setFingerprintAndKeyId()
+}
+
 // signingKey provides a convenient abstraction over signature verification
 // for v3 and v4 public keys.
 type signingKey interface {
@@ -65,6 +73,7 @@ type signingKey interface {
 // NewRSAPublicKey returns a PublicKey that wraps the given rsa.PublicKey.
 func NewRSAPublicKey(creationTime time.Time, pub *rsa.PublicKey) *PublicKey {
 	pk := &PublicKey{
+		Version:      4,
 		CreationTime: creationTime,
 		PubKeyAlgo:   PubKeyAlgoRSA,
 		PublicKey:    pub,
@@ -72,13 +81,14 @@ func NewRSAPublicKey(creationTime time.Time, pub *rsa.PublicKey) *PublicKey {
 		e:            new(encoding.MPI).SetBig(big.NewInt(int64(pub.E))),
 	}
 
-	pk.setFingerPrintAndKeyId()
+	pk.setFingerprintAndKeyId()
 	return pk
 }
 
 // NewDSAPublicKey returns a PublicKey that wraps the given dsa.PublicKey.
 func NewDSAPublicKey(creationTime time.Time, pub *dsa.PublicKey) *PublicKey {
 	pk := &PublicKey{
+		Version:      4,
 		CreationTime: creationTime,
 		PubKeyAlgo:   PubKeyAlgoDSA,
 		PublicKey:    pub,
@@ -88,13 +98,14 @@ func NewDSAPublicKey(creationTime time.Time, pub *dsa.PublicKey) *PublicKey {
 		y:            new(encoding.MPI).SetBig(pub.Y),
 	}
 
-	pk.setFingerPrintAndKeyId()
+	pk.setFingerprintAndKeyId()
 	return pk
 }
 
 // NewElGamalPublicKey returns a PublicKey that wraps the given elgamal.PublicKey.
 func NewElGamalPublicKey(creationTime time.Time, pub *elgamal.PublicKey) *PublicKey {
 	pk := &PublicKey{
+		Version:      4,
 		CreationTime: creationTime,
 		PubKeyAlgo:   PubKeyAlgoElGamal,
 		PublicKey:    pub,
@@ -103,12 +114,13 @@ func NewElGamalPublicKey(creationTime time.Time, pub *elgamal.PublicKey) *Public
 		y:            new(encoding.MPI).SetBig(pub.Y),
 	}
 
-	pk.setFingerPrintAndKeyId()
+	pk.setFingerprintAndKeyId()
 	return pk
 }
 
 func NewECDSAPublicKey(creationTime time.Time, pub *ecdsa.PublicKey) *PublicKey {
 	pk := &PublicKey{
+		Version:      4,
 		CreationTime: creationTime,
 		PubKeyAlgo:   PubKeyAlgoECDSA,
 		PublicKey:    pub,
@@ -120,30 +132,32 @@ func NewECDSAPublicKey(creationTime time.Time, pub *ecdsa.PublicKey) *PublicKey 
 		panic("unknown elliptic curve")
 	}
 	pk.oid = curveInfo.Oid
-	pk.setFingerPrintAndKeyId()
+	pk.setFingerprintAndKeyId()
 	return pk
 }
 
 func NewECDHPublicKey(creationTime time.Time, pub *ecdh.PublicKey) *PublicKey {
 	var pk *PublicKey
 	var curveInfo *ecc.CurveInfo
-	var kdf = encoding.NewOID([]byte{ 0x1, pub.Hash.Id(), pub.Cipher.Id() })
+	var kdf = encoding.NewOID([]byte{0x1, pub.Hash.Id(), pub.Cipher.Id()})
 	if pub.CurveType == ecc.Curve25519 {
 		pk = &PublicKey{
+			Version:      4,
 			CreationTime: creationTime,
 			PubKeyAlgo:   PubKeyAlgoECDH,
 			PublicKey:    pub,
 			p:            encoding.NewMPI(pub.X.Bytes()),
-			kdf: kdf,
+			kdf:          kdf,
 		}
 		curveInfo = ecc.FindByName("Curve25519")
 	} else {
 		pk = &PublicKey{
+			Version:      4,
 			CreationTime: creationTime,
 			PubKeyAlgo:   PubKeyAlgoECDH,
 			PublicKey:    pub,
 			p:            encoding.NewMPI(elliptic.Marshal(pub.Curve, pub.X, pub.Y)),
-			kdf: kdf,
+			kdf:          kdf,
 		}
 		curveInfo = ecc.FindByCurve(pub.Curve)
 	}
@@ -151,13 +165,14 @@ func NewECDHPublicKey(creationTime time.Time, pub *ecdh.PublicKey) *PublicKey {
 		panic("unknown elliptic curve")
 	}
 	pk.oid = curveInfo.Oid
-	pk.setFingerPrintAndKeyId()
+	pk.setFingerprintAndKeyId()
 	return pk
 }
 
 func NewEdDSAPublicKey(creationTime time.Time, pub *ed25519.PublicKey) *PublicKey {
 	curveInfo := ecc.FindByName("Ed25519")
 	pk := &PublicKey{
+		Version:      4,
 		CreationTime: creationTime,
 		PubKeyAlgo:   PubKeyAlgoEdDSA,
 		PublicKey:    pub,
@@ -166,7 +181,7 @@ func NewEdDSAPublicKey(creationTime time.Time, pub *ed25519.PublicKey) *PublicKe
 		p: encoding.NewMPI(append([]byte{0x40}, *pub...)),
 	}
 
-	pk.setFingerPrintAndKeyId()
+	pk.setFingerprintAndKeyId()
 	return pk
 }
 
@@ -177,8 +192,17 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	if buf[0] != 4 {
-		return errors.UnsupportedError("public key version")
+	if buf[0] != 4 && buf[0] != 5 {
+		return errors.UnsupportedError("public key version " + strconv.Itoa(int(buf[0])))
+	}
+
+	pk.Version = int(buf[0])
+	if pk.Version == 5 {
+		var n [4]byte
+		_, err = readFull(r, n[:])
+		if err != nil {
+			return
+		}
 	}
 	pk.CreationTime = time.Unix(int64(uint32(buf[1])<<24|uint32(buf[2])<<16|uint32(buf[3])<<8|uint32(buf[4])), 0)
 	pk.PubKeyAlgo = PublicKeyAlgorithm(buf[5])
@@ -202,16 +226,25 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 		return
 	}
 
-	pk.setFingerPrintAndKeyId()
+	pk.setFingerprintAndKeyId()
 	return
 }
 
-func (pk *PublicKey) setFingerPrintAndKeyId() {
+func (pk *PublicKey) setFingerprintAndKeyId() {
 	// RFC 4880, section 12.2
-	fingerPrint := sha1.New()
-	pk.SerializeForHash(fingerPrint)
-	copy(pk.Fingerprint[:], fingerPrint.Sum(nil))
-	pk.KeyId = binary.BigEndian.Uint64(pk.Fingerprint[12:20])
+	if pk.Version == 5 {
+		fingerprint := sha256.New()
+		pk.SerializeForHash(fingerprint)
+		pk.Fingerprint = make([]byte, 32)
+		copy(pk.Fingerprint, fingerprint.Sum(nil))
+		pk.KeyId = binary.BigEndian.Uint64(pk.Fingerprint[:8])
+	} else {
+		fingerprint := sha1.New()
+		pk.SerializeForHash(fingerprint)
+		pk.Fingerprint = make([]byte, 20)
+		copy(pk.Fingerprint, fingerprint.Sum(nil))
+		pk.KeyId = binary.BigEndian.Uint64(pk.Fingerprint[12:20])
+	}
 }
 
 // parseRSA parses RSA public key material from the given Reader. See RFC 4880,
@@ -345,7 +378,7 @@ func (pk *PublicKey) parseECDH(r io.Reader) (err error) {
 	c := curveInfo.Curve
 	cType := curveInfo.CurveType
 
-	var x, y *big.Int;
+	var x, y *big.Int
 	if cType == ecc.Curve25519 {
 		x = new(big.Int)
 		x.SetBytes(pk.p.Bytes())
@@ -373,9 +406,9 @@ func (pk *PublicKey) parseECDH(r io.Reader) (err error) {
 
 	pk.PublicKey = &ecdh.PublicKey{
 		CurveType: cType,
-		Curve: c,
-		X:     x,
-		Y:     y,
+		Curve:     c,
+		X:         x,
+		Y:         y,
 		KDF: ecdh.KDF{
 			Hash:   kdfHash,
 			Cipher: kdfCipher,
@@ -420,41 +453,41 @@ func (pk *PublicKey) SerializeForHash(w io.Writer) error {
 // The prefix is used when calculating a signature over this public key. See
 // RFC 4880, section 5.2.4.
 func (pk *PublicKey) SerializeSignaturePrefix(w io.Writer) {
-	var pLength uint16
-	switch pk.PubKeyAlgo {
-	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoRSASignOnly:
-		pLength += pk.n.EncodedLength()
-		pLength += pk.e.EncodedLength()
-	case PubKeyAlgoDSA:
-		pLength += pk.p.EncodedLength()
-		pLength += pk.q.EncodedLength()
-		pLength += pk.g.EncodedLength()
-		pLength += pk.y.EncodedLength()
-	case PubKeyAlgoElGamal:
-		pLength += pk.p.EncodedLength()
-		pLength += pk.g.EncodedLength()
-		pLength += pk.y.EncodedLength()
-	case PubKeyAlgoECDSA:
-		pLength += pk.oid.EncodedLength()
-		pLength += pk.p.EncodedLength()
-	case PubKeyAlgoECDH:
-		pLength += pk.oid.EncodedLength()
-		pLength += pk.p.EncodedLength()
-		pLength += pk.kdf.EncodedLength()
-	case PubKeyAlgoEdDSA:
-		pLength += pk.oid.EncodedLength()
-		pLength += pk.p.EncodedLength()
-	default:
-		panic("unknown public key algorithm")
+	var pLength = pk.algorithmSpecificByteCount()
+	if pk.Version == 5 {
+		pLength += 10 // version, timestamp (4), algorithm, key octet count (4).
+		w.Write([]byte{
+			0x9A,
+			byte(pLength >> 24),
+			byte(pLength >> 16),
+			byte(pLength >> 8),
+			byte(pLength),
+		})
+		return
 	}
 	pLength += 6
 	w.Write([]byte{0x99, byte(pLength >> 8), byte(pLength)})
-	return
 }
 
 func (pk *PublicKey) Serialize(w io.Writer) (err error) {
 	length := 6 // 6 byte header
+	length += pk.algorithmSpecificByteCount()
+	if pk.Version == 5 {
+		length += 4 // octet key count
+	}
+	packetType := packetTypePublicKey
+	if pk.IsSubkey {
+		packetType = packetTypePublicSubkey
+	}
+	err = serializeHeader(w, packetType, length)
+	if err != nil {
+		return
+	}
+	return pk.serializeWithoutHeaders(w)
+}
 
+func (pk *PublicKey) algorithmSpecificByteCount() int {
+	length := 0
 	switch pk.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoRSASignOnly:
 		length += int(pk.n.EncodedLength())
@@ -481,33 +514,28 @@ func (pk *PublicKey) Serialize(w io.Writer) (err error) {
 	default:
 		panic("unknown public key algorithm")
 	}
-
-	packetType := packetTypePublicKey
-	if pk.IsSubkey {
-		packetType = packetTypePublicSubkey
-	}
-	err = serializeHeader(w, packetType, length)
-	if err != nil {
-		return
-	}
-	return pk.serializeWithoutHeaders(w)
+	return length
 }
 
 // serializeWithoutHeaders marshals the PublicKey to w in the form of an
 // OpenPGP public key packet, not including the packet header.
 func (pk *PublicKey) serializeWithoutHeaders(w io.Writer) (err error) {
-	var buf [6]byte
-	buf[0] = 4
 	t := uint32(pk.CreationTime.Unix())
-	buf[1] = byte(t >> 24)
-	buf[2] = byte(t >> 16)
-	buf[3] = byte(t >> 8)
-	buf[4] = byte(t)
-	buf[5] = byte(pk.PubKeyAlgo)
-
-	_, err = w.Write(buf[:])
-	if err != nil {
+	if _, err = w.Write([]byte{
+		byte(pk.Version),
+		byte(t >> 24), byte(t >> 16), byte(t >> 8), byte(t),
+		byte(pk.PubKeyAlgo),
+	}); err != nil {
 		return
+	}
+
+	if pk.Version == 5 {
+		n := pk.algorithmSpecificByteCount()
+		if _, err = w.Write([]byte{
+			byte(n >> 24), byte(n >> 16), byte(n >> 8), byte(n),
+		}); err != nil {
+			return
+		}
 	}
 
 	switch pk.PubKeyAlgo {
@@ -574,10 +602,11 @@ func (pk *PublicKey) VerifySignature(signed hash.Hash, sig *Signature) (err erro
 	if !pk.CanSign() {
 		return errors.InvalidArgumentError("public key cannot generate signatures")
 	}
-
+	if sig.Version == 5 && (sig.SigType == 0x00 || sig.SigType == 0x01) {
+		sig.AddMetadataToHashSuffix()
+	}
 	signed.Write(sig.HashSuffix)
 	hashBytes := signed.Sum(nil)
-
 	if hashBytes[0] != sig.HashTag[0] || hashBytes[1] != sig.HashTag[1] {
 		return errors.SignatureError("hash tag doesn't match")
 	}

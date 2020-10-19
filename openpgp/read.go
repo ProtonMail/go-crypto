@@ -340,6 +340,10 @@ func (scr *signatureCheckReader) Read(buf []byte) (n int, err error) {
 
 		var ok bool
 		if scr.md.Signature, ok = p.(*packet.Signature); ok {
+			sig := scr.md.Signature
+			if sig.Version == 5 && (sig.SigType == 0x00 || sig.SigType == 0x01) {
+				sig.Metadata = scr.md.LiteralData
+			}
 			scr.md.SignatureError = scr.md.SignedBy.PublicKey.VerifySignature(scr.h, scr.md.Signature)
 			if scr.md.SignatureError == nil && scr.md.Signature.SigExpired(scr.config.Now()) {
 				scr.md.SignatureError = errors.ErrSignatureExpired

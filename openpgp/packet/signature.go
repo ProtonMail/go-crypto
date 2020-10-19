@@ -32,6 +32,7 @@ const (
 
 // Signature represents a signature. See RFC 4880, section 5.2.
 type Signature struct {
+	Version    int
 	SigType    SignatureType
 	PubKeyAlgo PublicKeyAlgorithm
 	Hash       crypto.Hash
@@ -41,6 +42,12 @@ type Signature struct {
 	// HashTag contains the first two bytes of the hash for fast rejection
 	// of bad signed data.
 	HashTag      [2]byte
+
+	// Metadata includes format, filename and time, and is protected by v5
+	// signatures of type 0x00 or 0x01. This metadata is included into the hash
+	// computation; if nil, six 0x00 bytes are used instead. See section 5.2.4.
+	Metadata *LiteralData
+
 	CreationTime time.Time
 
 	RSASignature         encoding.Field
@@ -58,6 +65,7 @@ type Signature struct {
 	PreferredSymmetric, PreferredHash, PreferredCompression []uint8
 	PreferredAEAD                                           []uint8
 	IssuerKeyId                                             *uint64
+	IssuerFingerprint                                       []byte
 	IsPrimaryId                                             *bool
 
 	// FlagsValid is set if any flags were given. See RFC 4880, section
@@ -70,9 +78,10 @@ type Signature struct {
 	RevocationReason     *uint8
 	RevocationReasonText string
 
-	// MDC (resp. AEAD) is set if this signature has a feature subpacket that
-	// indicates support for MDC (resp. AEAD) packets.
-	MDC, AEAD bool
+	// In a self-signature, these flags are set there is a features subpacket
+	// indicating that the issuer implementation supports these features
+	// (section 5.2.5.25).
+	MDC, AEAD, V5Keys bool
 
 	// EmbeddedSignature, if non-nil, is a signature of the parent key, by
 	// this key. This prevents an attacker from claiming another's signing
@@ -89,11 +98,11 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	if buf[0] != 4 {
+	if buf[0] != 4 && buf[0] != 5 {
 		err = errors.UnsupportedError("signature packet version " + strconv.Itoa(int(buf[0])))
 		return
 	}
-
+	sig.Version = int(buf[0])
 	_, err = readFull(r, buf[:5])
 	if err != nil {
 		return
@@ -114,24 +123,12 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 	}
 
 	hashedSubpacketsLength := int(buf[3])<<8 | int(buf[4])
-	l := 6 + hashedSubpacketsLength
-	sig.HashSuffix = make([]byte, l+6)
-	sig.HashSuffix[0] = 4
-	copy(sig.HashSuffix[1:], buf[:5])
-	hashedSubpackets := sig.HashSuffix[6:l]
+	hashedSubpackets := make([]byte, hashedSubpacketsLength)
 	_, err = readFull(r, hashedSubpackets)
 	if err != nil {
 		return
 	}
-	// See RFC 4880, section 5.2.4
-	trailer := sig.HashSuffix[l:]
-	trailer[0] = 4
-	trailer[1] = 0xff
-	trailer[2] = uint8(l >> 24)
-	trailer[3] = uint8(l >> 16)
-	trailer[4] = uint8(l >> 8)
-	trailer[5] = uint8(l)
-
+	sig.buildHashSuffix(hashedSubpackets)
 	err = parseSignatureSubpackets(sig, hashedSubpackets, true)
 	if err != nil {
 		return
@@ -225,6 +222,7 @@ const (
 	reasonForRevocationSubpacket signatureSubpacketType = 29
 	featuresSubpacket            signatureSubpacketType = 30
 	embeddedSignatureSubpacket   signatureSubpacketType = 32
+	issuerFingerprintSubpacket   signatureSubpacketType = 33
 	prefAeadAlgosSubpacket       signatureSubpacketType = 34
 )
 
@@ -310,14 +308,10 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		}
 		sig.PreferredSymmetric = make([]byte, len(subpacket))
 		copy(sig.PreferredSymmetric, subpacket)
-	case prefAeadAlgosSubpacket:
-		// Preferred symmetric algorithms, section 5.2.3.8
-		if !isHashed {
-			return
-		}
-		sig.PreferredAEAD = make([]byte, len(subpacket))
-		copy(sig.PreferredAEAD, subpacket)
 	case issuerSubpacket:
+		if sig.Version > 4 {
+			err = errors.StructuralError("issuer subpacket found in v5 key")
+		}
 		// Issuer, section 5.2.3.5
 		if len(subpacket) != 8 {
 			err = errors.StructuralError("issuer subpacket with bad length")
@@ -400,6 +394,9 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 			if subpacket[0]&0x02 != 0 {
 				sig.AEAD = true
 			}
+			if subpacket[0]&0x04 != 0 {
+				sig.V5Keys = true
+			}
 		}
 	case embeddedSignatureSubpacket:
 		// Only usage is in signatures that cross-certify
@@ -419,6 +416,26 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		if sigType := sig.EmbeddedSignature.SigType; sigType != SigTypePrimaryKeyBinding {
 			return nil, errors.StructuralError("cross-signature has unexpected type " + strconv.Itoa(int(sigType)))
 		}
+	case issuerFingerprintSubpacket:
+		v, l := subpacket[0], len(subpacket[1:])
+		if v < 5 && l != 20 || v == 5 && l != 32 {
+			return nil, errors.StructuralError("bad fingerprint length")
+		}
+		sig.IssuerFingerprint = make([]byte, l)
+		copy(sig.IssuerFingerprint, subpacket[1:])
+		sig.IssuerKeyId = new(uint64)
+		if v == 5 {
+			*sig.IssuerKeyId = binary.BigEndian.Uint64(subpacket[1:9])
+		} else {
+			*sig.IssuerKeyId = binary.BigEndian.Uint64(subpacket[13:21])
+		}
+	case prefAeadAlgosSubpacket:
+		// Preferred symmetric algorithms, section 5.2.3.8
+		if !isHashed {
+			return
+		}
+		sig.PreferredAEAD = make([]byte, len(subpacket))
+		copy(sig.PreferredAEAD, subpacket)
 	default:
 		if isCritical {
 			err = errors.UnsupportedError("unknown critical signature subpacket type " + strconv.Itoa(int(packetType)))
@@ -441,6 +458,13 @@ func subpacketLengthLength(length int) int {
 		return 2
 	}
 	return 5
+}
+
+func (sig *Signature) CheckKeyIdOrFingerprint(pk *PublicKey) bool {
+	if sig.IssuerFingerprint != nil && len(sig.IssuerFingerprint) >= 20 {
+		return bytes.Equal(sig.IssuerFingerprint, pk.Fingerprint)
+	}
+	return sig.IssuerKeyId != nil && *sig.IssuerKeyId == pk.KeyId
 }
 
 // serializeSubpacketLength marshals the given length into to.
@@ -505,37 +529,51 @@ func (sig *Signature) SigExpired(currentTime time.Time) bool {
 }
 
 // buildHashSuffix constructs the HashSuffix member of sig in preparation for signing.
-func (sig *Signature) buildHashSuffix() (err error) {
-	hashedSubpacketsLen := subpacketsLength(sig.outSubpackets, true)
-
-	var ok bool
-	l := 6 + hashedSubpacketsLen
-	sig.HashSuffix = make([]byte, l+6)
-	sig.HashSuffix[0] = 4
-	sig.HashSuffix[1] = uint8(sig.SigType)
-	sig.HashSuffix[2] = uint8(sig.PubKeyAlgo)
-	sig.HashSuffix[3], ok = s2k.HashToHashId(sig.Hash)
+func (sig *Signature) buildHashSuffix(hashedSubpackets []byte) (err error) {
+	hash, ok := s2k.HashToHashId(sig.Hash)
 	if !ok {
 		sig.HashSuffix = nil
 		return errors.InvalidArgumentError("hash cannot be represented in OpenPGP: " + strconv.Itoa(int(sig.Hash)))
 	}
-	sig.HashSuffix[4] = byte(hashedSubpacketsLen >> 8)
-	sig.HashSuffix[5] = byte(hashedSubpacketsLen)
-	serializeSubpackets(sig.HashSuffix[6:l], sig.outSubpackets, true)
-	trailer := sig.HashSuffix[l:]
-	trailer[0] = 4
-	trailer[1] = 0xff
-	trailer[2] = byte(l >> 24)
-	trailer[3] = byte(l >> 16)
-	trailer[4] = byte(l >> 8)
-	trailer[5] = byte(l)
+
+	hashedFields := bytes.NewBuffer([]byte{
+		uint8(sig.Version),
+		uint8(sig.SigType),
+		uint8(sig.PubKeyAlgo),
+		uint8(hash),
+		uint8(len(hashedSubpackets) >> 8),
+		uint8(len(hashedSubpackets)),
+	})
+	hashedFields.Write(hashedSubpackets)
+
+	var l uint64 = uint64(6 + len(hashedSubpackets))
+	if sig.Version == 5 {
+		hashedFields.Write([]byte{0x05, 0xff})
+		hashedFields.Write([]byte{
+			uint8(l >> 56), uint8(l >> 48), uint8(l >> 40), uint8(l >> 32),
+			uint8(l >> 24), uint8(l >> 16), uint8(l >> 8), uint8(l),
+		})
+	} else {
+		hashedFields.Write([]byte{0x04, 0xff})
+		hashedFields.Write([]byte{
+			uint8(l >> 24), uint8(l >> 16), uint8(l >> 8), uint8(l),
+		})
+	}
+	sig.HashSuffix = make([]byte, hashedFields.Len())
+	copy(sig.HashSuffix, hashedFields.Bytes())
 	return
 }
 
 func (sig *Signature) signPrepareHash(h hash.Hash) (digest []byte, err error) {
-	err = sig.buildHashSuffix()
+	hashedSubpacketsLen := subpacketsLength(sig.outSubpackets, true)
+	hashedSubpackets := make([]byte, hashedSubpacketsLen)
+	serializeSubpackets(hashedSubpackets, sig.outSubpackets, true)
+	err = sig.buildHashSuffix(hashedSubpackets)
 	if err != nil {
 		return
+	}
+	if sig.Version == 5 && (sig.SigType == 0x00 || sig.SigType == 0x01) {
+		sig.AddMetadataToHashSuffix()
 	}
 
 	h.Write(sig.HashSuffix)
@@ -552,7 +590,9 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 	if priv.Dummy() {
 		return errors.ErrDummyPrivateKey("dummy key found")
 	}
-	sig.outSubpackets, err = sig.buildSubpackets()
+	sig.Version = priv.PublicKey.Version
+	sig.IssuerFingerprint = priv.PublicKey.Fingerprint
+	sig.outSubpackets, err = sig.buildSubpackets(priv.PublicKey)
 	if err != nil {
 		return err
 	}
@@ -560,7 +600,6 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 	if err != nil {
 		return
 	}
-
 	switch priv.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly:
 		// supports both *rsa.PrivateKey and crypto.Signer
@@ -706,11 +745,13 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 	length := len(sig.HashSuffix) - 6 /* trailer not included */ +
 		2 /* length of unhashed subpackets */ + unhashedSubpacketsLen +
 		2 /* hash tag */ + sigLength
+	if sig.Version == 5 {
+		length -= 4 // eight-octet instead of four-octet big endian
+	}
 	err = serializeHeader(w, packetTypeSignature, length)
 	if err != nil {
 		return
 	}
-
 	err = sig.serializeBody(w)
 	if err != nil {
 		return err
@@ -719,12 +760,14 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 }
 
 func (sig *Signature) serializeBody(w io.Writer) (err error) {
-	unhashedSubpacketsLen := subpacketsLength(sig.outSubpackets, false)
-	_, err = w.Write(sig.HashSuffix[:len(sig.HashSuffix)-6])
+	hashedSubpacketsLen := uint16(uint16(sig.HashSuffix[4])<<8) | uint16(sig.HashSuffix[5])
+	fields := sig.HashSuffix[:6+hashedSubpacketsLen]
+	_, err = w.Write(fields)
 	if err != nil {
 		return
 	}
 
+	unhashedSubpacketsLen := subpacketsLength(sig.outSubpackets, false)
 	unhashedSubpackets := make([]byte, 2+unhashedSubpacketsLen)
 	unhashedSubpackets[0] = byte(unhashedSubpacketsLen >> 8)
 	unhashedSubpackets[1] = byte(unhashedSubpacketsLen)
@@ -771,17 +814,20 @@ type outputSubpacket struct {
 	contents      []byte
 }
 
-func (sig *Signature) buildSubpackets() (subpackets []outputSubpacket, err error) {
+func (sig *Signature) buildSubpackets(issuer PublicKey) (subpackets []outputSubpacket, err error) {
 	creationTime := make([]byte, 4)
 	binary.BigEndian.PutUint32(creationTime, uint32(sig.CreationTime.Unix()))
 	subpackets = append(subpackets, outputSubpacket{true, creationTimeSubpacket, false, creationTime})
 
-	if sig.IssuerKeyId != nil {
+	if sig.IssuerKeyId != nil && sig.Version == 4 {
 		keyId := make([]byte, 8)
 		binary.BigEndian.PutUint64(keyId, *sig.IssuerKeyId)
-		subpackets = append(subpackets, outputSubpacket{true, issuerSubpacket, false, keyId})
+		subpackets = append(subpackets, outputSubpacket{true, issuerSubpacket, true, keyId})
 	}
-
+	if sig.IssuerFingerprint != nil {
+		contents := append([]uint8{uint8(issuer.Version)}, sig.IssuerFingerprint...)
+		subpackets = append(subpackets, outputSubpacket{true, issuerFingerprintSubpacket, true, contents})
+	}
 	if sig.SigLifetimeSecs != nil && *sig.SigLifetimeSecs != 0 {
 		sigLifetime := make([]byte, 4)
 		binary.BigEndian.PutUint32(sigLifetime, *sig.SigLifetimeSecs)
@@ -815,6 +861,9 @@ func (sig *Signature) buildSubpackets() (subpackets []outputSubpacket, err error
 	}
 	if sig.AEAD {
 		features |= 0x02
+	}
+	if sig.V5Keys {
+		features |= 0x04
 	}
 
 	if features != 0x00 {
@@ -860,9 +909,56 @@ func (sig *Signature) buildSubpackets() (subpackets []outputSubpacket, err error
 		if err != nil {
 			return
 		}
-		subpackets = append(subpackets, outputSubpacket{true, embeddedSignatureSubpacket, true,
-			buf.Bytes()})
+		subpackets = append(subpackets, outputSubpacket{true, embeddedSignatureSubpacket, true, buf.Bytes()})
 	}
 
 	return
+}
+
+// AddMetadataToHashSuffix modifies the current hash suffix to include metadata
+// (format, filename, and time). Version 5 keys protect this data including it
+// in the hash computation. See section 5.2.4.
+func (sig *Signature) AddMetadataToHashSuffix() {
+	if sig == nil || sig.Version != 5 {
+		return
+	}
+	if sig.SigType != 0x00 && sig.SigType != 0x01 {
+		return
+	}
+	lit := sig.Metadata
+	if lit == nil {
+		// This will translate into six 0x00 bytes.
+		lit = &LiteralData{}
+	}
+
+	// Extract the current byte count
+	n := sig.HashSuffix[len(sig.HashSuffix)-8:]
+	l := uint64(
+		uint64(n[0])<<56 | uint64(n[1])<<48 | uint64(n[2])<<40 | uint64(n[3])<<32 |
+		uint64(n[4])<<24 | uint64(n[5])<<16 | uint64(n[6])<<8  | uint64(n[7]))
+
+	suffix := bytes.NewBuffer(nil)
+	suffix.Write(sig.HashSuffix[:l])
+
+	// Add the metadata
+	var buf [4]byte
+	buf[0] = lit.Format
+	fileName := lit.FileName
+	if len(lit.FileName) > 255 {
+		fileName = fileName[:255]
+	}
+	buf[1] = byte(len(fileName))
+	suffix.Write(buf[:2])
+	suffix.Write([]byte(lit.FileName))
+	binary.BigEndian.PutUint32(buf[:], lit.Time)
+	suffix.Write(buf[:])
+
+	// Update the counter and restore trailing bytes
+	l = uint64(suffix.Len())
+	suffix.Write([]byte{0x05, 0xff})
+	suffix.Write([]byte{
+		uint8(l >> 56), uint8(l >> 48), uint8(l >> 40), uint8(l >> 32),
+		uint8(l >> 24), uint8(l >> 16), uint8(l >> 8), uint8(l),
+	})
+	sig.HashSuffix = suffix.Bytes()
 }

@@ -34,20 +34,26 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 		return nil, err
 	}
 	primary := packet.NewSignerPrivateKey(creationTime, primaryPrivRaw)
+	if config != nil && config.V5Keys {
+		primary.UpgradeToV5()
+	}
 
 	isPrimaryId := true
 	selfSignature := &packet.Signature{
-		SigType:      packet.SigTypePositiveCert,
-		PubKeyAlgo:   primary.PublicKey.PubKeyAlgo,
-		Hash:         config.Hash(),
-		CreationTime: creationTime,
-		IssuerKeyId:  &primary.PublicKey.KeyId,
-		IsPrimaryId:  &isPrimaryId,
-		FlagsValid:   true,
-		FlagSign:     true,
-		FlagCertify:  true,
-		MDC:          true, // true by default, see 5.8 vs. 5.14
-		AEAD:         config.AEAD() != nil,
+		Version:           primary.PublicKey.Version,
+		SigType:           packet.SigTypePositiveCert,
+		PubKeyAlgo:        primary.PublicKey.PubKeyAlgo,
+		Hash:              config.Hash(),
+		CreationTime:      creationTime,
+		IssuerKeyId:       &primary.PublicKey.KeyId,
+		IssuerFingerprint: primary.PublicKey.Fingerprint,
+		IsPrimaryId:       &isPrimaryId,
+		FlagsValid:        true,
+		FlagSign:          true,
+		FlagCertify:       true,
+		MDC:               true, // true by default, see 5.8 vs. 5.14
+		AEAD:              config.AEAD() != nil,
+		V5Keys:            config != nil && config.V5Keys,
 	}
 
 	// Set the PreferredHash for the SelfSignature from the packet.Config.
@@ -83,11 +89,15 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 	sub := packet.NewDecrypterPrivateKey(creationTime, subPrivRaw)
 	sub.IsSubkey = true
 	sub.PublicKey.IsSubkey = true
+	if config != nil && config.V5Keys {
+		sub.UpgradeToV5()
+	}
 
 	subKey := Subkey{
 		PublicKey:  &sub.PublicKey,
 		PrivateKey: sub,
 		Sig: &packet.Signature{
+			Version:                   primary.PublicKey.Version,
 			CreationTime:              creationTime,
 			SigType:                   packet.SigTypeSubkeyBinding,
 			PubKeyAlgo:                primary.PublicKey.PubKeyAlgo,
@@ -136,6 +146,7 @@ func (e *Entity) AddSigningSubkey(config *packet.Config) error {
 		PublicKey:  &sub.PublicKey,
 		PrivateKey: sub,
 		Sig: &packet.Signature{
+			Version:         e.PrimaryKey.Version,
 			CreationTime:    creationTime,
 			KeyLifetimeSecs: &keyLifetimeSecs,
 			SigType:         packet.SigTypeSubkeyBinding,
@@ -145,6 +156,7 @@ func (e *Entity) AddSigningSubkey(config *packet.Config) error {
 			FlagSign:        true,
 			IssuerKeyId:     &e.PrimaryKey.KeyId,
 			EmbeddedSignature: &packet.Signature{
+				Version:      e.PrimaryKey.Version,
 				CreationTime: creationTime,
 				SigType:      packet.SigTypePrimaryKeyBinding,
 				PubKeyAlgo:   sub.PublicKey.PubKeyAlgo,
@@ -152,6 +164,9 @@ func (e *Entity) AddSigningSubkey(config *packet.Config) error {
 				IssuerKeyId:  &e.PrimaryKey.KeyId,
 			},
 		},
+	}
+	if config != nil && config.V5Keys {
+		subkey.PublicKey.UpgradeToV5()
 	}
 
 	err = subkey.Sig.EmbeddedSignature.CrossSignKey(subkey.PublicKey, e.PrimaryKey, subkey.PrivateKey, config)
@@ -185,6 +200,7 @@ func (e *Entity) AddEncryptionSubkey(config *packet.Config) error {
 		PublicKey:  &sub.PublicKey,
 		PrivateKey: sub,
 		Sig: &packet.Signature{
+			Version:                   e.PrimaryKey.Version,
 			CreationTime:              creationTime,
 			KeyLifetimeSecs:           &keyLifetimeSecs,
 			SigType:                   packet.SigTypeSubkeyBinding,
@@ -195,6 +211,9 @@ func (e *Entity) AddEncryptionSubkey(config *packet.Config) error {
 			FlagEncryptCommunications: true,
 			IssuerKeyId:               &e.PrimaryKey.KeyId,
 		},
+	}
+	if config != nil && config.V5Keys {
+		subkey.PublicKey.UpgradeToV5()
 	}
 
 	subkey.PublicKey.IsSubkey = true
