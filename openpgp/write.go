@@ -511,5 +511,5 @@ func handleCompression(compressed io.WriteCloser, config *packet.Config) (data i
 			return
 		}
 	}
-	return data, err
+	return data, nil
 }

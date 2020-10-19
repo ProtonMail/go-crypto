@@ -159,7 +159,7 @@ func TestEncryptWithCompression(t *testing.T) {
 	}
 	w, err := Encrypt(buf, kring[:1], nil, nil /* no hints */, config)
 	if err != nil {
-		t.Errorf("error in Encrypt: %s", err)
+		t.Errorf("error in encrypting plaintext: %s", err)
 		return
 	}
 	message := []byte("hello world")
@@ -179,7 +179,7 @@ func TestEncryptWithCompression(t *testing.T) {
 		t.Errorf("compression check failed: %s", err)
 	}
 	if algo != packet.CompressionZLIB {
-		t.Error("message is not compressed")
+		t.Error("message is not compressed correctly")
 	}
 }
 
