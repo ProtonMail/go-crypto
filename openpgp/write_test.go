@@ -618,11 +618,6 @@ FindKey:
 	}
 	var compBuf [1]byte
 	_, err = io.ReadFull(decrypted, compBuf[:])
-	switch compBuf[0] {
-	case 1:
-		return 1, nil
-	case 2:
-		return 2, nil
-	}
-	return 0, nil
+	
+	return packet.CompressionAlgo(compBuf[0]), nil
 }
