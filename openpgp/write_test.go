@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/crypto/openpgp/errors"
 	"golang.org/x/crypto/openpgp/packet"
 )
 
@@ -128,6 +129,57 @@ func TestNewEntity(t *testing.T) {
 
 	if !bytes.Equal(w.Bytes(), serialized) {
 		t.Errorf("results differed")
+	}
+}
+
+func TestEncryptWithCompression(t *testing.T) {
+	kring, _ := ReadKeyRing(readerFromHex(testKeys1And2PrivateHex))
+	passphrase := []byte("passphrase")
+	for _, entity := range kring {
+		if entity.PrivateKey != nil && entity.PrivateKey.Encrypted {
+			err := entity.PrivateKey.Decrypt(passphrase)
+			if err != nil {
+				t.Errorf("failed to decrypt key: %s", err)
+			}
+		}
+		for _, subkey := range entity.Subkeys {
+			if subkey.PrivateKey != nil && subkey.PrivateKey.Encrypted {
+				err := subkey.PrivateKey.Decrypt(passphrase)
+				if err != nil {
+					t.Errorf("failed to decrypt subkey: %s", err)
+				}
+			}
+		}
+	}
+
+	buf := new(bytes.Buffer)
+	var config = &packet.Config{
+		DefaultCompressionAlgo: packet.CompressionZLIB,
+		CompressionConfig:      &packet.CompressionConfig{-1},
+	}
+	w, err := Encrypt(buf, kring[:1], nil, nil /* no hints */, config)
+	if err != nil {
+		t.Errorf("error in encrypting plaintext: %s", err)
+		return
+	}
+	message := []byte("hello world")
+	_, err = w.Write(message)
+
+	if err != nil {
+		t.Errorf("error writing plaintext: %s", err)
+		return
+	}
+	err = w.Close()
+	if err != nil {
+		t.Errorf("error closing WriteCloser: %s", err)
+		return
+	}
+	algo, err := checkCompression(buf, kring[:1])
+	if err != nil {
+		t.Errorf("compression check failed: %s", err)
+	}
+	if algo != packet.CompressionZLIB {
+		t.Error("message is not compressed correctly")
 	}
 }
 
@@ -287,21 +339,31 @@ func TestEncryption(t *testing.T) {
 		}
 
 		buf := new(bytes.Buffer)
-
+		// randomized compression test
+		compAlgos := []packet.CompressionAlgo{
+			packet.CompressionNone,
+			packet.CompressionZIP,
+			packet.CompressionZLIB,
+		}
+		compAlgo := compAlgos[mathrand.Intn(len(compAlgos))]
+		level := mathrand.Intn(11) - 1
+		compConf := &packet.CompressionConfig{level}
+		var config = &packet.Config{
+			DefaultCompressionAlgo: compAlgo,
+			CompressionConfig:      compConf,
+		}
 		// Flip coin to enable AEAD mode
 		var modes = []packet.AEADMode{
 			packet.AEADModeEAX,
 			packet.AEADModeOCB,
 			packet.AEADModeExperimentalGCM,
 		}
-		var config *packet.Config
+
 		if mathrand.Int()%2 == 0 {
 			aeadConf := packet.AEADConfig{
 				DefaultMode: modes[mathrand.Intn(len(modes))],
 			}
-			config = &packet.Config{
-				AEADConfig: &aeadConf,
-			}
+			config.AEADConfig = &aeadConf
 		}
 
 		w, err := Encrypt(buf, kring[:1], signed, nil /* no hints */, config)
@@ -454,4 +516,108 @@ func TestSigning(t *testing.T) {
 			t.Error("signature missing")
 		}
 	}
+}
+
+func checkCompression(r io.Reader, keyring KeyRing) (compAlgo packet.CompressionAlgo, err error) {
+	var p packet.Packet
+
+	var symKeys []*packet.SymmetricKeyEncrypted
+	var pubKeys []keyEnvelopePair
+	// Integrity protected encrypted packet: SymmetricallyEncrypted or AEADEncrypted
+	var edp packet.EncryptedDataPacket
+
+	packets := packet.NewReader(r)
+	config := &packet.Config{}
+
+	// The message, if encrypted, starts with a number of packets
+	// containing an encrypted decryption key. The decryption key is either
+	// encrypted to a public key, or with a passphrase. This loop
+	// collects these packets.
+ParsePackets:
+	for {
+		p, err = packets.Next()
+		if err != nil {
+			return 0, err
+		}
+		switch p := p.(type) {
+		case *packet.EncryptedKey:
+			// This packet contains the decryption key encrypted to a public key.
+			switch p.Algo {
+			case packet.PubKeyAlgoRSA, packet.PubKeyAlgoRSAEncryptOnly, packet.PubKeyAlgoElGamal, packet.PubKeyAlgoECDH:
+				break
+			default:
+				continue
+			}
+			var keys []Key
+			if p.KeyId == 0 {
+				keys = keyring.DecryptionKeys()
+			} else {
+				keys = keyring.KeysById(p.KeyId)
+			}
+			for _, k := range keys {
+				pubKeys = append(pubKeys, keyEnvelopePair{k, p})
+			}
+		case *packet.SymmetricallyEncrypted, *packet.AEADEncrypted:
+			edp = p.(packet.EncryptedDataPacket)
+			break ParsePackets
+		case *packet.Compressed, *packet.LiteralData, *packet.OnePassSignature:
+			// This message isn't encrypted.
+			return 0, errors.StructuralError("message not encrypted")
+		}
+	}
+
+	var candidates []Key
+	var decrypted io.ReadCloser
+
+	// Now that we have the list of encrypted keys we need to decrypt at
+	// least one of them or, if we cannot, we need to call the prompt
+	// function so that it can decrypt a key or give us a passphrase.
+FindKey:
+	for {
+		// See if any of the keys already have a private key available
+		candidates = candidates[:0]
+		candidateFingerprints := make(map[string]bool)
+
+		for _, pk := range pubKeys {
+			if pk.key.PrivateKey == nil {
+				continue
+			}
+			if !pk.key.PrivateKey.Encrypted {
+				if len(pk.encryptedKey.Key) == 0 {
+					errDec := pk.encryptedKey.Decrypt(pk.key.PrivateKey, config)
+					if errDec != nil {
+						continue
+					}
+				}
+				// Try to decrypt symmetrically encrypted
+				decrypted, err = edp.Decrypt(pk.encryptedKey.CipherFunc, pk.encryptedKey.Key)
+				if err != nil && err != errors.ErrKeyIncorrect {
+					return 0, err
+				}
+				if decrypted != nil {
+					break FindKey
+				}
+			} else {
+				fpr := string(pk.key.PublicKey.Fingerprint[:])
+				if v := candidateFingerprints[fpr]; v {
+					continue
+				}
+				candidates = append(candidates, pk.key)
+				candidateFingerprints[fpr] = true
+			}
+		}
+
+		if len(candidates) == 0 && len(symKeys) == 0 {
+			return 0, errors.ErrKeyIncorrect
+		}
+	}
+	decPackets, err := packet.Read(decrypted)
+	_, ok := decPackets.(*packet.Compressed)
+	if !ok {
+		return 0, errors.InvalidArgumentError("No compressed packets found")
+	}
+	var compBuf [1]byte
+	_, err = io.ReadFull(decrypted, compBuf[:])
+	
+	return packet.CompressionAlgo(compBuf[0]), nil
 }
