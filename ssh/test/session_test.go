@@ -17,7 +17,7 @@ import (
 	"strings"
 	"testing"
 
-	"golang.org/x/crypto/ssh"
+	"github.com/ProtonMail/go-crypto/ssh"
 )
 
 func TestRunCommandSuccess(t *testing.T) {

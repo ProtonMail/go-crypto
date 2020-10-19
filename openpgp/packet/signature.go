@@ -17,9 +17,9 @@ import (
 	"strconv"
 	"time"
 
-	"golang.org/x/crypto/openpgp/errors"
-	"golang.org/x/crypto/openpgp/internal/encoding"
-	"golang.org/x/crypto/openpgp/s2k"
+	"github.com/ProtonMail/go-crypto/openpgp/errors"
+	"github.com/ProtonMail/go-crypto/openpgp/internal/encoding"
+	"github.com/ProtonMail/go-crypto/openpgp/s2k"
 )
 
 const (

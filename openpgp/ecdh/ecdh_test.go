@@ -11,7 +11,7 @@ import (
 	_ "crypto/sha512"
 	"testing"
 
-	"golang.org/x/crypto/openpgp/internal/algorithm"
+	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
 )
 
 var (

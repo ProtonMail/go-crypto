@@ -7,7 +7,7 @@ package packet
 import (
 	"io"
 
-	"golang.org/x/crypto/openpgp/errors"
+	"github.com/ProtonMail/go-crypto/openpgp/errors"
 )
 
 // Reader reads packets from an io.Reader and allows packets to be 'unread' so

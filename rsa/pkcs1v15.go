@@ -11,7 +11,7 @@ import (
 	"io"
 	"math/big"
 
-	"golang.org/x/crypto/internal/randutil"
+	"github.com/ProtonMail/go-crypto/internal/randutil"
 )
 
 // This file implements encryption and decryption using PKCS#1 v1.5 padding.

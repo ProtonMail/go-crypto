@@ -1,11 +1,11 @@
 package ecc
 
 import (
-	"golang.org/x/crypto/openpgp/internal/encoding"
+	"github.com/ProtonMail/go-crypto/openpgp/internal/encoding"
 	"crypto/elliptic"
 	"bytes"
-	"golang.org/x/crypto/bitcurves"
-	"golang.org/x/crypto/brainpool"
+	"github.com/ProtonMail/go-crypto/bitcurves"
+	"github.com/ProtonMail/go-crypto/brainpool"
 )
 
 type SignatureAlgorithm uint8

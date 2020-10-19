@@ -12,7 +12,7 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"golang.org/x/crypto/openpgp/errors"
+	"github.com/ProtonMail/go-crypto/openpgp/errors"
 )
 
 func TestReadFull(t *testing.T) {
