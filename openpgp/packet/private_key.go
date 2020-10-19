@@ -258,24 +258,59 @@ func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 	if err != nil {
 		return
 	}
-
-	priv := bytes.NewBuffer(nil)
-	if pk.Dummy() {
-		err = pk.serializeDummy(priv)
-	} else if pk.Encrypted {
-		err = pk.serializeEncrypted(priv)
-	} else {
-		err = pk.serializeUnencrypted(priv)
-	}
-	if err != nil {
+	if _, err = contents.Write([]byte{uint8(pk.s2kType)}); err != nil {
 		return
+	}
+
+	optional := bytes.NewBuffer(nil)
+	if pk.Encrypted || pk.Dummy() {
+		optional.Write([]byte{uint8(pk.cipher)})
+		if err := pk.s2kParams.Serialize(optional); err != nil {
+			return err
+		}
+		if pk.Encrypted {
+			optional.Write(pk.iv)
+		}
+	}
+	if pk.Version == 5 {
+		contents.Write([]byte{uint8(optional.Len())})
+	}
+	io.Copy(contents, optional)
+
+	if !pk.Dummy() {
+		l := 0
+		var priv []byte
+		if !pk.Encrypted {
+			buf := bytes.NewBuffer(nil)
+			err = pk.serializePrivateKey(buf)
+			if err != nil {
+				return err
+			}
+			l = buf.Len()
+			if pk.sha1Checksum {
+				h := sha1.New()
+				io.Copy(h, buf)
+				buf.Write(h.Sum(nil))
+			} else {
+				checksum := mod64kHash(buf.Bytes())
+				buf.Write([]byte{byte(checksum>>8), byte(checksum)})
+			}
+			priv = buf.Bytes()
+		} else {
+			priv, l = pk.encryptedData, len(pk.encryptedData)
+		}
+
+		if pk.Version == 5 {
+			contents.Write([]byte{byte(l>>24), byte(l>>16), byte(l>>8), byte(l)})
+		}
+		contents.Write(priv)
 	}
 
 	ptype := packetTypePrivateKey
 	if pk.IsSubkey {
 		ptype = packetTypePrivateSubkey
 	}
-	err = serializeHeader(w, ptype, contents.Len()+priv.Len())
+	err = serializeHeader(w, ptype, contents.Len())
 	if err != nil {
 		return
 	}
@@ -283,77 +318,6 @@ func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 	if err != nil {
 		return
 	}
-	_, err = io.Copy(w, priv)
-	if err != nil {
-		return
-	}
-	return
-}
-
-func (pk *PrivateKey) serializeDummy(w io.Writer) (err error) {
-	if _, err = w.Write([]byte{uint8(pk.s2kType)}); err != nil {
-		return
-	}
-
-	optional := bytes.NewBuffer([]byte{uint8(pk.cipher)})
-	if err = pk.s2kParams.Serialize(optional); err != nil {
-		return
-	}
-	if pk.Version == 5 {
-		if _, err = w.Write([]byte{uint8(optional.Len())}); err != nil {
-			return
-		}
-	}
-	io.Copy(w, optional)
-	return
-}
-
-func (pk *PrivateKey) serializeEncrypted(w io.Writer) error {
-	encoded := bytes.NewBuffer([]byte{uint8(pk.s2kType)})
-	optional := bytes.NewBuffer([]byte{uint8(pk.cipher)})
-	err := pk.s2kParams.Serialize(optional)
-	if err != nil {
-		return err
-	}
-	optional.Write(pk.iv)
-	if pk.Version == 5 {
-		encoded.Write([]byte{uint8(optional.Len())})
-	}
-	io.Copy(encoded, optional)
-
-	if pk.Version == 5 {
-		s := len(pk.encryptedData)
-		encoded.Write([]byte{byte(s>>24), byte(s>>16), byte(s>>8), byte(s)})
-	}
-	io.Copy(w, encoded)
-	w.Write(pk.encryptedData)
-	return nil
-}
-
-func (pk *PrivateKey) serializeUnencrypted(w io.Writer) (err error) {
-	encoded := bytes.NewBuffer([]byte{uint8(S2KNON)}) /* no encryption */
-	if pk.Version == 5 {
-		encoded.Write([]byte{0x00}) /* no optional fields */
-	}
-	priv := bytes.NewBuffer(nil)
-	err = pk.serializePrivateKey(priv)
-	if err != nil {
-		return err
-	}
-	l := priv.Len() // Private material count
-	if pk.sha1Checksum {
-		h := sha1.New()
-		io.Copy(h, priv)
-		priv.Write(h.Sum(nil))
-	} else {
-		checksum := mod64kHash(priv.Bytes())
-		priv.Write([]byte{byte(checksum>>8), byte(checksum)})
-	}
-	if pk.Version == 5 {
-		encoded.Write([]byte{byte(l>>24), byte(l>>16), byte(l>>8), byte(l)})
-	}
-	io.Copy(w, encoded)
-	io.Copy(w, priv)
 	return
 }
 
