@@ -424,6 +424,10 @@ func (pk *PrivateKey) Encrypt(passphrase []byte) error {
 	}
 
 	pk.s2kParams, err = s2k.Generate(rand.Reader, s2kConfig)
+	if err != nil {
+		return err
+	}
+	privateKeyBytes := priv.Bytes()
 	key := make([]byte, pk.cipher.KeySize())
 
 	pk.sha1Checksum = true
@@ -440,23 +444,23 @@ func (pk *PrivateKey) Encrypt(passphrase []byte) error {
 	}
 	cfb := cipher.NewCFBEncrypter(block, pk.iv)
 
-	privKeyBytes := priv.Bytes()
 	if pk.sha1Checksum {
 		pk.s2kType = S2KSHA1
 		h := sha1.New()
-		h.Write(privKeyBytes)
-		priv.Write(h.Sum(nil))
+		h.Write(privateKeyBytes)
+		sum := h.Sum(nil)
+		privateKeyBytes = append(privateKeyBytes, sum...)
 	} else {
 		pk.s2kType = S2KCHECKSUM
 		var sum uint16
-		for _, b := range privKeyBytes {
+		for _, b := range privateKeyBytes {
 			sum += uint16(b)
 		}
 		priv.Write([]byte{uint8(sum>>8), uint8(sum)})
 	}
 
-	pk.encryptedData = make([]byte, priv.Len())
-	cfb.XORKeyStream(pk.encryptedData, priv.Bytes())
+	pk.encryptedData = make([]byte, len(privateKeyBytes))
+	cfb.XORKeyStream(pk.encryptedData, privateKeyBytes)
 	pk.Encrypted = true
 	pk.PrivateKey = nil
 	return err
