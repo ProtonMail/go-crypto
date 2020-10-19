@@ -137,16 +137,9 @@ func SymmetricallyEncrypt(ciphertext io.Writer, passphrase []byte, hints *FileHi
 		}
 	}
 
-	literalData := w
-	if algo := config.Compression(); algo != packet.CompressionNone {
-		var compConfig *packet.CompressionConfig
-		if config != nil {
-			compConfig = config.CompressionConfig
-		}
-		literalData, err = packet.SerializeCompressed(w, algo, compConfig)
-		if err != nil {
-			return
-		}
+	literalData, err := handleCompression(w, config)
+	if err != nil {
+		return
 	}
 
 	var epochSeconds uint32
@@ -407,6 +400,10 @@ func encrypt(ciphertext io.Writer, to []*Entity, signed *Entity, hints *FileHint
 			return
 		}
 	}
+	payload, err = handleCompression(payload, config)
+	if err != nil {
+		return nil, err
+	}
 
 	return writeAndSign(payload, candidateHashes, signed, hints, sigType, config)
 }
@@ -500,4 +497,19 @@ func (c noOpCloser) Write(data []byte) (n int, err error) {
 
 func (c noOpCloser) Close() error {
 	return nil
+}
+
+func handleCompression(compressed io.WriteCloser, config *packet.Config) (data io.WriteCloser, err error) {
+	data = compressed
+	if algo := config.Compression(); algo != packet.CompressionNone {
+		var compConfig *packet.CompressionConfig
+		if config != nil {
+			compConfig = config.CompressionConfig
+		}
+		data, err = packet.SerializeCompressed(compressed, algo, compConfig)
+		if err != nil {
+			return
+		}
+	}
+	return data, err
 }
