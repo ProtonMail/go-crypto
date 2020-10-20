@@ -291,10 +291,10 @@ func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 			if err != nil {
 				return err
 			}
-			priv, l = buf.Bytes(), buf.Len()
+			l = buf.Len()
 			if pk.sha1Checksum {
 				h := sha1.New()
-				h.Write(priv)
+				h.Write(buf.Bytes())
 				buf.Write(h.Sum(nil))
 			} else {
 				checksum := mod64kHash(buf.Bytes())
