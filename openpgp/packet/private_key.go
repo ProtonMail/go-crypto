@@ -258,6 +258,11 @@ func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 	if err != nil {
 		return
 	}
+
+	if !pk.Encrypted && !pk.Dummy() {
+		pk.s2kType = S2KNON
+	}
+
 	if _, err = contents.Write([]byte{uint8(pk.s2kType)}); err != nil {
 		return
 	}
@@ -286,10 +291,10 @@ func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 			if err != nil {
 				return err
 			}
-			l = buf.Len()
+			priv, l = buf.Bytes(), buf.Len()
 			if pk.sha1Checksum {
 				h := sha1.New()
-				io.Copy(h, buf)
+				h.Write(priv)
 				buf.Write(h.Sum(nil))
 			} else {
 				checksum := mod64kHash(buf.Bytes())
