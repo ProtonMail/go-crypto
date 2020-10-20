@@ -22,6 +22,7 @@ import (
 // If config is nil, sensible defaults will be used.
 func NewEntity(name, comment, email string, config *packet.Config) (*Entity, error) {
 	creationTime := config.Now()
+	keyLifetimeSecs := config.KeyLifetime()
 
 	uid := packet.NewUserId(name, comment, email)
 	if uid == nil {
@@ -45,6 +46,7 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 		PubKeyAlgo:        primary.PublicKey.PubKeyAlgo,
 		Hash:              config.Hash(),
 		CreationTime:      creationTime,
+		KeyLifetimeSecs:   &keyLifetimeSecs,
 		IssuerKeyId:       &primary.PublicKey.KeyId,
 		IssuerFingerprint: primary.PublicKey.Fingerprint,
 		IsPrimaryId:       &isPrimaryId,
@@ -81,41 +83,8 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 		return nil, err
 	}
 
-	// Generate an encryption subkey
-	subPrivRaw, err := newDecrypter(config)
-	if err != nil {
-		return nil, err
-	}
-	sub := packet.NewDecrypterPrivateKey(creationTime, subPrivRaw)
-	sub.IsSubkey = true
-	sub.PublicKey.IsSubkey = true
-	if config != nil && config.V5Keys {
-		sub.UpgradeToV5()
-	}
-
-	subKey := Subkey{
-		PublicKey:  &sub.PublicKey,
-		PrivateKey: sub,
-		Sig: &packet.Signature{
-			Version:                   primary.PublicKey.Version,
-			CreationTime:              creationTime,
-			SigType:                   packet.SigTypeSubkeyBinding,
-			PubKeyAlgo:                primary.PublicKey.PubKeyAlgo,
-			Hash:                      config.Hash(),
-			FlagsValid:                true,
-			FlagEncryptStorage:        true,
-			FlagEncryptCommunications: true,
-			IssuerKeyId:               &primary.PublicKey.KeyId,
-		},
-	}
-
-	// Subkey binding signature
-	err = subKey.Sig.SignKey(subKey.PublicKey, primary, config)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Entity{
+	// Make the entity.
+	e := &Entity{
 		PrimaryKey: &primary.PublicKey,
 		PrivateKey: primary,
 		Identities: map[string]*Identity{
@@ -126,8 +95,15 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 				Signatures:    []*packet.Signature{selfSignature},
 			},
 		},
-		Subkeys: []Subkey{subKey},
-	}, nil
+	}
+
+	// Add an encryption subkey.
+	err = e.AddEncryptionSubkey(config)
+	if err != nil {
+		return nil, err
+	}
+
+	return e, nil
 }
 
 // AddSigningSubkey adds a signing keypair as a subkey to the Entity.
