@@ -289,7 +289,7 @@ func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 			l = buf.Len()
 			if pk.sha1Checksum {
 				h := sha1.New()
-				io.Copy(h, buf)
+				h.Write(buf.Bytes())
 				buf.Write(h.Sum(nil))
 			} else {
 				checksum := mod64kHash(buf.Bytes())
@@ -404,7 +404,18 @@ func (pk *PrivateKey) Decrypt(passphrase []byte) error {
 		data = data[:len(data)-2]
 	}
 
-	return pk.parsePrivateKey(data)
+	err := pk.parsePrivateKey(data)
+	if err != nil {
+		return err
+	}
+
+	if !pk.Dummy() {
+		pk.s2kType = S2KNON
+		pk.s2k = nil
+		pk.Encrypted = false
+	}
+
+	return nil
 }
 
 // Encrypt encrypts an unencrypted private key using a passphrase.
