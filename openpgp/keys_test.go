@@ -82,7 +82,8 @@ func TestKeyExpiry(t *testing.T) {
 }
 
 // https://tests.sequoia-pgp.org/#Certificate_expiration
-func TestKeyExpiry2(t *testing.T) {
+// P _ U p
+func TestExpiringPrimaryUIDKey(t *testing.T) {
 	// P _ U p
 	kring, err := ReadArmoredKeyRing(bytes.NewBufferString((expiringPrimaryUIDKey)))
 	if err != nil {
@@ -99,7 +100,33 @@ func TestKeyExpiry2(t *testing.T) {
 		t.Errorf("Expected key %s at time %s, but got key %s", expected, time1.Format(timeFormat), id)
 	}
 
-	// After the priamry UID has expired, nothing should be returned.
+	// After the primary UID has expired, nothing should be returned.
+	time2, _ := time.Parse(timeFormat, "2020-07-09")
+	if key, ok := entity.SigningKey(time2); ok {
+		t.Errorf("Expected no key at time %s, but got key %s", time2.Format(timeFormat), key.PublicKey.KeyIdShortString())
+	}
+}
+
+// https://tests.sequoia-pgp.org/#Certificate_expiration
+// P p U _
+func TestExpiringPrimaryKey(t *testing.T) {
+	// P _ U p
+	kring, err := ReadArmoredKeyRing(bytes.NewBufferString((expiringPrimaryKey)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	entity := kring[0]
+
+	const timeFormat = "2006-01-02"
+
+	// Before the primary key has expired, it should be returned.
+	time1, _ := time.Parse(timeFormat, "2020-07-08")
+	key, _ := entity.SigningKey(time1)
+	if id, expected := key.PublicKey.KeyIdShortString(), "015E7330"; id != expected {
+		t.Errorf("Expected key %s at time %s, but got key %s", expected, time1.Format(timeFormat), id)
+	}
+
+	// After the primary key has expired, nothing should be returned.
 	time2, _ := time.Parse(timeFormat, "2020-07-09")
 	if key, ok := entity.SigningKey(time2); ok {
 		t.Errorf("Expected no key at time %s, but got key %s", time2.Format(timeFormat), key.PublicKey.KeyIdShortString())
