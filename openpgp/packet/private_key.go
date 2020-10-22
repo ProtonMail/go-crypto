@@ -234,7 +234,6 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 		}
 	}
 	if !pk.Encrypted {
-		pk.encryptedData = nil
 		return pk.parsePrivateKey(privateKeyData)
 	}
 
