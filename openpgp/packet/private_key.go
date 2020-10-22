@@ -211,6 +211,7 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 		}
 	}
 
+	var privateKeyData []byte
 	if v5 {
 		var n [4]byte /* secret material four octet count */
 		_, err = readFull(r, n[:])
@@ -221,21 +222,23 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 		if !pk.Encrypted {
 			count = count+2 /* two octet checksum */
 		}
-		pk.encryptedData = make([]byte, count)
-		_, err = readFull(r, pk.encryptedData)
+		privateKeyData = make([]byte, count)
+		_, err = readFull(r, privateKeyData)
 		if err != nil {
 			return
 		}
 	} else {
-		pk.encryptedData, err = ioutil.ReadAll(r)
+		privateKeyData, err = ioutil.ReadAll(r)
 		if err != nil {
 			return
 		}
 	}
 	if !pk.Encrypted {
-		return pk.parsePrivateKey(pk.encryptedData)
+		pk.encryptedData = nil
+		return pk.parsePrivateKey(privateKeyData)
 	}
 
+	pk.encryptedData = privateKeyData
 	return
 }
 
@@ -409,11 +412,11 @@ func (pk *PrivateKey) Decrypt(passphrase []byte) error {
 		return err
 	}
 
-	if !pk.Dummy() {
-		pk.s2kType = S2KNON
-		pk.s2k = nil
-		pk.Encrypted = false
-	}
+	// Mark key as unencrypted
+	pk.s2kType = S2KNON
+	pk.s2k = nil
+	pk.Encrypted = false
+	pk.encryptedData = nil
 
 	return nil
 }
@@ -545,8 +548,6 @@ func (pk *PrivateKey) parseRSAPrivateKey(data []byte) (err error) {
 	}
 	rsaPriv.Precompute()
 	pk.PrivateKey = rsaPriv
-	pk.Encrypted = false
-	pk.encryptedData = nil
 
 	return nil
 }
@@ -564,8 +565,6 @@ func (pk *PrivateKey) parseDSAPrivateKey(data []byte) (err error) {
 
 	dsaPriv.X = new(big.Int).SetBytes(x.Bytes())
 	pk.PrivateKey = dsaPriv
-	pk.Encrypted = false
-	pk.encryptedData = nil
 
 	return nil
 }
@@ -583,8 +582,6 @@ func (pk *PrivateKey) parseElGamalPrivateKey(data []byte) (err error) {
 
 	priv.X = new(big.Int).SetBytes(x.Bytes())
 	pk.PrivateKey = priv
-	pk.Encrypted = false
-	pk.encryptedData = nil
 
 	return nil
 }
@@ -602,8 +599,6 @@ func (pk *PrivateKey) parseECDSAPrivateKey(data []byte) (err error) {
 
 	ecdsaPriv.D = new(big.Int).SetBytes(d.Bytes())
 	pk.PrivateKey = ecdsaPriv
-	pk.Encrypted = false
-	pk.encryptedData = nil
 
 	return nil
 }
@@ -621,8 +616,6 @@ func (pk *PrivateKey) parseECDHPrivateKey(data []byte) (err error) {
 
 	ecdhPriv.D = d.Bytes()
 	pk.PrivateKey = ecdhPriv
-	pk.Encrypted = false
-	pk.encryptedData = nil
 
 	return nil
 }
@@ -642,8 +635,6 @@ func (pk *PrivateKey) parseEdDSAPrivateKey(data []byte) (err error) {
 	copy(eddsaPriv[32:], (*eddsaPub)[:])
 
 	pk.PrivateKey = &eddsaPriv
-	pk.Encrypted = false
-	pk.encryptedData = nil
 
 	return nil
 }
