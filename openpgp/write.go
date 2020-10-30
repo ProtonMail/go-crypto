@@ -137,9 +137,16 @@ func SymmetricallyEncrypt(ciphertext io.Writer, passphrase []byte, hints *FileHi
 		}
 	}
 
-	literalData, err := handleCompression(w, config)
-	if err != nil {
-		return
+	literalData := w
+	if algo := config.Compression(); algo != packet.CompressionNone {
+		var compConfig *packet.CompressionConfig
+		if config != nil {
+			compConfig = config.CompressionConfig
+		}
+		literalData, err = packet.SerializeCompressed(w, algo, compConfig)
+		if err != nil {
+			return
+		}
 	}
 
 	var epochSeconds uint32
@@ -321,12 +328,18 @@ func encrypt(ciphertext io.Writer, to []*Entity, signed *Entity, hints *FileHint
 		uint8(packet.AEADModeOCB),
 		uint8(packet.AEADModeExperimentalGCM),
 	}
+	candidateCompression := []uint8{
+		uint8(packet.CompressionNone),
+		uint8(packet.CompressionZIP),
+		uint8(packet.CompressionZLIB),
+	}
 	// In the event that a recipient doesn't specify any supported ciphers
 	// or hash functions, these are the ones that we assume that every
 	// implementation supports.
 	defaultCiphers := candidateCiphers[0:1]
 	defaultHashes := candidateHashes[0:1]
 	defaultAeadModes := candidateAeadModes[0:1]
+	defaultCompression := candidateCompression[0:1]
 
 	encryptKeys := make([]Key, len(to))
 	// AEAD is used only if every key supports it.
@@ -356,9 +369,14 @@ func encrypt(ciphertext io.Writer, to []*Entity, signed *Entity, hints *FileHint
 		if len(preferredAeadModes) == 0 {
 			preferredAeadModes = defaultAeadModes
 		}
+		preferredCompression := sig.PreferredCompression
+		if len(preferredCompression) == 0 {
+			preferredCompression = defaultCompression
+		}
 		candidateCiphers = intersectPreferences(candidateCiphers, preferredSymmetric)
 		candidateHashes = intersectPreferences(candidateHashes, preferredHashes)
 		candidateAeadModes = intersectPreferences(candidateAeadModes, preferredAeadModes)
+		candidateCompression = intersectPreferences(candidateCompression, preferredCompression)
 	}
 
 	if len(candidateCiphers) == 0 || len(candidateHashes) == 0 || len(candidateAeadModes) == 0 {
@@ -400,7 +418,7 @@ func encrypt(ciphertext io.Writer, to []*Entity, signed *Entity, hints *FileHint
 			return
 		}
 	}
-	payload, err = handleCompression(payload, config)
+	payload, err = handleCompression(payload, candidateCompression, config)
 	if err != nil {
 		return nil, err
 	}
@@ -499,14 +517,27 @@ func (c noOpCloser) Close() error {
 	return nil
 }
 
-func handleCompression(compressed io.WriteCloser, config *packet.Config) (data io.WriteCloser, err error) {
+func handleCompression(compressed io.WriteCloser, candidateCompression []uint8, config *packet.Config) (data io.WriteCloser, err error) {
 	data = compressed
-	if algo := config.Compression(); algo != packet.CompressionNone {
+	confAlgo := config.Compression()
+	if confAlgo == packet.CompressionNone {
+		return
+	}
+	finalAlgo := packet.CompressionNone
+	//if compression specified by config available we will use it
+	for _, c := range candidateCompression {
+		if uint8(confAlgo) == c {
+			finalAlgo = confAlgo
+			break
+		}
+	}
+
+	if finalAlgo != packet.CompressionNone {
 		var compConfig *packet.CompressionConfig
 		if config != nil {
 			compConfig = config.CompressionConfig
 		}
-		data, err = packet.SerializeCompressed(compressed, algo, compConfig)
+		data, err = packet.SerializeCompressed(compressed, finalAlgo, compConfig)
 		if err != nil {
 			return
 		}
