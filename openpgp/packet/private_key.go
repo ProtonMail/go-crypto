@@ -551,7 +551,7 @@ func (pk *PrivateKey) parseRSAPrivateKey(data []byte) (err error) {
 	rsaPriv.Primes[0] = new(big.Int).SetBytes(p.Bytes())
 	rsaPriv.Primes[1] = new(big.Int).SetBytes(q.Bytes())
 	if err := rsaPriv.Validate(); err != nil {
-		return err
+		return errors.KeyInvalidError(err.Error())
 	}
 	rsaPriv.Precompute()
 	pk.PrivateKey = rsaPriv
