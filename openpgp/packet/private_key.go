@@ -10,13 +10,18 @@ import (
 	"crypto/cipher"
 	"crypto/dsa"
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha1"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"math/big"
 	"strconv"
 	"time"
+
+	"golang.org/x/crypto/curve25519"
+	"golang.org/x/crypto/openpgp/internal/ecc"
 
 	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/openpgp/ecdh"
@@ -220,7 +225,7 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 		}
 		count := uint32(uint32(n[0])<<24 | uint32(n[1])<<16 | uint32(n[2])<<8 | uint32(n[3]))
 		if !pk.Encrypted {
-			count = count+2 /* two octet checksum */
+			count = count + 2 /* two octet checksum */
 		}
 		privateKeyData = make([]byte, count)
 		_, err = readFull(r, privateKeyData)
@@ -295,7 +300,7 @@ func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 				buf.Write(h.Sum(nil))
 			} else {
 				checksum := mod64kHash(buf.Bytes())
-				buf.Write([]byte{byte(checksum>>8), byte(checksum)})
+				buf.Write([]byte{byte(checksum >> 8), byte(checksum)})
 			}
 			priv = buf.Bytes()
 		} else {
@@ -303,7 +308,7 @@ func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 		}
 
 		if pk.Version == 5 {
-			contents.Write([]byte{byte(l>>24), byte(l>>16), byte(l>>8), byte(l)})
+			contents.Write([]byte{byte(l >> 24), byte(l >> 16), byte(l >> 8), byte(l)})
 		}
 		contents.Write(priv)
 	}
@@ -407,6 +412,9 @@ func (pk *PrivateKey) Decrypt(passphrase []byte) error {
 	}
 
 	err := pk.parsePrivateKey(data)
+	if _, ok := err.(errors.KeyInvalidError); ok {
+		return errors.KeyInvalidError("invalid key parameters")
+	}
 	if err != nil {
 		return err
 	}
@@ -469,7 +477,7 @@ func (pk *PrivateKey) Encrypt(passphrase []byte) error {
 		for _, b := range privateKeyBytes {
 			sum += uint16(b)
 		}
-		priv.Write([]byte{uint8(sum>>8), uint8(sum)})
+		priv.Write([]byte{uint8(sum >> 8), uint8(sum)})
 	}
 
 	pk.encryptedData = make([]byte, len(privateKeyBytes))
@@ -543,7 +551,7 @@ func (pk *PrivateKey) parseRSAPrivateKey(data []byte) (err error) {
 	rsaPriv.Primes[0] = new(big.Int).SetBytes(p.Bytes())
 	rsaPriv.Primes[1] = new(big.Int).SetBytes(q.Bytes())
 	if err := rsaPriv.Validate(); err != nil {
-		return err
+		return errors.KeyInvalidError(err.Error())
 	}
 	rsaPriv.Precompute()
 	pk.PrivateKey = rsaPriv
@@ -563,6 +571,9 @@ func (pk *PrivateKey) parseDSAPrivateKey(data []byte) (err error) {
 	}
 
 	dsaPriv.X = new(big.Int).SetBytes(x.Bytes())
+	if err := validateDSAParameters(dsaPriv); err != nil {
+		return err
+	}
 	pk.PrivateKey = dsaPriv
 
 	return nil
@@ -580,6 +591,9 @@ func (pk *PrivateKey) parseElGamalPrivateKey(data []byte) (err error) {
 	}
 
 	priv.X = new(big.Int).SetBytes(x.Bytes())
+	if err := validateElGamalParameters(priv); err != nil {
+		return err
+	}
 	pk.PrivateKey = priv
 
 	return nil
@@ -597,6 +611,9 @@ func (pk *PrivateKey) parseECDSAPrivateKey(data []byte) (err error) {
 	}
 
 	ecdsaPriv.D = new(big.Int).SetBytes(d.Bytes())
+	if err := validateECDSAParameters(ecdsaPriv); err != nil {
+		return err
+	}
 	pk.PrivateKey = ecdsaPriv
 
 	return nil
@@ -614,6 +631,9 @@ func (pk *PrivateKey) parseECDHPrivateKey(data []byte) (err error) {
 	}
 
 	ecdhPriv.D = d.Bytes()
+	if err := validateECDHParameters(ecdhPriv); err != nil {
+		return err
+	}
 	pk.PrivateKey = ecdhPriv
 
 	return nil
@@ -632,8 +652,129 @@ func (pk *PrivateKey) parseEdDSAPrivateKey(data []byte) (err error) {
 	priv := d.Bytes()
 	copy(eddsaPriv[32-len(priv):32], priv)
 	copy(eddsaPriv[32:], (*eddsaPub)[:])
-
+	if err := validateEdDSAParameters(&eddsaPriv); err != nil {
+		return err
+	}
 	pk.PrivateKey = &eddsaPriv
+
+	return nil
+}
+
+func validateECDSAParameters(priv *ecdsa.PrivateKey) error {
+	return validateCommonECC(priv.Curve, priv.D.Bytes(), priv.X, priv.Y)
+}
+
+func validateECDHParameters(priv *ecdh.PrivateKey) error {
+	if priv.CurveType != ecc.Curve25519 {
+		return validateCommonECC(priv.Curve, priv.D, priv.X, priv.Y)
+	}
+	// Handle Curve25519
+	Q := priv.X.Bytes()[1:]
+	var d [32]byte
+	// Copy reversed d
+	l := len(priv.D)
+	for i := 0; i < l; i++ {
+		d[i] = priv.D[l-i-1]
+	}
+	var expectedQ [32]byte
+	curve25519.ScalarBaseMult(&expectedQ, &d)
+	if !bytes.Equal(Q, expectedQ[:]) {
+		return errors.KeyInvalidError("ECDH curve25519: invalid point")
+	}
+	return nil
+}
+
+func validateCommonECC(curve elliptic.Curve, d []byte, X, Y *big.Int) error {
+	// the public point should not be at infinity (0,0)
+	zero := new(big.Int)
+	if X.Cmp(zero) == 0 && Y.Cmp(zero) == 0 {
+		return errors.KeyInvalidError(fmt.Sprintf("ecc (%s): infinity point", curve.Params().Name))
+	}
+	// re-derive the public point Q' = (X,Y) = dG
+	// to compare to declared Q in public key
+	expectedX, expectedY := curve.ScalarBaseMult(d)
+	if X.Cmp(expectedX) != 0 || Y.Cmp(expectedY) != 0 {
+		return errors.KeyInvalidError(fmt.Sprintf("ecc (%s): invalid point", curve.Params().Name))
+	}
+	return nil
+}
+
+func validateEdDSAParameters(priv *ed25519.PrivateKey) error {
+	// In EdDSA, the serialized public point is stored as part of private key (together with the seed),
+	// hence we can re-derive the key from the seed
+	seed := priv.Seed()
+	expectedPriv := ed25519.NewKeyFromSeed(seed)
+	if !bytes.Equal(*priv, expectedPriv) {
+		return errors.KeyInvalidError("eddsa: invalid point")
+	}
+	return nil
+}
+
+func validateDSAParameters(priv *dsa.PrivateKey) error {
+	p := priv.P // group prime
+	q := priv.Q // subgroup order
+	g := priv.G // g has order q mod p
+	x := priv.X // secret
+	y := priv.Y // y == g**x mod p
+	one := big.NewInt(1)
+	// expect g, y >= 2 and g < p
+	if g.Cmp(one) <= 0 || y.Cmp(one) <= 0 || g.Cmp(p) > 0 {
+		return errors.KeyInvalidError("dsa: invalid group")
+	}
+	// expect p > q
+	if p.Cmp(q) <= 0 {
+		return errors.KeyInvalidError("dsa: invalid group prime")
+	}
+	// q should be large enough and divide p-1
+	pSub1 := new(big.Int).Sub(p, one)
+	if q.BitLen() < 150 || new(big.Int).Mod(pSub1, q).Cmp(big.NewInt(0)) != 0 {
+		return errors.KeyInvalidError("dsa: invalid order")
+	}
+	// confirm that g has order q mod p
+	if !q.ProbablyPrime(32) || new(big.Int).Exp(g, q, p).Cmp(one) != 0 {
+		return errors.KeyInvalidError("dsa: invalid order")
+	}
+	// check y
+	if new(big.Int).Exp(g, x, p).Cmp(y) != 0 {
+		return errors.KeyInvalidError("dsa: mismatching values")
+	}
+
+	return nil
+}
+
+func validateElGamalParameters(priv *elgamal.PrivateKey) error {
+	p := priv.P // group prime
+	g := priv.G // g has order p-1 mod p
+	x := priv.X // secret
+	y := priv.Y // y == g**x mod p
+	one := big.NewInt(1)
+	// Expect g, y >= 2 and g < p
+	if g.Cmp(one) <= 0 || y.Cmp(one) <= 0 || g.Cmp(p) > 0 {
+		return errors.KeyInvalidError("elgamal: invalid group")
+	}
+	if p.BitLen() < 1024 {
+		return errors.KeyInvalidError("elgamal: group order too small")
+	}
+	pSub1 := new(big.Int).Sub(p, one)
+	if new(big.Int).Exp(g, pSub1, p).Cmp(one) != 0 {
+		return errors.KeyInvalidError("elgamal: invalid group")
+	}
+	// Since p-1 is not prime, g might have a smaller order that divides p-1.
+	// We cannot confirm the exact order of g, but we make sure it is not too small.
+	gExpI := new(big.Int).Set(g)
+	i := 1
+	threshold := 2 << 17 // we want order > threshold
+	for i < threshold {
+		i++ // we check every order to make sure key validation is not easily bypassed by guessing y'
+		gExpI.Mod(new(big.Int).Mul(gExpI, g), p)
+		if gExpI.Cmp(one) == 0 {
+			return errors.KeyInvalidError("elgamal: order too small")
+		}
+	}
+	// Check y
+	if new(big.Int).Exp(g, x, p).Cmp(y) != 0 {
+		return errors.KeyInvalidError("elgamal: mismatching values")
+	}
 
 	return nil
 }
