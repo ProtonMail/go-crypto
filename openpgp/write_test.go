@@ -154,7 +154,7 @@ func TestEncryptWithCompression(t *testing.T) {
 
 	buf := new(bytes.Buffer)
 	var config = &packet.Config{
-		DefaultCompressionAlgo: packet.CompressionZLIB,
+		DefaultCompressionAlgo: packet.CompressionZIP,
 		CompressionConfig:      &packet.CompressionConfig{-1},
 	}
 	w, err := Encrypt(buf, kring[:1], nil, nil /* no hints */, config)
@@ -174,12 +174,9 @@ func TestEncryptWithCompression(t *testing.T) {
 		t.Errorf("error closing WriteCloser: %s", err)
 		return
 	}
-	algo, err := checkCompression(buf, kring[:1])
+	err = checkCompression(buf, kring[:1])
 	if err != nil {
 		t.Errorf("compression check failed: %s", err)
-	}
-	if algo != packet.CompressionZLIB {
-		t.Error("message is not compressed correctly")
 	}
 }
 
@@ -518,7 +515,7 @@ func TestSigning(t *testing.T) {
 	}
 }
 
-func checkCompression(r io.Reader, keyring KeyRing) (compAlgo packet.CompressionAlgo, err error) {
+func checkCompression(r io.Reader, keyring KeyRing) (err error) {
 	var p packet.Packet
 
 	var symKeys []*packet.SymmetricKeyEncrypted
@@ -537,7 +534,7 @@ ParsePackets:
 	for {
 		p, err = packets.Next()
 		if err != nil {
-			return 0, err
+			return err
 		}
 		switch p := p.(type) {
 		case *packet.EncryptedKey:
@@ -562,7 +559,7 @@ ParsePackets:
 			break ParsePackets
 		case *packet.Compressed, *packet.LiteralData, *packet.OnePassSignature:
 			// This message isn't encrypted.
-			return 0, errors.StructuralError("message not encrypted")
+			return errors.StructuralError("message not encrypted")
 		}
 	}
 
@@ -592,7 +589,7 @@ FindKey:
 				// Try to decrypt symmetrically encrypted
 				decrypted, err = edp.Decrypt(pk.encryptedKey.CipherFunc, pk.encryptedKey.Key)
 				if err != nil && err != errors.ErrKeyIncorrect {
-					return 0, err
+					return err
 				}
 				if decrypted != nil {
 					break FindKey
@@ -608,16 +605,14 @@ FindKey:
 		}
 
 		if len(candidates) == 0 && len(symKeys) == 0 {
-			return 0, errors.ErrKeyIncorrect
+			return errors.ErrKeyIncorrect
 		}
 	}
+
 	decPackets, err := packet.Read(decrypted)
 	_, ok := decPackets.(*packet.Compressed)
 	if !ok {
-		return 0, errors.InvalidArgumentError("No compressed packets found")
+		return errors.InvalidArgumentError("No compressed packets found")
 	}
-	var compBuf [1]byte
-	_, err = io.ReadFull(decrypted, compBuf[:])
-	
-	return packet.CompressionAlgo(compBuf[0]), nil
+	return nil
 }
