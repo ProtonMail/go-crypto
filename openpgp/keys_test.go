@@ -1028,7 +1028,7 @@ func TestKeyValidateOnDecrypt(t *testing.T) {
 	n := rsaPrimaryKey.PublicKey.PublicKey.(*rsa.PublicKey).N
 	rsaPrimaryKey.PublicKey.PublicKey.(*rsa.PublicKey).N = new(big.Int).Add(n, big.NewInt(2))
 	err = rsaPrimaryKey.Decrypt(password)
-	if _, ok := err.(*errors.KeyInvalidError); ok {
+	if _, ok := err.(errors.KeyInvalidError); !ok {
 		t.Fatal("Failed to detect invalid RSA key")
 	}
 
@@ -1048,7 +1048,7 @@ func TestKeyValidateOnDecrypt(t *testing.T) {
 	X := ecdsaPrimaryKey.PublicKey.PublicKey.(*ecdsa.PublicKey).X
 	ecdsaPrimaryKey.PublicKey.PublicKey.(*ecdsa.PublicKey).X = new(big.Int).Add(X, big.NewInt(1))
 	err = ecdsaPrimaryKey.Decrypt(password)
-	if _, ok := err.(*errors.KeyInvalidError); ok {
+	if _, ok := err.(errors.KeyInvalidError); !ok {
 		t.Fatal("Failed to detect invalid ECDSA key")
 	}
 	// ECDH Nist
@@ -1063,7 +1063,7 @@ func TestKeyValidateOnDecrypt(t *testing.T) {
 	X = ecdsaSubkey.PublicKey.PublicKey.(*ecdh.PublicKey).X
 	ecdsaSubkey.PublicKey.PublicKey.(*ecdh.PublicKey).X = new(big.Int).Add(X, big.NewInt(1))
 	err = ecdsaSubkey.Decrypt(password)
-	if _, ok := err.(*errors.KeyInvalidError); ok {
+	if _, ok := err.(errors.KeyInvalidError); !ok {
 		t.Fatal("Failed to detect invalid ECDH key")
 	}
 
@@ -1086,7 +1086,7 @@ func TestKeyValidateOnDecrypt(t *testing.T) {
 	pubBytes := *eddsaPrimaryKey.PublicKey.PublicKey.(*ed25519.PublicKey)
 	pubBytes[10] ^= 1
 	err = eddsaPrimaryKey.Decrypt(password)
-	if _, ok := err.(*errors.KeyInvalidError); ok {
+	if _, ok := err.(errors.KeyInvalidError); !ok {
 		t.Fatal("Failed to detect invalid EdDSA key")
 	}
 	// ECDH ed25519
@@ -1104,7 +1104,7 @@ func TestKeyValidateOnDecrypt(t *testing.T) {
 	X = eddsaSubkey.PublicKey.PublicKey.(*ecdh.PublicKey).X
 	eddsaSubkey.PublicKey.PublicKey.(*ecdh.PublicKey).X = new(big.Int).Add(X, big.NewInt(1))
 	err = eddsaSubkey.Decrypt(password)
-	if _, ok := err.(*errors.KeyInvalidError); ok {
+	if _, ok := err.(errors.KeyInvalidError); !ok {
 		t.Fatal("Failed to detect invalid ECDH 25519 key")
 	}
 
@@ -1124,7 +1124,7 @@ func TestKeyValidateOnDecrypt(t *testing.T) {
 	G := dsaPrimaryKey.PublicKey.PublicKey.(*dsa.PublicKey).G
 	dsaPrimaryKey.PublicKey.PublicKey.(*dsa.PublicKey).G = new(big.Int).Add(G, big.NewInt(1))
 	err = dsaPrimaryKey.Decrypt(password)
-	if _, ok := err.(*errors.KeyInvalidError); ok {
+	if _, ok := err.(errors.KeyInvalidError); !ok {
 		t.Fatal("Failed to detect invalid DSA key")
 	}
 
@@ -1140,7 +1140,7 @@ func TestKeyValidateOnDecrypt(t *testing.T) {
 	G = elGamalSubkey.PublicKey.PublicKey.(*elgamal.PublicKey).G
 	elGamalSubkey.PublicKey.PublicKey.(*elgamal.PublicKey).G = new(big.Int).Add(G, big.NewInt(1))
 	err = elGamalSubkey.Decrypt(password)
-	if _, ok := err.(*errors.KeyInvalidError); ok {
+	if _, ok := err.(errors.KeyInvalidError); !ok {
 		t.Fatal("Failed to detect invalid ElGamal key")
 	}
 }
