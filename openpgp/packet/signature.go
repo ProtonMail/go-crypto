@@ -41,7 +41,7 @@ type Signature struct {
 	HashSuffix []byte
 	// HashTag contains the first two bytes of the hash for fast rejection
 	// of bad signed data.
-	HashTag      [2]byte
+	HashTag [2]byte
 
 	// Metadata includes format, filename and time, and is protected by v5
 	// signatures of type 0x00 or 0x01. This metadata is included into the hash
@@ -935,7 +935,7 @@ func (sig *Signature) AddMetadataToHashSuffix() {
 	n := sig.HashSuffix[len(sig.HashSuffix)-8:]
 	l := uint64(
 		uint64(n[0])<<56 | uint64(n[1])<<48 | uint64(n[2])<<40 | uint64(n[3])<<32 |
-		uint64(n[4])<<24 | uint64(n[5])<<16 | uint64(n[6])<<8  | uint64(n[7]))
+			uint64(n[4])<<24 | uint64(n[5])<<16 | uint64(n[6])<<8 | uint64(n[7]))
 
 	suffix := bytes.NewBuffer(nil)
 	suffix.Write(sig.HashSuffix[:l])

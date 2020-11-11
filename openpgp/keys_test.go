@@ -107,6 +107,50 @@ func TestExpiringPrimaryUIDKey(t *testing.T) {
 	}
 }
 
+func TestReturnFirstUnexpiredSigningSubkey(t *testing.T) {
+	// Make a master key.
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// First signing subkey does not expire.
+	err = entity.AddSigningSubkey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Get the first signing subkey (added after the default encryption subkey).
+	subkey1 := entity.Subkeys[1]
+
+	// Second signing subkey expires in a day.
+	err = entity.AddSigningSubkey(&packet.Config{
+		KeyLifetimeSecs: 24 * 60 * 60,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Get the second signing subkey.
+	subkey2 := entity.Subkeys[2]
+
+	// Before second signing subkey has expired, it should be returned.
+	time1 := time.Now()
+	subkey, _ := entity.SigningKey(time1)
+	observed := subkey.PublicKey.KeyIdShortString()
+	expected := subkey2.PublicKey.KeyIdShortString()
+	if observed != expected {
+		t.Errorf("Expected key %s at time %s, but got key %s", expected, time1.Format(time.UnixDate), observed)
+	}
+
+	// After the second signing subkey has expired, the first one should be returned.
+	time2 := time1.AddDate(0, 0, 2)
+	subkey, _ = entity.SigningKey(time2)
+	observed = subkey.PublicKey.KeyIdShortString()
+	expected = subkey1.PublicKey.KeyIdShortString()
+	if observed != expected {
+		t.Errorf("Expected key %s at time %s, but got key %s", expected, time2.Format(time.UnixDate), observed)
+	}
+}
+
 func TestMissingCrossSignature(t *testing.T) {
 	// This public key has a signing subkey, but the subkey does not
 	// contain a cross-signature.
