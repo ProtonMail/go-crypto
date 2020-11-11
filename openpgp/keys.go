@@ -96,7 +96,7 @@ func (e *Entity) EncryptionKey(now time.Time) (encryptionKey Key, found bool) {
 		return
 	}
 
-	// Iterate the keys to find the newest key
+	// Iterate the keys to find the newest, unexpired one
 	candidateSubkey := -1
 	var maxTime time.Time
 	for i, subkey := range e.Subkeys {
@@ -119,7 +119,7 @@ func (e *Entity) EncryptionKey(now time.Time) (encryptionKey Key, found bool) {
 	// If we don't have any candidate subkeys for encryption and
 	// the primary key doesn't have any usage metadata then we
 	// assume that the primary key is ok. Or, if the primary key is
-	// marked as ok to encrypt to, then we can obviously use it.
+	// marked as ok to encrypt with, then we can obviously use it.
 	// Also, check expiry again just to be safe.
 	if !i.SelfSignature.FlagsValid || i.SelfSignature.FlagEncryptCommunications &&
 		e.PrimaryKey.PubKeyAlgo.CanEncrypt() && !primaryKeyExpired {
@@ -140,15 +140,17 @@ func (e *Entity) SigningKey(now time.Time) (signingKey Key, found bool) {
 		return
 	}
 
-	// Iterate the keys to find the first unexpired one
+	// Iterate the keys to find the newest, unexpired one
 	candidateSubkey := -1
+	var maxTime time.Time
 	for i, subkey := range e.Subkeys {
 		if subkey.Sig.FlagsValid &&
 			subkey.Sig.FlagSign &&
 			subkey.PublicKey.PubKeyAlgo.CanSign() &&
-			!subkey.PublicKey.KeyExpired(subkey.Sig, now) {
+			!subkey.PublicKey.KeyExpired(subkey.Sig, now) &&
+			(maxTime.IsZero() || subkey.Sig.CreationTime.After(maxTime)) {
 			candidateSubkey = i
-			break
+			maxTime = subkey.Sig.CreationTime
 		}
 	}
 
@@ -159,8 +161,10 @@ func (e *Entity) SigningKey(now time.Time) (signingKey Key, found bool) {
 	}
 
 	// If we have no candidate subkey then we assume that it's ok to sign
-	// with the primary key. Also, check expiry again just to be safe.
-	if !i.SelfSignature.FlagsValid || i.SelfSignature.FlagSign && !primaryKeyExpired {
+	// with the primary key.  Or, if the primary key is marked as ok to
+	// sign with, then we can use it. Also, check expiry again just to be safe.
+	if !i.SelfSignature.FlagsValid || i.SelfSignature.FlagSign &&
+		e.PrimaryKey.PubKeyAlgo.CanSign() && !primaryKeyExpired {
 		signingKey, found = Key{e, e.PrimaryKey, e.PrivateKey, i.SelfSignature}, true
 		return
 	}
