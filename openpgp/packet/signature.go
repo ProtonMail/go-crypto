@@ -521,7 +521,7 @@ func (sig *Signature) SigExpired(currentTime time.Time) bool {
 	if sig.CreationTime.After(currentTime) {
 		return true
 	}
-	if sig.SigLifetimeSecs == nil {
+	if sig.SigLifetimeSecs == nil || *sig.SigLifetimeSecs == 0 {
 		return false
 	}
 	expiry := sig.CreationTime.Add(time.Duration(*sig.SigLifetimeSecs) * time.Second)

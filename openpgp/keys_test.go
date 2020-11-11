@@ -151,6 +151,79 @@ func TestReturnFirstUnexpiredSigningSubkey(t *testing.T) {
 	}
 }
 
+func TestSignatureExpiry(t *testing.T) {
+	// Make a master key, and attach it to a keyring.
+	var keyring EntityList
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyring = append(keyring, entity)
+
+	// Make a signature that never expires.
+	var signatureWriter1 bytes.Buffer
+	const input string = "Hello, world!"
+	message := strings.NewReader(input)
+	err = ArmoredDetachSign(&signatureWriter1, entity, message, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Make a signature that expires in a day.
+	var signatureWriter2 bytes.Buffer
+	message = strings.NewReader(input)
+	err = ArmoredDetachSign(&signatureWriter2, entity, message, &packet.Config{
+		SigLifetimeSecs: 24 * 60 * 60,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Make a time that is day after tomorrow.
+	futureTime := func() time.Time {
+		return time.Now().AddDate(0, 0, 2)
+	}
+
+	// Make a signature that was created in the future.
+	var signatureWriter3 bytes.Buffer
+	message = strings.NewReader(input)
+	err = ArmoredDetachSign(&signatureWriter3, entity, message, &packet.Config{
+		Time: futureTime,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Check that the first signature has not expired day after tomorrow.
+	message = strings.NewReader(input)
+	signatureReader1 := strings.NewReader(signatureWriter1.String())
+	_, err = CheckArmoredDetachedSignature(keyring, message, signatureReader1, &packet.Config{
+		Time: futureTime,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Check that the second signature has expired day after tomorrow.
+	message = strings.NewReader(input)
+	signatureReader2 := strings.NewReader(signatureWriter2.String())
+	const expectedErr string = "openpgp: signature expired"
+	_, observedErr := CheckArmoredDetachedSignature(keyring, message, signatureReader2, &packet.Config{
+		Time: futureTime,
+	})
+	if observedErr.Error() != expectedErr {
+		t.Errorf("Expected error '%s', but got error '%s'", expectedErr, observedErr)
+	}
+
+	// Check that the third signature is also consired expired even now.
+	message = strings.NewReader(input)
+	signatureReader3 := strings.NewReader(signatureWriter3.String())
+	_, observedErr = CheckArmoredDetachedSignature(keyring, message, signatureReader3, nil)
+	if observedErr.Error() != expectedErr {
+		t.Errorf("Expected error '%s', but got error '%s'", expectedErr, observedErr)
+	}
+}
+
 func TestMissingCrossSignature(t *testing.T) {
 	// This public key has a signing subkey, but the subkey does not
 	// contain a cross-signature.
