@@ -418,7 +418,7 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		}
 	case issuerFingerprintSubpacket:
 		v, l := subpacket[0], len(subpacket[1:])
-		if v < 5 && l != 20 || v == 5 && l != 32 {
+		if v == 5 && l != 32 || v != 5 && l != 20 {
 			return nil, errors.StructuralError("bad fingerprint length")
 		}
 		sig.IssuerFingerprint = make([]byte, l)
