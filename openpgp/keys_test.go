@@ -81,6 +81,165 @@ func TestKeyExpiry(t *testing.T) {
 	}
 }
 
+// https://tests.sequoia-pgp.org/#Certificate_expiration
+// P _ U p
+func TestExpiringPrimaryUIDKey(t *testing.T) {
+	// P _ U p
+	kring, err := ReadArmoredKeyRing(bytes.NewBufferString((expiringPrimaryUIDKey)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	entity := kring[0]
+
+	const timeFormat string = "2006-01-02"
+	const expectedKeyID string = "015E7330"
+
+	// Before the primary UID has expired, the primary key should be returned.
+	time1, err := time.Parse(timeFormat, "2020-07-08")
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, found := entity.SigningKey(time1)
+	if !found {
+		t.Errorf("Signing subkey %s not found at time %s", expectedKeyID, time1.Format(timeFormat))
+	}
+	if observedKeyID := key.PublicKey.KeyIdShortString(); observedKeyID != expectedKeyID {
+		t.Errorf("Expected key %s at time %s, but got key %s", expectedKeyID, time1.Format(timeFormat), observedKeyID)
+	}
+
+	// After the primary UID has expired, nothing should be returned.
+	time2, err := time.Parse(timeFormat, "2020-07-09")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if key, ok := entity.SigningKey(time2); ok {
+		t.Errorf("Expected no key at time %s, but got key %s", time2.Format(timeFormat), key.PublicKey.KeyIdShortString())
+	}
+}
+
+func TestReturnFirstUnexpiredSigningSubkey(t *testing.T) {
+	// Make a master key.
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// First signing subkey does not expire.
+	err = entity.AddSigningSubkey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Get the first signing subkey (added after the default encryption subkey).
+	subkey1 := entity.Subkeys[1]
+
+	// Second signing subkey expires in a day.
+	err = entity.AddSigningSubkey(&packet.Config{
+		KeyLifetimeSecs: 24 * 60 * 60,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Get the second signing subkey.
+	subkey2 := entity.Subkeys[2]
+
+	// Before second signing subkey has expired, it should be returned.
+	time1 := time.Now()
+	expected := subkey2.PublicKey.KeyIdShortString()
+	subkey, found := entity.SigningKey(time1)
+	if !found {
+		t.Errorf("Signing subkey %s not found at time %s", expected, time1.Format(time.UnixDate))
+	}
+	observed := subkey.PublicKey.KeyIdShortString()
+	if observed != expected {
+		t.Errorf("Expected key %s at time %s, but got key %s", expected, time1.Format(time.UnixDate), observed)
+	}
+
+	// After the second signing subkey has expired, the first one should be returned.
+	time2 := time1.AddDate(0, 0, 2)
+	expected = subkey1.PublicKey.KeyIdShortString()
+	subkey, found = entity.SigningKey(time2)
+	if !found {
+		t.Errorf("Signing subkey %s not found at time %s", expected, time2.Format(time.UnixDate))
+	}
+	observed = subkey.PublicKey.KeyIdShortString()
+	if observed != expected {
+		t.Errorf("Expected key %s at time %s, but got key %s", expected, time2.Format(time.UnixDate), observed)
+	}
+}
+
+func TestSignatureExpiry(t *testing.T) {
+	// Make a master key, and attach it to a keyring.
+	var keyring EntityList
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyring = append(keyring, entity)
+
+	// Make a signature that never expires.
+	var signatureWriter1 bytes.Buffer
+	const input string = "Hello, world!"
+	message := strings.NewReader(input)
+	err = ArmoredDetachSign(&signatureWriter1, entity, message, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Make a signature that expires in a day.
+	var signatureWriter2 bytes.Buffer
+	message = strings.NewReader(input)
+	err = ArmoredDetachSign(&signatureWriter2, entity, message, &packet.Config{
+		SigLifetimeSecs: 24 * 60 * 60,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Make a time that is day after tomorrow.
+	futureTime := func() time.Time {
+		return time.Now().AddDate(0, 0, 2)
+	}
+
+	// Make a signature that was created in the future.
+	var signatureWriter3 bytes.Buffer
+	message = strings.NewReader(input)
+	err = ArmoredDetachSign(&signatureWriter3, entity, message, &packet.Config{
+		Time: futureTime,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Check that the first signature has not expired day after tomorrow.
+	message = strings.NewReader(input)
+	signatureReader1 := strings.NewReader(signatureWriter1.String())
+	_, err = CheckArmoredDetachedSignature(keyring, message, signatureReader1, &packet.Config{
+		Time: futureTime,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Check that the second signature has expired day after tomorrow.
+	message = strings.NewReader(input)
+	signatureReader2 := strings.NewReader(signatureWriter2.String())
+	const expectedErr string = "openpgp: signature expired"
+	_, observedErr := CheckArmoredDetachedSignature(keyring, message, signatureReader2, &packet.Config{
+		Time: futureTime,
+	})
+	if observedErr.Error() != expectedErr {
+		t.Errorf("Expected error '%s', but got error '%s'", expectedErr, observedErr)
+	}
+
+	// Check that the third signature is also consired expired even now.
+	message = strings.NewReader(input)
+	signatureReader3 := strings.NewReader(signatureWriter3.String())
+	_, observedErr = CheckArmoredDetachedSignature(keyring, message, signatureReader3, nil)
+	if observedErr.Error() != expectedErr {
+		t.Errorf("Expected error '%s', but got error '%s'", expectedErr, observedErr)
+	}
+}
+
 func TestMissingCrossSignature(t *testing.T) {
 	// This public key has a signing subkey, but the subkey does not
 	// contain a cross-signature.

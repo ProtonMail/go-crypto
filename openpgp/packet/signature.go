@@ -41,7 +41,7 @@ type Signature struct {
 	HashSuffix []byte
 	// HashTag contains the first two bytes of the hash for fast rejection
 	// of bad signed data.
-	HashTag      [2]byte
+	HashTag [2]byte
 
 	// Metadata includes format, filename and time, and is protected by v5
 	// signatures of type 0x00 or 0x01. This metadata is included into the hash
@@ -521,7 +521,7 @@ func (sig *Signature) SigExpired(currentTime time.Time) bool {
 	if sig.CreationTime.After(currentTime) {
 		return true
 	}
-	if sig.SigLifetimeSecs == nil {
+	if sig.SigLifetimeSecs == nil || *sig.SigLifetimeSecs == 0 {
 		return false
 	}
 	expiry := sig.CreationTime.Add(time.Duration(*sig.SigLifetimeSecs) * time.Second)

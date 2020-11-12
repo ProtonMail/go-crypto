@@ -22,6 +22,7 @@ import (
 // If config is nil, sensible defaults will be used.
 func NewEntity(name, comment, email string, config *packet.Config) (*Entity, error) {
 	creationTime := config.Now()
+	keyLifetimeSecs := config.KeyLifetime()
 
 	uid := packet.NewUserId(name, comment, email)
 	if uid == nil {
@@ -45,6 +46,7 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 		PubKeyAlgo:        primary.PublicKey.PubKeyAlgo,
 		Hash:              config.Hash(),
 		CreationTime:      creationTime,
+		KeyLifetimeSecs:   &keyLifetimeSecs,
 		IssuerKeyId:       &primary.PublicKey.KeyId,
 		IssuerFingerprint: primary.PublicKey.Fingerprint,
 		IsPrimaryId:       &isPrimaryId,
@@ -93,6 +95,8 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 		sub.UpgradeToV5()
 	}
 
+	// NOTE: No KeyLifetimeSecs here, but we will not return this subkey in EncryptionKey()
+	// if the primary/master key has expired.
 	subKey := Subkey{
 		PublicKey:  &sub.PublicKey,
 		PrivateKey: sub,
