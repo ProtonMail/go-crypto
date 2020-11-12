@@ -91,17 +91,27 @@ func TestExpiringPrimaryUIDKey(t *testing.T) {
 	}
 	entity := kring[0]
 
-	const timeFormat = "2006-01-02"
+	const timeFormat string = "2006-01-02"
+	const expectedKeyID string = "015E7330"
 
 	// Before the primary UID has expired, the primary key should be returned.
-	time1, _ := time.Parse(timeFormat, "2020-07-08")
-	key, _ := entity.SigningKey(time1)
-	if id, expected := key.PublicKey.KeyIdShortString(), "015E7330"; id != expected {
-		t.Errorf("Expected key %s at time %s, but got key %s", expected, time1.Format(timeFormat), id)
+	time1, err := time.Parse(timeFormat, "2020-07-08")
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, found := entity.SigningKey(time1)
+	if !found {
+		t.Errorf("Signing subkey %s not found at time %s", expectedKeyID, time1.Format(timeFormat))
+	}
+	if observedKeyID := key.PublicKey.KeyIdShortString(); observedKeyID != expectedKeyID {
+		t.Errorf("Expected key %s at time %s, but got key %s", expectedKeyID, time1.Format(timeFormat), observedKeyID)
 	}
 
 	// After the primary UID has expired, nothing should be returned.
-	time2, _ := time.Parse(timeFormat, "2020-07-09")
+	time2, err := time.Parse(timeFormat, "2020-07-09")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if key, ok := entity.SigningKey(time2); ok {
 		t.Errorf("Expected no key at time %s, but got key %s", time2.Format(timeFormat), key.PublicKey.KeyIdShortString())
 	}
@@ -134,18 +144,24 @@ func TestReturnFirstUnexpiredSigningSubkey(t *testing.T) {
 
 	// Before second signing subkey has expired, it should be returned.
 	time1 := time.Now()
-	subkey, _ := entity.SigningKey(time1)
-	observed := subkey.PublicKey.KeyIdShortString()
 	expected := subkey2.PublicKey.KeyIdShortString()
+	subkey, found := entity.SigningKey(time1)
+	if !found {
+		t.Errorf("Signing subkey %s not found at time %s", expected, time1.Format(time.UnixDate))
+	}
+	observed := subkey.PublicKey.KeyIdShortString()
 	if observed != expected {
 		t.Errorf("Expected key %s at time %s, but got key %s", expected, time1.Format(time.UnixDate), observed)
 	}
 
 	// After the second signing subkey has expired, the first one should be returned.
 	time2 := time1.AddDate(0, 0, 2)
-	subkey, _ = entity.SigningKey(time2)
-	observed = subkey.PublicKey.KeyIdShortString()
 	expected = subkey1.PublicKey.KeyIdShortString()
+	subkey, found = entity.SigningKey(time2)
+	if !found {
+		t.Errorf("Signing subkey %s not found at time %s", expected, time2.Format(time.UnixDate))
+	}
+	observed = subkey.PublicKey.KeyIdShortString()
 	if observed != expected {
 		t.Errorf("Expected key %s at time %s, but got key %s", expected, time2.Format(time.UnixDate), observed)
 	}

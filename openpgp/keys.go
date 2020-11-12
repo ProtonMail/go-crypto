@@ -88,12 +88,12 @@ func (e *Entity) PrimaryIdentity() *Identity {
 
 // EncryptionKey returns the best candidate Key for encrypting a message to the
 // given Entity.
-func (e *Entity) EncryptionKey(now time.Time) (encryptionKey Key, found bool) {
+func (e *Entity) EncryptionKey(now time.Time) (Key, bool) {
 	// Fail to find any encryption key if the primary key has expired.
 	i := e.PrimaryIdentity()
 	primaryKeyExpired := e.PrimaryKey.KeyExpired(i.SelfSignature, now)
 	if primaryKeyExpired {
-		return
+		return Key{}, false
 	}
 
 	// Iterate the keys to find the newest, unexpired one
@@ -112,8 +112,7 @@ func (e *Entity) EncryptionKey(now time.Time) (encryptionKey Key, found bool) {
 
 	if candidateSubkey != -1 {
 		subkey := e.Subkeys[candidateSubkey]
-		encryptionKey, found = Key{e, subkey.PublicKey, subkey.PrivateKey, subkey.Sig}, true
-		return
+		return Key{e, subkey.PublicKey, subkey.PrivateKey, subkey.Sig}, true
 	}
 
 	// If we don't have any candidate subkeys for encryption and
@@ -123,21 +122,20 @@ func (e *Entity) EncryptionKey(now time.Time) (encryptionKey Key, found bool) {
 	// Also, check expiry again just to be safe.
 	if !i.SelfSignature.FlagsValid || i.SelfSignature.FlagEncryptCommunications &&
 		e.PrimaryKey.PubKeyAlgo.CanEncrypt() && !primaryKeyExpired {
-		encryptionKey, found = Key{e, e.PrimaryKey, e.PrivateKey, i.SelfSignature}, true
-		return
+		return Key{e, e.PrimaryKey, e.PrivateKey, i.SelfSignature}, true
 	}
 
-	return
+	return Key{}, false
 }
 
 // SigningKey return the best candidate Key for signing a message with this
 // Entity.
-func (e *Entity) SigningKey(now time.Time) (signingKey Key, found bool) {
+func (e *Entity) SigningKey(now time.Time) (Key, bool) {
 	// Fail to find any signing key if the primary key has expired.
 	i := e.PrimaryIdentity()
 	primaryKeyExpired := e.PrimaryKey.KeyExpired(i.SelfSignature, now)
 	if primaryKeyExpired {
-		return
+		return Key{}, false
 	}
 
 	// Iterate the keys to find the newest, unexpired one
@@ -156,8 +154,7 @@ func (e *Entity) SigningKey(now time.Time) (signingKey Key, found bool) {
 
 	if candidateSubkey != -1 {
 		subkey := e.Subkeys[candidateSubkey]
-		signingKey, found = Key{e, subkey.PublicKey, subkey.PrivateKey, subkey.Sig}, true
-		return
+		return Key{e, subkey.PublicKey, subkey.PrivateKey, subkey.Sig}, true
 	}
 
 	// If we have no candidate subkey then we assume that it's ok to sign
@@ -165,11 +162,10 @@ func (e *Entity) SigningKey(now time.Time) (signingKey Key, found bool) {
 	// sign with, then we can use it. Also, check expiry again just to be safe.
 	if !i.SelfSignature.FlagsValid || i.SelfSignature.FlagSign &&
 		e.PrimaryKey.PubKeyAlgo.CanSign() && !primaryKeyExpired {
-		signingKey, found = Key{e, e.PrimaryKey, e.PrivateKey, i.SelfSignature}, true
-		return
+		return Key{e, e.PrimaryKey, e.PrivateKey, i.SelfSignature}, true
 	}
 
-	return
+	return Key{}, false
 }
 
 // An EntityList contains one or more Entities.
