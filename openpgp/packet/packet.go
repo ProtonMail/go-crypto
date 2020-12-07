@@ -268,7 +268,8 @@ func serializeStreamHeader(w io.WriteCloser, ptype packetType) (out io.WriteClos
 	if err != nil {
 		return
 	}
-	out = &partialLengthWriter{w: w}
+	out = w
+	// out = &partialLengthWriter{w: w}
 	return
 }
 
