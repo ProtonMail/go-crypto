@@ -103,7 +103,7 @@ type partialLengthWriter struct {
 func (w *partialLengthWriter) Write(p []byte) (n int, err error) {
 	bufLen := w.buf.Len()
 	if bufLen > 512 {
-		for power := uint(14); power < 32; power-- {
+		for power := uint(30); power < 32; power-- {
 			l := 1 << power
 			if bufLen >= l {
 				w.lengthByte[0] = 224 + uint8(power)
@@ -268,8 +268,7 @@ func serializeStreamHeader(w io.WriteCloser, ptype packetType) (out io.WriteClos
 	if err != nil {
 		return
 	}
-	out = w
-	// out = &partialLengthWriter{w: w}
+	out = &partialLengthWriter{w: w}
 	return
 }
 
