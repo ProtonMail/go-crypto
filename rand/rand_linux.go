@@ -5,7 +5,7 @@
 package rand
 
 import (
-	"golang.org/x/crypto/internal/syscall/unix"
+	"github.com/ProtonMail/go-crypto/internal/syscall/unix"
 )
 
 func init() {

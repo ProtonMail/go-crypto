@@ -11,7 +11,7 @@ import (
 	"crypto/cipher"
 	"crypto/subtle"
 	"errors"
-	"golang.org/x/crypto/internal/byteutil"
+	"github.com/ProtonMail/go-crypto/internal/byteutil"
 )
 
 const (

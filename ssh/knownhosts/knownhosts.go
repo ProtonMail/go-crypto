@@ -21,7 +21,7 @@ import (
 	"os"
 	"strings"
 
-	"golang.org/x/crypto/ssh"
+	"github.com/ProtonMail/go-crypto/ssh"
 )
 
 // See the sshd manpage

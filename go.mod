@@ -1,4 +1,4 @@
-module golang.org/x/crypto
+module github.com/ProtonMail/go-crypto
 
 go 1.13
 

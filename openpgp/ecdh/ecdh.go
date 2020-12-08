@@ -13,9 +13,9 @@ import (
 	"io"
 	"math/big"
 
-	"golang.org/x/crypto/openpgp/aes/keywrap"
-	"golang.org/x/crypto/openpgp/internal/algorithm"
-	"golang.org/x/crypto/openpgp/internal/ecc"
+	"github.com/ProtonMail/go-crypto/openpgp/aes/keywrap"
+	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
+	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
 )
 
 type KDF struct {
