@@ -103,7 +103,7 @@ type partialLengthWriter struct {
 func (w *partialLengthWriter) Write(p []byte) (n int, err error) {
 	bufLen := w.buf.Len()
 	if bufLen > 512 {
-		for power := uint(14); power < 32; power-- {
+		for power := uint(30); ; power-- {
 			l := 1 << power
 			if bufLen >= l {
 				w.lengthByte[0] = 224 + uint8(power)
