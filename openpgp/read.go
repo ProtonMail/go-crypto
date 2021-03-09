@@ -265,7 +265,7 @@ FindLiteralData:
 		}
 	}
 
-	if md.SignedBy != nil && md.SignatureError == nil {
+	if md.IsSigned && md.SignatureError == nil {
 		md.UnverifiedBody = &signatureCheckReader{packets, h, wrappedHash, md, config}
 	} else if md.decrypted != nil {
 		md.UnverifiedBody = checkReader{md}
@@ -344,9 +344,11 @@ func (scr *signatureCheckReader) Read(buf []byte) (n int, err error) {
 			if sig.Version == 5 && (sig.SigType == 0x00 || sig.SigType == 0x01) {
 				sig.Metadata = scr.md.LiteralData
 			}
-			scr.md.SignatureError = scr.md.SignedBy.PublicKey.VerifySignature(scr.h, scr.md.Signature)
-			if scr.md.SignatureError == nil && scr.md.Signature.SigExpired(scr.config.Now()) {
-				scr.md.SignatureError = errors.ErrSignatureExpired
+			if scr.md.SignedBy != nil {
+				scr.md.SignatureError = scr.md.SignedBy.PublicKey.VerifySignature(scr.h, scr.md.Signature)
+				if scr.md.SignatureError == nil && scr.md.Signature.SigExpired(scr.config.Now()) {
+					scr.md.SignatureError = errors.ErrSignatureExpired
+				}
 			}
 		} else {
 			scr.md.SignatureError = errors.StructuralError("LiteralData not followed by Signature")
