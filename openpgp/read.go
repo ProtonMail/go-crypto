@@ -59,6 +59,8 @@ type MessageDetails struct {
 	SignatureError error             // nil if the signature is good.
 	Signature      *packet.Signature // the signature packet itself, if v4 (default)
 
+	UnverifiedSignatures []*packet.Signature      // All other unverified signatures
+
 	decrypted io.ReadCloser
 }
 
@@ -265,7 +267,7 @@ FindLiteralData:
 		}
 	}
 
-	if md.SignedBy != nil && md.SignatureError == nil {
+	if md.IsSigned && md.SignatureError == nil {
 		md.UnverifiedBody = &signatureCheckReader{packets, h, wrappedHash, md, config}
 	} else if md.decrypted != nil {
 		md.UnverifiedBody = checkReader{md}
@@ -330,27 +332,46 @@ type signatureCheckReader struct {
 
 func (scr *signatureCheckReader) Read(buf []byte) (n int, err error) {
 	n, err = scr.md.LiteralData.Body.Read(buf)
-	scr.wrappedHash.Write(buf[:n])
+
+	// Hash only if required
+	if scr.md.SignedBy != nil {
+		scr.wrappedHash.Write(buf[:n])
+	}
+
 	if err == io.EOF {
 		var p packet.Packet
-		p, scr.md.SignatureError = scr.packets.Next()
-		if scr.md.SignatureError != nil {
-			return
+		var readError error
+		var sig *packet.Signature
+
+		p, readError = scr.packets.Next()
+		for readError == nil {
+			var ok bool
+			if sig, ok = p.(*packet.Signature); ok {
+				if sig.Version == 5 && (sig.SigType == 0x00 || sig.SigType == 0x01){
+					sig.Metadata = scr.md.LiteralData
+				}
+
+				// If signature KeyID matches
+				if scr.md.SignedBy != nil && *sig.IssuerKeyId == scr.md.SignedByKeyId {
+					scr.md.Signature = sig
+					scr.md.SignatureError = scr.md.SignedBy.PublicKey.VerifySignature(scr.h, scr.md.Signature)
+					if scr.md.SignatureError == nil && scr.md.Signature.SigExpired(scr.config.Now()) {
+						scr.md.SignatureError = errors.ErrSignatureExpired
+					}
+				} else {
+					scr.md.UnverifiedSignatures = append(scr.md.UnverifiedSignatures, sig)
+				}
+			}
+
+			p, readError = scr.packets.Next()
 		}
 
-		var ok bool
-		if scr.md.Signature, ok = p.(*packet.Signature); ok {
-			sig := scr.md.Signature
-			if sig.Version == 5 && (sig.SigType == 0x00 || sig.SigType == 0x01) {
-				sig.Metadata = scr.md.LiteralData
+		if scr.md.SignedBy != nil && scr.md.Signature == nil {
+			if scr.md.UnverifiedSignatures == nil {
+				scr.md.SignatureError = errors.StructuralError("LiteralData not followed by signature")
+			} else {
+				scr.md.SignatureError = errors.StructuralError("No matching signature found")
 			}
-			scr.md.SignatureError = scr.md.SignedBy.PublicKey.VerifySignature(scr.h, scr.md.Signature)
-			if scr.md.SignatureError == nil && scr.md.Signature.SigExpired(scr.config.Now()) {
-				scr.md.SignatureError = errors.ErrSignatureExpired
-			}
-		} else {
-			scr.md.SignatureError = errors.StructuralError("LiteralData not followed by Signature")
-			return
 		}
 
 		// The SymmetricallyEncrypted packet, if any, might have an
