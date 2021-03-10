@@ -177,18 +177,24 @@ func TestSignedEncryptedMessage(t *testing.T) {
 		messageHex       string
 		signedByKeyId    uint64
 		encryptedToKeyId uint64
+		verifiedSigHex   string
+		unverifiedSigHex string
 	}{
 		{
 			testKeys1And2PrivateHex,
 			signedEncryptedMessageHex,
 			0xa34d7e18c20c31bb,
 			0x2a67d68660df41c7,
+			verifiedSignatureEncryptedMessageHex,
+			unverifiedSignatureEncryptedMessageHex,
 		},
 		{
 			dsaElGamalTestKeysHex,
 			signedEncryptedMessage2Hex,
 			0x33af447ccd759b09,
 			0xcf6a7abcd43e3673,
+			signatureEncryptedMessage2Hex,
+			"",
 		},
 	}
 	for i, test := range signedEncryptedMessageTests {
@@ -234,6 +240,42 @@ func TestSignedEncryptedMessage(t *testing.T) {
 
 		if md.SignatureError != nil || md.Signature == nil {
 			t.Errorf("#%d: failed to validate: %s", i, md.SignatureError)
+		}
+
+		if test.verifiedSigHex != "" {
+			var sig bytes.Buffer
+			err = md.Signature.Serialize(&sig)
+			if err != nil {
+				t.Errorf("#%d: error serializing verified signature: %s", i, err)
+			}
+
+			sigData, err := ioutil.ReadAll(&sig)
+			if err != nil {
+				t.Errorf("#%d: error reading verified signature: %s", i, err)
+			}
+
+			if hex.EncodeToString(sigData) != test.verifiedSigHex {
+				t.Errorf("#%d: verified signature does not match: %s, %s", i, hex.EncodeToString(sigData), test.verifiedSigHex)
+			}
+		}
+
+		if test.unverifiedSigHex != "" {
+			var sig bytes.Buffer
+			for i := range md.UnverifiedSignatures {
+				err = md.Signature.Serialize(&sig)
+				if err != nil {
+					t.Errorf("#%d: error serializing unverified signature: %s", i, err)
+				}
+			}
+
+			sigData, err := ioutil.ReadAll(&sig)
+			if err != nil {
+				t.Errorf("#%d: error reading unverified signature: %s", i, err)
+			}
+
+			if hex.EncodeToString(sigData) != test.verifiedSigHex {
+				t.Errorf("#%d: unverified signature does not match: %s, %s", i, hex.EncodeToString(sigData), test.verifiedSigHex)
+			}
 		}
 	}
 }

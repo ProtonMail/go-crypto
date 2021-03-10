@@ -234,6 +234,7 @@ func readSignedMessage(packets *packet.Reader, mdin *MessageDetails, keyring Key
 	var p packet.Packet
 	var h hash.Hash
 	var wrappedHash hash.Hash
+	var prevLast bool
 FindLiteralData:
 	for {
 		p, err = packets.Next()
@@ -246,8 +247,12 @@ FindLiteralData:
 				return nil, err
 			}
 		case *packet.OnePassSignature:
-			if !p.IsLast {
+			if prevLast {
 				return nil, errors.UnsupportedError("nested signatures")
+			}
+
+			if p.IsLast {
+				prevLast = true
 			}
 
 			h, wrappedHash, err = hashForSignature(p.Hash, p.SigType)
