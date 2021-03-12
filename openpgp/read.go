@@ -248,7 +248,7 @@ FindLiteralData:
 			}
 		case *packet.OnePassSignature:
 			if prevLast {
-				return nil, errors.UnsupportedError("nested signatures")
+				return nil, errors.UnsupportedError("nested signature packets")
 			}
 
 			if p.IsLast {
