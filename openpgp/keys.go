@@ -719,6 +719,9 @@ func (e *Entity) Serialize(w io.Writer) error {
 		}
 	}
 	for _, subkey := range e.Subkeys {
+		if subkey.skipSerialize() {
+			continue
+		}
 		err = subkey.PublicKey.Serialize(w)
 		if err != nil {
 			return err
@@ -832,4 +835,13 @@ func (e *Entity) RevokeSubkey(sk *Subkey, reason packet.ReasonForRevocation, rea
 
 	sk.Revocations = append(sk.Revocations, revSig)
 	return nil
+}
+
+func (subKey *Subkey) skipSerialize() bool {
+	switch subKey.PublicKey.PubKeyAlgo {
+	case packet.PubKeyAlgoHMAC, packet.PubKeyAlgoAEAD:
+		return true
+	default:
+		return false
+	}
 }
