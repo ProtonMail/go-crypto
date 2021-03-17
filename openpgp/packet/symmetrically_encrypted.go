@@ -8,10 +8,11 @@ import (
 	"crypto/cipher"
 	"crypto/sha1"
 	"crypto/subtle"
-	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"hash"
 	"io"
 	"strconv"
+
+	"github.com/ProtonMail/go-crypto/openpgp/errors"
 )
 
 // SymmetricallyEncrypted represents a symmetrically encrypted byte string. The
@@ -42,8 +43,8 @@ func (se *SymmetricallyEncrypted) parse(r io.Reader) error {
 }
 
 // Decrypt returns a ReadCloser, from which the decrypted Contents of the
-// packet can be read. An incorrect key can, with high probability, be detected
-// immediately and this will result in a KeyIncorrect error being returned.
+// packet can be read. An incorrect key will only be detected after trying
+// to decrypt the entire data.
 func (se *SymmetricallyEncrypted) Decrypt(c CipherFunction, key []byte) (io.ReadCloser, error) {
 	keySize := c.KeySize()
 	if keySize == 0 {
@@ -70,9 +71,6 @@ func (se *SymmetricallyEncrypted) Decrypt(c CipherFunction, key []byte) (io.Read
 	}
 
 	s := NewOCFBDecrypter(c.new(key), se.prefix, ocfbResync)
-	if s == nil {
-		return nil, errors.ErrKeyIncorrect
-	}
 
 	plaintext := cipher.StreamReader{S: s, R: se.Contents}
 
@@ -195,14 +193,16 @@ func (ser *seMDCReader) Close() error {
 		}
 	}
 
-	if ser.trailer[0] != mdcPacketTagByte || ser.trailer[1] != sha1.Size {
-		return errors.SignatureError("MDC packet not found")
-	}
 	ser.h.Write(ser.trailer[:2])
 
 	final := ser.h.Sum(nil)
 	if subtle.ConstantTimeCompare(final, ser.trailer[2:]) != 1 {
 		return errors.SignatureError("hash mismatch")
+	}
+	// The hash already includes the MDC header, but we still check its value
+	// to confirm encryption correctness
+	if ser.trailer[0] != mdcPacketTagByte || ser.trailer[1] != sha1.Size {
+		return errors.SignatureError("MDC packet not found")
 	}
 	return nil
 }
