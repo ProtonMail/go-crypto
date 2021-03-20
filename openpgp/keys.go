@@ -839,7 +839,7 @@ func (e *Entity) RevokeSubkey(sk *Subkey, reason packet.ReasonForRevocation, rea
 
 func (subKey *Subkey) skipSerialize() bool {
 	switch subKey.PublicKey.PubKeyAlgo {
-	case packet.PubKeyAlgoHMAC, packet.PubKeyAlgoAEAD:
+	case packet.ExperimentalPubKeyAlgoHMAC, packet.ExperimentalPubKeyAlgoAEAD:
 		return true
 	default:
 		return false
