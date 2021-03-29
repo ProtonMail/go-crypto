@@ -187,7 +187,7 @@ func hashToHashId(h crypto.Hash) uint8 {
 // must be closed after the contents of the file have been written. If config
 // is nil, sensible defaults will be used. The signing is done in text mode.
 func EncryptText(ciphertext io.Writer, to []*Entity, signed *Entity, hints *FileHints, config *packet.Config) (plaintext io.WriteCloser, err error) {
-	return encrypt(ciphertext, to, signed, hints, packet.SigTypeText, config)
+	return encrypt(ciphertext, ciphertext, to, signed, hints, packet.SigTypeText, config)
 }
 
 // Encrypt encrypts a message to a number of recipients and, optionally, signs
@@ -196,7 +196,16 @@ func EncryptText(ciphertext io.Writer, to []*Entity, signed *Entity, hints *File
 // be closed after the contents of the file have been written.
 // If config is nil, sensible defaults will be used.
 func Encrypt(ciphertext io.Writer, to []*Entity, signed *Entity, hints *FileHints, config *packet.Config) (plaintext io.WriteCloser, err error) {
-	return encrypt(ciphertext, to, signed, hints, packet.SigTypeBinary, config)
+	return encrypt(ciphertext, ciphertext, to, signed, hints, packet.SigTypeBinary, config)
+}
+
+// EncryptSplit encrypts a message to a number of recipients and, optionally, signs
+// it. hints contains optional information, that is also encrypted, that aids
+// the recipients in processing the message. The resulting WriteCloser must
+// be closed after the contents of the file have been written.
+// If config is nil, sensible defaults will be used.
+func EncryptSplit(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *Entity, hints *FileHints, config *packet.Config) (plaintext io.WriteCloser, err error) {
+	return encrypt(keyWriter, dataWriter, to, signed, hints, packet.SigTypeBinary, config)
 }
 
 // writeAndSign writes the data as a payload package and, optionally, signs
@@ -304,7 +313,7 @@ func writeAndSign(payload io.WriteCloser, candidateHashes []uint8, signed *Entit
 // the recipients in processing the message. The resulting WriteCloser must
 // be closed after the contents of the file have been written.
 // If config is nil, sensible defaults will be used.
-func encrypt(ciphertext io.Writer, to []*Entity, signed *Entity, hints *FileHints, sigType packet.SignatureType, config *packet.Config) (plaintext io.WriteCloser, err error) {
+func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *Entity, hints *FileHints, sigType packet.SignatureType, config *packet.Config) (plaintext io.WriteCloser, err error) {
 	if len(to) == 0 {
 		return nil, errors.InvalidArgumentError("no encryption recipient provided")
 	}
@@ -401,19 +410,19 @@ func encrypt(ciphertext io.Writer, to []*Entity, signed *Entity, hints *FileHint
 	}
 
 	for _, key := range encryptKeys {
-		if err := packet.SerializeEncryptedKey(ciphertext, key.PublicKey, cipher, symKey, config); err != nil {
+		if err := packet.SerializeEncryptedKey(keyWriter, key.PublicKey, cipher, symKey, config); err != nil {
 			return nil, err
 		}
 	}
 
 	var payload io.WriteCloser
 	if aeadSupported {
-		payload, err = packet.SerializeAEADEncrypted(ciphertext, symKey, cipher, mode, config)
+		payload, err = packet.SerializeAEADEncrypted(dataWriter, symKey, cipher, mode, config)
 		if err != nil {
 			return
 		}
 	} else {
-		payload, err = packet.SerializeSymmetricallyEncrypted(ciphertext, cipher, symKey, config)
+		payload, err = packet.SerializeSymmetricallyEncrypted(dataWriter, cipher, symKey, config)
 		if err != nil {
 			return
 		}
