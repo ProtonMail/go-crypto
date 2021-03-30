@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ProtonMail/go-crypto/ed25519"
 	"github.com/ProtonMail/go-crypto/openpgp/armor"
 	"github.com/ProtonMail/go-crypto/openpgp/ecdh"
 	"github.com/ProtonMail/go-crypto/openpgp/elgamal"
@@ -18,6 +17,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	"github.com/ProtonMail/go-crypto/rsa"
+	"golang.org/x/crypto/ed25519"
 )
 
 var hashes = []crypto.Hash{
