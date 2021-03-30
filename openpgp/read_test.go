@@ -663,7 +663,7 @@ func TestSymmetricAeadEaxOpenPGPJsMessage(t *testing.T) {
 	}
 }
 
-func TestSymmetricCorruptedMessageInvalidSigVersion(t *testing.T) {
+func TestCorruptedMessageInvalidSigVersion(t *testing.T) {
 	// Decrypt message with corrupted MDC and invalid one-pass-signature header
 	// Expect parsing errors over unverified decrypted data to be opaque
 	passphrase := []byte("password")
@@ -692,7 +692,7 @@ func TestSymmetricCorruptedMessageInvalidSigVersion(t *testing.T) {
 	}
 }
 
-func TestSymmetricCorruptedMessageWrongLength(t *testing.T) {
+func TestCorruptedMessageWrongLength(t *testing.T) {
 	// Decrypt message with wrong length in Literal packet header (length too long)
 	// Expect parsing errors over unverified decrypted data to be opaque
 	passphrase := []byte("password")
