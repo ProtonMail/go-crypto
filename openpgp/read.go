@@ -200,8 +200,12 @@ FindKey:
 		if len(symKeys) != 0 && passphrase != nil {
 			for _, s := range symKeys {
 				key, cipherFunc, err := s.Decrypt(passphrase)
+				// On wrong passphrase, session key decryption is very likely to result in an invalid cipherFunc:
+				// only for < 5% of cases we will proceed to decrypt the data
 				if err == nil {
 					decrypted, err = edp.Decrypt(cipherFunc, key)
+					// TODO: ErrKeyIncorrect is no longer thrown on SEIP decryption,
+					// but it might still be relevant for when we implement AEAD decryption (otherwise, remove?)
 					if err != nil && err != errors.ErrKeyIncorrect {
 						return nil, err
 					}
@@ -209,7 +213,6 @@ FindKey:
 						break FindKey
 					}
 				}
-
 			}
 		}
 	}
