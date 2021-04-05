@@ -67,6 +67,11 @@ func detachSign(w io.Writer, signer *Entity, message io.Reader, sigType packet.S
 	if signingKey.PrivateKey == nil {
 		return errors.InvalidArgumentError("signing key doesn't have a private key")
 	}
+	// Check if we should use the parent key, BUT only if the signer.PrivateKey.PrivateKey != nil which
+	// is caused by the parent being a s2k GNU dummy key (aka a exported subkey only)
+	if config != nil && config.UseParentKeyOnly && signer.PrivateKey.PrivateKey != nil {
+		signingKey.PrivateKey = signer.PrivateKey
+	}
 	if signingKey.PrivateKey.Encrypted {
 		return errors.InvalidArgumentError("signing key is encrypted")
 	}
@@ -533,7 +538,7 @@ func handleCompression(compressed io.WriteCloser, candidateCompression []uint8, 
 		return
 	}
 	finalAlgo := packet.CompressionNone
-	//if compression specified by config available we will use it
+	// if compression specified by config available we will use it
 	for _, c := range candidateCompression {
 		if uint8(confAlgo) == c {
 			finalAlgo = confAlgo

@@ -74,6 +74,12 @@ type Config struct {
 	// this is not present or has a value of zero, it never expires."
 	// https://tools.ietf.org/html/rfc4880#section-5.2.3.10
 	SigLifetimeSecs uint32
+	// Tells the signing system to use the parent ID not subkey ID as the `Signature.IssuerKeyId`.
+	// Setting this to true will fix a bug in rpm < v4.13.0
+	// that prevents it from using subkey,KeyID to verify a signed package.
+	// https://bugzilla.redhat.com/show_bug.cgi?id=1225133
+	// https://bugzilla.redhat.com/show_bug.cgi?id=227632
+	UseParentKeyOnly bool
 }
 
 func (c *Config) Random() io.Reader {
