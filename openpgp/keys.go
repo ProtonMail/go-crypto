@@ -131,6 +131,12 @@ func (e *Entity) EncryptionKey(now time.Time) (Key, bool) {
 // SigningKey return the best candidate Key for signing a message with this
 // Entity.
 func (e *Entity) SigningKey(now time.Time) (Key, bool) {
+	return e.SigningKeyById(now, 0)
+}
+
+// SigningKeyById return the Key for signing a message with this
+// Entity and keyID.
+func (e *Entity) SigningKeyById(now time.Time, id uint64) (Key, bool) {
 	// Fail to find any signing key if the primary key has expired.
 	i := e.PrimaryIdentity()
 	primaryKeyExpired := e.PrimaryKey.KeyExpired(i.SelfSignature, now)
@@ -138,16 +144,22 @@ func (e *Entity) SigningKey(now time.Time) (Key, bool) {
 		return Key{}, false
 	}
 
+	if e.PrivateKey != nil && e.PrivateKey.KeyId == id {
+		// If the id specified is the Entity.PrivateKey.KeyID lets skip looking at the subkeys
+		return Key{e, e.PrimaryKey, e.PrivateKey, i.SelfSignature}, true
+	}
+
 	// Iterate the keys to find the newest, unexpired one
 	candidateSubkey := -1
 	var maxTime time.Time
-	for i, subkey := range e.Subkeys {
+	for idx, subkey := range e.Subkeys {
 		if subkey.Sig.FlagsValid &&
 			subkey.Sig.FlagSign &&
 			subkey.PublicKey.PubKeyAlgo.CanSign() &&
 			!subkey.PublicKey.KeyExpired(subkey.Sig, now) &&
-			(maxTime.IsZero() || subkey.Sig.CreationTime.After(maxTime)) {
-			candidateSubkey = i
+			(maxTime.IsZero() || subkey.Sig.CreationTime.After(maxTime)) &&
+			(id == 0 || subkey.PrivateKey.KeyId == id) {
+			candidateSubkey = idx
 			maxTime = subkey.Sig.CreationTime
 		}
 	}

@@ -60,17 +60,12 @@ func armoredDetachSign(w io.Writer, signer *Entity, message io.Reader, sigType p
 }
 
 func detachSign(w io.Writer, signer *Entity, message io.Reader, sigType packet.SignatureType, config *packet.Config) (err error) {
-	signingKey, ok := signer.SigningKey(config.Now())
+	signingKey, ok := signer.SigningKeyById(config.Now(), config.SigningKey())
 	if !ok {
 		return errors.InvalidArgumentError("no valid signing keys")
 	}
 	if signingKey.PrivateKey == nil {
 		return errors.InvalidArgumentError("signing key doesn't have a private key")
-	}
-	// Check if we should use the parent key, BUT only if the signer.PrivateKey.PrivateKey != nil which
-	// is caused by the parent being a s2k GNU dummy key (aka a exported subkey only)
-	if config != nil && config.UseParentKeyOnly && signer.PrivateKey.PrivateKey != nil {
-		signingKey.PrivateKey = signer.PrivateKey
 	}
 	if signingKey.PrivateKey.Encrypted {
 		return errors.InvalidArgumentError("signing key is encrypted")
@@ -221,7 +216,7 @@ func EncryptSplit(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signe
 func writeAndSign(payload io.WriteCloser, candidateHashes []uint8, signed *Entity, hints *FileHints, sigType packet.SignatureType, config *packet.Config) (plaintext io.WriteCloser, err error) {
 	var signer *packet.PrivateKey
 	if signed != nil {
-		signKey, ok := signed.SigningKey(config.Now())
+		signKey, ok := signed.SigningKeyById(config.Now(), config.SigningKey())
 		if !ok {
 			return nil, errors.InvalidArgumentError("no valid signing keys")
 		}
