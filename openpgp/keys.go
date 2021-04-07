@@ -144,11 +144,6 @@ func (e *Entity) SigningKeyById(now time.Time, id uint64) (Key, bool) {
 		return Key{}, false
 	}
 
-	if e.PrivateKey != nil && e.PrivateKey.KeyId == id {
-		// If the id specified is the Entity.PrivateKey.KeyID lets skip looking at the subkeys
-		return Key{e, e.PrimaryKey, e.PrivateKey, i.SelfSignature}, true
-	}
-
 	// Iterate the keys to find the newest, unexpired one
 	candidateSubkey := -1
 	var maxTime time.Time
@@ -173,10 +168,12 @@ func (e *Entity) SigningKeyById(now time.Time, id uint64) (Key, bool) {
 	// with the primary key.  Or, if the primary key is marked as ok to
 	// sign with, then we can use it. Also, check expiry again just to be safe.
 	if !i.SelfSignature.FlagsValid || i.SelfSignature.FlagSign &&
-		e.PrimaryKey.PubKeyAlgo.CanSign() && !primaryKeyExpired {
+		e.PrimaryKey.PubKeyAlgo.CanSign() && !primaryKeyExpired &&
+		(id == 0 || e.PrivateKey.KeyId == id) {
 		return Key{e, e.PrimaryKey, e.PrivateKey, i.SelfSignature}, true
 	}
 
+	// No keys with a valid Signing Flag or no keys matched the id passed in
 	return Key{}, false
 }
 
