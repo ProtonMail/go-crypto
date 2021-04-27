@@ -170,7 +170,6 @@ func TestCampbellQuine(t *testing.T) {
 	}
 }
 
-
 func TestSignedEncryptedMessage(t *testing.T) {
 	var signedEncryptedMessageTests = []struct {
 		keyRingHex       string
@@ -661,5 +660,70 @@ func TestSymmetricAeadEaxOpenPGPJsMessage(t *testing.T) {
 
 	if wantHash != gotHash {
 		t.Fatal("Did not decrypt OpenPGPjs message correctly")
+	}
+}
+
+func TestCorruptedMessageInvalidSigVersion(t *testing.T) {
+	// Decrypt message with corrupted MDC and invalid one-pass-signature header
+	// Expect parsing errors over unverified decrypted data to be opaque
+	passphrase := []byte("password")
+	file, err := os.Open("test_data/sym-corrupted-message-invalid-sig-version.asc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	armoredEncryptedMessage, err := ioutil.ReadAll(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Unarmor string
+	raw, err := armor.Decode(strings.NewReader(string(armoredEncryptedMessage)))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	// Mock passphrase prompt
+	promptFunc := func(keys []Key, symmetric bool) ([]byte, error) {
+		return passphrase, nil
+	}
+	const expectedErr string = "openpgp: invalid data: parsing error"
+	_, observedErr := ReadMessage(raw.Body, nil, promptFunc, nil)
+	if observedErr.Error() != expectedErr {
+		t.Errorf("Expected error '%s', but got error '%s'", expectedErr, observedErr)
+	}
+}
+
+func TestCorruptedMessageWrongLength(t *testing.T) {
+	// Decrypt message with wrong length in Literal packet header (length too long)
+	// Expect parsing errors over unverified decrypted data to be opaque
+	passphrase := []byte("password")
+	promptFunc := func(keys []Key, symmetric bool) ([]byte, error) {
+		return passphrase, nil
+	}
+	const expectedErr string = "openpgp: invalid data: parsing error"
+
+	file, err := os.Open("test_data/sym-corrupted-message-long-length.asc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	armoredEncryptedMessage, err := ioutil.ReadAll(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := armor.Decode(strings.NewReader(string(armoredEncryptedMessage)))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	md, err := ReadMessage(raw.Body, nil, promptFunc, nil)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	_, err = ioutil.ReadAll(md.UnverifiedBody)
+	if err == nil {
+		t.Fatal("Parsing error expected")
+	}
+	if err.Error() != expectedErr {
+		t.Errorf("Expected error '%s', but got error '%s'", expectedErr, err)
 	}
 }
