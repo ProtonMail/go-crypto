@@ -459,7 +459,7 @@ func Sign(output io.Writer, signed *Entity, hints *FileHints, config *packet.Con
 	}
 	candidateHashes = intersectPreferences(candidateHashes, preferredHashes)
 	if len(candidateHashes) == 0 {
-		return nil, errors.InvalidArgumentError("cannot sign because no hashing algorithm is available")
+		return nil, errors.InvalidArgumentError("cannot sign because signing key shares no common algorithms with candidate hashes")
 	}
 
 	return writeAndSign(noOpCloser{output}, candidateHashes, signed, hints, packet.SigTypeBinary, config)
