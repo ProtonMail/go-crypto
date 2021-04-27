@@ -14,7 +14,7 @@ import (
 	"encoding/hex"
 	"testing"
 
-	_ "github.com/ProtonMail/go-crypto/ripemd160"
+	_ "golang.org/x/crypto/ripemd160"
 )
 
 var saltedTests = []struct {
@@ -69,18 +69,18 @@ func TestIterated(t *testing.T) {
 
 var parseTests = []struct {
 	spec, in, out string
-	dummyKey bool
-	params Params
+	dummyKey      bool
+	params        Params
 }{
 	/* Simple with SHA1 */
 	{"0002", "hello", "aaf4c61d", false,
 		Params{0, 0x02, nil, 0}},
 	/* Salted with SHA1 */
 	{"01020102030405060708", "hello", "f4f7d67e", false,
-		Params{1, 0x02, []byte{ 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 }, 0}},
+		Params{1, 0x02, []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, 0}},
 	/* Iterated with SHA1 */
 	{"03020102030405060708f1", "hello", "f2a57b7c", false,
-		Params{3, 0x02, []byte{ 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 }, 0xf1}},
+		Params{3, 0x02, []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, 0xf1}},
 	/* GNU dummy S2K */
 	{"6502474e5501", "", "", true,
 		Params{101, 0x02, nil, 0}},

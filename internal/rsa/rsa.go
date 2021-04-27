@@ -30,8 +30,8 @@ import (
 	"io"
 	"math/big"
 
+	"github.com/ProtonMail/go-crypto/internal/rand"
 	"github.com/ProtonMail/go-crypto/internal/randutil"
-	"github.com/ProtonMail/go-crypto/rand"
 )
 
 var bigZero = big.NewInt(0)
@@ -226,7 +226,7 @@ func GenerateKeyWithPrimes(random io.Reader, bits int, primes []*big.Int) (*Priv
 // [2] http://www.cacr.math.uwaterloo.ca/techreports/2006/cacr2006-16.pdf
 func GenerateMultiPrimeKey(random io.Reader, nprimes int, bits int) (*PrivateKey, error) {
 	var prepopulatedPrimes []*big.Int
-	return GenerateMultiPrimeKeyWithPrimes(random, nprimes, bits, prepopulatedPrimes);
+	return GenerateMultiPrimeKeyWithPrimes(random, nprimes, bits, prepopulatedPrimes)
 }
 
 // GenerateMultiPrimeKeyWithPrimes generates a multi-prime RSA keypair of the

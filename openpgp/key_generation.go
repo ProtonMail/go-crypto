@@ -8,12 +8,12 @@ import (
 	"crypto"
 	"math/big"
 
-	"github.com/ProtonMail/go-crypto/ed25519"
+	"github.com/ProtonMail/go-crypto/internal/rsa"
 	"github.com/ProtonMail/go-crypto/openpgp/ecdh"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
-	"github.com/ProtonMail/go-crypto/rsa"
+	"golang.org/x/crypto/ed25519"
 )
 
 // NewEntity returns an Entity that contains a fresh RSA/RSA keypair with a

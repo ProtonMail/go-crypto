@@ -13,7 +13,8 @@ import (
 	"testing"
 
 	"crypto"
-	"github.com/ProtonMail/go-crypto/rsa"
+
+	"github.com/ProtonMail/go-crypto/internal/rsa"
 )
 
 func bigFromBase10(s string) *big.Int {
@@ -37,7 +38,7 @@ var encryptedKeyRSAPriv = &rsa.PrivateKey{
 var encryptedKeyPriv = &PrivateKey{
 	PublicKey: PublicKey{
 		PubKeyAlgo: PubKeyAlgoRSA,
-		KeyId: 0x2a67d68660df41c7,
+		KeyId:      0x2a67d68660df41c7,
 	},
 	PrivateKey: encryptedKeyRSAPriv,
 }
@@ -125,7 +126,7 @@ func TestRSADecrypter(t *testing.T) {
 
 	customKeyPriv := &PrivateKey{
 		PublicKey: PublicKey{
-			KeyId: ek.KeyId,
+			KeyId:      ek.KeyId,
 			PubKeyAlgo: PubKeyAlgoRSA,
 		},
 		PrivateKey: customDecrypter,
