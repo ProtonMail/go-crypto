@@ -452,12 +452,16 @@ func Sign(output io.Writer, signed *Entity, hints *FileHints, config *packet.Con
 		hashToHashId(crypto.SHA1),
 		hashToHashId(crypto.RIPEMD160),
 	}
-	defaultHashes := candidateHashes[len(candidateHashes)-1:]
+	defaultHashes := candidateHashes[0:1]
 	preferredHashes := signed.PrimaryIdentity().SelfSignature.PreferredHash
 	if len(preferredHashes) == 0 {
 		preferredHashes = defaultHashes
 	}
 	candidateHashes = intersectPreferences(candidateHashes, preferredHashes)
+	if len(candidateHashes) == 0 {
+		return nil, errors.InvalidArgumentError("cannot sign because signing key shares no common algorithms with candidate hashes")
+	}
+
 	return writeAndSign(noOpCloser{output}, candidateHashes, signed, hints, packet.SigTypeBinary, config)
 }
 
