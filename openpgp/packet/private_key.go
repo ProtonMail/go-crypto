@@ -12,6 +12,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha1"
 	"fmt"
 	"io"
@@ -23,7 +24,6 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
 	"golang.org/x/crypto/curve25519"
 
-	"github.com/ProtonMail/go-crypto/internal/rsa"
 	"github.com/ProtonMail/go-crypto/openpgp/ecdh"
 	"github.com/ProtonMail/go-crypto/openpgp/elgamal"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"

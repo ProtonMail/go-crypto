@@ -13,8 +13,7 @@ import (
 	"testing"
 
 	"crypto"
-
-	"github.com/ProtonMail/go-crypto/internal/rsa"
+	"crypto/rsa"
 )
 
 func bigFromBase10(s string) *big.Int {

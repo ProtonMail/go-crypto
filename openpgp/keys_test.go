@@ -5,12 +5,12 @@ import (
 	"crypto"
 	"crypto/dsa"
 	"crypto/ecdsa"
+	"crypto/rsa"
 	"math/big"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/ProtonMail/go-crypto/internal/rsa"
 	"github.com/ProtonMail/go-crypto/openpgp/armor"
 	"github.com/ProtonMail/go-crypto/openpgp/ecdh"
 	"github.com/ProtonMail/go-crypto/openpgp/elgamal"

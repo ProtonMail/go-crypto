@@ -6,12 +6,12 @@ package packet
 
 import (
 	"crypto"
+	"crypto/rsa"
 	"encoding/binary"
 	"io"
 	"math/big"
 	"strconv"
 
-	"github.com/ProtonMail/go-crypto/internal/rsa"
 	"github.com/ProtonMail/go-crypto/openpgp/ecdh"
 	"github.com/ProtonMail/go-crypto/openpgp/elgamal"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
