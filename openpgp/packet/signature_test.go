@@ -81,7 +81,7 @@ func TestSignatureWithPolicyURI(t *testing.T) {
 	sig := &Signature{
 		SigType:    SigTypeGenericCert,
 		PubKeyAlgo: PubKeyAlgoRSA,
-		Hash:       0, // invalid hash function
+		Hash:       crypto.SHA256,
 		PolicyURI:  testPolicy,
 	}
 
@@ -102,7 +102,6 @@ func TestSignatureWithPolicyURI(t *testing.T) {
 		t.Fatalf("failed to decrypt private key: %v", err)
 	}
 
-	sig.Hash = crypto.SHA256
 	err = sig.SignUserId("", pubKey, privKey, nil)
 	if err != nil {
 		t.Errorf("failed to sign user id: %v", err)

@@ -63,7 +63,8 @@ type Signature struct {
 
 	SigLifetimeSecs, KeyLifetimeSecs                        *uint32
 	PreferredSymmetric, PreferredHash, PreferredCompression []uint8
-	PolicyURI, PreferredAEAD                                []uint8
+	PreferredAEAD                                           []uint8
+	PolicyURI                                               []byte
 	IssuerKeyId                                             *uint64
 	IssuerFingerprint                                       []byte
 	IsPrimaryId                                             *bool
