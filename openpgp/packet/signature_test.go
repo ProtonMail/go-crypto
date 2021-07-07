@@ -76,6 +76,58 @@ func TestSignUserId(t *testing.T) {
 	}
 }
 
+func TestSignatureWithLifetime(t *testing.T) {
+	lifeTime := uint32(3600 * 24 * 30) // 30 days
+	sig := &Signature{
+		SigType:         SigTypeGenericCert,
+		PubKeyAlgo:      PubKeyAlgoRSA,
+		Hash:            crypto.SHA256,
+		SigLifetimeSecs: &lifeTime,
+	}
+
+	packet, err := Read(readerFromHex(rsaPkDataHex))
+	if err != nil {
+		t.Fatalf("failed to deserialize public key: %v", err)
+	}
+	pubKey := packet.(*PublicKey)
+
+	packet, err = Read(readerFromHex(privKeyRSAHex))
+	if err != nil {
+		t.Fatalf("failed to deserialize private key: %v", err)
+	}
+	privKey := packet.(*PrivateKey)
+
+	err = privKey.Decrypt([]byte("testing"))
+	if err != nil {
+		t.Fatalf("failed to decrypt private key: %v", err)
+	}
+
+	err = sig.SignUserId("", pubKey, privKey, nil)
+	if err != nil {
+		t.Errorf("failed to sign user id: %v", err)
+	}
+
+	buf := bytes.NewBuffer([]byte{})
+	err = sig.Serialize(buf)
+	if err != nil {
+		t.Errorf("failed to serialize signature: %v", err)
+	}
+
+	packet, _ = Read(bytes.NewReader(buf.Bytes()))
+	sig = packet.(*Signature)
+	if sig.SigLifetimeSecs == nil || *sig.SigLifetimeSecs != lifeTime {
+		t.Errorf("signature lifetime is wrong: %d instead of %d", *sig.SigLifetimeSecs, lifeTime)
+	}
+
+	for _, subPacket := range sig.rawSubpackets {
+		if subPacket.subpacketType == signatureExpirationSubpacket {
+			if !subPacket.isCritical {
+				t.Errorf("signature expiration subpacket is not marked as critical")
+			}
+		}
+	}
+}
+
 func TestSignatureWithPolicyURI(t *testing.T) {
 	testPolicy := []byte("This is a test policy")
 	sig := &Signature{
