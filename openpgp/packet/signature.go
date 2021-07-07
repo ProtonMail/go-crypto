@@ -68,6 +68,11 @@ type Signature struct {
 	IssuerFingerprint                                       []byte
 	IsPrimaryId                                             *bool
 
+	// PolicyURI can be set to the URI of a document that describes the
+	// policy under which the signature was issued. See RFC 4880, section
+	// 5.2.3.20 for details.
+	PolicyURI string
+
 	// FlagsValid is set if any flags were given. See RFC 4880, section
 	// 5.2.3.21 for details.
 	FlagsValid                                                           bool
@@ -218,6 +223,7 @@ const (
 	prefHashAlgosSubpacket       signatureSubpacketType = 21
 	prefCompressionSubpacket     signatureSubpacketType = 22
 	primaryUserIdSubpacket       signatureSubpacketType = 25
+	policyUriSubpacket           signatureSubpacketType = 26
 	keyFlagsSubpacket            signatureSubpacketType = 27
 	reasonForRevocationSubpacket signatureSubpacketType = 29
 	featuresSubpacket            signatureSubpacketType = 30
@@ -416,6 +422,12 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		if sigType := sig.EmbeddedSignature.SigType; sigType != SigTypePrimaryKeyBinding {
 			return nil, errors.StructuralError("cross-signature has unexpected type " + strconv.Itoa(int(sigType)))
 		}
+	case policyUriSubpacket:
+		// Policy URI, section 5.2.3.20
+		if !isHashed {
+			return
+		}
+		sig.PolicyURI = string(subpacket)
 	case issuerFingerprintSubpacket:
 		v, l := subpacket[0], len(subpacket[1:])
 		if v == 5 && l != 32 || v != 5 && l != 20 {
@@ -893,6 +905,10 @@ func (sig *Signature) buildSubpackets(issuer PublicKey) (subpackets []outputSubp
 
 	if len(sig.PreferredCompression) > 0 {
 		subpackets = append(subpackets, outputSubpacket{true, prefCompressionSubpacket, false, sig.PreferredCompression})
+	}
+
+	if len(sig.PolicyURI) > 0 {
+		subpackets = append(subpackets, outputSubpacket{true, policyUriSubpacket, false, []uint8(sig.PolicyURI)})
 	}
 
 	if len(sig.PreferredAEAD) > 0 {
