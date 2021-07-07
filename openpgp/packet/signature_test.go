@@ -129,7 +129,7 @@ func TestSignatureWithLifetime(t *testing.T) {
 }
 
 func TestSignatureWithPolicyURI(t *testing.T) {
-	testPolicy := []byte("This is a test policy")
+	testPolicy := "This is a test policy"
 	sig := &Signature{
 		SigType:    SigTypeGenericCert,
 		PubKeyAlgo: PubKeyAlgoRSA,
@@ -167,7 +167,7 @@ func TestSignatureWithPolicyURI(t *testing.T) {
 
 	packet, _ = Read(bytes.NewReader(buf.Bytes()))
 	sig = packet.(*Signature)
-	if sig.PolicyURI == nil || bytes.Equal(sig.PolicyURI, testPolicy) {
+	if sig.PolicyURI != testPolicy {
 		t.Errorf("signature policy is wrong: %s instead of %s", sig.PolicyURI, testPolicy)
 	}
 

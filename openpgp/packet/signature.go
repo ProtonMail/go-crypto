@@ -64,10 +64,14 @@ type Signature struct {
 	SigLifetimeSecs, KeyLifetimeSecs                        *uint32
 	PreferredSymmetric, PreferredHash, PreferredCompression []uint8
 	PreferredAEAD                                           []uint8
-	PolicyURI                                               []byte
 	IssuerKeyId                                             *uint64
 	IssuerFingerprint                                       []byte
 	IsPrimaryId                                             *bool
+
+	// PolicyURI can be set to the URI of a document that describes the
+	// policy under which the signature was issued. See RFC 4880, section
+	// 5.2.3.20 for details.
+	PolicyURI string
 
 	// FlagsValid is set if any flags were given. See RFC 4880, section
 	// 5.2.3.21 for details.
@@ -423,7 +427,7 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		if !isHashed {
 			return
 		}
-		sig.PolicyURI = make([]byte, len(subpacket))
+		sig.PolicyURI = string(subpacket)
 		copy(subpacket, sig.PolicyURI)
 	case issuerFingerprintSubpacket:
 		v, l := subpacket[0], len(subpacket[1:])
@@ -905,7 +909,7 @@ func (sig *Signature) buildSubpackets(issuer PublicKey) (subpackets []outputSubp
 	}
 
 	if len(sig.PolicyURI) > 0 {
-		subpackets = append(subpackets, outputSubpacket{true, policyUriSubpacket, false, sig.PolicyURI})
+		subpackets = append(subpackets, outputSubpacket{true, policyUriSubpacket, false, []uint8(sig.PolicyURI)})
 	}
 
 	if len(sig.PreferredAEAD) > 0 {
