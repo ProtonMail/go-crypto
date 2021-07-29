@@ -1093,6 +1093,29 @@ func TestAddHMACSubkey(t *testing.T) {
 	}
 }
 
+func TestSerializeSymmetricSubkeyError(t *testing.T) {
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", &packet.Config{ RSABits: 1024})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+
+	buf := bytes.NewBuffer(nil)
+	w, _ := armor.Encode(buf , "PGP PRIVATE KEY BLOCK", nil)
+
+	entity.PrimaryKey.PubKeyAlgo = 100
+	err = entity.Serialize(w)
+	if err == nil {
+		t.Fatal(err)
+	}
+
+	entity.PrimaryKey.PubKeyAlgo = 101
+	err = entity.Serialize(w)
+	if err == nil {
+		t.Fatal(err)
+	}
+}
+
 func TestAddAEADSubkey(t *testing.T) {
 	c := &packet.Config{
 		RSABits: 512,

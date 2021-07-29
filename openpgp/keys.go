@@ -696,6 +696,10 @@ func (e *Entity) serializePrivate(w io.Writer, config *packet.Config, reSign boo
 // Serialize writes the public part of the given Entity to w, including
 // signatures from other entities. No private key material will be output.
 func (e *Entity) Serialize(w io.Writer) error {
+	if e.PrimaryKey.PubKeyAlgo == packet.ExperimentalPubKeyAlgoHMAC ||
+	  e.PrimaryKey.PubKeyAlgo == packet.ExperimentalPubKeyAlgoAEAD {
+		return errors.InvalidArgumentError("Can't serialize symmetric primary key")
+	}
 	err := e.PrimaryKey.Serialize(w)
 	if err != nil {
 		return err
