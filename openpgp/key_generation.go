@@ -66,6 +66,12 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 	selfSignature.PreferredHash = []uint8{hashToHashId(config.Hash())}
 	if config.Hash() != crypto.SHA256 {
 		selfSignature.PreferredHash = append(selfSignature.PreferredHash, hashToHashId(crypto.SHA256))
+	} else {
+		selfSignature.PreferredHash = []uint8{
+			hashToHashId(crypto.SHA256),
+			hashToHashId(crypto.SHA512),
+			hashToHashId(crypto.SHA1),
+		}
 	}
 
 	// Likewise for DefaultCipher.
@@ -74,10 +80,32 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 		selfSignature.PreferredSymmetric = append(selfSignature.PreferredSymmetric, uint8(packet.CipherAES128))
 	}
 
+	if config.Cipher() == packet.CipherAES256 {
+		selfSignature.PreferredSymmetric = append(selfSignature.PreferredSymmetric, []uint8{
+			uint8(packet.CipherAES192),
+			uint8(packet.CipherCAST5),
+			uint8(packet.Cipher3DES),
+		}...)
+	}
+
+	// Set  for compression.
+	selfSignature.PreferredCompression = []uint8{uint8(config.Compression())}
+	if config.Compression() != packet.CompressionNone {
+		selfSignature.PreferredSymmetric = append(selfSignature.PreferredSymmetric, uint8(packet.CompressionNone))
+	} else {
+		selfSignature.PreferredCompression = []uint8{
+			uint8(packet.CompressionZLIB),
+			uint8(packet.CompressionZIP),
+			uint8(packet.CompressionNone),
+		}
+	}
+
 	// And for DefaultMode.
-	selfSignature.PreferredAEAD = []uint8{uint8(config.AEAD().Mode())}
-	if config.AEAD().Mode() != packet.AEADModeEAX {
-		selfSignature.PreferredAEAD = append(selfSignature.PreferredAEAD, uint8(packet.AEADModeEAX))
+	if config.AEAD() != nil {
+		selfSignature.PreferredAEAD = []uint8{uint8(config.AEAD().Mode())}
+		if config.AEAD().Mode() != packet.AEADModeEAX {
+			selfSignature.PreferredAEAD = append(selfSignature.PreferredAEAD, uint8(packet.AEADModeEAX))
+		}
 	}
 
 	// User ID binding signature
