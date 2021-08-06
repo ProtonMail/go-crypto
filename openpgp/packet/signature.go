@@ -834,23 +834,35 @@ func (sig *Signature) buildSubpackets(issuer PublicKey) (subpackets []outputSubp
 	binary.BigEndian.PutUint32(creationTime, uint32(sig.CreationTime.Unix()))
 	subpackets = append(subpackets, outputSubpacket{true, creationTimeSubpacket, false, creationTime})
 
-	if sig.IssuerKeyId != nil && sig.Version == 4 {
-		keyId := make([]byte, 8)
-		binary.BigEndian.PutUint64(keyId, *sig.IssuerKeyId)
-		subpackets = append(subpackets, outputSubpacket{true, issuerSubpacket, true, keyId})
-	}
-	if sig.IssuerFingerprint != nil {
-		contents := append([]uint8{uint8(issuer.Version)}, sig.IssuerFingerprint...)
-		subpackets = append(subpackets, outputSubpacket{true, issuerFingerprintSubpacket, true, contents})
-	}
 	if sig.SigLifetimeSecs != nil && *sig.SigLifetimeSecs != 0 {
 		sigLifetime := make([]byte, 4)
 		binary.BigEndian.PutUint32(sigLifetime, *sig.SigLifetimeSecs)
 		subpackets = append(subpackets, outputSubpacket{true, signatureExpirationSubpacket, true, sigLifetime})
 	}
 
-	// Key flags may only appear in self-signatures or certification signatures.
+	if sig.KeyLifetimeSecs != nil && *sig.KeyLifetimeSecs != 0 {
+		keyLifetime := make([]byte, 4)
+		binary.BigEndian.PutUint32(keyLifetime, *sig.KeyLifetimeSecs)
+		subpackets = append(subpackets, outputSubpacket{true, keyExpirationSubpacket, true, keyLifetime})
+	}
 
+	if len(sig.PreferredSymmetric) > 0 {
+		subpackets = append(subpackets, outputSubpacket{true, prefSymmetricAlgosSubpacket, false, sig.PreferredSymmetric})
+	}
+
+	if len(sig.PreferredHash) > 0 {
+		subpackets = append(subpackets, outputSubpacket{true, prefHashAlgosSubpacket, false, sig.PreferredHash})
+	}
+
+	if len(sig.PreferredCompression) > 0 {
+		subpackets = append(subpackets, outputSubpacket{true, prefCompressionSubpacket, false, sig.PreferredCompression})
+	}
+
+	if sig.IsPrimaryId != nil && *sig.IsPrimaryId {
+		subpackets = append(subpackets, outputSubpacket{true, primaryUserIdSubpacket, false, []byte{1}})
+	}
+
+	// Key flags may only appear in self-signatures or certification signatures.
 	if sig.FlagsValid {
 		var flags byte
 		if sig.FlagCertify {
@@ -869,7 +881,6 @@ func (sig *Signature) buildSubpackets(issuer PublicKey) (subpackets []outputSubp
 	}
 
 	// The following subpackets may only appear in self-signatures.
-
 	var features = byte(0x00)
 	if sig.MDC {
 		features |= 0x01
@@ -885,28 +896,6 @@ func (sig *Signature) buildSubpackets(issuer PublicKey) (subpackets []outputSubp
 		subpackets = append(subpackets, outputSubpacket{true, featuresSubpacket, false, []byte{features}})
 	}
 
-	if sig.KeyLifetimeSecs != nil && *sig.KeyLifetimeSecs != 0 {
-		keyLifetime := make([]byte, 4)
-		binary.BigEndian.PutUint32(keyLifetime, *sig.KeyLifetimeSecs)
-		subpackets = append(subpackets, outputSubpacket{true, keyExpirationSubpacket, true, keyLifetime})
-	}
-
-	if sig.IsPrimaryId != nil && *sig.IsPrimaryId {
-		subpackets = append(subpackets, outputSubpacket{true, primaryUserIdSubpacket, false, []byte{1}})
-	}
-
-	if len(sig.PreferredSymmetric) > 0 {
-		subpackets = append(subpackets, outputSubpacket{true, prefSymmetricAlgosSubpacket, false, sig.PreferredSymmetric})
-	}
-
-	if len(sig.PreferredHash) > 0 {
-		subpackets = append(subpackets, outputSubpacket{true, prefHashAlgosSubpacket, false, sig.PreferredHash})
-	}
-
-	if len(sig.PreferredCompression) > 0 {
-		subpackets = append(subpackets, outputSubpacket{true, prefCompressionSubpacket, false, sig.PreferredCompression})
-	}
-
 	if len(sig.PolicyURI) > 0 {
 		subpackets = append(subpackets, outputSubpacket{true, policyUriSubpacket, false, []uint8(sig.PolicyURI)})
 	}
@@ -919,6 +908,17 @@ func (sig *Signature) buildSubpackets(issuer PublicKey) (subpackets []outputSubp
 	if sig.RevocationReason != nil {
 		subpackets = append(subpackets, outputSubpacket{true, reasonForRevocationSubpacket, true,
 			append([]uint8{*sig.RevocationReason}, []uint8(sig.RevocationReasonText)...)})
+	}
+
+	if sig.IssuerKeyId != nil && sig.Version == 4 {
+		keyId := make([]byte, 8)
+		binary.BigEndian.PutUint64(keyId, *sig.IssuerKeyId)
+		subpackets = append(subpackets, outputSubpacket{false, issuerSubpacket, false, keyId})
+	}
+
+	if sig.IssuerFingerprint != nil {
+		contents := append([]uint8{uint8(issuer.Version)}, sig.IssuerFingerprint...)
+		subpackets = append(subpackets, outputSubpacket{false, issuerFingerprintSubpacket, false, contents})
 	}
 
 	// EmbeddedSignature appears only in subkeys capable of signing and is serialized as per section 5.2.3.26.

@@ -667,8 +667,8 @@ func TestNewEntityNilConfigPreferredHash(t *testing.T) {
 
 	for _, identity := range entity.Identities {
 		prefs := identity.SelfSignature.PreferredHash
-		if len(prefs) != 1 {
-			t.Fatal("expected preferred hashes list to be [SHA256]")
+		if len(prefs) != 3 {
+			t.Fatal("expected preferred hashes list to be long 3 items")
 		}
 	}
 }
