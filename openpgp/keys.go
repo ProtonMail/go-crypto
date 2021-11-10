@@ -468,11 +468,14 @@ func addUserID(e *Entity, packets *packet.Reader, pkt *packet.UserId) error {
 			break
 		}
 
-		if (sig.SigType == packet.SigTypePositiveCert || sig.SigType == packet.SigTypeGenericCert) && sig.CheckKeyIdOrFingerprint(e.PrimaryKey) {
+		if (sig.SigType == packet.SigTypePositiveCert ||
+			sig.SigType == packet.SigTypeGenericCert ||
+			sig.SigType == packet.SigTypeCertificationRevocation) &&
+			sig.CheckKeyIdOrFingerprint(e.PrimaryKey) {
 			if err = e.PrimaryKey.VerifyUserIdSignature(pkt.Id, e.PrimaryKey, sig); err != nil {
 				return errors.StructuralError("user ID self-signature invalid: " + err.Error())
 			}
-			if identity.SelfSignature == nil || sig.CreationTime.After(identity.SelfSignature.CreationTime) {
+			if shouldReplaceUserIDSig(identity.SelfSignature, sig) {
 				identity.SelfSignature = sig
 			}
 			identity.Signatures = append(identity.Signatures, sig)
@@ -483,6 +486,26 @@ func addUserID(e *Entity, packets *packet.Reader, pkt *packet.UserId) error {
 	}
 
 	return nil
+}
+
+func shouldReplaceUserIDSig(existingSig, potentialNewSig *packet.Signature) bool {
+	if potentialNewSig == nil {
+		return false
+	}
+
+	if existingSig == nil {
+		return true
+	}
+
+	if existingSig.SigType == packet.SigTypeSubkeyRevocation {
+		return false // never override a revocation signature
+	}
+
+	if potentialNewSig.SigType == packet.SigTypeSubkeyRevocation {
+		return true // always override with a revocation signature
+	}
+
+	return potentialNewSig.CreationTime.After(existingSig.CreationTime)
 }
 
 func addSubkey(e *Entity, packets *packet.Reader, pub *packet.PublicKey, priv *packet.PrivateKey) error {
@@ -542,6 +565,10 @@ func shouldReplaceSubkeySig(existingSig, potentialNewSig *packet.Signature) bool
 
 	if existingSig.SigType == packet.SigTypeSubkeyRevocation {
 		return false // never override a revocation signature
+	}
+
+	if potentialNewSig.SigType == packet.SigTypeSubkeyRevocation {
+		return true // always override with a revocation signature
 	}
 
 	return potentialNewSig.CreationTime.After(existingSig.CreationTime)
