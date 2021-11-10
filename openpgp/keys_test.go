@@ -82,9 +82,9 @@ func TestKeyExpiry(t *testing.T) {
 }
 
 // https://tests.sequoia-pgp.org/#Certificate_expiration
-// P _ U p
+// P _ U f
 func TestExpiringPrimaryUIDKey(t *testing.T) {
-	// P _ U p
+	// P _ U f
 	kring, err := ReadArmoredKeyRing(bytes.NewBufferString((expiringPrimaryUIDKey)))
 	if err != nil {
 		t.Fatal(err)
@@ -95,20 +95,19 @@ func TestExpiringPrimaryUIDKey(t *testing.T) {
 	const expectedKeyID string = "015E7330"
 
 	// Before the primary UID has expired, the primary key should be returned.
-	time1, err := time.Parse(timeFormat, "2020-07-08")
+	time1, err := time.Parse(timeFormat, "2022-02-05")
 	if err != nil {
 		t.Fatal(err)
 	}
 	key, found := entity.SigningKey(time1)
 	if !found {
 		t.Errorf("Signing subkey %s not found at time %s", expectedKeyID, time1.Format(timeFormat))
-	}
-	if observedKeyID := key.PublicKey.KeyIdShortString(); observedKeyID != expectedKeyID {
+	} else if observedKeyID := key.PublicKey.KeyIdShortString(); observedKeyID != expectedKeyID {
 		t.Errorf("Expected key %s at time %s, but got key %s", expectedKeyID, time1.Format(timeFormat), observedKeyID)
 	}
 
 	// After the primary UID has expired, nothing should be returned.
-	time2, err := time.Parse(timeFormat, "2020-07-09")
+	time2, err := time.Parse(timeFormat, "2022-02-06")
 	if err != nil {
 		t.Fatal(err)
 	}
