@@ -346,6 +346,56 @@ func TestRevokedUserID(t *testing.T) {
 	}
 }
 
+func TestFirstUserIDRevoked(t *testing.T) {
+	// Same test as above, but with the User IDs reversed:
+	// [ revoked] (1)  Golang Gopher <revoked@golang.com>
+	// [ultimate] (2)  Golang Gopher <no-reply@golang.com>
+	keys, err := ReadArmoredKeyRing(bytes.NewBufferString(keyWithFirstUserIDRevoked))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(keys) != 1 {
+		t.Fatal("Failed to read key with a revoked user id")
+	}
+
+	var identities []*Identity
+	for _, identity := range keys[0].Identities {
+		identities = append(identities, identity)
+	}
+
+	if numIdentities, numExpected := len(identities), 2; numIdentities != numExpected {
+		t.Errorf("obtained %d identities, expected %d", numIdentities, numExpected)
+	}
+
+	if identityName, expectedName := identities[0].Name, "Golang Gopher <revoked@golang.com>"; identityName != expectedName {
+		t.Errorf("obtained identity %s expected %s", identityName, expectedName)
+	}
+
+	if identityName, expectedName := identities[1].Name, "Golang Gopher <no-reply@golang.com>"; identityName != expectedName {
+		t.Errorf("obtained identity %s expected %s", identityName, expectedName)
+	}
+
+	if !identities[0].Revoked() {
+		t.Errorf("expected first entity to be revoked")
+	}
+
+	if identities[1].Revoked() {
+		t.Errorf("expected second entity not to be revoked")
+	}
+
+	const timeFormat = "2006-01-02"
+	time1, _ := time.Parse(timeFormat, "2020-01-01")
+
+	if _, found := keys[0].SigningKey(time1); !found {
+		t.Errorf("Expected SigningKey to return a signing key when first User IDs is revoked")
+	}
+
+	if _, found := keys[0].EncryptionKey(time1); !found {
+		t.Errorf("Expected EncryptionKey to return an encryption key when first User IDs is revoked")
+	}
+}
+
 func TestOnlyUserIDRevoked(t *testing.T) {
 	// This key contains 1 UID which is revoked (but also has a self-signature)
 	keys, err := ReadArmoredKeyRing(bytes.NewBufferString(keyWithOnlyUserIDRevoked))
