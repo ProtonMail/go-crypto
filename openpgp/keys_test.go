@@ -298,7 +298,7 @@ func TestGoodCrossSignature(t *testing.T) {
 }
 
 func TestRevokedUserID(t *testing.T) {
-	// This key contains 2 UIDs, one of which is revoked:
+	// This key contains 2 UIDs, one of which is revoked and has no valid self-signature:
 	// [ultimate] (1)  Golang Gopher <no-reply@golang.com>
 	// [ revoked] (2)  Golang Gopher <revoked@golang.com>
 	keys, err := ReadArmoredKeyRing(bytes.NewBufferString(revokedUserIDKey))
@@ -321,6 +321,50 @@ func TestRevokedUserID(t *testing.T) {
 
 	if identityName, expectedName := identities[0].Name, "Golang Gopher <no-reply@golang.com>"; identityName != expectedName {
 		t.Errorf("obtained identity %s expected %s", identityName, expectedName)
+	}
+
+	const timeFormat = "2006-01-02"
+	time1, _ := time.Parse(timeFormat, "2020-01-01")
+
+	if _, found := keys[0].SigningKey(time1); !found {
+		t.Errorf("Expected SigningKey to return a signing key when one User IDs is revoked")
+	}
+
+	if _, found := keys[0].EncryptionKey(time1); !found {
+		t.Errorf("Expected EncryptionKey to return an encryption key when one User IDs is revoked")
+	}
+}
+
+func TestOnlyUserIDRevoked(t *testing.T) {
+	// This key contains 1 UID which is revoked (but also has a self-signature)
+	keys, err := ReadArmoredKeyRing(bytes.NewBufferString(keyWithOnlyUserIDRevoked))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(keys) != 1 {
+		t.Fatal("Failed to read key with a revoked user id")
+	}
+
+	var identities []*Identity
+	for _, identity := range keys[0].Identities {
+		identities = append(identities, identity)
+	}
+
+	if numIdentities, numExpected := len(identities), 1; numIdentities != numExpected {
+		t.Errorf("obtained %d identities, expected %d", numIdentities, numExpected)
+	}
+
+	if identityName, expectedName := identities[0].Name, "Revoked Primary User ID <revoked@key.com>"; identityName != expectedName {
+		t.Errorf("obtained identity %s expected %s", identityName, expectedName)
+	}
+
+	if _, found := keys[0].SigningKey(time.Now()); found {
+		t.Errorf("Expected SigningKey not to return a signing key when the only User IDs is revoked")
+	}
+
+	if _, found := keys[0].EncryptionKey(time.Now()); found {
+		t.Errorf("Expected EncryptionKey not to return an encryption key when the only User IDs is revoked")
 	}
 }
 
@@ -403,6 +447,10 @@ func TestKeyRevocation(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if len(kring) != 1 {
+		t.Fatal("Failed to read key with a sub key")
+	}
+
 	// revokedKeyHex contains these keys:
 	// pub   1024R/9A34F7C0 2014-03-25 [revoked: 2014-03-25]
 	// sub   1024R/1BA3CD60 2014-03-25 [revoked: 2014-03-25]
@@ -417,6 +465,16 @@ func TestKeyRevocation(t *testing.T) {
 		if len(keys) != 0 {
 			t.Errorf("Expected KeysByIdUsage to filter out revoked key %X, but got %d matches", id, len(keys))
 		}
+	}
+
+	signingkey, found := kring[0].SigningKey(time.Now())
+	if found {
+		t.Errorf("Expected SigningKey not to return a signing key for a revoked key, got %X", signingkey.PublicKey.KeyId)
+	}
+
+	encryptionkey, found := kring[0].EncryptionKey(time.Now())
+	if found {
+		t.Errorf("Expected EncryptionKey not to return an encryption key for a revoked key, got %X", encryptionkey.PublicKey.KeyId)
 	}
 }
 
@@ -463,12 +521,17 @@ func TestSubkeyRevocation(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if len(kring) != 1 {
+		t.Fatal("Failed to read key with a sub key")
+	}
+
 	// revokedSubkeyHex contains these keys:
 	// pub   1024R/4EF7E4BECCDE97F0 2014-03-25
 	// sub   1024R/D63636E2B96AE423 2014-03-25
 	// sub   1024D/DBCE4EE19529437F 2014-03-25
 	// sub   1024R/677815E371C2FD23 2014-03-25 [revoked: 2014-03-25]
 	validKeys := []uint64{0x4EF7E4BECCDE97F0, 0xD63636E2B96AE423, 0xDBCE4EE19529437F}
+	encryptionKey := uint64(0xD63636E2B96AE423)
 	revokedKey := uint64(0x677815E371C2FD23)
 
 	for _, id := range validKeys {
@@ -480,6 +543,17 @@ func TestSubkeyRevocation(t *testing.T) {
 		if len(keys) != 1 {
 			t.Errorf("Expected KeysByIdUsage to find key %X, but got %d matches", id, len(keys))
 		}
+		if id == encryptionKey {
+			key, found := kring[0].EncryptionKey(time.Now())
+			if !found || key.PublicKey.KeyId != id {
+				t.Errorf("Expected EncryptionKey to find key %X", id)
+			}
+		} else {
+			_, found := kring[0].SigningKeyById(time.Now(), id)
+			if !found {
+				t.Errorf("Expected SigningKeyById to find key %X", id)
+			}
+		}
 	}
 
 	keys := kring.KeysById(revokedKey)
@@ -490,6 +564,11 @@ func TestSubkeyRevocation(t *testing.T) {
 	keys = kring.KeysByIdUsage(revokedKey, 0)
 	if len(keys) != 0 {
 		t.Errorf("Expected KeysByIdUsage to filter out revoked key %X, but got %d matches", revokedKey, len(keys))
+	}
+
+	signingkey, found := kring[0].SigningKeyById(time.Now(), revokedKey)
+	if found {
+		t.Errorf("Expected SigningKeyById not to return an encryption key for a revoked key, got %X", signingkey.PublicKey.KeyId)
 	}
 }
 
