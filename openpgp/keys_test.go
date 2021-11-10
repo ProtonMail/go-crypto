@@ -314,12 +314,24 @@ func TestRevokedUserID(t *testing.T) {
 		identities = append(identities, identity)
 	}
 
-	if numIdentities, numExpected := len(identities), 1; numIdentities != numExpected {
+	if numIdentities, numExpected := len(identities), 2; numIdentities != numExpected {
 		t.Errorf("obtained %d identities, expected %d", numIdentities, numExpected)
 	}
 
 	if identityName, expectedName := identities[0].Name, "Golang Gopher <no-reply@golang.com>"; identityName != expectedName {
 		t.Errorf("obtained identity %s expected %s", identityName, expectedName)
+	}
+
+	if identityName, expectedName := identities[1].Name, "Golang Gopher <revoked@golang.com>"; identityName != expectedName {
+		t.Errorf("obtained identity %s expected %s", identityName, expectedName)
+	}
+
+	if identities[0].Revoked() {
+		t.Errorf("expected first entity not to be revoked")
+	}
+
+	if !identities[1].Revoked() {
+		t.Errorf("expected second entity to be revoked")
 	}
 
 	const timeFormat = "2006-01-02"
