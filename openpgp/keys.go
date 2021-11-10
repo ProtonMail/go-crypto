@@ -89,10 +89,12 @@ func (e *Entity) PrimaryIdentity() *Identity {
 // EncryptionKey returns the best candidate Key for encrypting a message to the
 // given Entity.
 func (e *Entity) EncryptionKey(now time.Time) (Key, bool) {
-	// Fail to find any encryption key if the primary key has expired.
+	// Fail to find any encryption key if the...
 	i := e.PrimaryIdentity()
-	primaryKeyExpired := e.PrimaryKey.KeyExpired(i.SelfSignature, now)
-	if primaryKeyExpired {
+	if e.PrimaryKey.KeyExpired(i.SelfSignature, now) || // primary key has expired
+		i.SelfSignature.SigExpired(now) || // user ID self-signature has expired
+		e.Revoked() || // primary key has been revoked
+		i.Revoked() { // user ID has been revoked
 		return Key{}, false
 	}
 
@@ -104,6 +106,8 @@ func (e *Entity) EncryptionKey(now time.Time) (Key, bool) {
 			subkey.Sig.FlagEncryptCommunications &&
 			subkey.PublicKey.PubKeyAlgo.CanEncrypt() &&
 			!subkey.PublicKey.KeyExpired(subkey.Sig, now) &&
+			!subkey.Sig.SigExpired(now) &&
+			!subkey.Revoked() &&
 			(maxTime.IsZero() || subkey.Sig.CreationTime.After(maxTime)) {
 			candidateSubkey = i
 			maxTime = subkey.Sig.CreationTime
@@ -119,9 +123,8 @@ func (e *Entity) EncryptionKey(now time.Time) (Key, bool) {
 	// the primary key doesn't have any usage metadata then we
 	// assume that the primary key is ok. Or, if the primary key is
 	// marked as ok to encrypt with, then we can obviously use it.
-	// Also, check expiry again just to be safe.
 	if !i.SelfSignature.FlagsValid || i.SelfSignature.FlagEncryptCommunications &&
-		e.PrimaryKey.PubKeyAlgo.CanEncrypt() && !primaryKeyExpired {
+		e.PrimaryKey.PubKeyAlgo.CanEncrypt() {
 		return Key{e, e.PrimaryKey, e.PrivateKey, i.SelfSignature}, true
 	}
 
@@ -137,10 +140,12 @@ func (e *Entity) SigningKey(now time.Time) (Key, bool) {
 // SigningKeyById return the Key for signing a message with this
 // Entity and keyID.
 func (e *Entity) SigningKeyById(now time.Time, id uint64) (Key, bool) {
-	// Fail to find any signing key if the primary key has expired.
+	// Fail to find any signing key if the...
 	i := e.PrimaryIdentity()
-	primaryKeyExpired := e.PrimaryKey.KeyExpired(i.SelfSignature, now)
-	if primaryKeyExpired {
+	if e.PrimaryKey.KeyExpired(i.SelfSignature, now) || // primary key has expired
+		i.SelfSignature.SigExpired(now) || // user ID self-signature has expired
+		len(e.Revocations) > 0 || // primary key has been revoked
+		i.SelfSignature.RevocationReason != nil { // user ID has been revoked
 		return Key{}, false
 	}
 
@@ -152,6 +157,8 @@ func (e *Entity) SigningKeyById(now time.Time, id uint64) (Key, bool) {
 			subkey.Sig.FlagSign &&
 			subkey.PublicKey.PubKeyAlgo.CanSign() &&
 			!subkey.PublicKey.KeyExpired(subkey.Sig, now) &&
+			!subkey.Sig.SigExpired(now) &&
+			!subkey.Revoked() &&
 			(maxTime.IsZero() || subkey.Sig.CreationTime.After(maxTime)) &&
 			(id == 0 || subkey.PublicKey.KeyId == id) {
 			candidateSubkey = idx
@@ -166,15 +173,34 @@ func (e *Entity) SigningKeyById(now time.Time, id uint64) (Key, bool) {
 
 	// If we have no candidate subkey then we assume that it's ok to sign
 	// with the primary key.  Or, if the primary key is marked as ok to
-	// sign with, then we can use it. Also, check expiry again just to be safe.
+	// sign with, then we can use it.
 	if !i.SelfSignature.FlagsValid || i.SelfSignature.FlagSign &&
-		e.PrimaryKey.PubKeyAlgo.CanSign() && !primaryKeyExpired &&
+		e.PrimaryKey.PubKeyAlgo.CanSign() &&
 		(id == 0 || e.PrimaryKey.KeyId == id) {
 		return Key{e, e.PrimaryKey, e.PrivateKey, i.SelfSignature}, true
 	}
 
 	// No keys with a valid Signing Flag or no keys matched the id passed in
 	return Key{}, false
+}
+
+// Revoked returns whether the entity has any direct key revocation signatures.
+// Note that third-party revocation signatures are not supported.
+// Note also that Identity and Subkey revocation should be checked separately.
+func (e *Entity) Revoked() bool {
+	return len(e.Revocations) > 0
+}
+
+// Revoked returns whether the identity has been revoked by a self-signature.
+// Note that third-party revocation signatures are not supported.
+func (i *Identity) Revoked() bool {
+	return i.SelfSignature.RevocationReason != nil
+}
+
+// Revoked returns whether the subkey has been revoked by a self-signature.
+// Note that third-party revocation signatures are not supported.
+func (s *Subkey) Revoked() bool {
+	return s.Sig.RevocationReason != nil
 }
 
 // An EntityList contains one or more Entities.
