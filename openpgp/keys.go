@@ -735,14 +735,13 @@ func (e *Entity) SignIdentity(identity string, signer *Entity, config *packet.Co
 // specified reason code and text (RFC4880 section-5.2.3.23).
 // If config is nil, sensible defaults will be used.
 func (e *Entity) RevokeKey(reason packet.ReasonForRevocation, reasonText string, config *packet.Config) error {
-	reasonCode := uint8(reason)
 	revSig := &packet.Signature{
 		Version:              e.PrimaryKey.Version,
 		CreationTime:         config.Now(),
 		SigType:              packet.SigTypeKeyRevocation,
 		PubKeyAlgo:           packet.PubKeyAlgoRSA,
 		Hash:                 config.Hash(),
-		RevocationReason:     &reasonCode,
+		RevocationReason:     &reason,
 		RevocationReasonText: reasonText,
 		IssuerKeyId:          &e.PrimaryKey.KeyId,
 	}
@@ -762,14 +761,13 @@ func (e *Entity) RevokeSubkey(sk *Subkey, reason packet.ReasonForRevocation, rea
 		return errors.InvalidArgumentError("given subkey is not associated with this key")
 	}
 
-	reasonCode := uint8(reason)
 	revSig := &packet.Signature{
 		Version:              e.PrimaryKey.Version,
 		CreationTime:         config.Now(),
 		SigType:              packet.SigTypeSubkeyRevocation,
 		PubKeyAlgo:           packet.PubKeyAlgoRSA,
 		Hash:                 config.Hash(),
-		RevocationReason:     &reasonCode,
+		RevocationReason:     &reason,
 		RevocationReasonText: reasonText,
 		IssuerKeyId:          &e.PrimaryKey.KeyId,
 	}

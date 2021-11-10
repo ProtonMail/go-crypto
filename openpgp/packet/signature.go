@@ -80,7 +80,7 @@ type Signature struct {
 
 	// RevocationReason is set if this signature has been revoked.
 	// See RFC 4880, section 5.2.3.23 for details.
-	RevocationReason     *uint8
+	RevocationReason     *ReasonForRevocation
 	RevocationReasonText string
 
 	// In a self-signature, these flags are set there is a features subpacket
@@ -383,8 +383,8 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 			err = errors.StructuralError("empty revocation reason subpacket")
 			return
 		}
-		sig.RevocationReason = new(uint8)
-		*sig.RevocationReason = subpacket[0]
+		sig.RevocationReason = new(ReasonForRevocation)
+		*sig.RevocationReason = ReasonForRevocation(subpacket[0])
 		sig.RevocationReasonText = string(subpacket[1:])
 	case featuresSubpacket:
 		// Features subpacket, section 5.2.3.24 specifies a very general
@@ -918,7 +918,7 @@ func (sig *Signature) buildSubpackets(issuer PublicKey) (subpackets []outputSubp
 	// Revocation reason appears only in revocation signatures and is serialized as per section 5.2.3.23.
 	if sig.RevocationReason != nil {
 		subpackets = append(subpackets, outputSubpacket{true, reasonForRevocationSubpacket, true,
-			append([]uint8{*sig.RevocationReason}, []uint8(sig.RevocationReasonText)...)})
+			append([]uint8{uint8(*sig.RevocationReason)}, []uint8(sig.RevocationReasonText)...)})
 	}
 
 	// EmbeddedSignature appears only in subkeys capable of signing and is serialized as per section 5.2.3.26.
