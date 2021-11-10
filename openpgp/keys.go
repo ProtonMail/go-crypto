@@ -153,7 +153,7 @@ func (e *Entity) SigningKeyById(now time.Time, id uint64) (Key, bool) {
 			subkey.PublicKey.PubKeyAlgo.CanSign() &&
 			!subkey.PublicKey.KeyExpired(subkey.Sig, now) &&
 			(maxTime.IsZero() || subkey.Sig.CreationTime.After(maxTime)) &&
-			(id == 0 || subkey.PrivateKey.KeyId == id) {
+			(id == 0 || subkey.PublicKey.KeyId == id) {
 			candidateSubkey = idx
 			maxTime = subkey.Sig.CreationTime
 		}
@@ -169,7 +169,7 @@ func (e *Entity) SigningKeyById(now time.Time, id uint64) (Key, bool) {
 	// sign with, then we can use it. Also, check expiry again just to be safe.
 	if !i.SelfSignature.FlagsValid || i.SelfSignature.FlagSign &&
 		e.PrimaryKey.PubKeyAlgo.CanSign() && !primaryKeyExpired &&
-		(id == 0 || e.PrivateKey.KeyId == id) {
+		(id == 0 || e.PrimaryKey.KeyId == id) {
 		return Key{e, e.PrimaryKey, e.PrivateKey, i.SelfSignature}, true
 	}
 
