@@ -309,29 +309,28 @@ func TestRevokedUserID(t *testing.T) {
 		t.Fatal("Failed to read key with a revoked user id")
 	}
 
-	var identities []*Identity
-	for _, identity := range keys[0].Identities {
-		identities = append(identities, identity)
-	}
+	identities := keys[0].Identities
 
 	if numIdentities, numExpected := len(identities), 2; numIdentities != numExpected {
 		t.Errorf("obtained %d identities, expected %d", numIdentities, numExpected)
 	}
 
-	if identityName, expectedName := identities[0].Name, "Golang Gopher <no-reply@golang.com>"; identityName != expectedName {
-		t.Errorf("obtained identity %s expected %s", identityName, expectedName)
+	firstIdentity, found := identities["Golang Gopher <no-reply@golang.com>"]
+	if !found {
+		t.Errorf("missing first identity")
 	}
 
-	if identityName, expectedName := identities[1].Name, "Golang Gopher <revoked@golang.com>"; identityName != expectedName {
-		t.Errorf("obtained identity %s expected %s", identityName, expectedName)
+	secondIdentity, found := identities["Golang Gopher <revoked@golang.com>"]
+	if !found {
+		t.Errorf("missing second identity")
 	}
 
-	if identities[0].Revoked() {
-		t.Errorf("expected first entity not to be revoked")
+	if firstIdentity.Revoked() {
+		t.Errorf("expected first identity not to be revoked")
 	}
 
-	if !identities[1].Revoked() {
-		t.Errorf("expected second entity to be revoked")
+	if !secondIdentity.Revoked() {
+		t.Errorf("expected second identity to be revoked")
 	}
 
 	const timeFormat = "2006-01-02"
@@ -359,29 +358,28 @@ func TestFirstUserIDRevoked(t *testing.T) {
 		t.Fatal("Failed to read key with a revoked user id")
 	}
 
-	var identities []*Identity
-	for _, identity := range keys[0].Identities {
-		identities = append(identities, identity)
-	}
+	identities := keys[0].Identities
 
 	if numIdentities, numExpected := len(identities), 2; numIdentities != numExpected {
 		t.Errorf("obtained %d identities, expected %d", numIdentities, numExpected)
 	}
 
-	if identityName, expectedName := identities[0].Name, "Golang Gopher <revoked@golang.com>"; identityName != expectedName {
-		t.Errorf("obtained identity %s expected %s", identityName, expectedName)
+	firstIdentity, found := identities["Golang Gopher <revoked@golang.com>"]
+	if !found {
+		t.Errorf("missing first identity")
 	}
 
-	if identityName, expectedName := identities[1].Name, "Golang Gopher <no-reply@golang.com>"; identityName != expectedName {
-		t.Errorf("obtained identity %s expected %s", identityName, expectedName)
+	secondIdentity, found := identities["Golang Gopher <no-reply@golang.com>"]
+	if !found {
+		t.Errorf("missing second identity")
 	}
 
-	if !identities[0].Revoked() {
-		t.Errorf("expected first entity to be revoked")
+	if !firstIdentity.Revoked() {
+		t.Errorf("expected first identity to be revoked")
 	}
 
-	if identities[1].Revoked() {
-		t.Errorf("expected second entity not to be revoked")
+	if secondIdentity.Revoked() {
+		t.Errorf("expected second identity not to be revoked")
 	}
 
 	const timeFormat = "2006-01-02"
@@ -407,17 +405,19 @@ func TestOnlyUserIDRevoked(t *testing.T) {
 		t.Fatal("Failed to read key with a revoked user id")
 	}
 
-	var identities []*Identity
-	for _, identity := range keys[0].Identities {
-		identities = append(identities, identity)
-	}
+	identities := keys[0].Identities
 
 	if numIdentities, numExpected := len(identities), 1; numIdentities != numExpected {
 		t.Errorf("obtained %d identities, expected %d", numIdentities, numExpected)
 	}
 
-	if identityName, expectedName := identities[0].Name, "Revoked Primary User ID <revoked@key.com>"; identityName != expectedName {
-		t.Errorf("obtained identity %s expected %s", identityName, expectedName)
+	identity, found := identities["Revoked Primary User ID <revoked@key.com>"]
+	if !found {
+		t.Errorf("missing identity")
+	}
+
+	if !identity.Revoked() {
+		t.Errorf("expected identity to be revoked")
 	}
 
 	if _, found := keys[0].SigningKey(time.Now()); found {
