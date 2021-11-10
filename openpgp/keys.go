@@ -71,19 +71,42 @@ type KeyRing interface {
 	DecryptionKeys() []Key
 }
 
-// PrimaryIdentity returns the Identity marked as primary or the first identity
-// if none are so marked.
+// PrimaryIdentity returns an Identity, preferring non-revoked identities,
+// identities marked as primary, or the latest-created identity, in that order.
 func (e *Entity) PrimaryIdentity() *Identity {
-	var firstIdentity *Identity
+	var primaryIdentity *Identity
 	for _, ident := range e.Identities {
-		if firstIdentity == nil {
-			firstIdentity = ident
-		}
-		if ident.SelfSignature.IsPrimaryId != nil && *ident.SelfSignature.IsPrimaryId {
-			return ident
+		if shouldPreferIdentity(primaryIdentity, ident) {
+			primaryIdentity = ident
 		}
 	}
-	return firstIdentity
+	return primaryIdentity
+}
+
+func shouldPreferIdentity(existingId, potentialNewId *Identity) bool {
+	if (existingId == nil) {
+		return true
+	}
+
+	if (existingId.Revoked() && !potentialNewId.Revoked()) {
+		return true
+	}
+
+	if (!existingId.Revoked() && potentialNewId.Revoked()) {
+		return false
+	}
+
+	if (existingId.SelfSignature.IsPrimaryId != nil && *existingId.SelfSignature.IsPrimaryId &&
+		!(potentialNewId.SelfSignature.IsPrimaryId != nil && *potentialNewId.SelfSignature.IsPrimaryId)) {
+		return false
+	}
+
+	if (!(existingId.SelfSignature.IsPrimaryId != nil && *existingId.SelfSignature.IsPrimaryId) &&
+		potentialNewId.SelfSignature.IsPrimaryId != nil && *potentialNewId.SelfSignature.IsPrimaryId) {
+		return true
+	}
+
+	return potentialNewId.SelfSignature.CreationTime.After(existingId.SelfSignature.CreationTime)
 }
 
 // EncryptionKey returns the best candidate Key for encrypting a message to the
