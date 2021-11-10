@@ -381,7 +381,8 @@ func (scr *signatureCheckReader) Read(buf []byte) (int, error) {
 						if sig.SigExpired(now) {
 							signatureError = errors.ErrSignatureExpired
 						}
-						if key.PublicKey.KeyExpired(key.SelfSignature, now) {
+						if key.PublicKey.KeyExpired(key.SelfSignature, now) ||
+							key.SelfSignature.SigExpired(now) {
 							signatureError = errors.ErrKeyExpired
 						}
 					}
@@ -502,7 +503,8 @@ func CheckDetachedSignatureAndHash(keyring KeyRing, signed, signature io.Reader,
 			if sig.SigExpired(now) {
 				return key.Entity, errors.ErrSignatureExpired
 			}
-			if key.PublicKey.KeyExpired(key.SelfSignature, now) {
+			if key.PublicKey.KeyExpired(key.SelfSignature, now) ||
+				key.SelfSignature.SigExpired(now) {
 				return key.Entity, errors.ErrKeyExpired
 			}
 			return key.Entity, nil
