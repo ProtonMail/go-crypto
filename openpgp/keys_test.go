@@ -1222,7 +1222,7 @@ func TestRevokeSubkey(t *testing.T) {
 
 	revSig := entity.Subkeys[0].Revocations[0]
 
-	err = sk.PublicKey.VerifySubkeyRevocationSignature(revSig, entity.PrimaryKey)
+	err = entity.PrimaryKey.VerifySubkeyRevocationSignature(revSig, sk.PublicKey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1311,7 +1311,7 @@ func TestRevokeSubkeyWithConfig(t *testing.T) {
 		t.Fatalf("Expected signature hash method: %v, got: %v", c.DefaultHash, revSig.Hash)
 	}
 
-	err = sk.PublicKey.VerifySubkeyRevocationSignature(revSig, entity.PrimaryKey)
+	err = entity.PrimaryKey.VerifySubkeyRevocationSignature(revSig, sk.PublicKey)
 	if err != nil {
 		t.Fatal(err)
 	}
