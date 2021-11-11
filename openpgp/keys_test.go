@@ -1177,7 +1177,9 @@ func TestRevokeKeyWithConfig(t *testing.T) {
 		DefaultHash: crypto.SHA512,
 	}
 
-	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", &packet.Config{
+		Algorithm: packet.PubKeyAlgoEdDSA,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
