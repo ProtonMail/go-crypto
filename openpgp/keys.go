@@ -91,11 +91,11 @@ func shouldPreferIdentity(existingId, potentialNewId *Identity) bool {
 		return true
 	}
 
-	if (existingId.Revoked() && !potentialNewId.Revoked()) {
+	if (len(existingId.Revocations) > len(potentialNewId.Revocations)) {
 		return true
 	}
 
-	if (!existingId.Revoked() && potentialNewId.Revoked()) {
+	if (len(existingId.Revocations) < len(potentialNewId.Revocations)) {
 		return false
 	}
 
@@ -119,8 +119,8 @@ func (e *Entity) EncryptionKey(now time.Time) (Key, bool) {
 	i := e.PrimaryIdentity()
 	if e.PrimaryKey.KeyExpired(i.SelfSignature, now) || // primary key has expired
 		i.SelfSignature.SigExpired(now) || // user ID self-signature has expired
-		e.Revoked() || // primary key has been revoked
-		i.Revoked() { // user ID has been revoked
+		e.Revoked(now) || // primary key has been revoked
+		i.Revoked(now) { // user ID has been revoked
 		return Key{}, false
 	}
 
@@ -133,7 +133,7 @@ func (e *Entity) EncryptionKey(now time.Time) (Key, bool) {
 			subkey.PublicKey.PubKeyAlgo.CanEncrypt() &&
 			!subkey.PublicKey.KeyExpired(subkey.Sig, now) &&
 			!subkey.Sig.SigExpired(now) &&
-			!subkey.Revoked() &&
+			!subkey.Revoked(now) &&
 			(maxTime.IsZero() || subkey.Sig.CreationTime.After(maxTime)) {
 			candidateSubkey = i
 			maxTime = subkey.Sig.CreationTime
@@ -170,8 +170,8 @@ func (e *Entity) SigningKeyById(now time.Time, id uint64) (Key, bool) {
 	i := e.PrimaryIdentity()
 	if e.PrimaryKey.KeyExpired(i.SelfSignature, now) || // primary key has expired
 		i.SelfSignature.SigExpired(now) || // user ID self-signature has expired
-		len(e.Revocations) > 0 || // primary key has been revoked
-		i.SelfSignature.RevocationReason != nil { // user ID has been revoked
+		e.Revoked(now) || // primary key has been revoked
+		i.Revoked(now) { // user ID has been revoked
 		return Key{}, false
 	}
 
@@ -184,7 +184,7 @@ func (e *Entity) SigningKeyById(now time.Time, id uint64) (Key, bool) {
 			subkey.PublicKey.PubKeyAlgo.CanSign() &&
 			!subkey.PublicKey.KeyExpired(subkey.Sig, now) &&
 			!subkey.Sig.SigExpired(now) &&
-			!subkey.Revoked() &&
+			!subkey.Revoked(now) &&
 			(maxTime.IsZero() || subkey.Sig.CreationTime.After(maxTime)) &&
 			(id == 0 || subkey.PublicKey.KeyId == id) {
 			candidateSubkey = idx
@@ -210,23 +210,45 @@ func (e *Entity) SigningKeyById(now time.Time, id uint64) (Key, bool) {
 	return Key{}, false
 }
 
+func revoked(revocations []*packet.Signature, now time.Time) bool {
+	for _, revocation := range revocations {
+		if revocation.RevocationReason != nil && *revocation.RevocationReason == packet.KeyCompromised {
+			// If the key is compromised, the key is considered revoked even before the revocation date.
+			return true
+		}
+		if !revocation.SigExpired(now) {
+			return true
+		}
+	}
+	return false
+}
+
 // Revoked returns whether the entity has any direct key revocation signatures.
 // Note that third-party revocation signatures are not supported.
 // Note also that Identity and Subkey revocation should be checked separately.
-func (e *Entity) Revoked() bool {
-	return len(e.Revocations) > 0
+func (e *Entity) Revoked(now time.Time) bool {
+	return revoked(e.Revocations, now)
 }
 
 // Revoked returns whether the identity has been revoked by a self-signature.
 // Note that third-party revocation signatures are not supported.
-func (i *Identity) Revoked() bool {
-	return i.SelfSignature.RevocationReason != nil
+func (i *Identity) Revoked(now time.Time) bool {
+	return revoked(i.Revocations, now)
 }
 
 // Revoked returns whether the subkey has been revoked by a self-signature.
 // Note that third-party revocation signatures are not supported.
-func (s *Subkey) Revoked() bool {
-	return s.Sig.RevocationReason != nil
+func (s *Subkey) Revoked(now time.Time) bool {
+	return revoked(s.Revocations, now)
+}
+
+// Revoked returns whether the key or subkey has been revoked by a self-signature.
+// Note that third-party revocation signatures are not supported.
+// Note also that Identity revocation should be checked separately.
+// Normally, it's not necessary to call this function, except on keys returned by
+// KeysById or KeysByIdUsage.
+func (key *Key) Revoked(now time.Time) bool {
+	return revoked(key.Revocations, now)
 }
 
 // An EntityList contains one or more Entities.

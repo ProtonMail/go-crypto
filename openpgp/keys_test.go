@@ -325,11 +325,11 @@ func TestRevokedUserID(t *testing.T) {
 		t.Errorf("missing second identity")
 	}
 
-	if firstIdentity.Revoked() {
+	if firstIdentity.Revoked(time.Now()) {
 		t.Errorf("expected first identity not to be revoked")
 	}
 
-	if !secondIdentity.Revoked() {
+	if !secondIdentity.Revoked(time.Now()) {
 		t.Errorf("expected second identity to be revoked")
 	}
 
@@ -374,11 +374,11 @@ func TestFirstUserIDRevoked(t *testing.T) {
 		t.Errorf("missing second identity")
 	}
 
-	if !firstIdentity.Revoked() {
+	if !firstIdentity.Revoked(time.Now()) {
 		t.Errorf("expected first identity to be revoked")
 	}
 
-	if secondIdentity.Revoked() {
+	if secondIdentity.Revoked(time.Now()) {
 		t.Errorf("expected second identity not to be revoked")
 	}
 
@@ -416,7 +416,7 @@ func TestOnlyUserIDRevoked(t *testing.T) {
 		t.Errorf("missing identity")
 	}
 
-	if !identity.Revoked() {
+	if !identity.Revoked(time.Now()) {
 		t.Errorf("expected identity to be revoked")
 	}
 
