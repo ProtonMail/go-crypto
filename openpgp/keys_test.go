@@ -1216,15 +1216,21 @@ func TestRevokeSubkey(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = sk.PublicKey.VerifySubkeyRevocationSignature(sk.Sig, entity.PrimaryKey)
+	if len(entity.Subkeys[0].Revocations) != 1 {
+		t.Fatalf("Expected 1 subkey revocation signature, got %v", len(sk.Revocations))
+	}
+
+	revSig := entity.Subkeys[0].Revocations[0]
+
+	err = sk.PublicKey.VerifySubkeyRevocationSignature(revSig, entity.PrimaryKey)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if entity.Subkeys[0].Sig.RevocationReason == nil {
+	if revSig.RevocationReason == nil {
 		t.Fatal("Revocation reason was not set")
 	}
-	if entity.Subkeys[0].Sig.RevocationReasonText == "" {
+	if revSig.RevocationReasonText == "" {
 		t.Fatal("Revocation reason text was not set")
 	}
 
@@ -1237,10 +1243,10 @@ func TestRevokeSubkey(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if newEntity.Subkeys[0].Sig.RevocationReason == nil {
+	if newEntity.Subkeys[0].Revocations[0].RevocationReason == nil {
 		t.Fatal("Revocation reason lost after serialization of entity")
 	}
-	if newEntity.Subkeys[0].Sig.RevocationReasonText == "" {
+	if newEntity.Subkeys[0].Revocations[0].RevocationReasonText == "" {
 		t.Fatal("Revocation reason text lost after serialization of entity")
 	}
 }
@@ -1295,12 +1301,17 @@ func TestRevokeSubkeyWithConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if sk.Sig.Hash != c.DefaultHash {
-		t.Fatalf("Expected signature hash method: %v, got: %v", c.DefaultHash,
-			sk.Sig.Hash)
+	if len(sk.Revocations) != 1 {
+		t.Fatalf("Expected 1 subkey revocation signature, got %v", len(sk.Revocations))
 	}
 
-	err = sk.PublicKey.VerifySubkeyRevocationSignature(sk.Sig, entity.PrimaryKey)
+	revSig := sk.Revocations[0]
+
+	if revSig.Hash != c.DefaultHash {
+		t.Fatalf("Expected signature hash method: %v, got: %v", c.DefaultHash, revSig.Hash)
+	}
+
+	err = sk.PublicKey.VerifySubkeyRevocationSignature(revSig, entity.PrimaryKey)
 	if err != nil {
 		t.Fatal(err)
 	}
