@@ -631,6 +631,12 @@ func (e *Entity) serializePrivate(w io.Writer, config *packet.Config, reSign boo
 	if err != nil {
 		return
 	}
+	for _, revocation := range e.Revocations {
+		err := revocation.Serialize(w)
+		if err != nil {
+			return err
+		}
+	}
 	for _, ident := range e.Identities {
 		err = ident.UserId.Serialize(w)
 		if err != nil {
@@ -640,6 +646,12 @@ func (e *Entity) serializePrivate(w io.Writer, config *packet.Config, reSign boo
 			err = ident.SelfSignature.SignUserId(ident.UserId.Id, e.PrimaryKey, e.PrivateKey, config)
 			if err != nil {
 				return
+			}
+		}
+		for _, revocation := range ident.Revocations {
+			err := revocation.Serialize(w)
+			if err != nil {
+				return err
 			}
 		}
 		err = ident.SelfSignature.Serialize(w)
@@ -665,6 +677,12 @@ func (e *Entity) serializePrivate(w io.Writer, config *packet.Config, reSign boo
 				}
 			}
 		}
+		for _, revocation := range subkey.Revocations {
+			err := revocation.Serialize(w)
+			if err != nil {
+				return err
+			}
+		}
 		err = subkey.Sig.Serialize(w)
 		if err != nil {
 			return
@@ -679,6 +697,12 @@ func (e *Entity) Serialize(w io.Writer) error {
 	err := e.PrimaryKey.Serialize(w)
 	if err != nil {
 		return err
+	}
+	for _, revocation := range e.Revocations {
+		err := revocation.Serialize(w)
+		if err != nil {
+			return err
+		}
 	}
 	for _, ident := range e.Identities {
 		err = ident.UserId.Serialize(w)
@@ -696,6 +720,12 @@ func (e *Entity) Serialize(w io.Writer) error {
 		err = subkey.PublicKey.Serialize(w)
 		if err != nil {
 			return err
+		}
+		for _, revocation := range subkey.Revocations {
+			err := revocation.Serialize(w)
+			if err != nil {
+				return err
+			}
 		}
 		err = subkey.Sig.Serialize(w)
 		if err != nil {
