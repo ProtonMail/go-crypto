@@ -523,8 +523,8 @@ func TestKeyRevocation(t *testing.T) {
 			t.Errorf("Expected KeysById to find revoked key %X, but got %d matches", id, len(keys))
 		}
 		keys = kring.KeysByIdUsage(id, 0)
-		if len(keys) != 0 {
-			t.Errorf("Expected KeysByIdUsage to filter out revoked key %X, but got %d matches", id, len(keys))
+		if len(keys) != 1 {
+			t.Errorf("Expected KeysByIdUsage to find revoked key %X, but got %d matches", id, len(keys))
 		}
 	}
 
@@ -623,8 +623,8 @@ func TestSubkeyRevocation(t *testing.T) {
 	}
 
 	keys = kring.KeysByIdUsage(revokedKey, 0)
-	if len(keys) != 0 {
-		t.Errorf("Expected KeysByIdUsage to filter out revoked key %X, but got %d matches", revokedKey, len(keys))
+	if len(keys) != 1 {
+		t.Errorf("Expected KeysByIdUsage to find key %X, but got %d matches", revokedKey, len(keys))
 	}
 
 	signingkey, found := kring[0].SigningKeyById(time.Now(), revokedKey)

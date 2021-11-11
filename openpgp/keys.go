@@ -277,14 +277,6 @@ func (el EntityList) KeysById(id uint64) (keys []Key) {
 // the bitwise-OR of packet.KeyFlag* values.
 func (el EntityList) KeysByIdUsage(id uint64, requiredUsage byte) (keys []Key) {
 	for _, key := range el.KeysById(id) {
-		if len(key.Entity.Revocations) > 0 {
-			continue
-		}
-
-		if key.SelfSignature.RevocationReason != nil {
-			continue
-		}
-
 		if key.SelfSignature.FlagsValid && requiredUsage != 0 {
 			var usage byte
 			if key.SelfSignature.FlagCertify {
