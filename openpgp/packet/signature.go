@@ -729,6 +729,14 @@ func (sig *Signature) RevokeKey(pub *PublicKey, priv *PrivateKey, config *Config
 	return sig.Sign(h, priv, config)
 }
 
+// RevokeSubkey computes a subkey revocation signature of pub using priv.
+// On success, the signature is stored in sig. Call Serialize to write it out.
+// If config is nil, sensible defaults will be used.
+func (sig *Signature) RevokeSubkey(pub *PublicKey, priv *PrivateKey, config *Config) error {
+	// Identical to a subkey binding signature
+	return sig.SignKey(pub, priv, config)
+}
+
 // Serialize marshals sig to w. Sign, SignUserId or SignKey must have been
 // called first.
 func (sig *Signature) Serialize(w io.Writer) (err error) {

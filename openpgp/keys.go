@@ -808,7 +808,7 @@ func (e *Entity) RevokeSubkey(sk *Subkey, reason packet.ReasonForRevocation, rea
 		IssuerKeyId:          &e.PrimaryKey.KeyId,
 	}
 
-	if err := revSig.RevokeKey(sk.PublicKey, e.PrivateKey, config); err != nil {
+	if err := revSig.RevokeSubkey(sk.PublicKey, e.PrivateKey, config); err != nil {
 		return err
 	}
 
