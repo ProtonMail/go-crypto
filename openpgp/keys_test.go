@@ -82,9 +82,9 @@ func TestKeyExpiry(t *testing.T) {
 }
 
 // https://tests.sequoia-pgp.org/#Certificate_expiration
-// P _ U p
+// P _ U f
 func TestExpiringPrimaryUIDKey(t *testing.T) {
-	// P _ U p
+	// P _ U f
 	kring, err := ReadArmoredKeyRing(bytes.NewBufferString((expiringPrimaryUIDKey)))
 	if err != nil {
 		t.Fatal(err)
@@ -95,20 +95,19 @@ func TestExpiringPrimaryUIDKey(t *testing.T) {
 	const expectedKeyID string = "015E7330"
 
 	// Before the primary UID has expired, the primary key should be returned.
-	time1, err := time.Parse(timeFormat, "2020-07-08")
+	time1, err := time.Parse(timeFormat, "2022-02-05")
 	if err != nil {
 		t.Fatal(err)
 	}
 	key, found := entity.SigningKey(time1)
 	if !found {
 		t.Errorf("Signing subkey %s not found at time %s", expectedKeyID, time1.Format(timeFormat))
-	}
-	if observedKeyID := key.PublicKey.KeyIdShortString(); observedKeyID != expectedKeyID {
+	} else if observedKeyID := key.PublicKey.KeyIdShortString(); observedKeyID != expectedKeyID {
 		t.Errorf("Expected key %s at time %s, but got key %s", expectedKeyID, time1.Format(timeFormat), observedKeyID)
 	}
 
 	// After the primary UID has expired, nothing should be returned.
-	time2, err := time.Parse(timeFormat, "2020-07-09")
+	time2, err := time.Parse(timeFormat, "2022-02-06")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -298,7 +297,7 @@ func TestGoodCrossSignature(t *testing.T) {
 }
 
 func TestRevokedUserID(t *testing.T) {
-	// This key contains 2 UIDs, one of which is revoked:
+	// This key contains 2 UIDs, one of which is revoked and has no valid self-signature:
 	// [ultimate] (1)  Golang Gopher <no-reply@golang.com>
 	// [ revoked] (2)  Golang Gopher <revoked@golang.com>
 	keys, err := ReadArmoredKeyRing(bytes.NewBufferString(revokedUserIDKey))
@@ -310,17 +309,123 @@ func TestRevokedUserID(t *testing.T) {
 		t.Fatal("Failed to read key with a revoked user id")
 	}
 
-	var identities []*Identity
-	for _, identity := range keys[0].Identities {
-		identities = append(identities, identity)
+	identities := keys[0].Identities
+
+	if numIdentities, numExpected := len(identities), 2; numIdentities != numExpected {
+		t.Errorf("obtained %d identities, expected %d", numIdentities, numExpected)
 	}
+
+	firstIdentity, found := identities["Golang Gopher <no-reply@golang.com>"]
+	if !found {
+		t.Errorf("missing first identity")
+	}
+
+	secondIdentity, found := identities["Golang Gopher <revoked@golang.com>"]
+	if !found {
+		t.Errorf("missing second identity")
+	}
+
+	if firstIdentity.Revoked(time.Now()) {
+		t.Errorf("expected first identity not to be revoked")
+	}
+
+	if !secondIdentity.Revoked(time.Now()) {
+		t.Errorf("expected second identity to be revoked")
+	}
+
+	const timeFormat = "2006-01-02"
+	time1, _ := time.Parse(timeFormat, "2020-01-01")
+
+	if _, found := keys[0].SigningKey(time1); !found {
+		t.Errorf("Expected SigningKey to return a signing key when one User IDs is revoked")
+	}
+
+	if _, found := keys[0].EncryptionKey(time1); !found {
+		t.Errorf("Expected EncryptionKey to return an encryption key when one User IDs is revoked")
+	}
+}
+
+func TestFirstUserIDRevoked(t *testing.T) {
+	// Same test as above, but with the User IDs reversed:
+	// [ revoked] (1)  Golang Gopher <revoked@golang.com>
+	// [ultimate] (2)  Golang Gopher <no-reply@golang.com>
+	keys, err := ReadArmoredKeyRing(bytes.NewBufferString(keyWithFirstUserIDRevoked))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(keys) != 1 {
+		t.Fatal("Failed to read key with a revoked user id")
+	}
+
+	identities := keys[0].Identities
+
+	if numIdentities, numExpected := len(identities), 2; numIdentities != numExpected {
+		t.Errorf("obtained %d identities, expected %d", numIdentities, numExpected)
+	}
+
+	firstIdentity, found := identities["Golang Gopher <revoked@golang.com>"]
+	if !found {
+		t.Errorf("missing first identity")
+	}
+
+	secondIdentity, found := identities["Golang Gopher <no-reply@golang.com>"]
+	if !found {
+		t.Errorf("missing second identity")
+	}
+
+	if !firstIdentity.Revoked(time.Now()) {
+		t.Errorf("expected first identity to be revoked")
+	}
+
+	if secondIdentity.Revoked(time.Now()) {
+		t.Errorf("expected second identity not to be revoked")
+	}
+
+	const timeFormat = "2006-01-02"
+	time1, _ := time.Parse(timeFormat, "2020-01-01")
+
+	if _, found := keys[0].SigningKey(time1); !found {
+		t.Errorf("Expected SigningKey to return a signing key when first User IDs is revoked")
+	}
+
+	if _, found := keys[0].EncryptionKey(time1); !found {
+		t.Errorf("Expected EncryptionKey to return an encryption key when first User IDs is revoked")
+	}
+}
+
+func TestOnlyUserIDRevoked(t *testing.T) {
+	// This key contains 1 UID which is revoked (but also has a self-signature)
+	keys, err := ReadArmoredKeyRing(bytes.NewBufferString(keyWithOnlyUserIDRevoked))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(keys) != 1 {
+		t.Fatal("Failed to read key with a revoked user id")
+	}
+
+	identities := keys[0].Identities
 
 	if numIdentities, numExpected := len(identities), 1; numIdentities != numExpected {
 		t.Errorf("obtained %d identities, expected %d", numIdentities, numExpected)
 	}
 
-	if identityName, expectedName := identities[0].Name, "Golang Gopher <no-reply@golang.com>"; identityName != expectedName {
-		t.Errorf("obtained identity %s expected %s", identityName, expectedName)
+	identity, found := identities["Revoked Primary User ID <revoked@key.com>"]
+	if !found {
+		t.Errorf("missing identity")
+	}
+
+	if !identity.Revoked(time.Now()) {
+		t.Errorf("expected identity to be revoked")
+	}
+
+	if _, found := keys[0].SigningKey(time.Now()); found {
+		t.Errorf("Expected SigningKey not to return a signing key when the only User IDs is revoked")
+	}
+
+	if _, found := keys[0].EncryptionKey(time.Now()); found {
+		t.Errorf("Expected EncryptionKey not to return an encryption key when the only User IDs is revoked")
 	}
 }
 
@@ -403,6 +508,10 @@ func TestKeyRevocation(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if len(kring) != 1 {
+		t.Fatal("Failed to read key with a sub key")
+	}
+
 	// revokedKeyHex contains these keys:
 	// pub   1024R/9A34F7C0 2014-03-25 [revoked: 2014-03-25]
 	// sub   1024R/1BA3CD60 2014-03-25 [revoked: 2014-03-25]
@@ -414,9 +523,19 @@ func TestKeyRevocation(t *testing.T) {
 			t.Errorf("Expected KeysById to find revoked key %X, but got %d matches", id, len(keys))
 		}
 		keys = kring.KeysByIdUsage(id, 0)
-		if len(keys) != 0 {
-			t.Errorf("Expected KeysByIdUsage to filter out revoked key %X, but got %d matches", id, len(keys))
+		if len(keys) != 1 {
+			t.Errorf("Expected KeysByIdUsage to find revoked key %X, but got %d matches", id, len(keys))
 		}
+	}
+
+	signingkey, found := kring[0].SigningKey(time.Now())
+	if found {
+		t.Errorf("Expected SigningKey not to return a signing key for a revoked key, got %X", signingkey.PublicKey.KeyId)
+	}
+
+	encryptionkey, found := kring[0].EncryptionKey(time.Now())
+	if found {
+		t.Errorf("Expected EncryptionKey not to return an encryption key for a revoked key, got %X", encryptionkey.PublicKey.KeyId)
 	}
 }
 
@@ -463,12 +582,17 @@ func TestSubkeyRevocation(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if len(kring) != 1 {
+		t.Fatal("Failed to read key with a sub key")
+	}
+
 	// revokedSubkeyHex contains these keys:
 	// pub   1024R/4EF7E4BECCDE97F0 2014-03-25
 	// sub   1024R/D63636E2B96AE423 2014-03-25
 	// sub   1024D/DBCE4EE19529437F 2014-03-25
 	// sub   1024R/677815E371C2FD23 2014-03-25 [revoked: 2014-03-25]
 	validKeys := []uint64{0x4EF7E4BECCDE97F0, 0xD63636E2B96AE423, 0xDBCE4EE19529437F}
+	encryptionKey := uint64(0xD63636E2B96AE423)
 	revokedKey := uint64(0x677815E371C2FD23)
 
 	for _, id := range validKeys {
@@ -480,6 +604,17 @@ func TestSubkeyRevocation(t *testing.T) {
 		if len(keys) != 1 {
 			t.Errorf("Expected KeysByIdUsage to find key %X, but got %d matches", id, len(keys))
 		}
+		if id == encryptionKey {
+			key, found := kring[0].EncryptionKey(time.Now())
+			if !found || key.PublicKey.KeyId != id {
+				t.Errorf("Expected EncryptionKey to find key %X", id)
+			}
+		} else {
+			_, found := kring[0].SigningKeyById(time.Now(), id)
+			if !found {
+				t.Errorf("Expected SigningKeyById to find key %X", id)
+			}
+		}
 	}
 
 	keys := kring.KeysById(revokedKey)
@@ -488,8 +623,13 @@ func TestSubkeyRevocation(t *testing.T) {
 	}
 
 	keys = kring.KeysByIdUsage(revokedKey, 0)
-	if len(keys) != 0 {
-		t.Errorf("Expected KeysByIdUsage to filter out revoked key %X, but got %d matches", revokedKey, len(keys))
+	if len(keys) != 1 {
+		t.Errorf("Expected KeysByIdUsage to find key %X, but got %d matches", revokedKey, len(keys))
+	}
+
+	signingkey, found := kring[0].SigningKeyById(time.Now(), revokedKey)
+	if found {
+		t.Errorf("Expected SigningKeyById not to return an encryption key for a revoked key, got %X", signingkey.PublicKey.KeyId)
 	}
 }
 
@@ -1037,7 +1177,9 @@ func TestRevokeKeyWithConfig(t *testing.T) {
 		DefaultHash: crypto.SHA512,
 	}
 
-	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", &packet.Config{
+		Algorithm: packet.PubKeyAlgoEdDSA,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1076,15 +1218,21 @@ func TestRevokeSubkey(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = sk.PublicKey.VerifySubkeyRevocationSignature(sk.Sig, entity.PrimaryKey)
+	if len(entity.Subkeys[0].Revocations) != 1 {
+		t.Fatalf("Expected 1 subkey revocation signature, got %v", len(sk.Revocations))
+	}
+
+	revSig := entity.Subkeys[0].Revocations[0]
+
+	err = entity.PrimaryKey.VerifySubkeyRevocationSignature(revSig, sk.PublicKey)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if entity.Subkeys[0].Sig.RevocationReason == nil {
+	if revSig.RevocationReason == nil {
 		t.Fatal("Revocation reason was not set")
 	}
-	if entity.Subkeys[0].Sig.RevocationReasonText == "" {
+	if revSig.RevocationReasonText == "" {
 		t.Fatal("Revocation reason text was not set")
 	}
 
@@ -1097,10 +1245,10 @@ func TestRevokeSubkey(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if newEntity.Subkeys[0].Sig.RevocationReason == nil {
+	if newEntity.Subkeys[0].Revocations[0].RevocationReason == nil {
 		t.Fatal("Revocation reason lost after serialization of entity")
 	}
-	if newEntity.Subkeys[0].Sig.RevocationReasonText == "" {
+	if newEntity.Subkeys[0].Revocations[0].RevocationReasonText == "" {
 		t.Fatal("Revocation reason text lost after serialization of entity")
 	}
 }
@@ -1155,12 +1303,17 @@ func TestRevokeSubkeyWithConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if sk.Sig.Hash != c.DefaultHash {
-		t.Fatalf("Expected signature hash method: %v, got: %v", c.DefaultHash,
-			sk.Sig.Hash)
+	if len(sk.Revocations) != 1 {
+		t.Fatalf("Expected 1 subkey revocation signature, got %v", len(sk.Revocations))
 	}
 
-	err = sk.PublicKey.VerifySubkeyRevocationSignature(sk.Sig, entity.PrimaryKey)
+	revSig := sk.Revocations[0]
+
+	if revSig.Hash != c.DefaultHash {
+		t.Fatalf("Expected signature hash method: %v, got: %v", c.DefaultHash, revSig.Hash)
+	}
+
+	err = entity.PrimaryKey.VerifySubkeyRevocationSignature(revSig, sk.PublicKey)
 	if err != nil {
 		t.Fatal(err)
 	}
