@@ -529,26 +529,6 @@ func addUserID(e *Entity, packets *packet.Reader, pkt *packet.UserId) error {
 	return nil
 }
 
-func shouldReplaceUserIDSig(existingSig, potentialNewSig *packet.Signature) bool {
-	if potentialNewSig == nil {
-		return false
-	}
-
-	if existingSig == nil {
-		return true
-	}
-
-	if existingSig.SigType == packet.SigTypeSubkeyRevocation {
-		return false // never override a revocation signature
-	}
-
-	if potentialNewSig.SigType == packet.SigTypeSubkeyRevocation {
-		return true // always override with a revocation signature
-	}
-
-	return potentialNewSig.CreationTime.After(existingSig.CreationTime)
-}
-
 func addSubkey(e *Entity, packets *packet.Reader, pub *packet.PublicKey, priv *packet.PrivateKey) error {
 	var subKey Subkey
 	subKey.PublicKey = pub
