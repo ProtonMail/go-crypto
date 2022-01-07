@@ -127,7 +127,7 @@ func checkSignedMessage(t *testing.T, signedHex, expected string) {
 		return
 	}
 
-	if !md.IsSigned || md.SignedByKeyId != 0xa34d7e18c20c31bb || md.SignedBy == nil || md.IsEncrypted || md.IsSymmetricallyEncrypted || len(md.EncryptedToKeyIds) != 0 || md.DecryptedWith.Entity != nil {
+	if !md.IsSigned || md.SignedByKeyId != 0xa34d7e18c20c31bb || md.SignedBy == nil || md.IsEncrypted || md.IsSymmetricallyEncrypted || len(md.EncryptedToKeyIds) != 0 || md.DecryptedWith.Entity != nil || md.SignatureError == nil {
 		t.Errorf("bad MessageDetails: %#v", md)
 	}
 
@@ -225,7 +225,7 @@ func TestSignedEncryptedMessage(t *testing.T) {
 			return
 		}
 
-		if !md.IsSigned || md.SignedByKeyId != test.signedByKeyId || md.SignedBy == nil || !md.IsEncrypted || md.IsSymmetricallyEncrypted || len(md.EncryptedToKeyIds) == 0 || md.EncryptedToKeyIds[0] != test.encryptedToKeyId {
+		if !md.IsSigned || md.SignedByKeyId != test.signedByKeyId || md.SignedBy == nil || !md.IsEncrypted || md.IsSymmetricallyEncrypted || len(md.EncryptedToKeyIds) == 0 || md.EncryptedToKeyIds[0] != test.encryptedToKeyId || md.SignatureError == nil {
 			t.Errorf("#%d: bad MessageDetails: %#v", i, md)
 		}
 

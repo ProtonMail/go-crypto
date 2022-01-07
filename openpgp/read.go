@@ -79,6 +79,8 @@ type keyEnvelopePair struct {
 	encryptedKey *packet.EncryptedKey
 }
 
+var errMessageNotRead = errors.SignatureError("signature not verified yet")
+
 // ReadMessage parses an OpenPGP message that may be signed and/or encrypted.
 // The given KeyRing should contain both public keys (for signature
 // verification) and, possibly encrypted, private keys for decrypting.
@@ -264,6 +266,8 @@ FindLiteralData:
 			h, wrappedHash, err = hashForSignature(p.Hash, p.SigType)
 			if err != nil {
 				md.SignatureError = err
+			} else {
+				md.SignatureError = errMessageNotRead
 			}
 
 			md.IsSigned = true
@@ -278,7 +282,7 @@ FindLiteralData:
 		}
 	}
 
-	if md.IsSigned && md.SignatureError == nil {
+	if md.IsSigned && md.SignatureError == errMessageNotRead {
 		md.UnverifiedBody = &signatureCheckReader{packets, h, wrappedHash, md, config}
 	} else if md.decrypted != nil {
 		md.UnverifiedBody = checkReader{md}
@@ -414,6 +418,7 @@ func (scr *signatureCheckReader) Read(buf []byte) (int, error) {
 				return n, mdcErr
 			}
 		}
+
 		return n, io.EOF
 	}
 
