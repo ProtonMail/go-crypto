@@ -622,7 +622,7 @@ func (e *Entity) serializePrivate(w io.Writer, config *packet.Config, reSign boo
 		}
 		if reSign {
 			if ident.SelfSignature == nil {
-				return goerrors.New("openpgp: request to re-sign identity without valid self-signature")
+				return goerrors.New("openpgp: can't re-sign identity without valid self-signature")
 			}
 			err = ident.SelfSignature.SignUserId(ident.UserId.Id, e.PrimaryKey, e.PrivateKey, config)
 			if err != nil {
