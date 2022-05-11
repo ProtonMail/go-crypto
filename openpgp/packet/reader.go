@@ -48,6 +48,10 @@ func (r *Reader) Next() (p Packet, err error) {
 			continue
 		}
 		if _, ok := err.(errors.UnsupportedError); ok {
+			switch p.(type) {
+			case *SymmetricallyEncrypted, *AEADEncrypted, *Compressed, *LiteralData:
+				return nil, err
+			}
 			continue
 		}
 		return nil, err
