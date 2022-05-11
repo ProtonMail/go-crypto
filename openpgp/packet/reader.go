@@ -44,9 +44,13 @@ func (r *Reader) Next() (p Packet, err error) {
 			continue
 		}
 		// TODO: Add strict mode that rejects unknown packets, instead of ignoring them.
-		if _, ok := err.(errors.UnknownPacketTypeError); !ok {
-			return nil, err
+		if _, ok := err.(errors.UnknownPacketTypeError); ok {
+			continue
 		}
+		if _, ok := err.(errors.UnsupportedError); ok {
+			continue
+		}
+		return nil, err
 	}
 
 	return nil, io.EOF

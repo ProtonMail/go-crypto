@@ -395,34 +395,23 @@ func testHashFunctionError(t *testing.T, signatureHex string) {
 	if err == nil {
 		t.Fatal("Packet with bad hash type was correctly parsed")
 	}
-	unsupported, ok := err.(errors.UnsupportedError)
-	if !ok {
+	if err != errors.ErrUnknownIssuer {
 		t.Fatalf("Unexpected class of error: %s", err)
-	}
-	if !strings.Contains(string(unsupported), "hash ") {
-		t.Fatalf("Unexpected error: %s", err)
 	}
 }
 
 func TestUnknownHashFunction(t *testing.T) {
-	// unknownHashFunctionHex contains a signature packet with hash
-	// function type 153 (which isn't a real hash function id).
+	// unknownHashFunctionHex contains a signature packet with hash function type
+	// 153 (which isn't a real hash function id). Since that's the only signature
+	// packet we don't find any suitable packets and end up with ErrUnknownIssuer.
 	testHashFunctionError(t, unknownHashFunctionHex)
 }
 
 func TestMissingHashFunction(t *testing.T) {
-	// missingHashFunctionHex contains a signature packet that uses
-	// RIPEMD160, which isn't compiled in. Since that's the only signature
-	// packet we don't find any suitable packets and end up with ErrUnknownIssuer
-	kring, _ := ReadKeyRing(readerFromHex(testKeys1And2Hex))
-	config := &packet.Config{}
-	_, err := CheckDetachedSignature(kring, nil, readerFromHex(missingHashFunctionHex), config)
-	if err == nil {
-		t.Fatal("Packet with missing hash type was correctly parsed")
-	}
-	if err != errors.ErrUnknownIssuer {
-		t.Fatalf("Unexpected class of error: %s", err)
-	}
+	// missingHashFunctionHex contains a signature packet that uses RIPEMD160,
+	// which isn't compiled in. Since that's the only signature packet we don't
+	// find any suitable packets and end up with ErrUnknownIssuer.
+	testHashFunctionError(t, missingHashFunctionHex)
 }
 
 func TestRSASignatureBadMPILength(t *testing.T) {
@@ -663,11 +652,11 @@ func TestSymmetricAeadEaxOpenPGPJsMessage(t *testing.T) {
 	}
 }
 
-func TestCorruptedMessageInvalidSigVersion(t *testing.T) {
+func TestCorruptedMessageInvalidSigHeader(t *testing.T) {
 	// Decrypt message with corrupted MDC and invalid one-pass-signature header
 	// Expect parsing errors over unverified decrypted data to be opaque
 	passphrase := []byte("password")
-	file, err := os.Open("test_data/sym-corrupted-message-invalid-sig-version.asc")
+	file, err := os.Open("test_data/sym-corrupted-message-invalid-sig-header.asc")
 	if err != nil {
 		t.Fatal(err)
 	}
