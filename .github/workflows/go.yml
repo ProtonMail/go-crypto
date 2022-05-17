@@ -13,13 +13,35 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-    - name: Set up Go
+    - name: Set up Go latest
       uses: actions/setup-go@v3
       with:
-        go-version: 1.15
+        go-version: ^1.18
 
-    - name: Test
-      run: |
-        go test -short ./...
-        go test ./... -run RandomizeFast -count=512
-        go test ./... -run RandomizeSlow -count=32
+    - name: Short test
+      run: go test -short -v ./...
+
+    - name: Randomized test suite 1
+      run: go test -v ./... -run RandomizeFast -count=512
+
+    - name: Randomized test suite 2
+      run: go test -v ./... -run RandomizeSlow -count=32
+
+  test-old:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go 1.15
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.15
+
+      - name: Short test
+        run: go test -short -v ./...
+
+      - name: Randomized test suite 1
+        run: go test -v ./... -run RandomizeFast -count=512
+
+      - name: Randomized test suite 2
+        run: go test -v ./... -run RandomizeSlow -count=32
