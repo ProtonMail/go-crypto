@@ -13,7 +13,7 @@ import (
 
 	"github.com/ProtonMail/go-crypto/openpgp/aes/keywrap"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
-	"golang.org/x/crypto/curve25519"
+	"github.com/cloudflare/circl/dh/x25519"
 )
 
 // Generates a private-public key-pair.
@@ -21,7 +21,7 @@ import (
 // 2^{254} + 8 * [0, 2^{251}), in order to avoid the small subgroup of the
 // curve. 'pub' is simply 'priv' * G where G is the base point.
 // See https://cr.yp.to/ecdh.html and RFC7748, sec 5.
-func x25519GenerateKeyPairBytes(rand io.Reader) (priv [32]byte, pub [32]byte, err error) {
+func x25519GenerateKeyPairBytes(rand io.Reader) (priv x25519.Key, pub x25519.Key, err error) {
 	_, err = io.ReadFull(rand, priv[:])
 	if err != nil {
 		return
@@ -31,14 +31,14 @@ func x25519GenerateKeyPairBytes(rand io.Reader) (priv [32]byte, pub [32]byte, er
 	// 2^{254} + 8 * [0, 2^{251}), in order to avoid the small subgroup of
 	// of the curve.
 	//
-	// This masking is done internally to ScalarBaseMult and so is unnecessary
+	// This masking is done internally to KeyGen and so is unnecessary
 	// for security, but OpenPGP implementations require that private keys be
 	// pre-masked.
 	priv[0] &= 248
 	priv[31] &= 127
 	priv[31] |= 64
 
-	curve25519.ScalarBaseMult(&pub, &priv)
+	x25519.KeyGen(&pub, &priv)
 	return
 }
 
@@ -74,70 +74,102 @@ func X25519GenerateKey(rand io.Reader, kdf KDF) (priv *PrivateKey, err error) {
 }
 
 func X25519Encrypt(random io.Reader, pub *PublicKey, msg, curveOID, fingerprint []byte) (vsG, c []byte, err error) {
-	d, ephemeralKey, err := x25519GenerateKeyPairBytes(random)
+	// RFC6637 §8: "Generate an ephemeral key pair {v, V=vG}"
+	// ephemeralPrivate corresponds to `v`.
+	// ephemeralPublic corresponds to `V`.
+	ephemeralPrivate, ephemeralPublic, err := x25519GenerateKeyPairBytes(random)
 	if err != nil {
 		return nil, nil, err
 	}
-	var pubKey [32]byte
 
+	// RFC6637 §8: "Obtain the authenticated recipient public key R"
+	// pubKey corresponds to `R`.
+	var pubKey x25519.Key
 	if pub.X.BitLen() > 33*264 {
 		return nil, nil, errors.New("ecdh: invalid key")
 	}
 	copy(pubKey[:], pub.X.Bytes()[1:])
 
-	var zb [32]byte
-	curve25519.ScalarBaseMult(&zb, &d)
-	curve25519.ScalarMult(&zb, &d, &pubKey)
-	z, err := buildKey(pub, zb[:], curveOID, fingerprint, false, false)
+	// RFC6637 §8: "Compute the shared point S = vR"
+	// pubKey corresponds to `S`.
+	var sharedPoint x25519.Key
+	x25519.Shared(&sharedPoint, &ephemeralPrivate, &pubKey)
 
+	// RFC6637 §8: "Compute Z = KDF( S, Z_len, Param )"
+	z, err := buildKey(pub, sharedPoint[:], curveOID, fingerprint, false, false)
 	if err != nil {
 		return nil, nil, err
 	}
-
+	// RFC6637 §8: "Compute C = AESKeyWrap( Z, m ) as per [RFC3394]"
 	if c, err = keywrap.Wrap(z, msg); err != nil {
 		return nil, nil, err
 	}
 
+	// RFC6637 §8: "VB = convert point V to the octet string"
+	// vsg corresponds to `VB`
 	var vsg [33]byte
+	// This is in "Prefixed Native EC Point Wire Format", defined in
+	// draft-ietf-openpgp-crypto-refresh-05 §13.2.2 as 0x40 || bytes
+	// which ensures a bit in the first octet for later MPI encoding
 	vsg[0] = 0x40
-	copy(vsg[1:], ephemeralKey[:])
+	copy(vsg[1:], ephemeralPublic[:])
 
+	// RFC6637 §8: "Output (MPI(VB) || len(C) || C)."
 	return vsg[:], c, nil
 }
 
-func X25519Decrypt(priv *PrivateKey, vsG, m, curveOID, fingerprint []byte) (msg []byte, err error) {
-	var zb, d, ephemeralKey [32]byte
+func X25519Decrypt(priv *PrivateKey, vsG, c, curveOID, fingerprint []byte) (msg []byte, err error) {
+	// RFC6637 §8: "The decryption is the inverse of the method given."
+	// All quoted descriptions in comments below describe encryption, and
+	// the reverse is performed.
+
+	// vsG corresponds to `VB` in RFC6637 §8 .
+	// ephemeralPublic corresponds to `V`.
+	var ephemeralPublic x25519.Key
+	// Insist that vsG is an elliptic curve point in "Prefixed Native
+	// EC Point Wire Format", defined in draft-ietf-openpgp-crypto-refresh-05
+	// §13.2.2 as 0x40 || bytes
 	if len(vsG) != 33 || vsG[0] != 0x40 {
 		return nil, errors.New("ecdh: invalid key")
 	}
-	copy(ephemeralKey[:], vsG[1:33])
+	// RFC6637 §8: "VB = convert point V to the octet string"
+	copy(ephemeralPublic[:], vsG[1:33])
 
-	copyReversed(d[:], priv.D)
-	curve25519.ScalarBaseMult(&zb, &d)
-	curve25519.ScalarMult(&zb, &d, &ephemeralKey)
+	// decodedPrivate corresponds to `r` in RFC6637 §8 .
+	var decodedPrivate x25519.Key
+	copyReversed(decodedPrivate[:], priv.D)
 
-	var c []byte
+	// RFC6637 §8: "Note that the recipient obtains the shared secret by calculating
+	//   S = rV = rvG, where (r,R) is the recipient's key pair."
+	// sharedPoint corresponds to `S`.
+	var sharedPoint x25519.Key
+	x25519.Shared(&sharedPoint, &decodedPrivate, &ephemeralPublic)
+
+	var m []byte
 
 	for i := 0; i < 3; i++ {
+		// RFC6637 §8: "Compute Z = KDF( S, Z_len, Param );"
 		// Try buildKey three times for compat, see comments in buildKey.
-		z, err := buildKey(&priv.PublicKey, zb[:], curveOID, fingerprint, i == 1, i == 2)
+		z, err := buildKey(&priv.PublicKey, sharedPoint[:], curveOID, fingerprint, i == 1, i == 2)
 		if err != nil {
 			return nil, err
 		}
 
-		res, err := keywrap.Unwrap(z, m)
+		// RFC6637 §8: "Compute C = AESKeyWrap( Z, m ) as per [RFC3394]"
+		m, err = keywrap.Unwrap(z, c)
 		if i == 2 && err != nil {
 			// Only return an error after we've tried all variants of buildKey.
 			return nil, err
 		}
 
-		c = res
 		if err == nil {
 			break
 		}
 	}
 
-	return c[:len(c)-int(c[len(c)-1])], nil
+	// RFC6637 §8: "m = symm_alg_ID || session key || checksum || pkcs5_padding"
+	// The last byte should be the length of the padding, as per PKCS5; strip it off.
+	return m[:len(m)-int(m[len(m)-1])], nil
 }
 
 func copyReversed(out []byte, in []byte) {
