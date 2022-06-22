@@ -87,15 +87,15 @@ func (e *Entity) PrimaryIdentity() *Identity {
 }
 
 func shouldPreferIdentity(existingId, potentialNewId *Identity) bool {
-	if (existingId == nil) {
+	if existingId == nil {
 		return true
 	}
 
-	if (len(existingId.Revocations) > len(potentialNewId.Revocations)) {
+	if len(existingId.Revocations) > len(potentialNewId.Revocations) {
 		return true
 	}
 
-	if (len(existingId.Revocations) < len(potentialNewId.Revocations)) {
+	if len(existingId.Revocations) < len(potentialNewId.Revocations) {
 		return false
 	}
 
@@ -103,13 +103,13 @@ func shouldPreferIdentity(existingId, potentialNewId *Identity) bool {
 		return true
 	}
 
-	if (existingId.SelfSignature.IsPrimaryId != nil && *existingId.SelfSignature.IsPrimaryId &&
-		!(potentialNewId.SelfSignature.IsPrimaryId != nil && *potentialNewId.SelfSignature.IsPrimaryId)) {
+	if existingId.SelfSignature.IsPrimaryId != nil && *existingId.SelfSignature.IsPrimaryId &&
+		!(potentialNewId.SelfSignature.IsPrimaryId != nil && *potentialNewId.SelfSignature.IsPrimaryId) {
 		return false
 	}
 
-	if (!(existingId.SelfSignature.IsPrimaryId != nil && *existingId.SelfSignature.IsPrimaryId) &&
-		potentialNewId.SelfSignature.IsPrimaryId != nil && *potentialNewId.SelfSignature.IsPrimaryId) {
+	if !(existingId.SelfSignature.IsPrimaryId != nil && *existingId.SelfSignature.IsPrimaryId) &&
+		potentialNewId.SelfSignature.IsPrimaryId != nil && *potentialNewId.SelfSignature.IsPrimaryId {
 		return true
 	}
 
@@ -515,7 +515,6 @@ func addUserID(e *Entity, packets *packet.Reader, pkt *packet.UserId) error {
 			return errors.StructuralError("user ID signature with wrong type")
 		}
 
-
 		if sig.CheckKeyIdOrFingerprint(e.PrimaryKey) {
 			if err = e.PrimaryKey.VerifyUserIdSignature(pkt.Id, e.PrimaryKey, sig); err != nil {
 				return errors.StructuralError("user ID self-signature invalid: " + err.Error())
@@ -743,6 +742,15 @@ func (e *Entity) SignIdentity(identity string, signer *Entity, config *packet.Co
 		CreationTime: config.Now(),
 		IssuerKeyId:  &signer.PrivateKey.KeyId,
 	}
+
+	if config.SigLifetime() != 0 {
+		sig.SigLifetimeSecs = &config.SigLifetimeSecs
+	}
+
+	if signer.PrimaryIdentity() != nil && signer.PrimaryIdentity().UserId != nil {
+		sig.SignerUserId = &signer.PrimaryIdentity().UserId.Id
+	}
+
 	if err := sig.SignUserId(identity, e.PrimaryKey, signer.PrivateKey, config); err != nil {
 		return err
 	}

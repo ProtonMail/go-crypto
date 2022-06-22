@@ -749,7 +749,8 @@ func TestIdVerification(t *testing.T) {
 	}
 
 	const identity = "Test Key 1 (RSA)"
-	if err := kring[0].SignIdentity(identity, kring[1], nil); err != nil {
+	config := &packet.Config{SigLifetimeSecs: 128}
+	if err := kring[0].SignIdentity(identity, kring[1], config); err != nil {
 		t.Fatal(err)
 	}
 
@@ -767,6 +768,19 @@ func TestIdVerification(t *testing.T) {
 		if err := kring[1].PrimaryKey.VerifyUserIdSignature(identity, kring[0].PrimaryKey, sig); err != nil {
 			t.Fatalf("error verifying new identity signature: %s", err)
 		}
+
+		if sig.SignerUserId == nil || *sig.SignerUserId != "Test Key 2 (RSA, encrypted private key)" {
+			t.Fatalf("wrong or nil signer user id")
+		}
+
+		if sig.SigExpired(time.Now()) {
+			t.Fatalf("signature is expired")
+		}
+
+		if !sig.SigExpired(time.Now().Add(129 * time.Second)) {
+			t.Fatalf("signature has invalid expiration")
+		}
+
 		checked = true
 		break
 	}
