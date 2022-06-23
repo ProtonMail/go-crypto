@@ -169,3 +169,10 @@ func (c *Config) SigningKey() uint64 {
 	}
 	return c.SigningKeyId
 }
+
+func (c *Config) SigningUserID() string {
+	if c == nil {
+		return ""
+	}
+	return c.SigningIdentity
+}
