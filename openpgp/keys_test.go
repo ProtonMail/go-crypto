@@ -748,15 +748,16 @@ func TestIdVerification(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	const identity = "Test Key 1 (RSA)"
-	config := &packet.Config{SigLifetimeSecs: 128}
-	if err := kring[0].SignIdentity(identity, kring[1], config); err != nil {
+	const signedIdentity = "Test Key 1 (RSA)"
+	const signerIdentity = "Test Key 2 (RSA, encrypted private key)"
+	config := &packet.Config{SigLifetimeSecs: 128, SigningIdentity: signerIdentity}
+	if err := kring[0].SignIdentity(signedIdentity, kring[1], config); err != nil {
 		t.Fatal(err)
 	}
 
-	ident, ok := kring[0].Identities[identity]
+	ident, ok := kring[0].Identities[signedIdentity]
 	if !ok {
-		t.Fatal("identity missing from key after signing")
+		t.Fatal("signed identity missing from key after signing")
 	}
 
 	checked := false
@@ -765,12 +766,12 @@ func TestIdVerification(t *testing.T) {
 			continue
 		}
 
-		if err := kring[1].PrimaryKey.VerifyUserIdSignature(identity, kring[0].PrimaryKey, sig); err != nil {
+		if err := kring[1].PrimaryKey.VerifyUserIdSignature(signedIdentity, kring[0].PrimaryKey, sig); err != nil {
 			t.Fatalf("error verifying new identity signature: %s", err)
 		}
 
-		if sig.SignerUserId == nil || *sig.SignerUserId != "Test Key 2 (RSA, encrypted private key)" {
-			t.Fatalf("wrong or nil signer user id")
+		if sig.SignerUserId == nil || *sig.SignerUserId != signerIdentity {
+			t.Fatalf("wrong or nil signer identity")
 		}
 
 		if sig.SigExpired(time.Now()) {

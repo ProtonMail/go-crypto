@@ -747,8 +747,11 @@ func (e *Entity) SignIdentity(identity string, signer *Entity, config *packet.Co
 		sig.SigLifetimeSecs = &config.SigLifetimeSecs
 	}
 
-	if signer.PrimaryIdentity() != nil && signer.PrimaryIdentity().UserId != nil {
-		sig.SignerUserId = &signer.PrimaryIdentity().UserId.Id
+	if config.SigningIdentity != "" {
+		if _, ok := signer.Identities[config.SigningIdentity]; !ok {
+			return errors.InvalidArgumentError("signer identity string not found in signer Entity")
+		}
+		sig.SignerUserId = &config.SigningIdentity
 	}
 
 	if err := sig.SignUserId(identity, e.PrimaryKey, signer.PrivateKey, config); err != nil {
