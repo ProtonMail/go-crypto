@@ -170,7 +170,7 @@ func (c *Config) SigningKey() uint64 {
 	return c.SigningKeyId
 }
 
-func (c *Config) SigningUserID() string {
+func (c *Config) SigningUserId() string {
 	if c == nil {
 		return ""
 	}
