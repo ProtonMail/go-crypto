@@ -78,6 +78,10 @@ type Config struct {
 	// By default, the signing key is selected automatically, preferring
 	// signing subkeys if available.
 	SigningKeyId uint64
+	// SigningIdentity is used to specify a user ID (packet Signer's User ID, type 28)
+	// when producing a generic certification signature onto an existing user ID.
+	// The identity must be present in the signer Entity.
+	SigningIdentity string
 }
 
 func (c *Config) Random() io.Reader {
@@ -164,4 +168,11 @@ func (c *Config) SigningKey() uint64 {
 		return 0
 	}
 	return c.SigningKeyId
+}
+
+func (c *Config) SigningUserId() string {
+	if c == nil {
+		return ""
+	}
+	return c.SigningIdentity
 }
