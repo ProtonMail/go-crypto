@@ -212,7 +212,7 @@ func TestAeadCorruptStreamRandomizeSlow(t *testing.T) {
 		t.Errorf("No error raised when decrypting corrupt stream")
 	}
 	if bytes.Equal(got, plain) {
-		t.Errorf("Error: Succesfully decrypted corrupt stream")
+		t.Errorf("Error: Successfully decrypted corrupt stream")
 	}
 }
 
@@ -257,7 +257,7 @@ func TestAeadTruncatedStreamRandomizeSlow(t *testing.T) {
 		t.Errorf("No truncate error raised when decrypting truncated stream")
 	}
 	if bytes.Equal(got, plain) {
-		t.Errorf("Error: Succesfully decrypted truncated stream")
+		t.Errorf("Error: Successfully decrypted truncated stream")
 	}
 }
 
@@ -304,7 +304,7 @@ func TestAeadUnclosedStreamRandomizeSlow(t *testing.T) {
 		t.Errorf("No error raised when decrypting unclosed stream")
 	}
 	if bytes.Equal(got, plain) {
-		t.Errorf("Error: Succesfully decrypted unclosed stream")
+		t.Errorf("Error: Successfully decrypted unclosed stream")
 	}
 }
 
