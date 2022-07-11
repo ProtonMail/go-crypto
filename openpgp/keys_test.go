@@ -230,7 +230,7 @@ func TestSignatureExpiry(t *testing.T) {
 		t.Errorf("Expected error '%s', but got error '%s'", expectedErr, observedErr)
 	}
 
-	// Check that the third signature is also consired expired even now.
+	// Check that the third signature is also considered expired even now.
 	message = strings.NewReader(input)
 	signatureReader3 := strings.NewReader(signatureWriter3.String())
 	_, observedErr = CheckArmoredDetachedSignature(keyring, message, signatureReader3, nil)
