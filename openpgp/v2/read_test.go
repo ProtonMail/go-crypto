@@ -1061,3 +1061,10 @@ func TestReadMessageWithSignOnly(t *testing.T) {
 		t.Fatal("Should not decrypt")
 	}
 }
+
+func TestReadKeyRingWithSymmetricSubkey(t *testing.T) {
+	_, err := ReadArmoredKeyRing(strings.NewReader(keyWithAEADSubkey))
+	if err != nil {
+		t.Error("could not read keyring", err)
+	}
+}
