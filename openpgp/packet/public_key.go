@@ -446,11 +446,13 @@ func (pk *PublicKey) parseECDH(r io.Reader) (err error) {
 		return errors.UnsupportedError(fmt.Sprintf("unsupported oid: %x", pk.oid))
 	}
 
-	if kdfLen := len(pk.kdf.Bytes()); kdfLen < 3 {
+	kdfLen := len(pk.kdf.Bytes())
+	if kdfLen < 3 {
 		return errors.UnsupportedError("unsupported ECDH KDF length: " + strconv.Itoa(kdfLen))
 	}
-	if reserved := pk.kdf.Bytes()[0]; reserved != 0x01 {
-		return errors.UnsupportedError("unsupported KDF reserved field: " + strconv.Itoa(int(reserved)))
+	kdfVersion := int(pk.kdf.Bytes()[0])
+	if kdfVersion != 1 && kdfVersion != 2 {
+		return errors.UnsupportedError("unsupported ECDH KDF version: " + strconv.Itoa(int(kdfVersion)))
 	}
 	kdfHash, ok := algorithm.HashById[pk.kdf.Bytes()[1]]
 	if !ok {
@@ -461,10 +463,45 @@ func (pk *PublicKey) parseECDH(r io.Reader) (err error) {
 		return errors.UnsupportedError("unsupported ECDH KDF cipher: " + strconv.Itoa(int(pk.kdf.Bytes()[2])))
 	}
 
-	ecdhKey := ecdh.NewPublicKey(c, kdfHash, kdfCipher)
+	kdf := ecdh.KDF{
+		Version: kdfVersion,
+		Hash:    kdfHash,
+		Cipher:  kdfCipher,
+	}
+
+	if kdfVersion == 2 {
+		if kdfLen < 4 {
+			return errors.UnsupportedError("unsupported ECDH KDF v2 length: " + strconv.Itoa(kdfLen))
+		}
+
+		kdf.Flags = pk.kdf.Bytes()[3]
+		readBytes := 4
+		if kdf.Flags&0x01 != 0x0 {
+			// Expect 20-byte fingerprint
+			if kdfLen < readBytes+20 {
+				return errors.UnsupportedError("malformed ECDH KDF params")
+			}
+			kdf.ReplacementFingerprint = pk.kdf.Bytes()[readBytes : readBytes+20]
+			readBytes += 20
+		}
+
+		if kdf.Flags&0x02 != 0x0 {
+			// Expect replacement params
+			// Read length field
+			if kdfLen < readBytes+1 {
+				return errors.UnsupportedError("malformed ECDH KDF params")
+			}
+			fieldLen := int(pk.kdf.Bytes()[readBytes]) + 1 // Account for length field
+			if kdfLen < readBytes+fieldLen {
+				return errors.UnsupportedError("malformed ECDH KDF params")
+			}
+			kdf.ReplacementKDFParams = pk.kdf.Bytes()[readBytes : readBytes+fieldLen]
+		}
+	}
+
+	ecdhKey := ecdh.NewPublicKey(c, kdf)
 	err = ecdhKey.UnmarshalPoint(pk.p.Bytes())
 	pk.PublicKey = ecdhKey
-
 	return
 }
 
