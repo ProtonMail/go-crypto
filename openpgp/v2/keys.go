@@ -166,12 +166,12 @@ func (e *Entity) DecryptionKeys(id uint64, date time.Time, config *packet.Config
 	for _, subkey := range e.Subkeys {
 		subkeySelfSig, err := subkey.LatestValidBindingSignature(date, config)
 		if err == nil &&
-			(config.AllowDecryptionWithSigningKeys() || isValidEncryptionKey(subkeySelfSig, subkey.PublicKey.PubKeyAlgo)) &&
+			(config.AllowDecryptionWithSigningKeys() || isValidDecryptionKey(subkeySelfSig, subkey.PublicKey.PubKeyAlgo)) &&
 			(id == 0 || subkey.PublicKey.KeyId == id) {
 			keys = append(keys, Key{subkey.Primary, primarySelfSignature, subkey.PublicKey, subkey.PrivateKey, subkeySelfSig})
 		}
 	}
-	if config.AllowDecryptionWithSigningKeys() || isValidEncryptionKey(primarySelfSignature, e.PrimaryKey.PubKeyAlgo) {
+	if config.AllowDecryptionWithSigningKeys() || isValidDecryptionKey(primarySelfSignature, e.PrimaryKey.PubKeyAlgo) {
 		keys = append(keys, Key{e, primarySelfSignature, e.PrimaryKey, e.PrivateKey, primarySelfSignature})
 	}
 	return
@@ -641,8 +641,11 @@ func (e *Entity) Serialize(w io.Writer) error {
 		// The types of keys below are only useful as private keys. Thus, the
 		// public key packets contain no meaningful information and do not need
 		// to be serialized.
+		// Prevent public key export for forwarding keys, see forwarding section 4.1.
+		subKeySelfSig, err := subkey.LatestValidBindingSignature(time.Time{}, nil)
 		if subkey.PublicKey.PubKeyAlgo == packet.ExperimentalPubKeyAlgoHMAC ||
-			subkey.PublicKey.PubKeyAlgo == packet.ExperimentalPubKeyAlgoAEAD {
+			subkey.PublicKey.PubKeyAlgo == packet.ExperimentalPubKeyAlgoAEAD ||
+			(err == nil && subKeySelfSig.FlagForward) {
 			continue
 		}
 		if err := subkey.Serialize(w, false); err != nil {
@@ -801,5 +804,11 @@ func isValidCertificationKey(signature *packet.Signature, algo packet.PublicKeyA
 func isValidEncryptionKey(signature *packet.Signature, algo packet.PublicKeyAlgorithm) bool {
 	return algo.CanEncrypt() &&
 		signature.FlagsValid &&
-		(signature.FlagEncryptCommunications || signature.FlagEncryptStorage)
+		(signature.FlagEncryptCommunications || signature.FlagForward || signature.FlagEncryptStorage)
+}
+
+func isValidDecryptionKey(signature *packet.Signature, algo packet.PublicKeyAlgorithm) bool {
+	return algo.CanEncrypt() &&
+		signature.FlagsValid &&
+		(signature.FlagEncryptCommunications || signature.FlagForward || signature.FlagEncryptStorage)
 }
