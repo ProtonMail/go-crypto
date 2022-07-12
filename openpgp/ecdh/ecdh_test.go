@@ -88,7 +88,7 @@ func testMarshalUnmarshal(t *testing.T, priv *PrivateKey) {
 	p := priv.MarshalPoint()
 	d := priv.MarshalByteSecret()
 
-	parsed := NewPrivateKey(*NewPublicKey(priv.GetCurve(), priv.KDF.Hash, priv.KDF.Cipher))
+	parsed := NewPrivateKey(*NewPublicKey(priv.GetCurve(), priv.KDF))
 
 	if err := parsed.UnmarshalPoint(p); err != nil {
 		t.Fatalf("unable to unmarshal point: %s", err)
@@ -111,4 +111,75 @@ func testMarshalUnmarshal(t *testing.T, priv *PrivateKey) {
 	if !bytes.Equal(priv.Point, parsed.Point) || !bytes.Equal(expectedD, parsed.D) {
 		t.Fatal("failed to marshal/unmarshal correctly")
 	}
+}
+
+func TestKDFParamsWrite(t *testing.T) {
+	kdf := KDF{
+		Hash:   algorithm.SHA512,
+		Cipher: algorithm.AES256,
+	}
+	byteBuffer := new(bytes.Buffer)
+
+	testFingerprint := make([]byte, 20)
+
+	expectBytesV1 := []byte{3, 1, kdf.Hash.Id(), kdf.Cipher.Id()}
+	kdf.serialize(byteBuffer)
+	gotBytes := byteBuffer.Bytes()
+	if !bytes.Equal(gotBytes, expectBytesV1) {
+		t.Errorf("error serializing KDF params, got %x, want: %x", gotBytes, expectBytesV1)
+	}
+	byteBuffer.Reset()
+
+	kdfV2Flags0x01 := KDF{
+		Version:                2,
+		Hash:                   algorithm.SHA512,
+		Cipher:                 algorithm.AES256,
+		Flags:                  0x01,
+		ReplacementFingerprint: testFingerprint,
+	}
+	expectBytesV2Flags0x01 := []byte{24, 2, kdfV2Flags0x01.Hash.Id(), kdfV2Flags0x01.Cipher.Id(), 0x01}
+	expectBytesV2Flags0x01 = append(expectBytesV2Flags0x01, testFingerprint...)
+
+	kdfV2Flags0x01.serialize(byteBuffer)
+	gotBytes = byteBuffer.Bytes()
+	if !bytes.Equal(gotBytes, expectBytesV2Flags0x01) {
+		t.Errorf("error serializing KDF params v2 (flags 0x01), got %x, want: %x", gotBytes, expectBytesV2Flags0x01)
+	}
+	byteBuffer.Reset()
+
+	kdfV2Flags0x02 := KDF{
+		Version:              2,
+		Hash:                 algorithm.SHA512,
+		Cipher:               algorithm.AES256,
+		Flags:                0x02,
+		ReplacementKDFParams: expectBytesV1,
+	}
+	expectBytesV2Flags0x02 := []byte{8, 2, kdfV2Flags0x02.Hash.Id(), kdfV2Flags0x01.Cipher.Id(), 0x02}
+	expectBytesV2Flags0x02 = append(expectBytesV2Flags0x02, expectBytesV1...)
+
+	kdfV2Flags0x02.serialize(byteBuffer)
+	gotBytes = byteBuffer.Bytes()
+	if !bytes.Equal(gotBytes, expectBytesV2Flags0x02) {
+		t.Errorf("error serializing KDF params v2 (flags 0x02), got %x, want: %x", gotBytes, expectBytesV2Flags0x02)
+	}
+	byteBuffer.Reset()
+
+	kdfV2Flags0x03 := KDF{
+		Version:                2,
+		Hash:                   algorithm.SHA512,
+		Cipher:                 algorithm.AES256,
+		Flags:                  0x03,
+		ReplacementFingerprint: testFingerprint,
+		ReplacementKDFParams:   expectBytesV1,
+	}
+	expectBytesV2Flags0x03 := []byte{28, 2, kdfV2Flags0x03.Hash.Id(), kdfV2Flags0x03.Cipher.Id(), 0x03}
+	expectBytesV2Flags0x03 = append(expectBytesV2Flags0x03, testFingerprint...)
+	expectBytesV2Flags0x03 = append(expectBytesV2Flags0x03, expectBytesV1...)
+
+	kdfV2Flags0x03.serialize(byteBuffer)
+	gotBytes = byteBuffer.Bytes()
+	if !bytes.Equal(gotBytes, expectBytesV2Flags0x03) {
+		t.Errorf("error serializing KDF params v2 (flags 0x03), got %x, want: %x", gotBytes, expectBytesV2Flags0x03)
+	}
+	byteBuffer.Reset()
 }
