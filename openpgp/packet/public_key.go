@@ -5,6 +5,7 @@
 package packet
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/dsa"
 	"crypto/rsa"
@@ -78,6 +79,26 @@ func (pk *PublicKey) UpgradeToV6() error {
 	pk.Version = 6
 	pk.setFingerprintAndKeyId()
 	return pk.checkV6Compatibility()
+}
+
+// ReplaceKDF replaces the KDF instance, and updates all necessary fields.
+func (pk *PublicKey) ReplaceKDF(kdf ecdh.KDF) error {
+	ecdhKey, ok := pk.PublicKey.(*ecdh.PublicKey)
+	if !ok {
+		return goerrors.New("wrong forwarding sub key generation")
+	}
+
+	ecdhKey.KDF = kdf
+	byteBuffer := new(bytes.Buffer)
+	err := kdf.Serialize(byteBuffer)
+	if err != nil {
+		return err
+	}
+
+	pk.kdf = encoding.NewOID(byteBuffer.Bytes()[1:])
+	pk.setFingerprintAndKeyId()
+
+	return nil
 }
 
 // signingKey provides a convenient abstraction over signature verification
@@ -556,11 +577,13 @@ func (pk *PublicKey) parseECDH(r io.Reader) (err error) {
 		return errors.UnsupportedError(fmt.Sprintf("unsupported oid: %x", pk.oid))
 	}
 
-	if kdfLen := len(pk.kdf.Bytes()); kdfLen < 3 {
+	kdfLen := len(pk.kdf.Bytes())
+	if kdfLen < 3 {
 		return errors.UnsupportedError("unsupported ECDH KDF length: " + strconv.Itoa(kdfLen))
 	}
-	if reserved := pk.kdf.Bytes()[0]; reserved != 0x01 {
-		return errors.UnsupportedError("unsupported KDF reserved field: " + strconv.Itoa(int(reserved)))
+	kdfVersion := int(pk.kdf.Bytes()[0])
+	if kdfVersion != ecdh.KDFVersion1 && kdfVersion != ecdh.KDFVersionForwarding {
+		return errors.UnsupportedError("unsupported ECDH KDF version: " + strconv.Itoa(kdfVersion))
 	}
 	kdfHash, ok := algorithm.HashById[pk.kdf.Bytes()[1]]
 	if !ok {
@@ -571,10 +594,23 @@ func (pk *PublicKey) parseECDH(r io.Reader) (err error) {
 		return errors.UnsupportedError("unsupported ECDH KDF cipher: " + strconv.Itoa(int(pk.kdf.Bytes()[2])))
 	}
 
-	ecdhKey := ecdh.NewPublicKey(c, kdfHash, kdfCipher)
+	kdf := ecdh.KDF{
+		Version: kdfVersion,
+		Hash:    kdfHash,
+		Cipher:  kdfCipher,
+	}
+
+	if kdfVersion == ecdh.KDFVersionForwarding {
+		if pk.Version != 4 || kdfLen != 23 {
+			return errors.UnsupportedError("unsupported ECDH KDF v2 length: " + strconv.Itoa(kdfLen))
+		}
+
+		kdf.ReplacementFingerprint = pk.kdf.Bytes()[3:23]
+	}
+
+	ecdhKey := ecdh.NewPublicKey(c, kdf)
 	err = ecdhKey.UnmarshalPoint(pk.p.Bytes())
 	pk.PublicKey = ecdhKey
-
 	return
 }
 
@@ -1188,6 +1224,13 @@ func (pk *PublicKey) VerifyKeySignature(signed *PublicKey, sig *Signature) error
 		if err := signed.VerifySignature(h, sig.EmbeddedSignature); err != nil {
 			return errors.StructuralError("error while verifying cross-signature: " + err.Error())
 		}
+	}
+
+	// Keys having this flag MUST have the forwarding KDF parameters version 2 defined in Section 5.1.
+	if sig.FlagForward && (signed.PubKeyAlgo != PubKeyAlgoECDH ||
+		signed.kdf == nil ||
+		signed.kdf.Bytes()[0] != ecdh.KDFVersionForwarding) {
+		return errors.StructuralError("forwarding key with wrong ecdh kdf version")
 	}
 
 	return nil
