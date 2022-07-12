@@ -25,6 +25,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/encoding"
 	"github.com/ProtonMail/go-crypto/openpgp/s2k"
+	"github.com/ProtonMail/go-crypto/openpgp/symmetric"
 )
 
 // PrivateKey represents a possibly encrypted private key. See RFC 4880,
@@ -122,6 +123,8 @@ func NewSignerPrivateKey(creationTime time.Time, signer interface{}) *PrivateKey
 		pk.PublicKey = *NewEdDSAPublicKey(creationTime, &pubkey.PublicKey)
 	case eddsa.PrivateKey:
 		pk.PublicKey = *NewEdDSAPublicKey(creationTime, &pubkey.PublicKey)
+	case *symmetric.HMACPrivateKey:
+		pk.PublicKey = *NewHMACPublicKey(creationTime, &pubkey.PublicKey)
 	default:
 		panic("openpgp: unknown signer type in NewSignerPrivateKey")
 	}
@@ -139,6 +142,8 @@ func NewDecrypterPrivateKey(creationTime time.Time, decrypter interface{}) *Priv
 		pk.PublicKey = *NewElGamalPublicKey(creationTime, &priv.PublicKey)
 	case *ecdh.PrivateKey:
 		pk.PublicKey = *NewECDHPublicKey(creationTime, &priv.PublicKey)
+	case *symmetric.AEADPrivateKey:
+		pk.PublicKey = *NewAEADPublicKey(creationTime, &priv.PublicKey)
 	default:
 		panic("openpgp: unknown decrypter type in NewDecrypterPrivateKey")
 	}
@@ -368,6 +373,24 @@ func serializeEdDSAPrivateKey(w io.Writer, priv *eddsa.PrivateKey) error {
 func serializeECDHPrivateKey(w io.Writer, priv *ecdh.PrivateKey) error {
 	_, err := w.Write(encoding.NewMPI(priv.MarshalByteSecret()).EncodedBytes())
 	return err
+}
+
+func serializeAEADPrivateKey(w io.Writer, priv *symmetric.AEADPrivateKey) (err error) {
+	_, err = w.Write(priv.HashSeed[:])
+	if err != nil {
+		return
+	}
+	_, err = w.Write(priv.Key)
+	return
+}
+
+func serializeHMACPrivateKey(w io.Writer, priv *symmetric.HMACPrivateKey) (err error) {
+	_, err = w.Write(priv.HashSeed[:])
+	if err != nil {
+		return
+	}
+	_, err = w.Write(priv.Key)
+	return
 }
 
 // decrypt decrypts an encrypted private key using a decryption key.
@@ -601,6 +624,10 @@ func (pk *PrivateKey) serializePrivateKey(w io.Writer) (err error) {
 		err = serializeEdDSAPrivateKey(w, priv)
 	case *ecdh.PrivateKey:
 		err = serializeECDHPrivateKey(w, priv)
+	case *symmetric.AEADPrivateKey:
+		err = serializeAEADPrivateKey(w, priv)
+	case *symmetric.HMACPrivateKey:
+		err = serializeHMACPrivateKey(w, priv)
 	default:
 		err = errors.InvalidArgumentError("unknown private key type")
 	}
@@ -621,6 +648,10 @@ func (pk *PrivateKey) parsePrivateKey(data []byte) (err error) {
 		return pk.parseECDHPrivateKey(data)
 	case PubKeyAlgoEdDSA:
 		return pk.parseEdDSAPrivateKey(data)
+	case ExperimentalPubKeyAlgoAEAD:
+		return pk.parseAEADPrivateKey(data)
+	case ExperimentalPubKeyAlgoHMAC:
+		return pk.parseHMACPrivateKey(data)
 	}
 	panic("impossible")
 }
@@ -764,6 +795,66 @@ func (pk *PrivateKey) parseEdDSAPrivateKey(data []byte) (err error) {
 
 	pk.PrivateKey = eddsaPriv
 
+	return nil
+}
+
+func (pk *PrivateKey) parseAEADPrivateKey(data []byte) (err error) {
+	pubKey := pk.PublicKey.PublicKey.(*symmetric.AEADPublicKey)
+
+	aeadPriv := new(symmetric.AEADPrivateKey)
+	aeadPriv.PublicKey = *pubKey
+
+	copy(aeadPriv.HashSeed[:], data[:32])
+
+	priv := make([]byte, pubKey.Cipher.KeySize())
+	copy(priv, data[32:])
+	aeadPriv.Key = priv
+	aeadPriv.PublicKey.Key = aeadPriv.Key
+
+	if err = validateAEADParameters(aeadPriv); err != nil {
+		return
+	}
+
+	pk.PrivateKey = aeadPriv
+	pk.PublicKey.PublicKey = &aeadPriv.PublicKey
+	return
+}
+
+func (pk *PrivateKey) parseHMACPrivateKey(data []byte) (err error) {
+	pubKey := pk.PublicKey.PublicKey.(*symmetric.HMACPublicKey)
+
+	hmacPriv := new(symmetric.HMACPrivateKey)
+	hmacPriv.PublicKey = *pubKey
+
+	copy(hmacPriv.HashSeed[:], data[:32])
+
+	priv := make([]byte, pubKey.Hash.Size())
+	copy(priv, data[32:])
+	hmacPriv.Key = data[32:]
+	hmacPriv.PublicKey.Key = hmacPriv.Key
+
+	if err = validateHMACParameters(hmacPriv); err != nil {
+		return
+	}
+
+	pk.PrivateKey = hmacPriv
+	pk.PublicKey.PublicKey = &hmacPriv.PublicKey
+	return
+}
+
+func validateAEADParameters(priv *symmetric.AEADPrivateKey) error {
+	return validateCommonSymmetric(priv.HashSeed, priv.PublicKey.BindingHash)
+}
+
+func validateHMACParameters(priv *symmetric.HMACPrivateKey) error {
+	return validateCommonSymmetric(priv.HashSeed, priv.PublicKey.BindingHash)
+}
+
+func validateCommonSymmetric(seed [32]byte, bindingHash [32]byte) error {
+	expectedBindingHash := symmetric.ComputeBindingHash(seed)
+	if !bytes.Equal(expectedBindingHash, bindingHash[:]) {
+		return errors.KeyInvalidError("symmetric: wrong binding hash")
+	}
 	return nil
 }
 
