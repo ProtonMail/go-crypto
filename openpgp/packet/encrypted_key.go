@@ -481,6 +481,36 @@ func SerializeEncryptedKeyWithHiddenOption(w io.Writer, pub *PublicKey, cipherFu
 	return SerializeEncryptedKeyAEADwithHiddenOption(w, pub, cipherFunc, config.AEAD() != nil, key, hidden, config)
 }
 
+func (e *EncryptedKey) ProxyTransform(instance ForwardingInstance) (transformed *EncryptedKey, err error) {
+	if e.Algo != PubKeyAlgoECDH {
+		return nil, errors.InvalidArgumentError("invalid PKESK")
+	}
+
+	if e.KeyId != 0 && e.KeyId != instance.GetForwarderKeyId() {
+		return nil, errors.InvalidArgumentError("invalid key id in PKESK")
+	}
+
+	ephemeral := e.encryptedMPI1.Bytes()
+	transformedEphemeral, err := ecdh.ProxyTransform(ephemeral, instance.ProxyParameter)
+	if err != nil {
+		return nil, err
+	}
+
+	wrappedKey := e.encryptedMPI2.Bytes()
+	copiedWrappedKey := make([]byte, len(wrappedKey))
+	copy(copiedWrappedKey, wrappedKey)
+
+	transformed = &EncryptedKey{
+		Version:       e.Version,
+		KeyId:         instance.getForwardeeKeyIdOrZero(e.KeyId),
+		Algo:          e.Algo,
+		encryptedMPI1: encoding.NewMPI(transformedEphemeral),
+		encryptedMPI2: encoding.NewOID(copiedWrappedKey),
+	}
+
+	return transformed, nil
+}
+
 func serializeEncryptedKeyRSA(w io.Writer, rand io.Reader, header []byte, pub *rsa.PublicKey, keyBlock []byte) error {
 	cipherText, err := rsa.EncryptPKCS1v15(rand, pub, keyBlock)
 	if err != nil {
