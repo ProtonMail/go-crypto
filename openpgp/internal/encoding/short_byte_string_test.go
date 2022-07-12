@@ -39,7 +39,7 @@ func TestShortByteString(t *testing.T) {
 
 		encodedBytes := octetStream.EncodedBytes()
 		if !bytes.Equal(encodedBytes[1:], test.data) {
-			t.Errorf("#%d: bad encoded bytes got:%x want:%x", i, encodedBytes[2:], test.data)
+			t.Errorf("#%d: bad encoded bytes got:%x want:%x", i, encodedBytes[1:], test.data)
 		}
 
 		encodedLength := int(encodedBytes[0])

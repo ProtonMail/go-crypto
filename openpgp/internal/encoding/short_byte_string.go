@@ -5,8 +5,8 @@ import (
 )
 
 type ShortByteString struct {
-	length	uint8
-	data []byte
+	length uint8
+	data   []byte
 }
 
 func NewShortByteString(data []byte) *ShortByteString {
@@ -36,15 +36,15 @@ func (byteString *ShortByteString) EncodedLength() uint16 {
 
 func (byteString *ShortByteString) ReadFrom(r io.Reader) (int64, error) {
 	var lengthBytes [1]byte
-	if _, err := io.ReadFull(r, lengthBytes[:]); err != nil {
-		return 0, err
+	if n, err := io.ReadFull(r, lengthBytes[:]); err != nil {
+		return int64(n), err
 	}
 
 	byteString.length = uint8(lengthBytes[0])
 
 	byteString.data = make([]byte, byteString.length)
-	if _, err := io.ReadFull(r, byteString.data); err != nil {
-		return 0, err
+	if n, err := io.ReadFull(r, byteString.data); err != nil {
+		return int64(n + 1), err
 	}
 	return int64(byteString.length + 1), nil
 }

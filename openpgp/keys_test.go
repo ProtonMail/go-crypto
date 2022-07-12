@@ -1038,12 +1038,10 @@ func TestAddSubkeySerialized(t *testing.T) {
 func TestAddHMACSubkey(t *testing.T) {
 	c := &packet.Config{
 		RSABits: 512,
-		DefaultHash: crypto.SHA512,
-		Algorithm:   packet.ExperimentalPubKeyAlgoHMAC,
-		DefaultCipher: ciphers[4],
+		Algorithm: packet.ExperimentalPubKeyAlgoHMAC,
 	}
 
-	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", &packet.Config{ RSABits: 1024})
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", &packet.Config{RSABits: 1024})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1119,11 +1117,9 @@ func TestSerializeSymmetricSubkeyError(t *testing.T) {
 func TestAddAEADSubkey(t *testing.T) {
 	c := &packet.Config{
 		RSABits: 512,
-		DefaultHash: crypto.SHA512,
-		Algorithm:   packet.ExperimentalPubKeyAlgoAEAD,
-		DefaultCipher: ciphers[4],
+		Algorithm: packet.ExperimentalPubKeyAlgoAEAD,
 	}
-	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", &packet.Config{ RSABits: 1024})
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", &packet.Config{RSABits: 1024})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1178,16 +1174,16 @@ func TestNoSymmetricKeySerialized(t *testing.T) {
 	aeadConfig := &packet.Config{
 		RSABits: 512,
 		DefaultHash: crypto.SHA512,
-		Algorithm:   packet.ExperimentalPubKeyAlgoAEAD,
-		DefaultCipher: ciphers[4],
+		Algorithm: packet.ExperimentalPubKeyAlgoAEAD,
+		DefaultCipher: packet.CipherAES256,
 	}
 	hmacConfig := &packet.Config{
 		RSABits: 512,
 		DefaultHash: crypto.SHA512,
-		Algorithm:   packet.ExperimentalPubKeyAlgoHMAC,
-		DefaultCipher: ciphers[4],
+		Algorithm: packet.ExperimentalPubKeyAlgoHMAC,
+		DefaultCipher: packet.CipherAES256,
 	}
-	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", &packet.Config{ RSABits: 1024})
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", &packet.Config{RSABits: 1024})
 	if err != nil {
 		t.Fatal(err)
 	}

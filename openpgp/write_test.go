@@ -136,7 +136,7 @@ func TestNewEntity(t *testing.T) {
 func TestEncryptWithAEAD(t *testing.T) {
 	c := &packet.Config{
 		Algorithm:   packet.ExperimentalPubKeyAlgoAEAD,
-		DefaultCipher: ciphers[4],
+		DefaultCipher: packet.CipherAES256,
 		AEADConfig: &packet.AEADConfig{
 			DefaultMode: packet.AEADMode(1),
 		},
