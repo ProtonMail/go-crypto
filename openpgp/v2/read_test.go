@@ -1106,3 +1106,10 @@ func TestReadMessageCompressionLimit(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestReadKeyRingWithSymmetricSubkey(t *testing.T) {
+	_, err := ReadArmoredKeyRing(strings.NewReader(keyWithAEADSubkey))
+	if err != nil {
+		t.Error("could not read keyring", err)
+	}
+}
