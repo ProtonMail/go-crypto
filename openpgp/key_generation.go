@@ -310,7 +310,8 @@ func newSigner(config *packet.Config) (signer interface{}, err error) {
 		}
 		return priv, nil
 	case packet.ExperimentalPubKeyAlgoHMAC:
-		return symmetric.HMACGenerateKey(config.Random(), config.Hash())
+		hash := algorithm.HashById[hashToHashId(config.Hash())]
+		return symmetric.HMACGenerateKey(config.Random(), hash)
 	default:
 		return nil, errors.InvalidArgumentError("unsupported public key algorithm")
 	}
