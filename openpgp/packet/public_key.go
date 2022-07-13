@@ -5,7 +5,6 @@
 package packet
 
 import (
-	"crypto"
 	"crypto/dsa"
 	"crypto/rsa"
 	"crypto/sha1"
@@ -661,8 +660,13 @@ func (pk *PublicKey) parseHMAC(r io.Reader) (err error) {
 		return
 	}
 
+	hmacHash, ok := algorithm.HashById[hash[0]]
+	if !ok {
+		return errors.UnsupportedError("unsupported HMAC hash: " + strconv.Itoa(int(hash[0])))
+	}
+
 	symmetric := &symmetric.HMACPublicKey{
-		Hash:        crypto.Hash(hash[0]),
+		Hash:        hmacHash,
 		BindingHash: bindingHash,
 	}
 
@@ -870,7 +874,7 @@ func (pk *PublicKey) serializeWithoutHeaders(w io.Writer) (err error) {
 		return
 	case ExperimentalPubKeyAlgoHMAC:
 		symmKey := pk.PublicKey.(*symmetric.HMACPublicKey)
-		hashOctet := [1]byte{uint8(symmKey.Hash)}
+		hashOctet := [1]byte{symmKey.Hash.Id()}
 		if _, err = w.Write(hashOctet[:]); err != nil {
 			return
 		}
@@ -951,7 +955,11 @@ func (pk *PublicKey) VerifySignature(signed hash.Hash, sig *Signature) (err erro
 	case ExperimentalPubKeyAlgoHMAC:
 		HMACKey := pk.PublicKey.(*symmetric.HMACPublicKey)
 
-		if !HMACKey.Verify(hashBytes, sig.HMAC.Bytes()) {
+		result, err := HMACKey.Verify(hashBytes, sig.HMAC.Bytes())
+		if err != nil {
+			return err
+		}
+		if !result {
 			return errors.SignatureError("HMAC verification failure")
 		}
 		return nil
