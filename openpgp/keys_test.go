@@ -2046,3 +2046,37 @@ mQ00BF00000BCAD0000000000000000000000000000000000000000000000000
 000000000000000000000000000000000000ABE000G0Dn000000000000000000iQ00BB0BAgAGBCG00000`
 	ReadArmoredKeyRing(strings.NewReader(data))
 }
+
+func TestSymmetricKeys(t *testing.T) {
+	data := `-----BEGIN PGP PRIVATE KEY BLOCK-----
+
+xWoEYs7w5mUIcFvlmkuricX26x138uvHGlwIaxWIbRnx1+ggPcveTcwA4zSZ
+n6XcD0Q5aLe6dTEBwCyfUecZ/nA0W8Pl9xBHfjIjQuxcUBnIqxZ061RZPjef
+D/XIQga1ftLDelhylQwL7R3TzQ1TeW1tZXRyaWMgS2V5wmkEEGUIAB0FAmLO
+8OYECwkHCAMVCAoEFgACAQIZAQIbAwIeAQAhCRCRTKq2ObiQKxYhBMHTTXXF
+ULQ2M2bYNJFMqrY5uJArIawgJ+5RSsN8VNuZTKJbG88TIedU05wwKjW3wqvT
+X6Z7yfbHagRizvDmZAluL/kJo6hZ1kFENpQkWD/Kfv1vAG3nbxhsVEzBQ6a1
+OAD24BaKJz6gWgj4lASUNK5OuXnLc3J79Bt1iRGkSbiPzRs/bplB4TwbILeC
+ZLeDy9kngZDosgsIk5sBgGEqS9y5HiHCVQQYZQgACQUCYs7w5gIbDAAhCRCR
+TKq2ObiQKxYhBMHTTXXFULQ2M2bYNJFMqrY5uJArENkgL0Bc+OI/1na0XWqB
+TxGVotQ4A/0u0VbOMEUfnrI8Fms=
+=RdCW
+-----END PGP PRIVATE KEY BLOCK-----
+`
+	keys, err := ReadArmoredKeyRing(strings.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(keys) != 1 {
+		t.Errorf("Expected 1 symmetric key, got %d", len(keys))
+	}
+	if keys[0].PrivateKey.PubKeyAlgo != packet.ExperimentalPubKeyAlgoHMAC {
+		t.Errorf("Expected HMAC primary key")
+	}
+	if len(keys[0].Subkeys) != 1 {
+		t.Errorf("Expected 1 symmetric subkey, got %d", len(keys[0].Subkeys))
+	}
+	if keys[0].Subkeys[0].PrivateKey.PubKeyAlgo != packet.ExperimentalPubKeyAlgoAEAD {
+		t.Errorf("Expected AEAD subkey")
+	}
+}
