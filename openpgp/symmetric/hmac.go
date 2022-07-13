@@ -5,10 +5,13 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"io"
+
+	"github.com/ProtonMail/go-crypto/openpgp/errors"
+	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
 )
 
 type HMACPublicKey struct {
-	Hash crypto.Hash
+	Hash algorithm.Hash
 	BindingHash [32]byte
 	// While this is a "public" key, the symmetric key needs to be present here.
 	// Symmetric cryptographic operations use the same key material for
@@ -24,7 +27,7 @@ type HMACPrivateKey struct {
 	Key []byte
 }
 
-func HMACGenerateKey(rand io.Reader, hash crypto.Hash) (priv *HMACPrivateKey, err error) {
+func HMACGenerateKey(rand io.Reader, hash algorithm.Hash) (priv *HMACPrivateKey, err error) {
 	priv, err = generatePrivatePartHMAC(rand, hash)
 	if err != nil {
 		return
@@ -34,7 +37,7 @@ func HMACGenerateKey(rand io.Reader, hash crypto.Hash) (priv *HMACPrivateKey, er
 	return
 }
 
-func generatePrivatePartHMAC(rand io.Reader, hash crypto.Hash) (priv *HMACPrivateKey, err error) {
+func generatePrivatePartHMAC(rand io.Reader, hash algorithm.Hash) (priv *HMACPrivateKey, err error) {
 	priv = new(HMACPrivateKey)
 	var seed [32] byte
 	_, err = rand.Read(seed[:])
@@ -53,7 +56,7 @@ func generatePrivatePartHMAC(rand io.Reader, hash crypto.Hash) (priv *HMACPrivat
 	return
 }
 
-func (priv *HMACPrivateKey) generatePublicPartHMAC(hash crypto.Hash) (err error) {
+func (priv *HMACPrivateKey) generatePublicPartHMAC(hash algorithm.Hash) (err error) {
 	priv.PublicKey.Hash = hash
 
 	bindingHash := ComputeBindingHash(priv.HashSeed)
@@ -76,20 +79,31 @@ func (priv *HMACPrivateKey) Public() crypto.PublicKey {
 }
 
 func (priv *HMACPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
-	expectedMAC := calculateMAC(priv.PublicKey.Hash, priv.Key, digest)
+	expectedMAC, err := calculateMAC(priv.PublicKey.Hash, priv.Key, digest)
+	if err != nil {
+		return
+	}
 	signature = make([]byte, len(expectedMAC))
 	copy(signature, expectedMAC)
 	return
 }
 
-func (pub *HMACPublicKey) Verify(digest []byte, signature []byte) bool {
-	expectedMAC := calculateMAC(pub.Hash, pub.Key, digest)
-	return hmac.Equal(expectedMAC, signature)
+func (pub *HMACPublicKey) Verify(digest []byte, signature []byte) (bool, error) {
+	expectedMAC, err := calculateMAC(pub.Hash, pub.Key, digest)
+	if err != nil {
+		return false, err
+	}
+	return hmac.Equal(expectedMAC, signature), nil
 }
 
-func calculateMAC(hash crypto.Hash, key []byte, data []byte) []byte {
-	mac := hmac.New(hash.New, key)
+func calculateMAC(hash algorithm.Hash, key []byte, data []byte) ([]byte, error) {
+	hashFunc := hash.HashFunc()
+	if !hashFunc.Available() {
+		return nil, errors.UnsupportedError("hash function")
+	}
+
+	mac := hmac.New(hashFunc.New, key)
 	mac.Write(data)
 
-	return mac.Sum(nil)
+	return mac.Sum(nil), nil
 }
