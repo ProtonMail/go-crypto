@@ -239,6 +239,18 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 		}
 	}
 	if !pk.Encrypted {
+		if len(privateKeyData) < 2 {
+			return errors.StructuralError("truncated private key data")
+		}
+		var sum uint16
+		for i := 0; i < len(privateKeyData)-2; i++ {
+			sum += uint16(privateKeyData[i])
+		}
+		if privateKeyData[len(privateKeyData)-2] != uint8(sum>>8) ||
+			privateKeyData[len(privateKeyData)-1] != uint8(sum) {
+			return errors.StructuralError("private key checksum failure")
+		}
+		privateKeyData = privateKeyData[:len(privateKeyData)-2]
 		return pk.parsePrivateKey(privateKeyData)
 	}
 
