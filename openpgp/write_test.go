@@ -457,6 +457,38 @@ var testEncryptionTests = []struct {
 		true,
 		false,
 	},
+	//{
+	//	eddsaKyber512X25519PrivateHex,
+	//	false,
+	//},
+	//{
+	//	eddsaKyber512X25519PrivateHex,
+	//	true,
+	//},
+	//{
+	//	eddsaKyber1024X448PrivateHex,
+	//	false,
+	//},
+	//{
+	//	eddsaKyber1024X448PrivateHex,
+	//	true,
+	//},
+	//{
+	//	eddsaKyber768P384PrivateHex,
+	//	false,
+	//},
+	//{
+	//	eddsaKyber768P384PrivateHex,
+	//	true,
+	//},
+	//{
+	//	eddsaKyber1024P521PrivateHex,
+	//	false,
+	//},
+	//{
+	//	eddsaKyber1024P521PrivateHex,
+	//	true,
+	//},
 }
 
 func TestEncryption(t *testing.T) {
@@ -694,7 +726,10 @@ ParsePackets:
 		case *packet.EncryptedKey:
 			// This packet contains the decryption key encrypted to a public key.
 			switch p.Algo {
-			case packet.PubKeyAlgoRSA, packet.PubKeyAlgoRSAEncryptOnly, packet.PubKeyAlgoElGamal, packet.PubKeyAlgoECDH:
+			case packet.PubKeyAlgoRSA, packet.PubKeyAlgoRSAEncryptOnly, packet.PubKeyAlgoElGamal, packet.PubKeyAlgoECDH,
+				packet.PubKeyAlgoKyber768X25519, packet.PubKeyAlgoKyber1024X448, packet.PubKeyAlgoKyber768P256,
+				packet.PubKeyAlgoKyber1024P384, packet.PubKeyAlgoKyber768Brainpool256,
+				packet.PubKeyAlgoKyber1024Brainpool384:
 				break
 			default:
 				continue
