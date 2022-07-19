@@ -19,6 +19,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
+	"github.com/ProtonMail/go-crypto/openpgp/kyber_ecdh"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 )
 
@@ -308,6 +309,22 @@ func newDecrypter(config *packet.Config) (decrypter interface{}, err error) {
 			return nil, errors.InvalidArgumentError("unsupported curve")
 		}
 		return ecdh.GenerateKey(config.Random(), curve, kdf)
+	case packet.PubKeyAlgoKyber512X25519, packet.PubKeyAlgoKyber1024X448, packet.PubKeyAlgoKyber768P384,
+		packet.PubKeyAlgoKyber1024P521, packet.PubKeyAlgoKyber768Brainpool384, packet.PubKeyAlgoKyber1024Brainpool512:
+		if !config.V5Keys {
+			return nil, goerrors.New("openpgp: cannot create a non-v5 kyber_ecdh key")
+		}
+
+		c, err := packet.GetECDHCurveFromAlgID(config.PublicKeyAlgorithm())
+		if err != nil {
+			return nil, err
+		}
+		k, err := packet.GetKyberFromAlgID(config.PublicKeyAlgorithm())
+		if err != nil {
+			return nil, err
+		}
+
+		return kyber_ecdh.GenerateKey(config.Random(), uint8(config.PublicKeyAlgorithm()), c, k)
 	default:
 		return nil, errors.InvalidArgumentError("unsupported public key algorithm")
 	}
