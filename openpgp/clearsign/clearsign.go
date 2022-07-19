@@ -409,7 +409,7 @@ func EncodeMultiWithHeader(w io.Writer, privateKeys []*packet.PrivateKey, config
 		if sk.Version == 6 {
 			// generate salt
 			var salt []byte
-			salt, err = packet.SignatureSaltForHash(hashType, config.Random())
+			salt, err = packet.SignatureSaltForHash(selectedHashType, config.Random())
 			if err != nil {
 				return
 			}

@@ -21,6 +21,8 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
+	"github.com/ProtonMail/go-crypto/openpgp/mldsa_eddsa"
+	"github.com/ProtonMail/go-crypto/openpgp/mlkem_ecdh"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	"github.com/ProtonMail/go-crypto/openpgp/symmetric"
 	"github.com/ProtonMail/go-crypto/openpgp/x25519"
@@ -403,6 +405,21 @@ func newSigner(config *packet.Config) (signer interface{}, err error) {
 	case packet.ExperimentalPubKeyAlgoHMAC:
 		hash := algorithm.HashById[hashToHashId(config.Hash())]
 		return symmetric.HMACGenerateKey(config.Random(), hash)
+	case packet.PubKeyAlgoMldsa65Ed25519, packet.PubKeyAlgoMldsa87Ed448:
+		if !config.V6() {
+			return nil, goerrors.New("openpgp: cannot create a non-v6 mldsa_eddsa key")
+		}
+
+		c, err := packet.GetEdDSACurveFromAlgID(config.PublicKeyAlgorithm())
+		if err != nil {
+			return nil, err
+		}
+		d, err := packet.GetMldsaFromAlgID(config.PublicKeyAlgorithm())
+		if err != nil {
+			return nil, err
+		}
+
+		return mldsa_eddsa.GenerateKey(config.Random(), uint8(config.PublicKeyAlgorithm()), c, d)
 	default:
 		return nil, errors.InvalidArgumentError("unsupported public key algorithm")
 	}
@@ -410,6 +427,7 @@ func newSigner(config *packet.Config) (signer interface{}, err error) {
 
 // newDecrypter generates an encryption/decryption key.
 func newDecrypter(config *packet.Config) (decrypter interface{}, err error) {
+	pubKeyAlgo := config.PublicKeyAlgorithm()
 	switch config.PublicKeyAlgorithm() {
 	case packet.PubKeyAlgoRSA:
 		bits := config.RSAModulusBits()
@@ -448,6 +466,26 @@ func newDecrypter(config *packet.Config) (decrypter interface{}, err error) {
 	case packet.ExperimentalPubKeyAlgoHMAC, packet.ExperimentalPubKeyAlgoAEAD: // When passing HMAC, we generate an AEAD subkey
 		cipher := algorithm.CipherFunction(config.Cipher())
 		return symmetric.AEADGenerateKey(config.Random(), cipher)
+	case packet.PubKeyAlgoMldsa65Ed25519, packet.PubKeyAlgoMldsa87Ed448:
+		if pubKeyAlgo, err = packet.GetMatchingMlkem(config.PublicKeyAlgorithm()); err != nil {
+			return nil, err
+		}
+		fallthrough // When passing ML-DSA + EdDSA or ECDSA, we generate a ML-KEM + ECDH subkey
+	case packet.PubKeyAlgoMlkem768X25519, packet.PubKeyAlgoMlkem1024X448:
+		if !config.V6() {
+			return nil, goerrors.New("openpgp: cannot create a non-v6 mlkem_x25519 key")
+		}
+
+		c, err := packet.GetECDHCurveFromAlgID(pubKeyAlgo)
+		if err != nil {
+			return nil, err
+		}
+		k, err := packet.GetMlkemFromAlgID(pubKeyAlgo)
+		if err != nil {
+			return nil, err
+		}
+
+		return mlkem_ecdh.GenerateKey(config.Random(), uint8(pubKeyAlgo), c, k)
 	default:
 		return nil, errors.InvalidArgumentError("unsupported public key algorithm")
 	}
