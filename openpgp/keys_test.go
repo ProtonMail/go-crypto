@@ -1141,6 +1141,84 @@ func TestAddSubkeyWithConfig(t *testing.T) {
 	}
 }
 
+
+func TestAddKyberSubkey(t *testing.T) {
+	eddsaConfig := &packet.Config{
+		DefaultHash: crypto.SHA512,
+		Algorithm: packet.PubKeyAlgoEdDSA,
+		V5Keys: true,
+		Time: func() time.Time {
+			parsed, _ := time.Parse("2006-01-02", "2013-07-01")
+			return parsed
+		},
+	}
+
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", eddsaConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	asymmAlgos := map[string] packet.PublicKeyAlgorithm{
+		"Kyber512_X25519": packet.PubKeyAlgoKyber512X25519,
+		"Kyber1024_X448": packet.PubKeyAlgoKyber1024X448,
+		"Kyber768_p384": packet.PubKeyAlgoKyber768P384,
+		"Kyber1024_P521":packet.PubKeyAlgoKyber1024P521,
+		"Kyber768_Brainpool384": packet.PubKeyAlgoKyber768Brainpool384,
+		"Kyber1024_Brainpool512":packet.PubKeyAlgoKyber1024Brainpool512,
+	}
+
+	for name, algo := range asymmAlgos {
+		// Remove existing subkeys
+		entity.Subkeys = []Subkey{}
+
+		t.Run(name, func(t *testing.T) {
+			kyberConfig := &packet.Config{
+				DefaultHash: crypto.SHA512,
+				Algorithm:   algo,
+				V5Keys:      true,
+				Time: func() time.Time {
+					parsed, _ := time.Parse("2006-01-02", "2013-07-01")
+					return parsed
+				},
+			}
+
+			err = entity.AddEncryptionSubkey(kyberConfig)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if len(entity.Subkeys) != 1 {
+				t.Fatalf("Expected 1 subkey, got %d", len(entity.Subkeys))
+			}
+
+			if entity.Subkeys[0].PublicKey.PubKeyAlgo != algo {
+				t.Fatalf("Expected subkey algorithm: %v, got: %v", packet.PubKeyAlgoEdDSA,
+					entity.Subkeys[0].PublicKey.PubKeyAlgo)
+			}
+
+			serializedEntity := bytes.NewBuffer(nil)
+			err = entity.SerializePrivate(serializedEntity, nil)
+			if err != nil {
+				t.Fatalf("Failed to serialize entity: %s", err)
+			}
+
+			read, err := ReadEntity(packet.NewReader(bytes.NewBuffer(serializedEntity.Bytes())))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if len(read.Subkeys) != 1 {
+				t.Fatalf("Expected 1 subkey, got %d", len(entity.Subkeys))
+			}
+
+			if read.Subkeys[0].PublicKey.PubKeyAlgo != algo {
+				t.Fatalf("Expected subkey algorithm: %v, got: %v", packet.PubKeyAlgoEdDSA,
+					entity.Subkeys[0].PublicKey.PubKeyAlgo)
+			}
+		})
+	}
+}
+
 func TestAddSubkeyWithConfigSerialized(t *testing.T) {
 	c := &packet.Config{
 		DefaultHash: crypto.SHA512,
