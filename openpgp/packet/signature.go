@@ -14,6 +14,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ProtonMail/go-crypto/openpgp/mldsa_ecdsa"
+	"github.com/ProtonMail/go-crypto/openpgp/mldsa_eddsa"
+	"github.com/ProtonMail/go-crypto/openpgp/slhdsa"
+	"github.com/cloudflare/circl/sign/dilithium"
+
 	"github.com/ProtonMail/go-crypto/openpgp/ecdsa"
 	"github.com/ProtonMail/go-crypto/openpgp/ed25519"
 	"github.com/ProtonMail/go-crypto/openpgp/ed448"
@@ -64,8 +69,13 @@ type Signature struct {
 	DSASigR, DSASigS     encoding.Field
 	ECDSASigR, ECDSASigS encoding.Field
 	EdDSASigR, EdDSASigS encoding.Field
-	EdSig                []byte
 	HMAC                 encoding.Field
+	EdSig                []byte
+	MldsaSig             encoding.Field
+	SlhdsaSig            encoding.Field
+
+	// slhDsaParameterSetId contains the parameter set ID for the SLH-DSA instantiation
+	slhDsaParameterSetId slhdsa.ParameterSetId
 
 	// rawSubpackets contains the unparsed subpackets, in order.
 	rawSubpackets []outputSubpacket
@@ -174,7 +184,10 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 	sig.SigType = SignatureType(buf[0])
 	sig.PubKeyAlgo = PublicKeyAlgorithm(buf[1])
 	switch sig.PubKeyAlgo {
-	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA, PubKeyAlgoEd25519, PubKeyAlgoEd448, ExperimentalPubKeyAlgoHMAC:
+	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA, PubKeyAlgoEd25519,
+		PubKeyAlgoEd448, ExperimentalPubKeyAlgoHMAC, PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448, PubKeyAlgoMldsa65p256,
+		PubKeyAlgoMldsa87p384, PubKeyAlgoMldsa65Brainpool256, PubKeyAlgoMldsa87Brainpool384,
+		PubKeyAlgoSlhdsaSha2, PubKeyAlgoSlhdsaShake:
 	default:
 		err = errors.UnsupportedError("public key algorithm " + strconv.Itoa(int(sig.PubKeyAlgo)))
 		return
@@ -317,9 +330,77 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 		if _, err = sig.HMAC.ReadFrom(r); err != nil {
 			return
 		}
+	case PubKeyAlgoMldsa65Ed25519:
+		if err = sig.parseMldsaEddsaSignature(r, 64, dilithium.MLDSA65.SignatureSize()); err != nil {
+			return
+		}
+	case PubKeyAlgoMldsa87Ed448:
+		if err = sig.parseMldsaEddsaSignature(r, 114, dilithium.MLDSA87.SignatureSize()); err != nil {
+			return
+		}
+	case PubKeyAlgoMldsa65p256, PubKeyAlgoMldsa65Brainpool256:
+		if err = sig.parseMldsaEcdsaSignature(r, 32, dilithium.MLDSA65.SignatureSize()); err != nil {
+			return
+		}
+	case PubKeyAlgoMldsa87p384, PubKeyAlgoMldsa87Brainpool384:
+		if err = sig.parseMldsaEcdsaSignature(r, 48, dilithium.MLDSA87.SignatureSize()); err != nil {
+			return
+		}
+	case PubKeyAlgoSlhdsaSha2, PubKeyAlgoSlhdsaShake:
+		if err = sig.parseSlhdsaSignature(r); err != nil {
+			return
+		}
 	default:
 		panic("unreachable")
 	}
+	return
+}
+
+// parseMldsaEddsaSignature parses an ML-DSA + EdDSA signature as specified in
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-signature-packet-tag-2
+func (sig *Signature) parseMldsaEddsaSignature(r io.Reader, ecLen, dLen int) (err error) {
+	sig.EdDSASigR = encoding.NewEmptyOctetArray(ecLen)
+	if _, err = sig.EdDSASigR.ReadFrom(r); err != nil {
+		return
+	}
+
+	sig.MldsaSig = encoding.NewEmptyOctetArray(dLen)
+	_, err = sig.MldsaSig.ReadFrom(r)
+	return
+}
+
+// parseMldsaEcdsaSignature parses a ML-DSA + ECDSA signature as specified in
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-signature-packet-tag-2
+func (sig *Signature) parseMldsaEcdsaSignature(r io.Reader, ecLen, dLen int) (err error) {
+	sig.ECDSASigR = encoding.NewEmptyOctetArray(ecLen)
+	if _, err = sig.ECDSASigR.ReadFrom(r); err != nil {
+		return
+	}
+
+	sig.ECDSASigS = encoding.NewEmptyOctetArray(ecLen)
+	if _, err = sig.ECDSASigS.ReadFrom(r); err != nil {
+		return
+	}
+
+	sig.MldsaSig = encoding.NewEmptyOctetArray(dLen)
+	_, err = sig.MldsaSig.ReadFrom(r)
+	return
+}
+
+// parseSlhdsaSignature parses a SLH-DSA signature as specified in
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-signature-packet-tag-2-2
+func (sig *Signature) parseSlhdsaSignature(r io.Reader) (err error) {
+	var param [1]byte
+	if _, err = readFull(r, param[:]); err != nil {
+		return
+	}
+
+	if sig.slhDsaParameterSetId, err = slhdsa.ParseParameterSetID(param); err != nil {
+		return
+	}
+
+	sig.SlhdsaSig = encoding.NewEmptyOctetArray(sig.slhDsaParameterSetId.GetSigLen())
+	_, err = sig.SlhdsaSig.ReadFrom(r)
 	return
 }
 
@@ -968,6 +1049,41 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 		if err == nil {
 			sig.HMAC = encoding.NewShortByteString(sigdata)
 		}
+	case PubKeyAlgoMldsa65p256, PubKeyAlgoMldsa87p384, PubKeyAlgoMldsa65Brainpool256,
+		PubKeyAlgoMldsa87Brainpool384:
+		if sig.Version != 6 {
+			return errors.UnsupportedError("cannot use mldsa_ecdsa on a non-v6 signature")
+		}
+		sk := priv.PrivateKey.(*mldsa_ecdsa.PrivateKey)
+		dSig, ecR, ecS, err := mldsa_ecdsa.Sign(config.Random(), sk, digest)
+
+		if err == nil {
+			sig.MldsaSig = encoding.NewOctetArray(dSig)
+			sig.ECDSASigR = encoding.NewOctetArray(ecR)
+			sig.ECDSASigS = encoding.NewOctetArray(ecS)
+		}
+	case PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
+		if sig.Version != 6 {
+			return errors.UnsupportedError("cannot use mldsa_eddsa on a non-v6 signature")
+		}
+		sk := priv.PrivateKey.(*mldsa_eddsa.PrivateKey)
+		dSig, ecSig, err := mldsa_eddsa.Sign(sk, digest)
+
+		if err == nil {
+			sig.MldsaSig = encoding.NewOctetArray(dSig)
+			sig.EdDSASigR = encoding.NewOctetArray(ecSig)
+		}
+	case PubKeyAlgoSlhdsaSha2, PubKeyAlgoSlhdsaShake:
+		if sig.Version != 6 {
+			return errors.UnsupportedError("cannot use SLH-DSA on a non-v6 signature")
+		}
+		sk := priv.PrivateKey.(*slhdsa.PrivateKey)
+		spxSig, err := slhdsa.Sign(sk, digest)
+
+		if err == nil {
+			sig.slhDsaParameterSetId = sk.ParameterSetId
+			sig.SlhdsaSig = encoding.NewOctetArray(spxSig)
+		}
 	default:
 		err = errors.UnsupportedError("public key algorithm: " + strconv.Itoa(int(sig.PubKeyAlgo)))
 	}
@@ -1073,7 +1189,7 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 	if len(sig.outSubpackets) == 0 {
 		sig.outSubpackets = sig.rawSubpackets
 	}
-	if sig.RSASignature == nil && sig.DSASigR == nil && sig.ECDSASigR == nil && sig.EdDSASigR == nil && sig.EdSig == nil && sig.HMAC == nil {
+	if sig.RSASignature == nil && sig.DSASigR == nil && sig.ECDSASigR == nil && sig.EdDSASigR == nil && sig.EdSig == nil && sig.SlhdsaSig == nil && sig.HMAC == nil {
 		return errors.InvalidArgumentError("Signature: need to call Sign, SignUserId or SignKey before Serialize")
 	}
 
@@ -1096,6 +1212,17 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 		sigLength = ed448.SignatureSize
 	case ExperimentalPubKeyAlgoHMAC:
 		sigLength = int(sig.HMAC.EncodedLength())
+	case PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
+		sigLength = int(sig.EdDSASigR.EncodedLength())
+		sigLength += int(sig.MldsaSig.EncodedLength())
+	case PubKeyAlgoMldsa65p256, PubKeyAlgoMldsa87p384, PubKeyAlgoMldsa65Brainpool256,
+		PubKeyAlgoMldsa87Brainpool384:
+		sigLength = int(sig.ECDSASigR.EncodedLength())
+		sigLength += int(sig.ECDSASigS.EncodedLength())
+		sigLength += int(sig.MldsaSig.EncodedLength())
+	case PubKeyAlgoSlhdsaSha2, PubKeyAlgoSlhdsaShake:
+		sigLength = 1 // Parameter ID
+		sigLength += int(sig.SlhdsaSig.EncodedLength())
 	default:
 		panic("impossible")
 	}
@@ -1204,6 +1331,25 @@ func (sig *Signature) serializeBody(w io.Writer) (err error) {
 		err = ed448.WriteSignature(w, sig.EdSig)
 	case ExperimentalPubKeyAlgoHMAC:
 		_, err = w.Write(sig.HMAC.EncodedBytes())
+	case PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
+		if _, err = w.Write(sig.EdDSASigR.EncodedBytes()); err != nil {
+			return
+		}
+		_, err = w.Write(sig.MldsaSig.EncodedBytes())
+	case PubKeyAlgoMldsa65p256, PubKeyAlgoMldsa87p384, PubKeyAlgoMldsa65Brainpool256,
+		PubKeyAlgoMldsa87Brainpool384:
+		if _, err = w.Write(sig.ECDSASigR.EncodedBytes()); err != nil {
+			return
+		}
+		if _, err = w.Write(sig.ECDSASigS.EncodedBytes()); err != nil {
+			return
+		}
+		_, err = w.Write(sig.MldsaSig.EncodedBytes())
+	case PubKeyAlgoSlhdsaSha2, PubKeyAlgoSlhdsaShake:
+		if _, err = w.Write(sig.slhDsaParameterSetId.EncodedBytes()); err != nil {
+			return
+		}
+		_, err = w.Write(sig.SlhdsaSig.EncodedBytes())
 	default:
 		panic("impossible")
 	}
