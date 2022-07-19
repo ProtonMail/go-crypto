@@ -279,6 +279,11 @@ func writeAndSign(payload io.WriteCloser, candidateHashes []uint8, signed *Entit
 		return nil, errors.InvalidArgumentError("cannot encrypt because no candidate hash functions are compiled in. (Wanted " + name + " in this case.)")
 	}
 
+	if signer != nil {
+		// Handle signature algorithms that force a specific hash.
+		hash = signer.PubKeyAlgo.HandleSpecificHash(hash)
+	}
+
 	var salt []byte
 	if signer != nil {
 		var opsVersion = 3
@@ -391,11 +396,16 @@ func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *En
 	// AEAD is used only if config enables it and every key supports it
 	aeadSupported := config.AEAD() != nil
 
+	allPQ := len(to) > 0
 	for i := range to {
 		var ok bool
 		encryptKeys[i], ok = to[i].EncryptionKey(config.Now())
 		if !ok {
 			return nil, errors.InvalidArgumentError("cannot encrypt a message to key id " + strconv.FormatUint(to[i].PrimaryKey.KeyId, 16) + " because it has no valid encryption keys")
+		}
+
+		if !encryptKeys[i].PublicKey.IsPQ() {
+			allPQ = false
 		}
 
 		primarySelfSignature, _ := to[i].PrimarySelfSignature()
@@ -424,8 +434,12 @@ func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *En
 		candidateHashes = []uint8{hashToHashId(crypto.SHA256)}
 	}
 	if len(candidateCipherSuites) == 0 {
-		// https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-07.html#section-9.6
-		candidateCipherSuites = [][2]uint8{{uint8(packet.CipherAES128), uint8(packet.AEADModeOCB)}}
+		if allPQ {
+			candidateCipherSuites = [][2]uint8{{uint8(packet.CipherAES256), uint8(packet.AEADModeOCB)}}
+		} else {
+			// https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-07.html#section-9.6
+			candidateCipherSuites = [][2]uint8{{uint8(packet.CipherAES128), uint8(packet.AEADModeOCB)}}
+		}
 	}
 
 	cipher := packet.CipherFunction(candidateCiphers[0])
@@ -560,11 +574,12 @@ func (s signatureWriter) Close() error {
 
 func createSignaturePacket(signer *packet.PublicKey, sigType packet.SignatureType, config *packet.Config) *packet.Signature {
 	sigLifetimeSecs := config.SigLifetime()
+	hash := signer.PubKeyAlgo.HandleSpecificHash(config.Hash())
 	return &packet.Signature{
 		Version:           signer.Version,
 		SigType:           sigType,
 		PubKeyAlgo:        signer.PubKeyAlgo,
-		Hash:              config.Hash(),
+		Hash:              hash,
 		CreationTime:      config.Now(),
 		IssuerKeyId:       &signer.KeyId,
 		IssuerFingerprint: signer.Fingerprint,
