@@ -9,6 +9,8 @@ import (
 	"crypto"
 	"crypto/dsa"
 	"encoding/binary"
+	"github.com/ProtonMail/go-crypto/openpgp/dilithium_ecdsa"
+	"github.com/ProtonMail/go-crypto/openpgp/dilithium_eddsa"
 	"hash"
 	"io"
 	"strconv"
@@ -63,6 +65,7 @@ type Signature struct {
 	ECDSASigR, ECDSASigS encoding.Field
 	EdDSASigR, EdDSASigS encoding.Field
 	EdSig                []byte
+	DilithumSig			 encoding.Field
 
 	// rawSubpackets contains the unparsed subpackets, in order.
 	rawSubpackets []outputSubpacket
@@ -165,7 +168,9 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 	sig.SigType = SignatureType(buf[0])
 	sig.PubKeyAlgo = PublicKeyAlgorithm(buf[1])
 	switch sig.PubKeyAlgo {
-	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA, PubKeyAlgoEd25519, PubKeyAlgoEd448:
+	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA, PubKeyAlgoEd25519,
+		PubKeyAlgoEd448, PubKeyAlgoDilithium3Ed25519, PubKeyAlgoDilithium5Ed448, PubKeyAlgoDilithium3p256,
+		PubKeyAlgoDilithium5p384, PubKeyAlgoDilithium3Brainpool256, PubKeyAlgoDilithium5Brainpool384:
 	default:
 		err = errors.UnsupportedError("public key algorithm " + strconv.Itoa(int(sig.PubKeyAlgo)))
 		return
@@ -303,6 +308,74 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 		if err != nil {
 			return
 		}
+	case PubKeyAlgoDilithium3Ed25519:
+		sig.EdDSASigR = encoding.NewEmptyOctetArray(64)
+		if _, err = sig.EdDSASigR.ReadFrom(r); err != nil {
+			return
+		}
+
+		sig.DilithumSig = encoding.NewEmptyOctetArray(3293)
+		_, err = sig.DilithumSig.ReadFrom(r)
+	case PubKeyAlgoDilithium5Ed448:
+		sig.EdDSASigR = encoding.NewEmptyOctetArray(114)
+		if _, err = sig.EdDSASigR.ReadFrom(r); err != nil {
+			return
+		}
+
+		sig.DilithumSig = encoding.NewEmptyOctetArray(4595)
+		_, err = sig.DilithumSig.ReadFrom(r)
+	case PubKeyAlgoDilithium3p256:
+		sig.ECDSASigR = encoding.NewEmptyOctetArray(32)
+		if _, err = sig.ECDSASigR.ReadFrom(r); err != nil {
+			return
+		}
+
+		sig.ECDSASigS = encoding.NewEmptyOctetArray(32)
+		if _, err = sig.ECDSASigS.ReadFrom(r); err != nil {
+			return
+		}
+
+		sig.DilithumSig = encoding.NewEmptyOctetArray(3293)
+		_, err = sig.DilithumSig.ReadFrom(r)
+	case PubKeyAlgoDilithium5p384:
+		sig.ECDSASigR = encoding.NewEmptyOctetArray(48)
+		if _, err = sig.ECDSASigR.ReadFrom(r); err != nil {
+			return
+		}
+
+		sig.ECDSASigS = encoding.NewEmptyOctetArray(48)
+		if _, err = sig.ECDSASigS.ReadFrom(r); err != nil {
+			return
+		}
+
+		sig.DilithumSig = encoding.NewEmptyOctetArray(4595)
+		_, err = sig.DilithumSig.ReadFrom(r)
+	case PubKeyAlgoDilithium3Brainpool256:
+		sig.ECDSASigR = encoding.NewEmptyOctetArray(32)
+		if _, err = sig.ECDSASigR.ReadFrom(r); err != nil {
+			return
+		}
+
+		sig.ECDSASigS = encoding.NewEmptyOctetArray(32)
+		if _, err = sig.ECDSASigS.ReadFrom(r); err != nil {
+			return
+		}
+
+		sig.DilithumSig = encoding.NewEmptyOctetArray(3293)
+		_, err = sig.DilithumSig.ReadFrom(r)
+	case PubKeyAlgoDilithium5Brainpool384:
+		sig.ECDSASigR = encoding.NewEmptyOctetArray(48)
+		if _, err = sig.ECDSASigR.ReadFrom(r); err != nil {
+			return
+		}
+
+		sig.ECDSASigS = encoding.NewEmptyOctetArray(48)
+		if _, err = sig.ECDSASigS.ReadFrom(r); err != nil {
+			return
+		}
+
+		sig.DilithumSig = encoding.NewEmptyOctetArray(4595)
+		_, err = sig.DilithumSig.ReadFrom(r)
 	default:
 		panic("unreachable")
 	}
@@ -927,6 +1000,24 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 		if err == nil {
 			sig.EdSig = signature
 		}
+	case PubKeyAlgoDilithium3p256, PubKeyAlgoDilithium5p384, PubKeyAlgoDilithium3Brainpool256,
+		PubKeyAlgoDilithium5Brainpool384:
+		sk := priv.PrivateKey.(*dilithium_ecdsa.PrivateKey)
+		dSig, ecR, ecS, err := dilithium_ecdsa.Sign(config.Random(), sk, digest)
+
+		if err == nil {
+			sig.DilithumSig = encoding.NewOctetArray(dSig)
+			sig.ECDSASigR = encoding.NewOctetArray(ecR)
+			sig.ECDSASigS = encoding.NewOctetArray(ecS)
+		}
+	case PubKeyAlgoDilithium3Ed25519, PubKeyAlgoDilithium5Ed448:
+		sk := priv.PrivateKey.(*dilithium_eddsa.PrivateKey)
+		dSig, ecSig, err := dilithium_eddsa.Sign(sk, digest)
+
+		if err == nil {
+			sig.DilithumSig = encoding.NewOctetArray(dSig)
+			sig.EdDSASigR = encoding.NewOctetArray(ecSig)
+		}
 	default:
 		err = errors.UnsupportedError("public key algorithm: " + strconv.Itoa(int(sig.PubKeyAlgo)))
 	}
@@ -1053,6 +1144,14 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 		sigLength = ed25519.SignatureSize
 	case PubKeyAlgoEd448:
 		sigLength = ed448.SignatureSize
+	case PubKeyAlgoDilithium3Ed25519, PubKeyAlgoDilithium5Ed448:
+		sigLength = int(sig.EdDSASigR.EncodedLength())
+		sigLength += int(sig.DilithumSig.EncodedLength())
+	case PubKeyAlgoDilithium3p256, PubKeyAlgoDilithium5p384, PubKeyAlgoDilithium3Brainpool256,
+		PubKeyAlgoDilithium5Brainpool384:
+		sigLength = int(sig.ECDSASigR.EncodedLength())
+		sigLength += int(sig.ECDSASigS.EncodedLength())
+		sigLength += int(sig.DilithumSig.EncodedLength())
 	default:
 		panic("impossible")
 	}
@@ -1159,6 +1258,20 @@ func (sig *Signature) serializeBody(w io.Writer) (err error) {
 		err = ed25519.WriteSignature(w, sig.EdSig)
 	case PubKeyAlgoEd448:
 		err = ed448.WriteSignature(w, sig.EdSig)
+	case PubKeyAlgoDilithium3Ed25519, PubKeyAlgoDilithium5Ed448:
+		if _, err = w.Write(sig.EdDSASigR.EncodedBytes()); err != nil {
+			return
+		}
+		_, err = w.Write(sig.DilithumSig.EncodedBytes())
+	case PubKeyAlgoDilithium3p256, PubKeyAlgoDilithium5p384, PubKeyAlgoDilithium3Brainpool256,
+		PubKeyAlgoDilithium5Brainpool384:
+		if _, err = w.Write(sig.ECDSASigR.EncodedBytes()); err != nil {
+			return
+		}
+		if _, err = w.Write(sig.ECDSASigS.EncodedBytes()); err != nil {
+			return
+		}
+		_, err = w.Write(sig.DilithumSig.EncodedBytes())
 	default:
 		panic("impossible")
 	}
