@@ -8,6 +8,7 @@ package packet // import "github.com/ProtonMail/go-crypto/openpgp/packet"
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/cipher"
 	"crypto/rsa"
 	"io"
@@ -512,13 +513,22 @@ const (
 	// Deprecated in RFC 4880, Section 13.5. Use key flags instead.
 	PubKeyAlgoRSAEncryptOnly PublicKeyAlgorithm = 2
 	PubKeyAlgoRSASignOnly    PublicKeyAlgorithm = 3
+
+	// Experimental PQC KEM algorithms
+	PubKeyAlgoMlkem768X25519 = 105
+	PubKeyAlgoMlkem1024X448  = 106
+
+	// Experimental PQC DSA algorithms
+	PubKeyAlgoMldsa65Ed25519 = 107
+	PubKeyAlgoMldsa87Ed448   = 108
 )
 
 // CanEncrypt returns true if it's possible to encrypt a message to a public
 // key of the given type.
 func (pka PublicKeyAlgorithm) CanEncrypt() bool {
 	switch pka {
-	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoElGamal, PubKeyAlgoECDH, PubKeyAlgoX25519, PubKeyAlgoX448, ExperimentalPubKeyAlgoAEAD:
+	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoElGamal, PubKeyAlgoECDH, PubKeyAlgoX25519, PubKeyAlgoX448, ExperimentalPubKeyAlgoAEAD,
+		PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem1024X448:
 		return true
 	}
 	return false
@@ -528,10 +538,23 @@ func (pka PublicKeyAlgorithm) CanEncrypt() bool {
 // sign a message.
 func (pka PublicKeyAlgorithm) CanSign() bool {
 	switch pka {
-	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA, PubKeyAlgoEd25519, PubKeyAlgoEd448, ExperimentalPubKeyAlgoHMAC:
+	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA, PubKeyAlgoEd25519,
+		PubKeyAlgoEd448, ExperimentalPubKeyAlgoHMAC, PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
 		return true
 	}
 	return false
+}
+
+// HandleSpecificHash returns the mandated hash if the algorithm requires it;
+// otherwise, it returns the selectedHash.
+func (pka PublicKeyAlgorithm) HandleSpecificHash(selectedHash crypto.Hash) crypto.Hash {
+	switch pka {
+	case PubKeyAlgoMldsa65Ed25519:
+		return crypto.SHA3_256
+	case PubKeyAlgoMldsa87Ed448:
+		return crypto.SHA3_512
+	}
+	return selectedHash
 }
 
 // CipherFunction represents the different block ciphers specified for OpenPGP. See
