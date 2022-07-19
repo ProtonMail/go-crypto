@@ -126,6 +126,7 @@ func (e *Entity) EncryptionKeyWithError(now time.Time, config *packet.Config) (K
 	// Iterate the keys to find the newest, unexpired one
 	var latestSelectionError *errors.ErrEncryptionKeySelection
 	candidateSubkey := -1
+	isPQ := false
 	var maxTime time.Time
 	var selectedSubkeySelfSig *packet.Signature
 	for i, subkey := range e.Subkeys {
@@ -153,10 +154,11 @@ func (e *Entity) EncryptionKeyWithError(now time.Time, config *packet.Config) (K
 			latestSelectionError = subkeyErr(err)
 			continue
 		}
-		if maxTime.IsZero() || subkeySelfSig.CreationTime.Unix() >= maxTime.Unix() {
+		if maxTime.IsZero() || subkeySelfSig.CreationTime.Unix() >= maxTime.Unix() || (!isPQ && subkey.IsPQ()) {
 			candidateSubkey = i
 			selectedSubkeySelfSig = subkeySelfSig
 			maxTime = subkeySelfSig.CreationTime
+			isPQ = subkey.IsPQ() // Prefer PQ keys
 		}
 	}
 
@@ -255,6 +257,7 @@ func (e *Entity) signingKeyByIdUsage(now time.Time, id uint64, flags int, config
 	}
 
 	// Iterate the keys to find the newest, unexpired one.
+	isPQ := false
 	candidateSubkey := -1
 	var maxTime time.Time
 	var selectedSubkeySelfSig *packet.Signature
@@ -265,10 +268,12 @@ func (e *Entity) signingKeyByIdUsage(now time.Time, id uint64, flags int, config
 			(flags&packet.KeyFlagSign == 0 || isValidSigningKey(subkeySelfSig, subkey.PublicKey.PubKeyAlgo, config)) &&
 			checkKeyRequirements(subkey.PublicKey, config) == nil &&
 			(maxTime.IsZero() || subkeySelfSig.CreationTime.Unix() >= maxTime.Unix()) &&
-			(id == 0 || subkey.PublicKey.KeyId == id) {
+			(id == 0 || subkey.PublicKey.KeyId == id) &&
+			(!isPQ || subkey.IsPQ()) {
 			candidateSubkey = idx
 			maxTime = subkeySelfSig.CreationTime
 			selectedSubkeySelfSig = subkeySelfSig
+			isPQ = subkey.IsPQ()
 		}
 	}
 

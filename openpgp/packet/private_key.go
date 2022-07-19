@@ -13,6 +13,7 @@ import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/subtle"
+	goerrors "errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -27,6 +28,8 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/elgamal"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/encoding"
+	"github.com/ProtonMail/go-crypto/openpgp/mldsa_eddsa"
+	"github.com/ProtonMail/go-crypto/openpgp/mlkem_ecdh"
 	"github.com/ProtonMail/go-crypto/openpgp/s2k"
 	"github.com/ProtonMail/go-crypto/openpgp/x25519"
 	"github.com/ProtonMail/go-crypto/openpgp/x448"
@@ -166,6 +169,8 @@ func NewSignerPrivateKey(creationTime time.Time, signer interface{}) *PrivateKey
 		pk.PublicKey = *NewEd448PublicKey(creationTime, &pubkey.PublicKey)
 	case ed448.PrivateKey:
 		pk.PublicKey = *NewEd448PublicKey(creationTime, &pubkey.PublicKey)
+	case *mldsa_eddsa.PrivateKey:
+		pk.PublicKey = *NewMldsaEddsaPublicKey(creationTime, &pubkey.PublicKey)
 	default:
 		panic("openpgp: unknown signer type in NewSignerPrivateKey")
 	}
@@ -173,7 +178,7 @@ func NewSignerPrivateKey(creationTime time.Time, signer interface{}) *PrivateKey
 	return pk
 }
 
-// NewDecrypterPrivateKey creates a PrivateKey from a *{rsa|elgamal|ecdh|x25519|x448}.PrivateKey.
+// NewDecrypterPrivateKey creates a PrivateKey from a *{rsa|elgamal|ecdh|x25519|x448|mlkem_ecdh}.PrivateKey.
 func NewDecrypterPrivateKey(creationTime time.Time, decrypter interface{}) *PrivateKey {
 	pk := new(PrivateKey)
 	switch priv := decrypter.(type) {
@@ -187,6 +192,8 @@ func NewDecrypterPrivateKey(creationTime time.Time, decrypter interface{}) *Priv
 		pk.PublicKey = *NewX25519PublicKey(creationTime, &priv.PublicKey)
 	case *x448.PrivateKey:
 		pk.PublicKey = *NewX448PublicKey(creationTime, &priv.PublicKey)
+	case *mlkem_ecdh.PrivateKey:
+		pk.PublicKey = *NewMlkemEcdhPublicKey(creationTime, &priv.PublicKey)
 	default:
 		panic("openpgp: unknown decrypter type in NewDecrypterPrivateKey")
 	}
@@ -530,6 +537,28 @@ func serializeEd448PrivateKey(w io.Writer, priv *ed448.PrivateKey) error {
 	return err
 }
 
+// serializeMlkemPrivateKey serializes a ML-KEM + ECC private key according to
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-05.html#name-key-material-packets
+func serializeMlkemPrivateKey(w io.Writer, priv *mlkem_ecdh.PrivateKey) (err error) {
+	if _, err = w.Write(encoding.NewOctetArray(priv.SecretEc).EncodedBytes()); err != nil {
+		return err
+	}
+	_, err = w.Write(encoding.NewOctetArray(priv.SecretMlkemSeed).EncodedBytes())
+	return err
+}
+
+// serializeMldsaEddsaPrivateKey serializes a ML-DSA + EdDSA private key according to
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-05.html#name-key-material-packets-2
+func serializeMldsaEddsaPrivateKey(w io.Writer, priv *mldsa_eddsa.PrivateKey) error {
+	if _, err := w.Write(encoding.NewOctetArray(priv.SecretEc).EncodedBytes()); err != nil {
+		return err
+	}
+	if _, err := w.Write(encoding.NewOctetArray(priv.SecretMldsaSeed).EncodedBytes()); err != nil {
+		return err
+	}
+	return nil
+}
+
 // decrypt decrypts an encrypted private key using a decryption key.
 func (pk *PrivateKey) decrypt(decryptionKey []byte) error {
 	if pk.Dummy() {
@@ -830,6 +859,10 @@ func (pk *PrivateKey) serializePrivateKey(w io.Writer) (err error) {
 		err = serializeEd25519PrivateKey(w, priv)
 	case *ed448.PrivateKey:
 		err = serializeEd448PrivateKey(w, priv)
+	case *mlkem_ecdh.PrivateKey:
+		err = serializeMlkemPrivateKey(w, priv)
+	case *mldsa_eddsa.PrivateKey:
+		err = serializeMldsaEddsaPrivateKey(w, priv)
 	default:
 		err = errors.InvalidArgumentError("unknown private key type")
 	}
@@ -858,6 +891,14 @@ func (pk *PrivateKey) parsePrivateKey(data []byte) (err error) {
 		return pk.parseEd25519PrivateKey(data)
 	case PubKeyAlgoEd448:
 		return pk.parseEd448PrivateKey(data)
+	case PubKeyAlgoMlkem768X25519:
+		return pk.parseMlkemEcdhPrivateKey(data, 32, mlkem_ecdh.MlKemSeedLen)
+	case PubKeyAlgoMlkem1024X448:
+		return pk.parseMlkemEcdhPrivateKey(data, 56, mlkem_ecdh.MlKemSeedLen)
+	case PubKeyAlgoMldsa65Ed25519:
+		return pk.parseMldsaEddsaPrivateKey(data, 32, mldsa_eddsa.MlDsaSeedLen)
+	case PubKeyAlgoMldsa87Ed448:
+		return pk.parseMldsaEddsaPrivateKey(data, 57, mldsa_eddsa.MlDsaSeedLen)
 	default:
 		err = errors.StructuralError("unknown private key type")
 		return
@@ -1119,6 +1160,72 @@ func (pk *PrivateKey) applyHKDF(inputKey []byte) []byte {
 	encryptionKey := make([]byte, pk.cipher.KeySize())
 	_, _ = readFull(hkdfReader, encryptionKey)
 	return encryptionKey
+}
+
+// parseMldsaEddsaPrivateKey parses a ML-DSA + EdDSA private key as specified in
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-05.html#name-key-material-packets-2
+func (pk *PrivateKey) parseMldsaEddsaPrivateKey(data []byte, ecLen, seedLen int) (err error) {
+	if pk.Version != 6 {
+		return goerrors.New("openpgp: cannot parse non-v6 ML-DSA + EdDSA key")
+	}
+	pub := pk.PublicKey.PublicKey.(*mldsa_eddsa.PublicKey)
+	priv := new(mldsa_eddsa.PrivateKey)
+	priv.PublicKey = *pub
+
+	buf := bytes.NewBuffer(data)
+	ec := encoding.NewEmptyOctetArray(ecLen)
+	if _, err := ec.ReadFrom(buf); err != nil {
+		return err
+	}
+	priv.SecretEc = ec.Bytes()
+
+	seed := encoding.NewEmptyOctetArray(seedLen)
+	if _, err := seed.ReadFrom(buf); err != nil {
+		return err
+	}
+	if err = priv.DeriveMlDsaKeys(seed.Bytes(), false); err != nil {
+		return err
+	}
+
+	if err := mldsa_eddsa.Validate(priv); err != nil {
+		return err
+	}
+	pk.PrivateKey = priv
+
+	return nil
+}
+
+// parseMlkemEcdhPrivateKey parses a ML-KEM + ECC private key as specified in
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-05.html#name-key-material-packets
+func (pk *PrivateKey) parseMlkemEcdhPrivateKey(data []byte, ecLen, seedLen int) (err error) {
+	if pk.Version != 6 {
+		return goerrors.New("openpgp: cannot parse non-v6 ML-KEM + ECDH key")
+	}
+	pub := pk.PublicKey.PublicKey.(*mlkem_ecdh.PublicKey)
+	priv := new(mlkem_ecdh.PrivateKey)
+	priv.PublicKey = *pub
+
+	buf := bytes.NewBuffer(data)
+	ec := encoding.NewEmptyOctetArray(ecLen)
+	if _, err := ec.ReadFrom(buf); err != nil {
+		return err
+	}
+	priv.SecretEc = ec.Bytes()
+
+	seed := encoding.NewEmptyOctetArray(seedLen)
+	if _, err := seed.ReadFrom(buf); err != nil {
+		return err
+	}
+	if err = priv.DeriveMlKemKeys(seed.Bytes(), false); err != nil {
+		return err
+	}
+
+	if err := mlkem_ecdh.Validate(priv); err != nil {
+		return err
+	}
+	pk.PrivateKey = priv
+
+	return nil
 }
 
 func validateDSAParameters(priv *dsa.PrivateKey) error {

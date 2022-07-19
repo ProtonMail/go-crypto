@@ -10,6 +10,7 @@ import (
 	"crypto/dsa"
 	"encoding/asn1"
 	"encoding/binary"
+	"fmt"
 	"hash"
 	"io"
 	"math/big"
@@ -23,6 +24,9 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/encoding"
+	"github.com/ProtonMail/go-crypto/openpgp/mldsa_eddsa"
+	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
+	"github.com/cloudflare/circl/sign/mldsa/mldsa87"
 )
 
 const (
@@ -81,6 +85,8 @@ type Signature struct {
 	ECDSASigR, ECDSASigS encoding.Field
 	EdDSASigR, EdDSASigS encoding.Field
 	EdSig                []byte
+	MldsaSig             encoding.Field
+	SlhdsaSig            encoding.Field
 
 	// rawSubpackets contains the unparsed subpackets, in order.
 	rawSubpackets []outputSubpacket
@@ -200,7 +206,8 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 	sig.SigType = SignatureType(buf[0])
 	sig.PubKeyAlgo = PublicKeyAlgorithm(buf[1])
 	switch sig.PubKeyAlgo {
-	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA, PubKeyAlgoEd25519, PubKeyAlgoEd448:
+	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA, PubKeyAlgoEd25519, PubKeyAlgoEd448,
+		PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
 	default:
 		err = errors.UnsupportedError("public key algorithm " + strconv.Itoa(int(sig.PubKeyAlgo)))
 		return
@@ -338,9 +345,30 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 		if err != nil {
 			return
 		}
+	case PubKeyAlgoMldsa65Ed25519:
+		if err = sig.parseMldsaEddsaSignature(r, 64, mldsa65.SignatureSize); err != nil {
+			return
+		}
+	case PubKeyAlgoMldsa87Ed448:
+		if err = sig.parseMldsaEddsaSignature(r, 114, mldsa87.SignatureSize); err != nil {
+			return
+		}
 	default:
 		panic("unreachable")
 	}
+	return
+}
+
+// parseMldsaEddsaSignature parses an ML-DSA + EdDSA signature as specified in
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-05.html#name-signature-packet-tag-2
+func (sig *Signature) parseMldsaEddsaSignature(r io.Reader, ecLen, dLen int) (err error) {
+	sig.EdDSASigR = encoding.NewEmptyOctetArray(ecLen)
+	if _, err = sig.EdDSASigR.ReadFrom(r); err != nil {
+		return
+	}
+
+	sig.MldsaSig = encoding.NewEmptyOctetArray(dLen)
+	_, err = sig.MldsaSig.ReadFrom(r)
 	return
 }
 
@@ -1000,6 +1028,23 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 		if err == nil {
 			sig.EdSig = signature
 		}
+	case PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
+		if sig.Version != 6 {
+			return errors.StructuralError("cannot use MldsaEdDsa on a non-v6 signature")
+		}
+		if priv.PubKeyAlgo == PubKeyAlgoMldsa65Ed25519 && sig.Hash != crypto.SHA3_256 {
+			return errors.StructuralError(fmt.Sprintf("Mldsa65Ed25519 requires sha3-256 message hash: got %s", sig.Hash))
+		}
+		if priv.PubKeyAlgo == PubKeyAlgoMldsa87Ed448 && sig.Hash != crypto.SHA3_512 {
+			return errors.StructuralError(fmt.Sprintf("Mldsa87Ed448 requires sha3-512 message hash: got %s", sig.Hash))
+		}
+		sk := priv.PrivateKey.(*mldsa_eddsa.PrivateKey)
+		dSig, ecSig, err := mldsa_eddsa.Sign(sk, digest)
+
+		if err == nil {
+			sig.MldsaSig = encoding.NewOctetArray(dSig)
+			sig.EdDSASigR = encoding.NewOctetArray(ecSig)
+		}
 	default:
 		err = errors.UnsupportedError("public key algorithm: " + strconv.Itoa(int(sig.PubKeyAlgo)))
 	}
@@ -1117,7 +1162,7 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 	if len(sig.outSubpackets) == 0 {
 		sig.outSubpackets = sig.rawSubpackets
 	}
-	if sig.RSASignature == nil && sig.DSASigR == nil && sig.ECDSASigR == nil && sig.EdDSASigR == nil && sig.EdSig == nil {
+	if sig.RSASignature == nil && sig.DSASigR == nil && sig.ECDSASigR == nil && sig.EdDSASigR == nil && sig.EdSig == nil && sig.SlhdsaSig == nil {
 		return errors.InvalidArgumentError("Signature: need to call Sign, SignUserId or SignKey before Serialize")
 	}
 
@@ -1138,6 +1183,9 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 		sigLength = ed25519.SignatureSize
 	case PubKeyAlgoEd448:
 		sigLength = ed448.SignatureSize
+	case PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
+		sigLength = int(sig.EdDSASigR.EncodedLength())
+		sigLength += int(sig.MldsaSig.EncodedLength())
 	default:
 		panic("impossible")
 	}
@@ -1244,6 +1292,11 @@ func (sig *Signature) serializeBody(w io.Writer) (err error) {
 		err = ed25519.WriteSignature(w, sig.EdSig)
 	case PubKeyAlgoEd448:
 		err = ed448.WriteSignature(w, sig.EdSig)
+	case PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
+		if _, err = w.Write(sig.EdDSASigR.EncodedBytes()); err != nil {
+			return
+		}
+		_, err = w.Write(sig.MldsaSig.EncodedBytes())
 	default:
 		panic("impossible")
 	}

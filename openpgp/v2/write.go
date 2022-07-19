@@ -610,9 +610,15 @@ func encrypt(
 		// Override the time to select the encryption key with the provided one.
 		timeForEncryptionKey = *params.EncryptionTime
 	}
+
+	allPQ := len(encryptKeys) > 0
 	for i, recipient := range append(to, toHidden...) {
 		if encryptKeys[i], err = recipient.EncryptionKeyWithError(timeForEncryptionKey, config); err != nil {
 			return nil, err
+		}
+
+		if !encryptKeys[i].PublicKey.IsPQ() {
+			allPQ = false
 		}
 
 		primarySelfSignature, _ := recipient.PrimarySelfSignature(timeForEncryptionKey, config)
@@ -641,8 +647,12 @@ func encrypt(
 		candidateHashes = []uint8{hashToHashId(crypto.SHA256)}
 	}
 	if len(candidateCipherSuites) == 0 {
-		// https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-07.html#section-9.6
-		candidateCipherSuites = [][2]uint8{{uint8(packet.CipherAES128), uint8(packet.AEADModeOCB)}}
+		if allPQ {
+			candidateCipherSuites = [][2]uint8{{uint8(packet.CipherAES256), uint8(packet.AEADModeOCB)}}
+		} else {
+			// https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-07.html#section-9.6
+			candidateCipherSuites = [][2]uint8{{uint8(packet.CipherAES128), uint8(packet.AEADModeOCB)}}
+		}
 	}
 
 	cipher := packet.CipherFunction(candidateCiphers[0])
@@ -1044,6 +1054,14 @@ func acceptableHashesToWrite(singingKey *packet.PublicKey) []uint8 {
 					hashToHashId(crypto.SHA3_512),
 				}
 			}
+		}
+	case packet.PubKeyAlgoMldsa65Ed25519:
+		return []uint8{
+			hashToHashId(crypto.SHA3_256),
+		}
+	case packet.PubKeyAlgoMldsa87Ed448:
+		return []uint8{
+			hashToHashId(crypto.SHA3_512),
 		}
 	}
 	return []uint8{
