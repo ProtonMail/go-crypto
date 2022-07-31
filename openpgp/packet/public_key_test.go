@@ -6,12 +6,14 @@ package packet
 
 import (
 	"bytes"
-	"crypto/ecdsa"
 	"crypto/elliptic"
 	"encoding/hex"
+	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
 	"math/big"
 	"testing"
 	"time"
+
+	"github.com/ProtonMail/go-crypto/openpgp/ecdsa"
 )
 
 var pubKeyTests = []struct {
@@ -191,7 +193,7 @@ func TestEcc384Serialize(t *testing.T) {
 func TestP256KeyID(t *testing.T) {
 	// Confirm that key IDs are correctly calculated for ECC keys.
 	ecdsaPub := &ecdsa.PublicKey{
-		Curve: elliptic.P256(),
+		Curve: ecc.NewGenericCurve(elliptic.P256(), ecc.NISTCurve),
 		X:     fromHex("81fbbc20eea9e8d1c3ceabb0a8185925b113d1ac42cd5c78403bd83da19235c6"),
 		Y:     fromHex("5ed6db13d91db34507d0129bf88981878d29adbf8fcd1720afdb767bb3fcaaff"),
 	}

@@ -9,27 +9,22 @@ import (
 	"crypto"
 	"crypto/cipher"
 	"crypto/dsa"
-	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha1"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"math/big"
 	"strconv"
 	"time"
 
-	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
-	"golang.org/x/crypto/curve25519"
-
 	"github.com/ProtonMail/go-crypto/openpgp/ecdh"
+	"github.com/ProtonMail/go-crypto/openpgp/ecdsa"
+	"github.com/ProtonMail/go-crypto/openpgp/eddsa"
 	"github.com/ProtonMail/go-crypto/openpgp/elgamal"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/encoding"
 	"github.com/ProtonMail/go-crypto/openpgp/s2k"
-	"golang.org/x/crypto/ed25519"
 )
 
 // PrivateKey represents a possibly encrypted private key. See RFC 4880,
@@ -94,10 +89,9 @@ func NewECDSAPrivateKey(creationTime time.Time, priv *ecdsa.PrivateKey) *Private
 	return pk
 }
 
-func NewEdDSAPrivateKey(creationTime time.Time, priv *ed25519.PrivateKey) *PrivateKey {
+func NewEdDSAPrivateKey(creationTime time.Time, priv *eddsa.PrivateKey) *PrivateKey {
 	pk := new(PrivateKey)
-	pub := priv.Public().(ed25519.PublicKey)
-	pk.PublicKey = *NewEdDSAPublicKey(creationTime, &pub)
+	pk.PublicKey = *NewEdDSAPublicKey(creationTime, &priv.PublicKey)
 	pk.PrivateKey = priv
 	return pk
 }
@@ -111,25 +105,25 @@ func NewECDHPrivateKey(creationTime time.Time, priv *ecdh.PrivateKey) *PrivateKe
 
 // NewSignerPrivateKey creates a PrivateKey from a crypto.Signer that
 // implements RSA, ECDSA or EdDSA.
-func NewSignerPrivateKey(creationTime time.Time, signer crypto.Signer) *PrivateKey {
+func NewSignerPrivateKey(creationTime time.Time, signer interface{}) *PrivateKey {
 	pk := new(PrivateKey)
 	// In general, the public Keys should be used as pointers. We still
 	// type-switch on the values, for backwards-compatibility.
-	switch pubkey := signer.Public().(type) {
-	case *rsa.PublicKey:
-		pk.PublicKey = *NewRSAPublicKey(creationTime, pubkey)
-	case rsa.PublicKey:
-		pk.PublicKey = *NewRSAPublicKey(creationTime, &pubkey)
-	case *ecdsa.PublicKey:
-		pk.PublicKey = *NewECDSAPublicKey(creationTime, pubkey)
-	case ecdsa.PublicKey:
-		pk.PublicKey = *NewECDSAPublicKey(creationTime, &pubkey)
-	case *ed25519.PublicKey:
-		pk.PublicKey = *NewEdDSAPublicKey(creationTime, pubkey)
-	case ed25519.PublicKey:
-		pk.PublicKey = *NewEdDSAPublicKey(creationTime, &pubkey)
+	switch pubkey := signer.(type) {
+	case *rsa.PrivateKey:
+		pk.PublicKey = *NewRSAPublicKey(creationTime, &pubkey.PublicKey)
+	case rsa.PrivateKey:
+		pk.PublicKey = *NewRSAPublicKey(creationTime, &pubkey.PublicKey)
+	case *ecdsa.PrivateKey:
+		pk.PublicKey = *NewECDSAPublicKey(creationTime, &pubkey.PublicKey)
+	case ecdsa.PrivateKey:
+		pk.PublicKey = *NewECDSAPublicKey(creationTime, &pubkey.PublicKey)
+	case *eddsa.PrivateKey:
+		pk.PublicKey = *NewEdDSAPublicKey(creationTime, &pubkey.PublicKey)
+	case eddsa.PrivateKey:
+		pk.PublicKey = *NewEdDSAPublicKey(creationTime, &pubkey.PublicKey)
 	default:
-		panic("openpgp: unknown crypto.Signer type in NewSignerPrivateKey")
+		panic("openpgp: unknown signer type in NewSignerPrivateKey")
 	}
 	pk.PrivateKey = signer
 	return pk
@@ -369,9 +363,8 @@ func serializeECDSAPrivateKey(w io.Writer, priv *ecdsa.PrivateKey) error {
 	return err
 }
 
-func serializeEdDSAPrivateKey(w io.Writer, priv *ed25519.PrivateKey) error {
-	keySize := ed25519.PrivateKeySize - ed25519.PublicKeySize
-	_, err := w.Write(encoding.NewMPI((*priv)[:keySize]).EncodedBytes())
+func serializeEdDSAPrivateKey(w io.Writer, priv *eddsa.PrivateKey) error {
+	_, err := w.Write(encoding.NewMPI(priv.D).EncodedBytes())
 	return err
 }
 
@@ -509,7 +502,7 @@ func (pk *PrivateKey) serializePrivateKey(w io.Writer) (err error) {
 		err = serializeElGamalPrivateKey(w, priv)
 	case *ecdsa.PrivateKey:
 		err = serializeECDSAPrivateKey(w, priv)
-	case *ed25519.PrivateKey:
+	case *eddsa.PrivateKey:
 		err = serializeEdDSAPrivateKey(w, priv)
 	case *ecdh.PrivateKey:
 		err = serializeECDHPrivateKey(w, priv)
@@ -623,7 +616,7 @@ func (pk *PrivateKey) parseECDSAPrivateKey(data []byte) (err error) {
 	}
 
 	ecdsaPriv.D = new(big.Int).SetBytes(d.Bytes())
-	if err := validateECDSAParameters(ecdsaPriv); err != nil {
+	if err := ecdsa.Validate(ecdsaPriv); err != nil {
 		return err
 	}
 	pk.PrivateKey = ecdsaPriv
@@ -643,17 +636,19 @@ func (pk *PrivateKey) parseECDHPrivateKey(data []byte) (err error) {
 	}
 
 	ecdhPriv.D = d.Bytes()
-	if err := validateECDHParameters(ecdhPriv); err != nil {
+	if err := ecdh.Validate(ecdhPriv); err != nil {
 		return err
 	}
+
 	pk.PrivateKey = ecdhPriv
 
 	return nil
 }
 
 func (pk *PrivateKey) parseEdDSAPrivateKey(data []byte) (err error) {
-	eddsaPub := pk.PublicKey.PublicKey.(*ed25519.PublicKey)
-	eddsaPriv := make(ed25519.PrivateKey, ed25519.PrivateKeySize)
+	eddsaPub := pk.PublicKey.PublicKey.(*eddsa.PublicKey)
+	eddsaPriv := new(eddsa.PrivateKey)
+	eddsaPriv.PublicKey = *eddsaPub
 
 	buf := bytes.NewBuffer(data)
 	d := new(encoding.MPI)
@@ -661,64 +656,13 @@ func (pk *PrivateKey) parseEdDSAPrivateKey(data []byte) (err error) {
 		return err
 	}
 
-	priv := d.Bytes()
-	copy(eddsaPriv[32-len(priv):32], priv)
-	copy(eddsaPriv[32:], (*eddsaPub)[:])
-	if err := validateEdDSAParameters(&eddsaPriv); err != nil {
+	eddsaPriv.D = d.Bytes()
+	if err := eddsa.Validate(eddsaPriv); err != nil {
 		return err
 	}
-	pk.PrivateKey = &eddsaPriv
 
-	return nil
-}
+	pk.PrivateKey = eddsaPriv
 
-func validateECDSAParameters(priv *ecdsa.PrivateKey) error {
-	return validateCommonECC(priv.Curve, priv.D.Bytes(), priv.X, priv.Y)
-}
-
-func validateECDHParameters(priv *ecdh.PrivateKey) error {
-	if priv.CurveType != ecc.Curve25519 {
-		return validateCommonECC(priv.Curve, priv.D, priv.X, priv.Y)
-	}
-	// Handle Curve25519
-	Q := priv.X.Bytes()[1:]
-	var d [32]byte
-	// Copy reversed d
-	l := len(priv.D)
-	for i := 0; i < l; i++ {
-		d[i] = priv.D[l-i-1]
-	}
-	var expectedQ [32]byte
-	curve25519.ScalarBaseMult(&expectedQ, &d)
-	if !bytes.Equal(Q, expectedQ[:]) {
-		return errors.KeyInvalidError("ECDH curve25519: invalid point")
-	}
-	return nil
-}
-
-func validateCommonECC(curve elliptic.Curve, d []byte, X, Y *big.Int) error {
-	// the public point should not be at infinity (0,0)
-	zero := new(big.Int)
-	if X.Cmp(zero) == 0 && Y.Cmp(zero) == 0 {
-		return errors.KeyInvalidError(fmt.Sprintf("ecc (%s): infinity point", curve.Params().Name))
-	}
-	// re-derive the public point Q' = (X,Y) = dG
-	// to compare to declared Q in public key
-	expectedX, expectedY := curve.ScalarBaseMult(d)
-	if X.Cmp(expectedX) != 0 || Y.Cmp(expectedY) != 0 {
-		return errors.KeyInvalidError(fmt.Sprintf("ecc (%s): invalid point", curve.Params().Name))
-	}
-	return nil
-}
-
-func validateEdDSAParameters(priv *ed25519.PrivateKey) error {
-	// In EdDSA, the serialized public point is stored as part of private key (together with the seed),
-	// hence we can re-derive the key from the seed
-	seed := priv.Seed()
-	expectedPriv := ed25519.NewKeyFromSeed(seed)
-	if !bytes.Equal(*priv, expectedPriv) {
-		return errors.KeyInvalidError("eddsa: invalid point")
-	}
 	return nil
 }
 
