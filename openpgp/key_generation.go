@@ -13,10 +13,11 @@ import (
 	"math/big"
 
 	"github.com/ProtonMail/go-crypto/openpgp/ecdh"
+	"github.com/ProtonMail/go-crypto/openpgp/eddsa"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
+	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
-	"golang.org/x/crypto/ed25519"
 )
 
 // NewEntity returns an Entity that contains a fresh RSA/RSA keypair with a
@@ -243,7 +244,7 @@ func (e *Entity) AddEncryptionSubkey(config *packet.Config) error {
 }
 
 // Generates a signing key
-func newSigner(config *packet.Config) (signer crypto.Signer, err error) {
+func newSigner(config *packet.Config) (signer interface{}, err error) {
 	switch config.PublicKeyAlgorithm() {
 	case packet.PubKeyAlgoRSA:
 		bits := config.RSAModulusBits()
@@ -257,11 +258,11 @@ func newSigner(config *packet.Config) (signer crypto.Signer, err error) {
 		}
 		return rsa.GenerateKey(config.Random(), bits)
 	case packet.PubKeyAlgoEdDSA:
-		_, priv, err := ed25519.GenerateKey(config.Random())
+		priv, err := eddsa.GenerateKey(config.Random(), ecc.NewEd25519())
 		if err != nil {
 			return nil, err
 		}
-		return &priv, nil
+		return priv, nil
 	default:
 		return nil, errors.InvalidArgumentError("unsupported public key algorithm")
 	}
@@ -288,7 +289,7 @@ func newDecrypter(config *packet.Config) (decrypter interface{}, err error) {
 			Hash:   algorithm.SHA512,
 			Cipher: algorithm.AES256,
 		}
-		return ecdh.X25519GenerateKey(config.Random(), kdf)
+		return ecdh.GenerateKey(config.Random(), ecc.NewCurve25519(), kdf)
 	default:
 		return nil, errors.InvalidArgumentError("unsupported public key algorithm")
 	}

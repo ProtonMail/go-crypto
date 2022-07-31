@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto"
 	"crypto/dsa"
-	"crypto/ecdsa"
 	"crypto/rsa"
 	"math/big"
 	"strings"
@@ -13,11 +12,12 @@ import (
 
 	"github.com/ProtonMail/go-crypto/openpgp/armor"
 	"github.com/ProtonMail/go-crypto/openpgp/ecdh"
+	"github.com/ProtonMail/go-crypto/openpgp/ecdsa"
+	"github.com/ProtonMail/go-crypto/openpgp/eddsa"
 	"github.com/ProtonMail/go-crypto/openpgp/elgamal"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
-	"golang.org/x/crypto/ed25519"
 )
 
 var hashes = []crypto.Hash{
@@ -1410,8 +1410,8 @@ func TestKeyValidateOnDecrypt(t *testing.T) {
 	if err = eddsaPrimaryKey.Encrypt(password); err != nil {
 		t.Fatal(err)
 	}
-	pubBytes := *eddsaPrimaryKey.PublicKey.PublicKey.(*ed25519.PublicKey)
-	pubBytes[10] ^= 1
+	pubKey := *eddsaPrimaryKey.PublicKey.PublicKey.(*eddsa.PublicKey)
+	pubKey.X[10] ^= 1
 	err = eddsaPrimaryKey.Decrypt(password)
 	if _, ok := err.(errors.KeyInvalidError); !ok {
 		t.Fatal("Failed to detect invalid EdDSA key")
