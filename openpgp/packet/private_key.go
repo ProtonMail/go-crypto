@@ -364,7 +364,7 @@ func serializeECDSAPrivateKey(w io.Writer, priv *ecdsa.PrivateKey) error {
 }
 
 func serializeEdDSAPrivateKey(w io.Writer, priv *eddsa.PrivateKey) error {
-	_, err := w.Write(encoding.NewMPI(priv.D).EncodedBytes())
+	_, err := w.Write(encoding.NewMPI(priv.Curve.MarshalInteger(priv.D)).EncodedBytes())
 	return err
 }
 
@@ -656,7 +656,7 @@ func (pk *PrivateKey) parseEdDSAPrivateKey(data []byte) (err error) {
 		return err
 	}
 
-	eddsaPriv.D = d.Bytes()
+	eddsaPriv.D = eddsaPub.Curve.UnmarshalInteger(d.Bytes())
 	if err := eddsa.Validate(eddsaPriv); err != nil {
 		return err
 	}

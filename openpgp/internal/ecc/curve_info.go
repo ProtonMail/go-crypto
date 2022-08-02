@@ -15,7 +15,6 @@ type CurveInfo struct {
 	Name string
 	Oid *encoding.OID
 	Curve Curve
-	CanEncrypt bool
 }
 
 var Curves = []CurveInfo{

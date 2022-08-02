@@ -167,7 +167,7 @@ func NewEdDSAPublicKey(creationTime time.Time, pub *eddsa.PublicKey) *PublicKey 
 		PublicKey:    pub,
 		oid:          curveInfo.Oid,
 		// Native point format, see draft-koch-eddsa-for-openpgp-04, Appendix B
-		p: encoding.NewMPI(append([]byte{0x40}, pub.X...)),
+		p: encoding.NewMPI(pub.Curve.MarshalPoint(pub.X)),
 	}
 
 	pk.setFingerprintAndKeyId()
@@ -434,7 +434,7 @@ func (pk *PublicKey) parseEdDSA(r io.Reader) (err error) {
 		// TODO: see _grcy_ecc_eddsa_ensure_compact in grcypt
 		return errors.UnsupportedError("unsupported EdDSA compression: " + strconv.Itoa(int(flag)))
 	case 0x40:
-		pub.X = pk.p.Bytes()[1:]
+		pub.X = pub.Curve.UnmarshalPoint(pk.p.Bytes())
 	default:
 		return errors.UnsupportedError("unsupported EdDSA compression: " + strconv.Itoa(int(flag)))
 	}
