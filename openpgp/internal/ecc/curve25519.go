@@ -90,7 +90,7 @@ func (c *curve25519) GenerateECDH(rand io.Reader) (x, y *big.Int, secret []byte,
 	return
 }
 
-func (c *curve25519) Encaps(x, y *big.Int, rand io.Reader) (ephemeral, sharedSecret []byte, err error) {
+func (c *curve25519) Encaps(rand io.Reader, x, y *big.Int) (ephemeral, sharedSecret []byte, err error) {
 	// RFC6637 §8: "Generate an ephemeral key pair {v, V=vG}"
 	// ephemeralPrivate corresponds to `v`.
 	// ephemeralPublic corresponds to `V`.
@@ -115,6 +115,7 @@ func (c *curve25519) Encaps(x, y *big.Int, rand io.Reader) (ephemeral, sharedSec
 	// RFC6637 §8: "VB = convert point V to the octet string"
 	// vsg corresponds to `VB`
 	var vsg [33]byte
+
 	// This is in "Prefixed Native EC Point Wire Format", defined in
 	// draft-ietf-openpgp-crypto-refresh-05 §13.2.2 as 0x40 || bytes
 	// which ensures a bit in the first octet for later MPI encoding

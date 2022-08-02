@@ -54,7 +54,7 @@ func Encrypt(random io.Reader, pub *PublicKey, msg, curveOID, fingerprint []byte
 	}
 	m := append(msg, padding...)
 
-	vsG, zb, err := pub.Curve.Encaps(pub.X, pub.Y, random)
+	vsG, zb, err := pub.Curve.Encaps(random, pub.X, pub.Y)
 	if err != nil {
 		return nil, nil, err
 	}

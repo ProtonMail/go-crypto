@@ -22,6 +22,28 @@ func (c *ed25519) GetCurveName() string {
 	return "ed25519"
 }
 
+func (c *ed25519) MarshalPoint(x []byte) []byte {
+	return append([]byte{0x40}, x...)
+}
+
+func (c *ed25519) UnmarshalPoint(point []byte) (x []byte) {
+	// Handle stripped leading zeroes
+	x = make([]byte, 32)
+	copy(x[33 - len(point):], point[1:])
+	return
+}
+
+func (c *ed25519) MarshalInteger(d []byte) []byte {
+	return d
+}
+
+func (c *ed25519) UnmarshalInteger(point []byte) (d []byte) {
+	// Handle stripped leading zeroes
+	d = make([]byte, 32)
+	copy(d[32 - len(point):], point)
+	return
+}
+
 func (c *ed25519) GenerateEdDSA(rand io.Reader) (pub, priv []byte, err error) {
 	pk, sk, err := ed25519lib.GenerateKey(rand)
 
@@ -33,11 +55,7 @@ func (c *ed25519) GenerateEdDSA(rand io.Reader) (pub, priv []byte, err error) {
 }
 
 func getSk(publicKey, privateKey []byte) ed25519lib.PrivateKey {
-	sk := make([]byte, ed25519lib.PrivateKeySize)
-	copy(sk[32-len(privateKey):32], privateKey)
-	copy(sk[64-len(publicKey):], publicKey)
-
-	return sk
+	return append(privateKey, publicKey...)
 }
 
 func (c *ed25519) Sign(publicKey, privateKey, message []byte) (r, s []byte, err error) {
@@ -50,10 +68,7 @@ func (c *ed25519) Verify(publicKey, message, r, s []byte) bool {
 	copy(signature[32-len(r):32], r)
 	copy(signature[64-len(s):], s)
 
-	pk := make([]byte, ed25519lib.PublicKeySize)
-	copy(pk[ed25519lib.PublicKeySize - len(publicKey):], publicKey)
-
-	return ed25519lib.Verify(pk, message, signature)
+	return ed25519lib.Verify(publicKey, message, signature)
 }
 
 func (c *ed25519) Validate(publicKey, privateKey []byte) (err error) {

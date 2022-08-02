@@ -56,7 +56,7 @@ func (c *genericCurve) GenerateECDSA(rand io.Reader) (x, y, secret *big.Int, err
 	return priv.X, priv.Y, priv.D, nil
 }
 
-func (c *genericCurve) Encaps(xP, yP *big.Int, rand io.Reader) (ephemeral, sharedSecret []byte, err error) {
+func (c *genericCurve) Encaps(rand io.Reader, xP, yP *big.Int) (ephemeral, sharedSecret []byte, err error) {
 	d, x, y, err := elliptic.GenerateKey(c.Curve, rand)
 	if err != nil {
 		return nil, nil, err
