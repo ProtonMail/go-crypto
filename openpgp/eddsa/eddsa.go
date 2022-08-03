@@ -3,13 +3,14 @@
 package eddsa
 
 import (
+	"errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
 	"io"
 )
 
 type PublicKey struct {
 	X []byte
-	Curve ecc.EdDSACurve
+	curve ecc.EdDSACurve
 }
 
 type PrivateKey struct {
@@ -17,21 +18,63 @@ type PrivateKey struct {
 	D []byte
 }
 
+func NewPublicKey(curve ecc.EdDSACurve) *PublicKey {
+	return &PublicKey{
+		curve: curve,
+	}
+}
+
+func NewPrivateKey(key PublicKey) *PrivateKey {
+	return &PrivateKey{
+		PublicKey: key,
+	}
+}
+
+func (pk *PublicKey) GetCurve() ecc.EdDSACurve {
+	return pk.curve
+}
+
+func (pk *PublicKey) MarshalPoint() []byte {
+	return pk.curve.MarshalPoint(pk.X)
+}
+
+func (pk *PublicKey) UnmarshalPoint(x []byte) error {
+	pk.X = pk.curve.UnmarshalPoint(x)
+
+	if pk.X == nil {
+		return errors.New("eddsa: failed to parse EC point")
+	}
+	return nil
+}
+
+func (sk *PrivateKey) MarshalByteSecret() []byte {
+	return sk.curve.MarshalByteSecret(sk.D)
+}
+
+func (sk *PrivateKey) UnmarshalByteSecret(d []byte) error {
+	sk.D = sk.curve.UnmarshalByteSecret(d)
+
+	if sk.D == nil {
+		return errors.New("eddsa: failed to parse scalar")
+	}
+	return nil
+}
+
 func GenerateKey(rand io.Reader, c ecc.EdDSACurve) (priv *PrivateKey, err error) {
 	priv = new(PrivateKey)
-	priv.PublicKey.Curve = c
+	priv.PublicKey.curve = c
 	priv.PublicKey.X, priv.D, err = c.GenerateEdDSA(rand)
 	return
 }
 
 func Sign(priv *PrivateKey, message []byte) (r, s []byte, err error) {
-	return priv.PublicKey.Curve.Sign(priv.PublicKey.X, priv.D, message)
+	return priv.PublicKey.curve.Sign(priv.PublicKey.X, priv.D, message)
 }
 
 func Verify(pub *PublicKey, message, r, s []byte) bool {
-	return pub.Curve.Verify(pub.X, message, r, s)
+	return pub.curve.Verify(pub.X, message, r, s)
 }
 
 func Validate(priv *PrivateKey) error {
-	return priv.Curve.Validate(priv.PublicKey.X, priv.D)
+	return priv.curve.Validate(priv.PublicKey.X, priv.D)
 }

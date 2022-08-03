@@ -34,12 +34,28 @@ func (c *genericCurve) GetBuildKeyAttempts() int {
 	return 1
 }
 
-func (c *genericCurve) Marshal(x, y *big.Int) []byte {
+func (c *genericCurve) MarshalPoint(x, y *big.Int) []byte {
 	return elliptic.Marshal(c.Curve, x, y)
 }
 
-func (c *genericCurve) Unmarshal(point []byte) (x, y *big.Int) {
+func (c *genericCurve) UnmarshalPoint(point []byte) (x, y *big.Int) {
 	return elliptic.Unmarshal(c.Curve, point)
+}
+
+func (c *genericCurve) MarshalByteSecret(d []byte) []byte {
+	return d
+}
+
+func (c *genericCurve) UnmarshalByteSecret(d []byte) []byte {
+	return d
+}
+
+func (c *genericCurve) MarshalIntegerSecret(d *big.Int) []byte {
+	return d.Bytes()
+}
+
+func (c *genericCurve) UnmarshalIntegerSecret(d []byte) *big.Int {
+	return new(big.Int).SetBytes(d)
 }
 
 func (c *genericCurve) GenerateECDH(rand io.Reader) (x, y *big.Int, secret []byte, err error) {
