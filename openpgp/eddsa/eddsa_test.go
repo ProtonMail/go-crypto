@@ -78,7 +78,7 @@ func testMarshalUnmarshal(t *testing.T, priv *PrivateKey) {
 	priv.D[0] = 0
 
 	x := priv.MarshalPoint()
-	d := priv.MarshalByteSecret()[1:]
+	d := priv.MarshalByteSecret()
 
 	parsed := NewPrivateKey(*NewPublicKey(priv.GetCurve()))
 
