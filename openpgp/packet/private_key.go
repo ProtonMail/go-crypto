@@ -359,17 +359,17 @@ func serializeElGamalPrivateKey(w io.Writer, priv *elgamal.PrivateKey) error {
 }
 
 func serializeECDSAPrivateKey(w io.Writer, priv *ecdsa.PrivateKey) error {
-	_, err := w.Write(new(encoding.MPI).SetBig(priv.D).EncodedBytes())
+	_, err := w.Write(encoding.NewMPI(priv.MarshalIntegerSecret()).EncodedBytes())
 	return err
 }
 
 func serializeEdDSAPrivateKey(w io.Writer, priv *eddsa.PrivateKey) error {
-	_, err := w.Write(encoding.NewMPI(priv.Curve.MarshalInteger(priv.D)).EncodedBytes())
+	_, err := w.Write(encoding.NewMPI(priv.MarshalByteSecret()).EncodedBytes())
 	return err
 }
 
 func serializeECDHPrivateKey(w io.Writer, priv *ecdh.PrivateKey) error {
-	_, err := w.Write(encoding.NewMPI(priv.D).EncodedBytes())
+	_, err := w.Write(encoding.NewMPI(priv.MarshalByteSecret()).EncodedBytes())
 	return err
 }
 
@@ -606,8 +606,7 @@ func (pk *PrivateKey) parseElGamalPrivateKey(data []byte) (err error) {
 
 func (pk *PrivateKey) parseECDSAPrivateKey(data []byte) (err error) {
 	ecdsaPub := pk.PublicKey.PublicKey.(*ecdsa.PublicKey)
-	ecdsaPriv := new(ecdsa.PrivateKey)
-	ecdsaPriv.PublicKey = *ecdsaPub
+	ecdsaPriv := ecdsa.NewPrivateKey(*ecdsaPub)
 
 	buf := bytes.NewBuffer(data)
 	d := new(encoding.MPI)
@@ -615,7 +614,9 @@ func (pk *PrivateKey) parseECDSAPrivateKey(data []byte) (err error) {
 		return err
 	}
 
-	ecdsaPriv.D = new(big.Int).SetBytes(d.Bytes())
+	if err := ecdsaPriv.UnmarshalIntegerSecret(d.Bytes()); err != nil {
+		return err
+	}
 	if err := ecdsa.Validate(ecdsaPriv); err != nil {
 		return err
 	}
@@ -626,8 +627,7 @@ func (pk *PrivateKey) parseECDSAPrivateKey(data []byte) (err error) {
 
 func (pk *PrivateKey) parseECDHPrivateKey(data []byte) (err error) {
 	ecdhPub := pk.PublicKey.PublicKey.(*ecdh.PublicKey)
-	ecdhPriv := new(ecdh.PrivateKey)
-	ecdhPriv.PublicKey = *ecdhPub
+	ecdhPriv := ecdh.NewPrivateKey(*ecdhPub)
 
 	buf := bytes.NewBuffer(data)
 	d := new(encoding.MPI)
@@ -635,7 +635,10 @@ func (pk *PrivateKey) parseECDHPrivateKey(data []byte) (err error) {
 		return err
 	}
 
-	ecdhPriv.D = d.Bytes()
+	if err := ecdhPriv.UnmarshalByteSecret(d.Bytes()); err != nil {
+		return err
+	}
+
 	if err := ecdh.Validate(ecdhPriv); err != nil {
 		return err
 	}
@@ -647,7 +650,7 @@ func (pk *PrivateKey) parseECDHPrivateKey(data []byte) (err error) {
 
 func (pk *PrivateKey) parseEdDSAPrivateKey(data []byte) (err error) {
 	eddsaPub := pk.PublicKey.PublicKey.(*eddsa.PublicKey)
-	eddsaPriv := new(eddsa.PrivateKey)
+	eddsaPriv := eddsa.NewPrivateKey(*eddsaPub)
 	eddsaPriv.PublicKey = *eddsaPub
 
 	buf := bytes.NewBuffer(data)
@@ -656,7 +659,10 @@ func (pk *PrivateKey) parseEdDSAPrivateKey(data []byte) (err error) {
 		return err
 	}
 
-	eddsaPriv.D = eddsaPub.Curve.UnmarshalInteger(d.Bytes())
+	if err = eddsaPriv.UnmarshalByteSecret(d.Bytes()); err != nil {
+		return err
+	}
+
 	if err := eddsa.Validate(eddsaPriv); err != nil {
 		return err
 	}

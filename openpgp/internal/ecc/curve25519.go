@@ -29,14 +29,30 @@ func (c *curve25519) GetBuildKeyAttempts() int {
 	return 3
 }
 
-func (c *curve25519) Marshal(x, y *big.Int) []byte {
+func (c *curve25519) MarshalPoint(x, y *big.Int) []byte {
 	return x.Bytes()
 }
 
-func (c *curve25519) Unmarshal(point []byte) (x, y *big.Int) {
+func (c *curve25519) UnmarshalPoint(point []byte) (x, y *big.Int) {
+	if len(point) != x25519lib.Size + 1 {
+		return nil, nil
+	}
+
 	x = new(big.Int)
 	x.SetBytes(point)
-	return
+	return x, nil
+}
+
+func (c *curve25519) MarshalByteSecret(d []byte) []byte {
+	return d
+}
+
+func (c *curve25519) UnmarshalByteSecret(d []byte) []byte {
+	if len(d) > x25519lib.Size {
+		return nil
+	}
+
+	return d
 }
 
 // generateKeyPairBytes Generates a private-public key-pair.
@@ -67,7 +83,6 @@ func (c *curve25519) generateKeyPairBytes(rand io.Reader) (priv, pub x25519lib.K
 
 func (c *curve25519) GenerateECDH(rand io.Reader) (x, y *big.Int, secret []byte, err error) {
 	priv, pub, err := c.generateKeyPairBytes(rand)
-	secret = make([]byte, x25519lib.Size)
 	if err != nil {
 		return
 	}
@@ -79,13 +94,14 @@ func (c *curve25519) GenerateECDH(rand io.Reader) (x, y *big.Int, secret []byte,
 	 * is an additional length byte (so ECpoint.point is actually 33 bytes),
 	 * again for uniformity (and extensibility).
 	 */
+	secret = make([]byte, x25519lib.Size)
 	copyReversed(secret, priv[:])
 
 	var encodedKey = make([]byte, 33)
 	encodedKey[0] = 0x40
 	copy(encodedKey[1:], pub[:])
 	x = new(big.Int).SetBytes(encodedKey[:])
-	y = new(big.Int)
+	y = nil
 
 	return
 }
@@ -102,7 +118,7 @@ func (c *curve25519) Encaps(rand io.Reader, x, y *big.Int) (ephemeral, sharedSec
 	// RFC6637 §8: "Obtain the authenticated recipient public key R"
 	// pubKey corresponds to `R`.
 	var pubKey x25519lib.Key
-	if x.BitLen() > 33*264 {
+	if x.BitLen() > 33*8 {
 		return nil, nil, goerrors.New("ecc: invalid curve25519 public point")
 	}
 	copy(pubKey[:], x.Bytes()[1:])

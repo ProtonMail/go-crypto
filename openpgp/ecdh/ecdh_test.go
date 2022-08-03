@@ -34,6 +34,10 @@ func TestCurves(t *testing.T) {
 			priv := testGenerate(t, ECDHCurve)
 			testEncryptDecrypt(t, priv, curve.Oid.Bytes(), testFingerprint)
 			testValidation(t, priv)
+
+			// Needs fresh key
+			priv = testGenerate(t, ECDHCurve)
+			testMarshalUnmarshal(t, priv)
 		})
 	}
 }
@@ -79,5 +83,24 @@ func testValidation(t *testing.T, priv *PrivateKey) {
 	priv.X.Sub(priv.X, big.NewInt(1))
 	if err := Validate(priv); err == nil {
 		t.Fatalf("failed to detect invalid key")
+	}
+}
+
+func testMarshalUnmarshal(t *testing.T, priv *PrivateKey) {
+	p := priv.MarshalPoint()
+	d := priv.MarshalByteSecret()
+
+	parsed := NewPrivateKey(*NewPublicKey(priv.GetCurve(), priv.KDF.Hash, priv.KDF.Cipher))
+
+	if err := parsed.UnmarshalPoint(p); err != nil {
+		t.Fatalf("unable to unmarshal point: %s", err)
+	}
+
+	if err := parsed.UnmarshalByteSecret(d); err != nil {
+		t.Fatalf("unable to unmarshal integer: %s", err)
+	}
+
+	if priv.X.Cmp(parsed.X) != 0 || (priv.Y != nil && priv.Y.Cmp(parsed.Y) != 0) || !bytes.Equal(priv.D, parsed.D) {
+		t.Fatal("failed to marshal/unmarshal correctly")
 	}
 }

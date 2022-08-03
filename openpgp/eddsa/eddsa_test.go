@@ -3,6 +3,7 @@
 package eddsa
 
 import (
+	"bytes"
 	"crypto/rand"
 	"io"
 	"testing"
@@ -27,6 +28,7 @@ func TestCurves(t *testing.T) {
 			priv := testGenerate(t, EdDSACurve)
 			testSignVerify(t, priv)
 			testValidation(t, priv)
+			testMarshalUnmarshal(t, priv)
 		})
 	}
 }
@@ -67,5 +69,28 @@ func testValidation(t *testing.T, priv *PrivateKey) {
 	priv.D[5] ^= 1
 	if err := Validate(priv); err == nil {
 		t.Fatal("failed to detect invalid key")
+	}
+}
+
+func testMarshalUnmarshal(t *testing.T, priv *PrivateKey) {
+	// Test correct zero padding
+	priv.X[0] = 0
+	priv.D[0] = 0
+
+	x := priv.MarshalPoint()
+	d := priv.MarshalByteSecret()[1:]
+
+	parsed := NewPrivateKey(*NewPublicKey(priv.GetCurve()))
+
+	if err := parsed.UnmarshalPoint(x); err != nil {
+		t.Fatalf("unable to unmarshal point: %s", err)
+	}
+
+	if err := parsed.UnmarshalByteSecret(d); err != nil {
+		t.Fatalf("unable to unmarshal integer: %s", err)
+	}
+
+	if !bytes.Equal(priv.X, parsed.X) || !bytes.Equal(priv.D, parsed.D) {
+		t.Fatal("failed to marshal/unmarshal correctly")
 	}
 }

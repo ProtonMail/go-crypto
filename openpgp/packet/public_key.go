@@ -123,10 +123,10 @@ func NewECDSAPublicKey(creationTime time.Time, pub *ecdsa.PublicKey) *PublicKey 
 		CreationTime: creationTime,
 		PubKeyAlgo:   PubKeyAlgoECDSA,
 		PublicKey:    pub,
-		p:            encoding.NewMPI(pub.Curve.Marshal(pub.X, pub.Y)),
+		p:            encoding.NewMPI(pub.MarshalPoint()),
 	}
 
-	curveInfo := ecc.FindByCurve(pub.Curve)
+	curveInfo := ecc.FindByCurve(pub.GetCurve())
 	if curveInfo == nil {
 		panic("unknown elliptic curve")
 	}
@@ -143,11 +143,11 @@ func NewECDHPublicKey(creationTime time.Time, pub *ecdh.PublicKey) *PublicKey {
 		CreationTime: creationTime,
 		PubKeyAlgo:   PubKeyAlgoECDH,
 		PublicKey:    pub,
-		p:            encoding.NewMPI(pub.Curve.Marshal(pub.X, pub.Y)),
+		p:            encoding.NewMPI(pub.MarshalPoint()),
 		kdf:          kdf,
 	}
 
-	curveInfo := ecc.FindByCurve(pub.Curve)
+	curveInfo := ecc.FindByCurve(pub.GetCurve())
 
 	if curveInfo == nil {
 		panic("unknown elliptic curve")
@@ -159,7 +159,7 @@ func NewECDHPublicKey(creationTime time.Time, pub *ecdh.PublicKey) *PublicKey {
 }
 
 func NewEdDSAPublicKey(creationTime time.Time, pub *eddsa.PublicKey) *PublicKey {
-	curveInfo := ecc.FindByCurve(pub.Curve)
+	curveInfo := ecc.FindByCurve(pub.GetCurve())
 	pk := &PublicKey{
 		Version:      4,
 		CreationTime: creationTime,
@@ -167,7 +167,7 @@ func NewEdDSAPublicKey(creationTime time.Time, pub *eddsa.PublicKey) *PublicKey 
 		PublicKey:    pub,
 		oid:          curveInfo.Oid,
 		// Native point format, see draft-koch-eddsa-for-openpgp-04, Appendix B
-		p: encoding.NewMPI(pub.Curve.MarshalPoint(pub.X)),
+		p: encoding.NewMPI(pub.MarshalPoint()),
 	}
 
 	pk.setFingerprintAndKeyId()
@@ -339,12 +339,10 @@ func (pk *PublicKey) parseECDSA(r io.Reader) (err error) {
 		return errors.UnsupportedError(fmt.Sprintf("unsupported oid: %x", pk.oid))
 	}
 
-	x, y := c.Unmarshal(pk.p.Bytes())
-	if x == nil {
-		return errors.UnsupportedError("failed to parse EC point")
-	}
+	ecdsaKey := ecdsa.NewPublicKey(c)
+	err = ecdsaKey.UnmarshalPoint(pk.p.Bytes())
+	pk.PublicKey = ecdsaKey
 
-	pk.PublicKey = &ecdsa.PublicKey{Curve: c, X: x, Y: y}
 	return
 }
 
@@ -375,11 +373,6 @@ func (pk *PublicKey) parseECDH(r io.Reader) (err error) {
 		return errors.UnsupportedError(fmt.Sprintf("unsupported oid: %x", pk.oid))
 	}
 
-	var x, y = c.Unmarshal(pk.p.Bytes())
-	if x == nil {
-		return errors.UnsupportedError("failed to parse EC point")
-	}
-
 	if kdfLen := len(pk.kdf.Bytes()); kdfLen < 3 {
 		return errors.UnsupportedError("unsupported ECDH KDF length: " + strconv.Itoa(kdfLen))
 	}
@@ -395,15 +388,10 @@ func (pk *PublicKey) parseECDH(r io.Reader) (err error) {
 		return errors.UnsupportedError("unsupported ECDH KDF cipher: " + strconv.Itoa(int(pk.kdf.Bytes()[2])))
 	}
 
-	pk.PublicKey = &ecdh.PublicKey{
-		Curve:     c,
-		X:         x,
-		Y:         y,
-		KDF: ecdh.KDF{
-			Hash:   kdfHash,
-			Cipher: kdfCipher,
-		},
-	}
+	ecdhKey := ecdh.NewPublicKey(c, kdfHash, kdfCipher)
+	err = ecdhKey.UnmarshalPoint(pk.p.Bytes())
+	pk.PublicKey = ecdhKey
+
 	return
 }
 
@@ -427,19 +415,19 @@ func (pk *PublicKey) parseEdDSA(r io.Reader) (err error) {
 		return
 	}
 
-	pub := eddsa.PublicKey{Curve: c}
+	pub := eddsa.NewPublicKey(c)
 
 	switch flag := pk.p.Bytes()[0]; flag {
 	case 0x04:
 		// TODO: see _grcy_ecc_eddsa_ensure_compact in grcypt
 		return errors.UnsupportedError("unsupported EdDSA compression: " + strconv.Itoa(int(flag)))
 	case 0x40:
-		pub.X = pub.Curve.UnmarshalPoint(pk.p.Bytes())
+		err = pub.UnmarshalPoint(pk.p.Bytes())
 	default:
 		return errors.UnsupportedError("unsupported EdDSA compression: " + strconv.Itoa(int(flag)))
 	}
 
-	pk.PublicKey = &pub
+	pk.PublicKey = pub
 	return
 }
 

@@ -23,7 +23,7 @@ type KDF struct {
 }
 
 type PublicKey struct {
-	Curve ecc.ECDHCurve
+	curve ecc.ECDHCurve
 	X, Y *big.Int
 	KDF
 }
@@ -33,9 +33,54 @@ type PrivateKey struct {
 	D []byte
 }
 
+func NewPublicKey(curve ecc.ECDHCurve, kdfHash algorithm.Hash, kdfCipher algorithm.Cipher) *PublicKey {
+	return &PublicKey{
+		curve:     curve,
+		KDF: KDF{
+			Hash:   kdfHash,
+			Cipher: kdfCipher,
+		},
+	}
+}
+
+func NewPrivateKey(key PublicKey) *PrivateKey {
+	return &PrivateKey{
+		PublicKey: key,
+	}
+}
+
+func (pk *PublicKey) GetCurve() ecc.ECDHCurve {
+	return pk.curve
+}
+
+func (pk *PublicKey) MarshalPoint() []byte {
+	return pk.curve.MarshalPoint(pk.X, pk.Y)
+}
+
+func (pk *PublicKey) UnmarshalPoint(p []byte) error {
+	pk.X, pk.Y = pk.curve.UnmarshalPoint(p)
+	if pk.X == nil {
+		return errors.New("ecdh: failed to parse EC point")
+	}
+	return nil
+}
+
+func (sk *PrivateKey) MarshalByteSecret() []byte {
+	return sk.curve.MarshalByteSecret(sk.D)
+}
+
+func (sk *PrivateKey) UnmarshalByteSecret(d []byte) error {
+	sk.D = sk.curve.UnmarshalByteSecret(d)
+
+	if sk.D == nil {
+		return errors.New("ecdh: failed to parse scalar")
+	}
+	return nil
+}
+
 func GenerateKey(rand io.Reader, c ecc.ECDHCurve, kdf KDF) (priv *PrivateKey, err error) {
 	priv = new(PrivateKey)
-	priv.PublicKey.Curve = c
+	priv.PublicKey.curve = c
 	priv.PublicKey.KDF = kdf
 	priv.PublicKey.X, priv.PublicKey.Y, priv.D, err = c.GenerateECDH(rand)
 	return
@@ -54,7 +99,7 @@ func Encrypt(random io.Reader, pub *PublicKey, msg, curveOID, fingerprint []byte
 	}
 	m := append(msg, padding...)
 
-	vsG, zb, err := pub.Curve.Encaps(random, pub.X, pub.Y)
+	vsG, zb, err := pub.curve.Encaps(random, pub.X, pub.Y)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -74,9 +119,9 @@ func Encrypt(random io.Reader, pub *PublicKey, msg, curveOID, fingerprint []byte
 
 func Decrypt(priv *PrivateKey, vsG, c, curveOID, fingerprint []byte) (msg []byte, err error) {
 	var m []byte
-	zb, err := priv.PublicKey.Curve.Decaps(vsG, priv.D)
+	zb, err := priv.PublicKey.curve.Decaps(vsG, priv.D)
 
-	for i := 0; i < priv.PublicKey.Curve.GetBuildKeyAttempts(); i++ {
+	for i := 0; i < priv.PublicKey.curve.GetBuildKeyAttempts(); i++ {
 		// RFC6637 §8: "Compute Z = KDF( S, Z_len, Param );"
 		// Try buildKey three times for compat, see comments in buildKey.
 		z, err := buildKey(&priv.PublicKey, zb, curveOID, fingerprint, i == 1, i == 2)
@@ -91,7 +136,7 @@ func Decrypt(priv *PrivateKey, vsG, c, curveOID, fingerprint []byte) (msg []byte
 		}
 	}
 
-	// Only return an error after we've tried all variants of buildKey.
+	// Only return an error after we've tried all (required) variants of buildKey.
 	if err != nil {
 		return nil, err
 	}
@@ -155,5 +200,5 @@ func buildKey(pub *PublicKey, zb []byte, curveOID, fingerprint []byte, stripLead
 }
 
 func Validate(priv *PrivateKey) error {
-	return priv.Curve.Validate(priv.X, priv.Y, priv.D)
+	return priv.curve.Validate(priv.X, priv.Y, priv.D)
 }

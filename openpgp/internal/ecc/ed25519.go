@@ -27,20 +27,24 @@ func (c *ed25519) MarshalPoint(x []byte) []byte {
 }
 
 func (c *ed25519) UnmarshalPoint(point []byte) (x []byte) {
-	// Handle stripped leading zeroes
-	x = make([]byte, 32)
-	copy(x[33 - len(point):], point[1:])
-	return
+	if len(point) != 33 {
+		return nil
+	}
+	return point[1:]
 }
 
-func (c *ed25519) MarshalInteger(d []byte) []byte {
+func (c *ed25519) MarshalByteSecret(d []byte) []byte {
 	return d
 }
 
-func (c *ed25519) UnmarshalInteger(point []byte) (d []byte) {
+func (c *ed25519) UnmarshalByteSecret(s []byte) (d []byte) {
+	if len(s) > 32 {
+		return nil
+	}
+
 	// Handle stripped leading zeroes
 	d = make([]byte, 32)
-	copy(d[32 - len(point):], point)
+	copy(d[32 - len(s):], s)
 	return
 }
 
