@@ -9,4 +9,6 @@ const (
 	BitCurve CurveType = 3
 	BrainpoolCurve CurveType = 4
 	Ed25519 = 5
+	X448 = 6
+	Ed448 = 7
 )

@@ -44,9 +44,19 @@ var Curves = []CurveInfo{
 		Curve: NewCurve25519(),
 	},
 	{
+		Name: "X448",
+		Oid: encoding.NewOID([]byte{0x2B, 0x65, 0x6F}),
+		Curve: NewX448(),
+	},
+	{
 		Name: "Ed25519",
 		Oid: encoding.NewOID([]byte{0x2B, 0x06, 0x01, 0x04, 0x01, 0xDA, 0x47, 0x0F, 0x01}),
 		Curve: NewEd25519(),
+	},
+	{
+		Name: "Ed448",
+		Oid: encoding.NewOID([]byte{0x2B, 0x65, 0x71}),
+		Curve: NewEd448(),
 	},
 	{
 		Name: "Brainpool P256r1",
