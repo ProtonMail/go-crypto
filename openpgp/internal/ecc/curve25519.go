@@ -3,9 +3,7 @@ package ecc
 
 import (
 	"crypto/subtle"
-	goerrors "errors"
 	"io"
-	"math/big"
 
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	x25519lib "github.com/cloudflare/circl/dh/x25519"
@@ -25,30 +23,52 @@ func (c *curve25519) GetCurveName() string {
 	return "curve25519"
 }
 
-func (c *curve25519) MarshalPoint(x, y *big.Int) []byte {
-	return x.Bytes()
+// MarshalBytePoint encodes the public point from native format, adding the prefix.
+// See https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh-06#section-5.5.5.6
+func (c *curve25519) MarshalBytePoint(point [] byte) []byte {
+	return append([]byte{0x40}, point...)
 }
 
-func (c *curve25519) UnmarshalPoint(point []byte) (x, y *big.Int) {
+// UnmarshalBytePoint decodes the public point to native format, removing the prefix.
+// See https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh-06#section-5.5.5.6
+func (c *curve25519) UnmarshalBytePoint(point []byte) []byte {
 	if len(point) != x25519lib.Size + 1 {
-		return nil, nil
+		return nil
 	}
 
-	x = new(big.Int)
-	x.SetBytes(point)
-	return x, nil
+	// Remove prefix
+	return point[1:]
 }
 
-func (c *curve25519) MarshalByteSecret(d []byte) []byte {
+// MarshalByteSecret encodes the secret scalar from native format.
+// Note that the EC secret scalar differs from the definition of public keys in
+// [Curve25519] in two ways: (1) the byte-ordering is big-endian, which is
+// more uniform with how big integers are represented in TLS, and (2) the
+// leading zeros are truncated.
+// See https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh-06#section-5.5.5.6.1.1
+// Here Leading zero bytes are stripped when encoding to MPI.
+func (c *curve25519) MarshalByteSecret(secret []byte) []byte {
+	d := make([]byte, x25519lib.Size)
+	copyReversed(d, secret)
 	return d
 }
 
+// UnmarshalByteSecret decodes the secret scalar from native format.
+// Note that the EC secret scalar differs from the definition of public keys in
+// [Curve25519] in two ways: (1) the byte-ordering is big-endian, which is
+// more uniform with how big integers are represented in TLS, and (2) the
+// leading zeros are truncated.
+// See https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh-06#section-5.5.5.6.1.1
 func (c *curve25519) UnmarshalByteSecret(d []byte) []byte {
 	if len(d) > x25519lib.Size {
 		return nil
 	}
 
-	return d
+	// Ensure truncated leading bytes are re-added
+	secret := make([]byte, x25519lib.Size)
+	copyReversed(secret, d)
+
+	return secret
 }
 
 // generateKeyPairBytes Generates a private-public key-pair.
@@ -77,32 +97,16 @@ func (c *curve25519) generateKeyPairBytes(rand io.Reader) (priv, pub x25519lib.K
 	return
 }
 
-func (c *curve25519) GenerateECDH(rand io.Reader) (x, y *big.Int, secret []byte, err error) {
+func (c *curve25519) GenerateECDH(rand io.Reader) (point []byte, secret []byte, err error) {
 	priv, pub, err := c.generateKeyPairBytes(rand)
 	if err != nil {
 		return
 	}
 
-	/*
-	 * Note that ECPoint.point differs from the definition of public keys in
-	 * [Curve25519] in two ways: (1) the byte-ordering is big-endian, which is
-	 * more uniform with how big integers are represented in TLS, and (2) there
-	 * is an additional length byte (so ECpoint.point is actually 33 bytes),
-	 * again for uniformity (and extensibility).
-	 */
-	secret = make([]byte, x25519lib.Size)
-	copyReversed(secret, priv[:])
-
-	var encodedKey = make([]byte, 33)
-	encodedKey[0] = 0x40
-	copy(encodedKey[1:], pub[:])
-	x = new(big.Int).SetBytes(encodedKey[:])
-	y = nil
-
-	return
+	return pub[:], priv[:], nil
 }
 
-func (c *curve25519) Encaps(rand io.Reader, x, y *big.Int) (ephemeral, sharedSecret []byte, err error) {
+func (c *curve25519) Encaps(rand io.Reader, point []byte) (ephemeral, sharedSecret []byte, err error) {
 	// RFC6637 §8: "Generate an ephemeral key pair {v, V=vG}"
 	// ephemeralPrivate corresponds to `v`.
 	// ephemeralPublic corresponds to `V`.
@@ -114,50 +118,29 @@ func (c *curve25519) Encaps(rand io.Reader, x, y *big.Int) (ephemeral, sharedSec
 	// RFC6637 §8: "Obtain the authenticated recipient public key R"
 	// pubKey corresponds to `R`.
 	var pubKey x25519lib.Key
-	if x.BitLen() > 33*8 {
-		return nil, nil, goerrors.New("ecc: invalid curve25519 public point")
-	}
-	copy(pubKey[:], x.Bytes()[1:])
+	copy(pubKey[:], point)
 
 	// RFC6637 §8: "Compute the shared point S = vR"
-	// pubKey corresponds to `S`.
+	//	"VB = convert point V to the octet string"
+	// sharedPoint corresponds to `VB`.
 	var sharedPoint x25519lib.Key
 	x25519lib.Shared(&sharedPoint, &ephemeralPrivate, &pubKey)
 
-	// RFC6637 §8: "VB = convert point V to the octet string"
-	// vsg corresponds to `VB`
-	var vsg [33]byte
-
-	// This is in "Prefixed Native EC Point Wire Format", defined in
-	// draft-ietf-openpgp-crypto-refresh-05 §13.2.2 as 0x40 || bytes
-	// which ensures a bit in the first octet for later MPI encoding
-	vsg[0] = 0x40
-	copy(vsg[1:], ephemeralPublic[:])
-
-	return vsg[:], sharedPoint[:], nil
+	return ephemeralPublic[:], sharedPoint[:], nil
 }
 
 func (c *curve25519) Decaps(vsG, secret []byte) (sharedSecret []byte, err error) {
-	var decodedPrivate, sharedPoint x25519lib.Key
+	var ephemeralPublic, decodedPrivate, sharedPoint x25519lib.Key
 	// RFC6637 §8: "The decryption is the inverse of the method given."
 	// All quoted descriptions in comments below describe encryption, and
 	// the reverse is performed.
-
 	// vsG corresponds to `VB` in RFC6637 §8 .
-	// ephemeralPublic corresponds to `V`.
-	var ephemeralPublic x25519lib.Key
 
-	// Insist that vsG is an elliptic curve point in "Prefixed Native
-	// EC Point Wire Format", defined in draft-ietf-openpgp-crypto-refresh-05
-	// §13.2.2 as 0x40 || bytes
-	if len(vsG) != 33 || vsG[0] != 0x40 {
-		return nil, goerrors.New("ecc: invalid key")
-	}
 	// RFC6637 §8: "VB = convert point V to the octet string"
-	copy(ephemeralPublic[:], vsG[1:33])
+	copy(ephemeralPublic[:], vsG)
 
 	// decodedPrivate corresponds to `r` in RFC6637 §8 .
-	copyReversed(decodedPrivate[:], secret)
+	copy(decodedPrivate[:], secret)
 
 	// RFC6637 §8: "Note that the recipient obtains the shared secret by calculating
 	//   S = rV = rvG, where (r,R) is the recipient's key pair."
@@ -167,14 +150,12 @@ func (c *curve25519) Decaps(vsG, secret []byte) (sharedSecret []byte, err error)
 	return sharedPoint[:], nil
 }
 
-func (c *curve25519) Validate(x, y *big.Int, secret []byte) (err error) {
+func (c *curve25519) ValidateECDH(point []byte, secret []byte) (err error) {
 	var pk, sk x25519lib.Key
-	publicPoint := x.Bytes()[1:]
-
-	copyReversed(sk[:], secret)
+	copy(sk[:], secret)
 	x25519lib.KeyGen(&pk, &sk)
 
-	if subtle.ConstantTimeCompare(publicPoint, pk[:]) == 0 {
+	if subtle.ConstantTimeCompare(point, pk[:]) == 0 {
 		return errors.KeyInvalidError("ecc: invalid curve25519 public point")
 	}
 

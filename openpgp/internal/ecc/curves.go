@@ -13,20 +13,20 @@ type Curve interface {
 
 type ECDSACurve interface {
 	Curve
-	MarshalPoint(x, y *big.Int) []byte
-	UnmarshalPoint([]byte) (x, y *big.Int)
+	MarshalIntegerPoint(x, y *big.Int) []byte
+	UnmarshalIntegerPoint([]byte) (x, y *big.Int)
 	MarshalIntegerSecret(d *big.Int) []byte
 	UnmarshalIntegerSecret(d []byte) *big.Int
 	GenerateECDSA(rand io.Reader) (x, y, secret *big.Int, err error)
 	Sign(rand io.Reader, x, y, d *big.Int, hash []byte) (r, s *big.Int, err error)
 	Verify(x, y *big.Int, hash []byte, r, s *big.Int) bool
-	Validate(x, y *big.Int, secret []byte) error
+	ValidateECDSA(x, y *big.Int, secret []byte) error
 }
 
 type EdDSACurve interface {
 	Curve
-	MarshalPoint(x []byte) []byte
-	UnmarshalPoint([]byte) (x []byte)
+	MarshalBytePoint(x []byte) []byte
+	UnmarshalBytePoint([]byte) (x []byte)
 	MarshalByteSecret(d []byte) []byte
 	UnmarshalByteSecret(d []byte) []byte
 	GenerateEdDSA(rand io.Reader) (pub, priv []byte, err error)
@@ -36,12 +36,12 @@ type EdDSACurve interface {
 }
 type ECDHCurve interface {
 	Curve
-	MarshalPoint(x, y *big.Int) []byte
-	UnmarshalPoint([]byte) (x, y *big.Int)
+	MarshalBytePoint([]byte) (encoded []byte)
+	UnmarshalBytePoint(encoded []byte) ([]byte)
 	MarshalByteSecret(d []byte) []byte
 	UnmarshalByteSecret(d []byte) []byte
-	GenerateECDH(rand io.Reader) (x, y *big.Int, secret []byte, err error)
-	Encaps(rand io.Reader, x, y *big.Int) (ephemeral, sharedSecret []byte, err error)
+	GenerateECDH(rand io.Reader) (point []byte, secret []byte, err error)
+	Encaps(rand io.Reader, point []byte) (ephemeral, sharedSecret []byte, err error)
 	Decaps(ephemeral, secret []byte) (sharedSecret []byte, err error)
-	Validate(x, y *big.Int, secret []byte) error
+	ValidateECDH(public []byte, secret []byte) error
 }

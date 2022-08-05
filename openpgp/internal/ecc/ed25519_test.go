@@ -20,8 +20,8 @@ func TestEd25519MarshalUnmarshal(t *testing.T) {
 
 	x[0] = 0
 
-	encoded := c.MarshalPoint(x)
-	parsed := c.UnmarshalPoint(encoded)
+	encoded := c.MarshalBytePoint(x)
+	parsed := c.UnmarshalBytePoint(encoded)
 
 	if !bytes.Equal(x, parsed) {
 		t.Fatal("failed to marshal/unmarshal point correctly")

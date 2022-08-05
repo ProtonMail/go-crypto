@@ -24,11 +24,11 @@ func (c *ed25519) GetCurveName() string {
 	return "ed25519"
 }
 
-func (c *ed25519) MarshalPoint(x []byte) []byte {
+func (c *ed25519) MarshalBytePoint(x []byte) []byte {
 	return append([]byte{0x40}, x...)
 }
 
-func (c *ed25519) UnmarshalPoint(point []byte) (x []byte) {
+func (c *ed25519) UnmarshalBytePoint(point []byte) (x []byte) {
 	// Check size as per https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh-06#section-5.5.5.5
 	if len(point) != ed25519lib.PublicKeySize + 1 {
 		return nil

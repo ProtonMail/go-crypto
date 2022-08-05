@@ -11,7 +11,6 @@ import (
 	"crypto/rand"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
 	"io"
-	"math/big"
 	"testing"
 
 	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
@@ -80,7 +79,7 @@ func testValidation(t *testing.T, priv *PrivateKey) {
 		t.Fatalf("valid key marked as invalid: %s", err)
 	}
 
-	priv.X.Sub(priv.X, big.NewInt(1))
+	priv.D[5] ^= 1
 	if err := Validate(priv); err == nil {
 		t.Fatalf("failed to detect invalid key")
 	}
@@ -100,7 +99,7 @@ func testMarshalUnmarshal(t *testing.T, priv *PrivateKey) {
 		t.Fatalf("unable to unmarshal integer: %s", err)
 	}
 
-	if priv.X.Cmp(parsed.X) != 0 || (priv.Y != nil && priv.Y.Cmp(parsed.Y) != 0) || !bytes.Equal(priv.D, parsed.D) {
+	if !bytes.Equal(priv.Point, parsed.Point) || !bytes.Equal(priv.D, parsed.D) {
 		t.Fatal("failed to marshal/unmarshal correctly")
 	}
 }

@@ -30,11 +30,19 @@ func (c *genericCurve) GetCurveType() CurveType {
 	return c.Type
 }
 
-func (c *genericCurve) MarshalPoint(x, y *big.Int) []byte {
+func (c *genericCurve) MarshalBytePoint(point []byte) []byte {
+	return point
+}
+
+func (c *genericCurve) UnmarshalBytePoint(point []byte) []byte {
+	return point
+}
+
+func (c *genericCurve) MarshalIntegerPoint(x, y *big.Int) []byte {
 	return elliptic.Marshal(c.Curve, x, y)
 }
 
-func (c *genericCurve) UnmarshalPoint(point []byte) (x, y *big.Int) {
+func (c *genericCurve) UnmarshalIntegerPoint(point []byte) (x, y *big.Int) {
 	return elliptic.Unmarshal(c.Curve, point)
 }
 
@@ -54,9 +62,14 @@ func (c *genericCurve) UnmarshalIntegerSecret(d []byte) *big.Int {
 	return new(big.Int).SetBytes(d)
 }
 
-func (c *genericCurve) GenerateECDH(rand io.Reader) (x, y *big.Int, secret []byte, err error) {
-	secret, x, y, err = elliptic.GenerateKey(c.Curve, rand)
-	return
+func (c *genericCurve) GenerateECDH(rand io.Reader) (point, secret []byte, err error) {
+	secret, x, y, err := elliptic.GenerateKey(c.Curve, rand)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	point = elliptic.Marshal(c.Curve, x, y)
+	return point, secret, nil
 }
 
 func (c *genericCurve) GenerateECDSA(rand io.Reader) (x, y, secret *big.Int, err error) {
@@ -68,7 +81,12 @@ func (c *genericCurve) GenerateECDSA(rand io.Reader) (x, y, secret *big.Int, err
 	return priv.X, priv.Y, priv.D, nil
 }
 
-func (c *genericCurve) Encaps(rand io.Reader, xP, yP *big.Int) (ephemeral, sharedSecret []byte, err error) {
+func (c *genericCurve) Encaps(rand io.Reader, point []byte) (ephemeral, sharedSecret []byte, err error) {
+	xP, yP := elliptic.Unmarshal(c.Curve, point)
+	if xP == nil {
+		panic("invalid point")
+	}
+
 	d, x, y, err := elliptic.GenerateKey(c.Curve, rand)
 	if err != nil {
 		return nil, nil, err
@@ -106,7 +124,7 @@ func (c *genericCurve) Verify(x, y *big.Int, hash []byte, r, s *big.Int) bool {
 	return ecdsa.Verify(pub, hash, r, s)
 }
 
-func (c *genericCurve) Validate(xP, yP *big.Int, secret []byte) error {
+func (c *genericCurve) validate(xP, yP *big.Int, secret []byte) error {
 	// the public point should not be at infinity (0,0)
 	zero := new(big.Int)
 	if xP.Cmp(zero) == 0 && yP.Cmp(zero) == 0 {
@@ -121,4 +139,17 @@ func (c *genericCurve) Validate(xP, yP *big.Int, secret []byte) error {
 	}
 
 	return nil
+}
+
+func (c *genericCurve) ValidateECDSA(xP, yP *big.Int, secret []byte) error {
+	return c.validate(xP, yP, secret)
+}
+
+func (c *genericCurve) ValidateECDH(point []byte, secret []byte) error {
+	xP, yP := elliptic.Unmarshal(c.Curve, point)
+	if xP == nil {
+		return errors.KeyInvalidError(fmt.Sprintf("ecc (%s): invalid point", c.Curve.Params().Name))
+	}
+
+	return c.validate(xP, yP, secret)
 }

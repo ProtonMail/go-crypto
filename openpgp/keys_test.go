@@ -1387,8 +1387,8 @@ func TestKeyValidateOnDecrypt(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Corrupt public X in subkey
-	X = ecdsaSubkey.PublicKey.PublicKey.(*ecdh.PublicKey).X
-	ecdsaSubkey.PublicKey.PublicKey.(*ecdh.PublicKey).X = new(big.Int).Add(X, big.NewInt(1))
+	ecdsaSubkey.PublicKey.PublicKey.(*ecdh.PublicKey).Point[5] ^= 1
+
 	err = ecdsaSubkey.Decrypt(password)
 	if _, ok := err.(errors.KeyInvalidError); !ok {
 		t.Fatal("Failed to detect invalid ECDH key")
@@ -1417,20 +1417,19 @@ func TestKeyValidateOnDecrypt(t *testing.T) {
 		t.Fatal("Failed to detect invalid EdDSA key")
 	}
 	// ECDH ed25519
-	eddsaSubkey := eddsaEntity.Subkeys[0].PrivateKey
-	if err = eddsaSubkey.Encrypt(password); err != nil {
+	ecdhSubkey := eddsaEntity.Subkeys[0].PrivateKey
+	if err = ecdhSubkey.Encrypt(password); err != nil {
 		t.Fatal(err)
 	}
-	if err := eddsaSubkey.Decrypt(password); err != nil {
+	if err := ecdhSubkey.Decrypt(password); err != nil {
 		t.Fatal("Valid ECDH 25519 key was marked as invalid: ", err)
 	}
-	if err = eddsaSubkey.Encrypt(password); err != nil {
+	if err = ecdhSubkey.Encrypt(password); err != nil {
 		t.Fatal(err)
 	}
 	// Corrupt public X in subkey
-	X = eddsaSubkey.PublicKey.PublicKey.(*ecdh.PublicKey).X
-	eddsaSubkey.PublicKey.PublicKey.(*ecdh.PublicKey).X = new(big.Int).Add(X, big.NewInt(1))
-	err = eddsaSubkey.Decrypt(password)
+	ecdhSubkey.PublicKey.PublicKey.(*ecdh.PublicKey).Point[5] ^= 1
+	err = ecdhSubkey.Decrypt(password)
 	if _, ok := err.(errors.KeyInvalidError); !ok {
 		t.Fatal("Failed to detect invalid ECDH 25519 key")
 	}
