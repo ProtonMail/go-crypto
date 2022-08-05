@@ -36,11 +36,11 @@ func (pk *PublicKey) GetCurve() ecc.ECDSACurve {
 }
 
 func (pk *PublicKey) MarshalPoint() []byte {
-	return pk.curve.MarshalPoint(pk.X, pk.Y)
+	return pk.curve.MarshalIntegerPoint(pk.X, pk.Y)
 }
 
 func (pk *PublicKey) UnmarshalPoint(p []byte) error {
-	pk.X, pk.Y = pk.curve.UnmarshalPoint(p)
+	pk.X, pk.Y = pk.curve.UnmarshalIntegerPoint(p)
 	if pk.X == nil {
 		return errors.New("ecdsa: failed to parse EC point")
 	}
@@ -76,5 +76,5 @@ func Verify(pub *PublicKey, hash []byte, r, s *big.Int) bool {
 }
 
 func Validate(priv *PrivateKey) error {
-	return priv.curve.Validate(priv.X, priv.Y, priv.D.Bytes())
+	return priv.curve.ValidateECDSA(priv.X, priv.Y, priv.D.Bytes())
 }

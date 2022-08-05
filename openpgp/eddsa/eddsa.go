@@ -35,11 +35,11 @@ func (pk *PublicKey) GetCurve() ecc.EdDSACurve {
 }
 
 func (pk *PublicKey) MarshalPoint() []byte {
-	return pk.curve.MarshalPoint(pk.X)
+	return pk.curve.MarshalBytePoint(pk.X)
 }
 
 func (pk *PublicKey) UnmarshalPoint(x []byte) error {
-	pk.X = pk.curve.UnmarshalPoint(x)
+	pk.X = pk.curve.UnmarshalBytePoint(x)
 
 	if pk.X == nil {
 		return errors.New("eddsa: failed to parse EC point")

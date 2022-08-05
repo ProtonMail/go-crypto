@@ -10,7 +10,6 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"math/big"
 
 	"github.com/ProtonMail/go-crypto/openpgp/aes/keywrap"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
@@ -24,7 +23,7 @@ type KDF struct {
 
 type PublicKey struct {
 	curve ecc.ECDHCurve
-	X, Y *big.Int
+	Point []byte
 	KDF
 }
 
@@ -54,12 +53,12 @@ func (pk *PublicKey) GetCurve() ecc.ECDHCurve {
 }
 
 func (pk *PublicKey) MarshalPoint() []byte {
-	return pk.curve.MarshalPoint(pk.X, pk.Y)
+	return pk.curve.MarshalBytePoint(pk.Point)
 }
 
 func (pk *PublicKey) UnmarshalPoint(p []byte) error {
-	pk.X, pk.Y = pk.curve.UnmarshalPoint(p)
-	if pk.X == nil {
+	pk.Point = pk.curve.UnmarshalBytePoint(p)
+	if pk.Point == nil {
 		return errors.New("ecdh: failed to parse EC point")
 	}
 	return nil
@@ -82,7 +81,7 @@ func GenerateKey(rand io.Reader, c ecc.ECDHCurve, kdf KDF) (priv *PrivateKey, er
 	priv = new(PrivateKey)
 	priv.PublicKey.curve = c
 	priv.PublicKey.KDF = kdf
-	priv.PublicKey.X, priv.PublicKey.Y, priv.D, err = c.GenerateECDH(rand)
+	priv.PublicKey.Point, priv.D, err = c.GenerateECDH(rand)
 	return
 }
 
@@ -99,10 +98,12 @@ func Encrypt(random io.Reader, pub *PublicKey, msg, curveOID, fingerprint []byte
 	}
 	m := append(msg, padding...)
 
-	vsG, zb, err := pub.curve.Encaps(random, pub.X, pub.Y)
+	ephemeral, zb, err := pub.curve.Encaps(random, pub.Point)
 	if err != nil {
 		return nil, nil, err
 	}
+
+	vsG = pub.curve.MarshalBytePoint(ephemeral)
 
 	z, err := buildKey(pub, zb, curveOID, fingerprint, false, false)
 	if err != nil {
@@ -119,7 +120,7 @@ func Encrypt(random io.Reader, pub *PublicKey, msg, curveOID, fingerprint []byte
 
 func Decrypt(priv *PrivateKey, vsG, c, curveOID, fingerprint []byte) (msg []byte, err error) {
 	var m []byte
-	zb, err := priv.PublicKey.curve.Decaps(vsG, priv.D)
+	zb, err := priv.PublicKey.curve.Decaps(priv.curve.UnmarshalBytePoint(vsG), priv.D)
 
 	// Try buildKey three times to workaround an old bug, see comments in buildKey.
 	for i := 0; i < 3; i++ {
@@ -201,5 +202,5 @@ func buildKey(pub *PublicKey, zb []byte, curveOID, fingerprint []byte, stripLead
 }
 
 func Validate(priv *PrivateKey) error {
-	return priv.curve.Validate(priv.X, priv.Y, priv.D)
+	return priv.curve.ValidateECDH(priv.Point, priv.D)
 }
