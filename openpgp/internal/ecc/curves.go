@@ -28,9 +28,11 @@ type EdDSACurve interface {
 	UnmarshalBytePoint([]byte) (x []byte)
 	MarshalByteSecret(d []byte) []byte
 	UnmarshalByteSecret(d []byte) []byte
+	MarshalSignature(sig []byte) (r, s []byte)
+	UnmarshalSignature(r, s []byte) (sig []byte)
 	GenerateEdDSA(rand io.Reader) (pub, priv []byte, err error)
-	Sign(publicKey, privateKey, message []byte) (r, s []byte, err error)
-	Verify(publicKey, message, r, s []byte) bool
+	Sign(publicKey, privateKey, message []byte) (sig []byte, err error)
+	Verify(publicKey, message, sig []byte) bool
 	ValidateEdDSA(publicKey, privateKey []byte) (err error)
 }
 type ECDHCurve interface {

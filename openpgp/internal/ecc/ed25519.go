@@ -56,6 +56,28 @@ func (c *ed25519) UnmarshalByteSecret(s []byte) (d []byte) {
 	return
 }
 
+// MarshalSignature splits a signature in R and S.
+// See https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh-06#section-5.2.3.3.1
+func (c *ed25519) MarshalSignature(sig []byte) (r, s []byte) {
+	return sig[:ed25519Size], sig[ed25519Size:]
+}
+
+// UnmarshalSignature decodes R and S in the native format, re-adding the stripped leading zeroes
+// See https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh-06#section-5.2.3.3.1
+func (c *ed25519) UnmarshalSignature(r, s []byte) (sig []byte) {
+	// Check size
+	if len(r) > 32 || len(s) > 32 {
+		return nil
+	}
+
+	sig = make([]byte, ed25519lib.SignatureSize)
+
+	// Handle stripped leading zeroes
+	copy(sig[ed25519Size-len(r):ed25519Size], r)
+	copy(sig[ed25519lib.SignatureSize-len(s):], s)
+	return sig
+}
+
 func (c *ed25519) GenerateEdDSA(rand io.Reader) (pub, priv []byte, err error) {
 	pk, sk, err := ed25519lib.GenerateKey(rand)
 
@@ -70,19 +92,13 @@ func getEd25519Sk(publicKey, privateKey []byte) ed25519lib.PrivateKey {
 	return append(privateKey, publicKey...)
 }
 
-func (c *ed25519) Sign(publicKey, privateKey, message []byte) (r, s []byte, err error) {
-	sig := ed25519lib.Sign(getEd25519Sk(publicKey, privateKey), message)
-	return sig[:ed25519Size], sig[ed25519Size:], nil
+func (c *ed25519) Sign(publicKey, privateKey, message []byte) (sig []byte, err error) {
+	sig = ed25519lib.Sign(getEd25519Sk(publicKey, privateKey), message)
+	return sig, nil
 }
 
-func (c *ed25519) Verify(publicKey, message, r, s []byte) bool {
-	signature := make([]byte, ed25519lib.SignatureSize)
-
-	// Handle stripped leading zeroes as per https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh-06#section-5.2.3.3.1
-	copy(signature[ed25519Size-len(r):ed25519Size], r)
-	copy(signature[ed25519lib.SignatureSize-len(s):], s)
-
-	return ed25519lib.Verify(publicKey, message, signature)
+func (c *ed25519) Verify(publicKey, message, sig []byte) bool {
+	return ed25519lib.Verify(publicKey, message, sig)
 }
 
 func (c *ed25519) ValidateEdDSA(publicKey, privateKey []byte) (err error) {
