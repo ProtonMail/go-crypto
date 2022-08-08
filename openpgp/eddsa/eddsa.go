@@ -68,11 +68,22 @@ func GenerateKey(rand io.Reader, c ecc.EdDSACurve) (priv *PrivateKey, err error)
 }
 
 func Sign(priv *PrivateKey, message []byte) (r, s []byte, err error) {
-	return priv.PublicKey.curve.Sign(priv.PublicKey.X, priv.D, message)
+	sig, err := priv.PublicKey.curve.Sign(priv.PublicKey.X, priv.D, message)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	r, s = priv.PublicKey.curve.MarshalSignature(sig)
+	return
 }
 
 func Verify(pub *PublicKey, message, r, s []byte) bool {
-	return pub.curve.Verify(pub.X, message, r, s)
+	sig := pub.curve.UnmarshalSignature(r, s)
+	if sig == nil {
+		return false
+	}
+
+	return pub.curve.Verify(pub.X, message, sig)
 }
 
 func Validate(priv *PrivateKey) error {
