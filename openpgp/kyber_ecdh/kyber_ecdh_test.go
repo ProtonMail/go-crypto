@@ -73,7 +73,7 @@ func testGenerateKeyAlgo(t *testing.T, algId packet.PublicKeyAlgorithm) *kyber_e
 
 	kyberObj, err := packet.GetKyberFromAlgID(algId)
 	if err != nil {
-		t.Errorf("error getting kyber_ecdh: %s", err)
+		t.Errorf("error getting kyber: %s", err)
 	}
 
 	priv, err := kyber_ecdh.GenerateKey(rand.Reader, uint8(algId), curveObj, kyberObj)

@@ -3,9 +3,10 @@ package kyber_ecdh
 
 import (
 	"crypto/subtle"
-	"errors"
+	goerrors "errors"
 	"io"
 
+	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
 	aeskeywrap "github.com/google/tink/go/kwp/subtle"
@@ -52,7 +53,7 @@ func Encrypt(rand io.Reader, pub *PublicKey, msg, fingerprint []byte) (kEphemera
 	var kwp *aeskeywrap.KWP
 
 	if len(msg) > 64 {
-		return nil, nil, nil, errors.New("kyber_ecdh: message too long")
+		return nil, nil, nil, goerrors.New("kyber_ecdh: message too long")
 	}
 
 	// EC shared secret derivation
@@ -119,7 +120,7 @@ func buildKey(pub *PublicKey, sK, zb, fingerprint []byte) ([]byte, error) {
 	h := sha3.New512()
 
 	// Hash never returns error
-	_, _ = h.Write([]byte{byte(pub.AlgId)})
+	_, _ = h.Write([]byte{pub.AlgId})
 	_, _ = h.Write(fingerprint)
 	_, _ = h.Write(sK)
 	_, _ = h.Write(zb)
@@ -137,7 +138,7 @@ func Validate(priv *PrivateKey) (err error) {
 
 	kSk := priv.PublicKey.Kyber.UnpackSK(priv.SecretKyber)
 	if subtle.ConstantTimeCompare(kSk.Pk, priv.PublicKey.PublicKyber) == 0 {
-		return errors.New("kyber_ecdh: invalid public key")
+		return errors.KeyInvalidError("kyber_ecdh: invalid public key")
 	}
 
 	return

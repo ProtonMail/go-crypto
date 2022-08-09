@@ -9,6 +9,8 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	goerrors "errors"
+	"github.com/ProtonMail/go-crypto/openpgp/dilithium_ecdsa"
+	"github.com/ProtonMail/go-crypto/openpgp/dilithium_eddsa"
 	"io"
 	"math/big"
 	"time"
@@ -278,6 +280,37 @@ func newSigner(config *packet.Config) (signer interface{}, err error) {
 			return nil, err
 		}
 		return priv, nil
+	case packet.PubKeyAlgoDilithium3p384, packet.PubKeyAlgoDilithium5p521, packet.PubKeyAlgoDilithium3Brainpool384,
+		packet.PubKeyAlgoDilithium5Brainpool512:
+		if !config.V5Keys {
+			return nil, goerrors.New("openpgp: cannot create a non-v5 dilithium_ecdsa key")
+		}
+
+		c, err := packet.GetECDSACurveFromAlgID(config.PublicKeyAlgorithm())
+		if err != nil {
+			return nil, err
+		}
+		d, err := packet.GetDilithiumFromAlgID(config.PublicKeyAlgorithm())
+		if err != nil {
+			return nil, err
+		}
+
+		return dilithium_ecdsa.GenerateKey(config.Random(), uint8(config.PublicKeyAlgorithm()), c, d)
+	case packet.PubKeyAlgoDilithium2Ed25519, packet.PubKeyAlgoDilithium5Ed448:
+		if !config.V5Keys {
+			return nil, goerrors.New("openpgp: cannot create a non-v5 dilithium_eddsa key")
+		}
+
+		c, err := packet.GetEdDSACurveFromAlgID(config.PublicKeyAlgorithm())
+		if err != nil {
+			return nil, err
+		}
+		d, err := packet.GetDilithiumFromAlgID(config.PublicKeyAlgorithm())
+		if err != nil {
+			return nil, err
+		}
+
+		return dilithium_eddsa.GenerateKey(config.Random(), uint8(config.PublicKeyAlgorithm()), c, d)
 	default:
 		return nil, errors.InvalidArgumentError("unsupported public key algorithm")
 	}
@@ -285,7 +318,8 @@ func newSigner(config *packet.Config) (signer interface{}, err error) {
 
 // Generates an encryption/decryption key
 func newDecrypter(config *packet.Config) (decrypter interface{}, err error) {
-	switch config.PublicKeyAlgorithm() {
+	pubKeyAlgo := config.PublicKeyAlgorithm()
+	switch pubKeyAlgo {
 	case packet.PubKeyAlgoRSA:
 		bits := config.RSAModulusBits()
 		if bits < 1024 {
@@ -309,22 +343,29 @@ func newDecrypter(config *packet.Config) (decrypter interface{}, err error) {
 			return nil, errors.InvalidArgumentError("unsupported curve")
 		}
 		return ecdh.GenerateKey(config.Random(), curve, kdf)
+	case packet.PubKeyAlgoDilithium2Ed25519, packet.PubKeyAlgoDilithium5Ed448, packet.PubKeyAlgoDilithium3p384,
+		packet.PubKeyAlgoDilithium5p521, packet.PubKeyAlgoDilithium3Brainpool384,
+		packet.PubKeyAlgoDilithium5Brainpool512:
+		if pubKeyAlgo, err = packet.GetMatchingKyberKem(config.PublicKeyAlgorithm()); err != nil {
+			return nil, err
+		}
+		fallthrough // When passing Dilithium + EdDSA or ECDSA, we generate a Kyber + ECDH subkey
 	case packet.PubKeyAlgoKyber512X25519, packet.PubKeyAlgoKyber1024X448, packet.PubKeyAlgoKyber768P384,
 		packet.PubKeyAlgoKyber1024P521, packet.PubKeyAlgoKyber768Brainpool384, packet.PubKeyAlgoKyber1024Brainpool512:
 		if !config.V5Keys {
 			return nil, goerrors.New("openpgp: cannot create a non-v5 kyber_ecdh key")
 		}
 
-		c, err := packet.GetECDHCurveFromAlgID(config.PublicKeyAlgorithm())
+		c, err := packet.GetECDHCurveFromAlgID(pubKeyAlgo)
 		if err != nil {
 			return nil, err
 		}
-		k, err := packet.GetKyberFromAlgID(config.PublicKeyAlgorithm())
+		k, err := packet.GetKyberFromAlgID(pubKeyAlgo)
 		if err != nil {
 			return nil, err
 		}
 
-		return kyber_ecdh.GenerateKey(config.Random(), uint8(config.PublicKeyAlgorithm()), c, k)
+		return kyber_ecdh.GenerateKey(config.Random(), uint8(pubKeyAlgo), c, k)
 	default:
 		return nil, errors.InvalidArgumentError("unsupported public key algorithm")
 	}

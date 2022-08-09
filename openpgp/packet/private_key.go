@@ -13,6 +13,8 @@ import (
 	"crypto/rsa"
 	"crypto/sha1"
 	goerrors "errors"
+	"github.com/ProtonMail/go-crypto/openpgp/dilithium_ecdsa"
+	"github.com/ProtonMail/go-crypto/openpgp/dilithium_eddsa"
 	"io"
 	"io/ioutil"
 	"math/big"
@@ -124,6 +126,10 @@ func NewSignerPrivateKey(creationTime time.Time, signer interface{}) *PrivateKey
 		pk.PublicKey = *NewEdDSAPublicKey(creationTime, &pubkey.PublicKey)
 	case eddsa.PrivateKey:
 		pk.PublicKey = *NewEdDSAPublicKey(creationTime, &pubkey.PublicKey)
+	case *dilithium_ecdsa.PrivateKey:
+		pk.PublicKey = *NewDilithiumECDSAPublicKey(creationTime, &pubkey.PublicKey)
+	case *dilithium_eddsa.PrivateKey:
+		pk.PublicKey = *NewDilithiumEdDSAPublicKey(creationTime, &pubkey.PublicKey)
 	default:
 		panic("openpgp: unknown signer type in NewSignerPrivateKey")
 	}
@@ -379,6 +385,22 @@ func serializeKyberPrivateKey(w io.Writer, priv *kyber_ecdh.PrivateKey) error {
 	return err
 }
 
+func serializeDilithiumECDSAPrivateKey(w io.Writer, priv *dilithium_ecdsa.PrivateKey) error {
+	if _, err := w.Write(encoding.NewOctetArray(priv.MarshalIntegerSecret()).EncodedBytes()); err != nil {
+		return err
+	}
+	_, err := w.Write(encoding.NewOctetArray(priv.SecretDilithium).EncodedBytes())
+	return err
+}
+
+func serializeDilithiumEdDSAPrivateKey(w io.Writer, priv *dilithium_eddsa.PrivateKey) error {
+	if _, err := w.Write(encoding.NewOctetArray(priv.SecretEC).EncodedBytes()); err != nil {
+		return err
+	}
+	_, err := w.Write(encoding.NewOctetArray(priv.SecretDilithium).EncodedBytes())
+	return err
+}
+
 // Decrypt decrypts an encrypted private key using a passphrase.
 func (pk *PrivateKey) Decrypt(passphrase []byte) error {
 	if pk.Dummy() {
@@ -514,6 +536,10 @@ func (pk *PrivateKey) serializePrivateKey(w io.Writer) (err error) {
 		err = serializeECDHPrivateKey(w, priv)
 	case *kyber_ecdh.PrivateKey:
 		err = serializeKyberPrivateKey(w, priv)
+	case *dilithium_ecdsa.PrivateKey:
+		err = serializeDilithiumECDSAPrivateKey(w, priv)
+	case *dilithium_eddsa.PrivateKey:
+		err = serializeDilithiumEdDSAPrivateKey(w, priv)
 	default:
 		err = errors.InvalidArgumentError("unknown private key type")
 	}
@@ -534,18 +560,30 @@ func (pk *PrivateKey) parsePrivateKey(data []byte) (err error) {
 		return pk.parseECDHPrivateKey(data)
 	case PubKeyAlgoEdDSA:
 		return pk.parseEdDSAPrivateKey(data)
+	case PubKeyAlgoDilithium2Ed25519:
+		return pk.parseDilithiumEdDSAPrivateKey(data, 32, 2528)
+	case PubKeyAlgoDilithium5Ed448:
+		return pk.parseDilithiumEdDSAPrivateKey(data, 57, 4864)
+	case PubKeyAlgoDilithium3p384:
+		return pk.parseDilithiumECDSAPrivateKey(data, 48, 4000)
+	case PubKeyAlgoDilithium5p521:
+		return pk.parseDilithiumECDSAPrivateKey(data, 66, 4864)
+	case PubKeyAlgoDilithium3Brainpool384:
+		return pk.parseDilithiumECDSAPrivateKey(data, 48, 4000)
+	case PubKeyAlgoDilithium5Brainpool512:
+		return pk.parseDilithiumECDSAPrivateKey(data, 64, 4864)
 	case PubKeyAlgoKyber512X25519:
-		return pk.parseKyberPrivateKey(data, 32, 1632)
+		return pk.parseKyberECDHPrivateKey(data, 32, 1632)
 	case PubKeyAlgoKyber1024X448:
-		return pk.parseKyberPrivateKey(data, 56, 3168)
+		return pk.parseKyberECDHPrivateKey(data, 56, 3168)
 	case PubKeyAlgoKyber768P384:
-		return pk.parseKyberPrivateKey(data, 48, 2400)
+		return pk.parseKyberECDHPrivateKey(data, 48, 2400)
 	case PubKeyAlgoKyber1024P521:
-		return pk.parseKyberPrivateKey(data, 66, 3168)
+		return pk.parseKyberECDHPrivateKey(data, 66, 3168)
 	case PubKeyAlgoKyber768Brainpool384:
-		return pk.parseKyberPrivateKey(data, 48, 2400)
+		return pk.parseKyberECDHPrivateKey(data, 48, 2400)
 	case PubKeyAlgoKyber1024Brainpool512:
-		return pk.parseKyberPrivateKey(data, 64, 3168)
+		return pk.parseKyberECDHPrivateKey(data, 64, 3168)
 	}
 	panic("impossible")
 }
@@ -692,7 +730,69 @@ func (pk *PrivateKey) parseEdDSAPrivateKey(data []byte) (err error) {
 	return nil
 }
 
-func (pk *PrivateKey) parseKyberPrivateKey(data []byte, ecLen, kLen int) (err error) {
+func (pk *PrivateKey) parseDilithiumECDSAPrivateKey(data []byte, ecLen, dLen int) (err error) {
+	if pk.Version != 5 {
+		return goerrors.New("openpgp: cannot parse non-v5 dilithium_ecdsa key")
+	}
+	pub := pk.PublicKey.PublicKey.(*dilithium_ecdsa.PublicKey)
+	priv := new(dilithium_ecdsa.PrivateKey)
+	priv.PublicKey = *pub
+
+	buf := bytes.NewBuffer(data)
+	ec := encoding.NewEmptyOctetArray(ecLen)
+	if _, err := ec.ReadFrom(buf); err != nil {
+		return err
+	}
+
+	d := encoding.NewEmptyOctetArray(dLen)
+	if _, err := d.ReadFrom(buf); err != nil {
+		return err
+	}
+
+	err = priv.UnmarshalIntegerSecret(ec.Bytes())
+	if err != nil {
+		return err
+	}
+
+	priv.SecretDilithium = d.Bytes()
+	if err := dilithium_ecdsa.Validate(priv); err != nil {
+		return err
+	}
+	pk.PrivateKey = priv
+
+	return nil
+}
+
+func (pk *PrivateKey) parseDilithiumEdDSAPrivateKey(data []byte, ecLen, dLen int) (err error) {
+	if pk.Version != 5 {
+		return goerrors.New("openpgp: cannot parse non-v5 dilithium_eddsa key")
+	}
+	pub := pk.PublicKey.PublicKey.(*dilithium_eddsa.PublicKey)
+	priv := new(dilithium_eddsa.PrivateKey)
+	priv.PublicKey = *pub
+
+	buf := bytes.NewBuffer(data)
+	ec := encoding.NewEmptyOctetArray(ecLen)
+	if _, err := ec.ReadFrom(buf); err != nil {
+		return err
+	}
+
+	d := encoding.NewEmptyOctetArray(dLen)
+	if _, err := d.ReadFrom(buf); err != nil {
+		return err
+	}
+
+	priv.SecretEC = ec.Bytes()
+	priv.SecretDilithium = d.Bytes()
+	if err := dilithium_eddsa.Validate(priv); err != nil {
+		return err
+	}
+	pk.PrivateKey = priv
+
+	return nil
+}
+
+func (pk *PrivateKey) parseKyberECDHPrivateKey(data []byte, ecLen, kLen int) (err error) {
 	if pk.Version != 5 {
 		return goerrors.New("openpgp: cannot parse non-v5 kyber_ecdh key")
 	}
