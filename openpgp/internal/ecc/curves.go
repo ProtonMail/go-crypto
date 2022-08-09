@@ -40,7 +40,6 @@ type ECDHCurve interface {
 	UnmarshalPoint([]byte) (x, y *big.Int)
 	MarshalByteSecret(d []byte) []byte
 	UnmarshalByteSecret(d []byte) []byte
-	GetBuildKeyAttempts() int
 	GenerateECDH(rand io.Reader) (x, y *big.Int, secret []byte, err error)
 	Encaps(rand io.Reader, x, y *big.Int) (ephemeral, sharedSecret []byte, err error)
 	Decaps(ephemeral, secret []byte) (sharedSecret []byte, err error)
