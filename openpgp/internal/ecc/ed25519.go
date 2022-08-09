@@ -29,7 +29,7 @@ func (c *ed25519) MarshalPoint(x []byte) []byte {
 }
 
 func (c *ed25519) UnmarshalPoint(point []byte) (x []byte) {
-	// Check size draft-ietf-openpgp-crypto-refresh-06#section-9.2.1
+	// Check size as per https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh-06#section-5.5.5.5
 	if len(point) != ed25519lib.PublicKeySize + 1 {
 		return nil
 	}
@@ -47,7 +47,7 @@ func (c *ed25519) UnmarshalByteSecret(s []byte) (d []byte) {
 		return nil
 	}
 
-	// Handle stripped leading zeroes draft-ietf-openpgp-crypto-refresh-06#section-9.2.1
+	// Handle stripped leading zeroes as per https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh-06#section-5.5.5.5
 	d = make([]byte, ed25519lib.SeedSize)
 	copy(d[ed25519lib.SeedSize - len(s):], s)
 	return
@@ -75,7 +75,7 @@ func (c *ed25519) Sign(publicKey, privateKey, message []byte) (r, s []byte, err 
 func (c *ed25519) Verify(publicKey, message, r, s []byte) bool {
 	signature := make([]byte, ed25519lib.SignatureSize)
 
-	// Handle stripped leading zeroes draft-ietf-openpgp-crypto-refresh-06#section-9.2.1
+	// Handle stripped leading zeroes as per https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh-06#section-5.2.3.3.1
 	copy(signature[ed25519Size-len(r):ed25519Size], r)
 	copy(signature[ed25519lib.SignatureSize-len(s):], s)
 

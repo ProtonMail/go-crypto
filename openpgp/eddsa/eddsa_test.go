@@ -1,5 +1,5 @@
-// Package eddsa implements EdDSA signature, suitable for OpenPGP,
-// as specified in draft-ietf-openpgp-crypto-refresh-06 section 13.7
+// Package eddsa implements EdDSA signature, suitable for OpenPGP, as specified in
+// https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh-06#section-13.7
 package eddsa
 
 import (
