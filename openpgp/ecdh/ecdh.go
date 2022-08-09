@@ -121,10 +121,10 @@ func Decrypt(priv *PrivateKey, vsG, c, curveOID, fingerprint []byte) (msg []byte
 	var m []byte
 	zb, err := priv.PublicKey.curve.Decaps(vsG, priv.D)
 
-	for i := 0; i < priv.PublicKey.curve.GetBuildKeyAttempts(); i++ {
+	// Try buildKey three times to workaround an old bug, see comments in buildKey.
+	for i := 0; i < 3; i++ {
 		var z []byte
 		// RFC6637 §8: "Compute Z = KDF( S, Z_len, Param );"
-		// Try buildKey three times for compat, see comments in buildKey.
 		z, err = buildKey(&priv.PublicKey, zb, curveOID, fingerprint, i == 1, i == 2)
 		if err != nil {
 			return nil, err

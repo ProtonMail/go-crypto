@@ -25,10 +25,6 @@ func (c *curve25519) GetCurveName() string {
 	return "curve25519"
 }
 
-func (c *curve25519) GetBuildKeyAttempts() int {
-	return 3
-}
-
 func (c *curve25519) MarshalPoint(x, y *big.Int) []byte {
 	return x.Bytes()
 }

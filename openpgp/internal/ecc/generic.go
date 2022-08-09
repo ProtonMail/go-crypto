@@ -30,10 +30,6 @@ func (c *genericCurve) GetCurveType() CurveType {
 	return c.Type
 }
 
-func (c *genericCurve) GetBuildKeyAttempts() int {
-	return 1
-}
-
 func (c *genericCurve) MarshalPoint(x, y *big.Int) []byte {
 	return elliptic.Marshal(c.Curve, x, y)
 }
