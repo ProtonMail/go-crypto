@@ -417,7 +417,15 @@ const (
 	PubKeyAlgoRSAEncryptOnly PublicKeyAlgorithm = 2
 	PubKeyAlgoRSASignOnly    PublicKeyAlgorithm = 3
 
-	// Experimental PQC composite algorithms
+	// Experimental PQC DSA algorithms
+	PubKeyAlgoDilithium2Ed25519 = 25
+	PubKeyAlgoDilithium5Ed448 = 26
+	PubKeyAlgoDilithium3p384 = 27
+	PubKeyAlgoDilithium5p521 = 28
+	PubKeyAlgoDilithium3Brainpool384 = 29
+	PubKeyAlgoDilithium5Brainpool512 = 30
+
+	// Experimental PQC KEM algorithms
 	PubKeyAlgoKyber512X25519 = 32
 	PubKeyAlgoKyber1024X448 = 33
 	PubKeyAlgoKyber768P384 = 34
@@ -442,7 +450,9 @@ func (pka PublicKeyAlgorithm) CanEncrypt() bool {
 // sign a message.
 func (pka PublicKeyAlgorithm) CanSign() bool {
 	switch pka {
-	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA:
+	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA,
+		PubKeyAlgoDilithium2Ed25519, PubKeyAlgoDilithium5Ed448, PubKeyAlgoDilithium3p384,
+		PubKeyAlgoDilithium5p521, PubKeyAlgoDilithium3Brainpool384, PubKeyAlgoDilithium5Brainpool512:
 		return true
 	}
 	return false
