@@ -24,12 +24,15 @@ func (c *ed25519) GetCurveName() string {
 	return "ed25519"
 }
 
+// MarshalBytePoint encodes the public point from native format, adding the prefix.
+// See https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh-06#section-5.5.5.5
 func (c *ed25519) MarshalBytePoint(x []byte) []byte {
 	return append([]byte{0x40}, x...)
 }
 
+// UnmarshalBytePoint decodes a point from prefixed format to native.
+// See https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh-06#section-5.5.5.5
 func (c *ed25519) UnmarshalBytePoint(point []byte) (x []byte) {
-	// Check size as per https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh-06#section-5.5.5.5
 	if len(point) != ed25519lib.PublicKeySize + 1 {
 		return nil
 	}
@@ -38,16 +41,20 @@ func (c *ed25519) UnmarshalBytePoint(point []byte) (x []byte) {
 	return point[1:]
 }
 
+// MarshalByteSecret encodes a scalar in native format.
+// See https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh-06#section-5.5.5.5
 func (c *ed25519) MarshalByteSecret(d []byte) []byte {
 	return d
 }
 
+// UnmarshalByteSecret decodes a scalar in native format and re-adds the stripped leading zeroes
+// See https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh-06#section-5.5.5.5
 func (c *ed25519) UnmarshalByteSecret(s []byte) (d []byte) {
 	if len(s) > ed25519lib.SeedSize {
 		return nil
 	}
 
-	// Handle stripped leading zeroes as per https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh-06#section-5.5.5.5
+	// Handle stripped leading zeroes
 	d = make([]byte, ed25519lib.SeedSize)
 	copy(d[ed25519lib.SeedSize - len(s):], s)
 	return

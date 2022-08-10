@@ -15,22 +15,28 @@ import (
 // properly masked.
 func TestGenerateMaskedPrivateKeyX25519(t *testing.T) {
 	c := NewCurve25519()
-	priv, _, err := c.generateKeyPairBytes(rand.Reader)
+	_, secret, err := c.GenerateECDH(rand.Reader)
 	if err != nil  {
+		t.Fatal(err)
+	}
+
+	encoded := c.MarshalByteSecret(secret)
+	decoded := c.UnmarshalByteSecret(encoded)
+	if decoded == nil  {
 		t.Fatal(err)
 	}
 
 	// Check masking
 	// 3 lsb are 0
-	if priv[0]<<5 != 0 {
-		t.Fatalf("Priv. key is not masked (3 lsb should be unset): %X", priv)
+	if decoded[0]<<5 != 0 {
+		t.Fatalf("Priv. key is not masked (3 lsb should be unset): %X", decoded)
 	}
 	// MSB is 0
-	if priv[31]>>7 != 0 {
-		t.Fatalf("Priv. key is not masked (MSB should be unset): %X", priv)
+	if decoded[31]>>7 != 0 {
+		t.Fatalf("Priv. key is not masked (MSB should be unset): %X", decoded)
 	}
 	// Second-MSB is 1
-	if priv[31]>>6 != 1 {
-		t.Fatalf("Priv. key is not masked (second MSB should be set): %X", priv)
+	if decoded[31]>>6 != 1 {
+		t.Fatalf("Priv. key is not masked (second MSB should be set): %X", decoded)
 	}
 }
