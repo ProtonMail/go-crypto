@@ -48,6 +48,20 @@ func (c *curve25519) UnmarshalBytePoint(point []byte) []byte {
 // See https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh-06#section-5.5.5.6.1.1
 // Here Leading zero bytes are stripped when encoding to MPI.
 func (c *curve25519) MarshalByteSecret(secret []byte) []byte {
+	// The following ensures that the private key is a number of the form
+	// 2^{254} + 8 * [0, 2^{251}), in order to avoid the small subgroup of
+	// the curve.
+	//
+	// This masking is done internally in the underlying lib and so is unnecessary
+	// for security, but OpenPGP implementations require that private keys be
+	// pre-masked.
+	//
+	// Do not copy, since changing the stored secret is an invariant for crypto
+	// operations
+	secret[0] &= 248
+	secret[31] &= 127
+	secret[31] |= 64
+
 	d := make([]byte, x25519lib.Size)
 	copyReversed(d, secret)
 	return d
@@ -82,17 +96,6 @@ func (c *curve25519) generateKeyPairBytes(rand io.Reader) (priv, pub x25519lib.K
 		return
 	}
 
-	// The following ensures that the private key is a number of the form
-	// 2^{254} + 8 * [0, 2^{251}), in order to avoid the small subgroup of
-	// of the curve.
-	//
-	// This masking is done internally to KeyGen and so is unnecessary
-	// for security, but OpenPGP implementations require that private keys be
-	// pre-masked.
-	priv[0] &= 248
-	priv[31] &= 127
-	priv[31] |= 64
-
 	x25519lib.KeyGen(&pub, &priv)
 	return
 }
@@ -104,6 +107,10 @@ func (c *curve25519) GenerateECDH(rand io.Reader) (point []byte, secret []byte, 
 	}
 
 	return pub[:], priv[:], nil
+}
+
+func (c *genericCurve) MaskSecret(secret []byte) []byte {
+	return secret
 }
 
 func (c *curve25519) Encaps(rand io.Reader, point []byte) (ephemeral, sharedSecret []byte, err error) {
