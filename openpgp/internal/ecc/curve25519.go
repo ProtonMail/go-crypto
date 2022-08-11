@@ -15,10 +15,6 @@ func NewCurve25519() *curve25519 {
 	return &curve25519{}
 }
 
-func (c *curve25519) GetCurveType() CurveType {
-	return Curve25519
-}
-
 func (c *curve25519) GetCurveName() string {
 	return "curve25519"
 }

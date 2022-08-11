@@ -23,7 +23,7 @@ func TestCurves(t *testing.T) {
 			continue
 		}
 
-		t.Run(curve.Name, func(t *testing.T) {
+		t.Run(ECDHCurve.GetCurveName(), func(t *testing.T) {
 			testFingerprint := make([]byte, 20)
 			_, err := io.ReadFull(rand.Reader, testFingerprint[:])
 			if err != nil {
