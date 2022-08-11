@@ -12,22 +12,16 @@ import (
 
 type genericCurve struct {
 	Curve elliptic.Curve
-	Type CurveType
 }
 
-func NewGenericCurve(c elliptic.Curve, t CurveType) *genericCurve {
+func NewGenericCurve(c elliptic.Curve) *genericCurve {
 	return &genericCurve{
 		Curve: c,
-		Type: t,
 	}
 }
 
 func (c *genericCurve) GetCurveName() string {
 	return c.Curve.Params().Name
-}
-
-func (c *genericCurve) GetCurveType() CurveType {
-	return c.Type
 }
 
 func (c *genericCurve) MarshalBytePoint(point []byte) []byte {

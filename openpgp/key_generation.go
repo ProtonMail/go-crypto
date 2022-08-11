@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	goerrors "errors"
+	"github.com/ProtonMail/go-crypto/openpgp/ecdsa"
 	"io"
 	"math/big"
 
@@ -258,7 +259,23 @@ func newSigner(config *packet.Config) (signer interface{}, err error) {
 		}
 		return rsa.GenerateKey(config.Random(), bits)
 	case packet.PubKeyAlgoEdDSA:
-		priv, err := eddsa.GenerateKey(config.Random(), ecc.NewEd25519())
+		curve := ecc.FindEdDSAByType(string(config.CurveType()))
+		if curve == nil {
+			return nil, errors.InvalidArgumentError("unsupported curve")
+		}
+
+		priv, err := eddsa.GenerateKey(config.Random(), curve)
+		if err != nil {
+			return nil, err
+		}
+		return priv, nil
+	case packet.PubKeyAlgoECDSA:
+		curve := ecc.FindECDSAByType(string(config.CurveType()))
+		if curve == nil {
+			return nil, errors.InvalidArgumentError("unsupported curve")
+		}
+
+		priv, err := ecdsa.GenerateKey(config.Random(), curve)
 		if err != nil {
 			return nil, err
 		}
@@ -284,12 +301,18 @@ func newDecrypter(config *packet.Config) (decrypter interface{}, err error) {
 		return rsa.GenerateKey(config.Random(), bits)
 	case packet.PubKeyAlgoEdDSA:
 		fallthrough // When passing EdDSA, we generate an ECDH subkey
+	case packet.PubKeyAlgoECDSA:
+		fallthrough // When passing ECDSA, we generate an ECDH subkey
 	case packet.PubKeyAlgoECDH:
 		var kdf = ecdh.KDF{
 			Hash:   algorithm.SHA512,
 			Cipher: algorithm.AES256,
 		}
-		return ecdh.GenerateKey(config.Random(), ecc.NewCurve25519(), kdf)
+		curve := ecc.FindECDHByType(string(config.CurveType()))
+		if curve == nil {
+			return nil, errors.InvalidArgumentError("unsupported curve")
+		}
+		return ecdh.GenerateKey(config.Random(), curve, kdf)
 	default:
 		return nil, errors.InvalidArgumentError("unsupported public key algorithm")
 	}

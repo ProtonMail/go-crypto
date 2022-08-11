@@ -203,7 +203,7 @@ func TestExternalRSAPrivateKey(t *testing.T) {
 }
 
 func TestECDSAPrivateKeysRandomizeFast(t *testing.T) {
-	ecdsaPriv, err := ecdsa.GenerateKey(rand.Reader, ecc.NewGenericCurve(elliptic.P256(), ecc.NISTCurve))
+	ecdsaPriv, err := ecdsa.GenerateKey(rand.Reader, ecc.NewGenericCurve(elliptic.P256()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -296,7 +296,7 @@ func TestRSASignerPrivateKeysRandomizeSlow(t *testing.T) {
 }
 
 func TestECDSASignerPrivateKeysRandomizeFast(t *testing.T) {
-	ecdsaPriv, err := ecdsa.GenerateKey(rand.Reader, ecc.NewGenericCurve(elliptic.P256(), ecc.NISTCurve))
+	ecdsaPriv, err := ecdsa.GenerateKey(rand.Reader, ecc.NewGenericCurve(elliptic.P256()))
 	if err != nil {
 		t.Fatal(err)
 	}

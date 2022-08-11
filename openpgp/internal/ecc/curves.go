@@ -7,7 +7,6 @@ import (
 )
 
 type Curve interface {
-	GetCurveType() CurveType
 	GetCurveName() string
 }
 

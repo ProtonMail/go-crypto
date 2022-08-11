@@ -15,10 +15,6 @@ func NewX448() *x448 {
 	return &x448{}
 }
 
-func (c *x448) GetCurveType() CurveType {
-	return X448
-}
-
 func (c *x448) GetCurveName() string {
 	return "x448"
 }

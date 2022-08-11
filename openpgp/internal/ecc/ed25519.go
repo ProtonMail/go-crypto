@@ -16,10 +16,6 @@ func NewEd25519() *ed25519 {
 	return &ed25519{}
 }
 
-func (c *ed25519) GetCurveType() CurveType {
-	return Ed25519
-}
-
 func (c *ed25519) GetCurveName() string {
 	return "ed25519"
 }
