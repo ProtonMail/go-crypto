@@ -3,9 +3,10 @@ package ecc
 
 import (
 	"crypto/subtle"
-	"errors"
-	x448lib "github.com/cloudflare/circl/dh/x448"
 	"io"
+
+	"github.com/ProtonMail/go-crypto/openpgp/errors"
+	x448lib "github.com/cloudflare/circl/dh/x448"
 )
 
 type x448 struct {}
@@ -102,7 +103,7 @@ func (c *x448) ValidateECDH(point []byte, secret []byte) error {
 	x448lib.KeyGen(&expectedPk, &sk)
 
 	if subtle.ConstantTimeCompare(expectedPk[:], pk[:]) == 0 {
-		return errors.New("ecc: invalid x448 public key")
+		return errors.KeyInvalidError("ecc: invalid curve25519 public point")
 	}
 
 	return nil
