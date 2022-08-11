@@ -9,11 +9,11 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	goerrors "errors"
-	"github.com/ProtonMail/go-crypto/openpgp/ecdsa"
 	"io"
 	"math/big"
 
 	"github.com/ProtonMail/go-crypto/openpgp/ecdh"
+	"github.com/ProtonMail/go-crypto/openpgp/ecdsa"
 	"github.com/ProtonMail/go-crypto/openpgp/eddsa"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
