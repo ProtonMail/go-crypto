@@ -20,7 +20,7 @@ func (c *ed448) GetCurveType() CurveType {
 }
 
 func (c *ed448) GetCurveName() string {
-	return "Ed448"
+	return "ed448"
 }
 
 // MarshalBytePoint encodes the public point from native format, adding the prefix.
