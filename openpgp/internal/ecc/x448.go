@@ -97,7 +97,6 @@ func (c *x448) Decaps(ephemeral, secret []byte) (sharedSecret []byte, err error)
 func (c *x448) ValidateECDH(point []byte, secret []byte) error {
 	var sk, pk, expectedPk x448lib.Key
 
-	// Remove prefix before using the public key
 	copy(pk[:], point)
 	copy(sk[:], secret)
 	x448lib.KeyGen(&expectedPk, &sk)
