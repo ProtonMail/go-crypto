@@ -52,8 +52,8 @@ type Config struct {
 	Algorithm PublicKeyAlgorithm
 	// Some known primes that are optionally prepopulated by the caller
 	RSAPrimes []*big.Int
-	// Curve configures the desired packet.Curve if the Algorithm is
-	// PubKeyAlgoECDSA or PubKeyAlgoEdDSA. If empty Curve25519 is used.
+	// Curve configures the desired packet.Curve if the Algorithm is PubKeyAlgoECDSA,
+	// PubKeyAlgoEdDSA, or PubKeyAlgoECDH. If empty Curve25519 is used.
 	Curve Curve
 	// AEADConfig configures the use of the new AEAD Encrypted Data Packet,
 	// defined in the draft of the next version of the OpenPGP specification.
@@ -159,7 +159,7 @@ func (c *Config) PublicKeyAlgorithm() PublicKeyAlgorithm {
 	return c.Algorithm
 }
 
-func (c *Config) CurveType() Curve {
+func (c *Config) CurveName() Curve {
 	if c == nil || c.Curve == "" {
 		return Curve25519
 	}

@@ -259,7 +259,7 @@ func newSigner(config *packet.Config) (signer interface{}, err error) {
 		}
 		return rsa.GenerateKey(config.Random(), bits)
 	case packet.PubKeyAlgoEdDSA:
-		curve := ecc.FindEdDSAByType(string(config.CurveType()))
+		curve := ecc.FindEdDSAByGenName(string(config.CurveName()))
 		if curve == nil {
 			return nil, errors.InvalidArgumentError("unsupported curve")
 		}
@@ -270,7 +270,7 @@ func newSigner(config *packet.Config) (signer interface{}, err error) {
 		}
 		return priv, nil
 	case packet.PubKeyAlgoECDSA:
-		curve := ecc.FindECDSAByType(string(config.CurveType()))
+		curve := ecc.FindECDSAByGenName(string(config.CurveName()))
 		if curve == nil {
 			return nil, errors.InvalidArgumentError("unsupported curve")
 		}
@@ -299,16 +299,14 @@ func newDecrypter(config *packet.Config) (decrypter interface{}, err error) {
 			return generateRSAKeyWithPrimes(config.Random(), 2, bits, primes)
 		}
 		return rsa.GenerateKey(config.Random(), bits)
-	case packet.PubKeyAlgoEdDSA:
-		fallthrough // When passing EdDSA, we generate an ECDH subkey
-	case packet.PubKeyAlgoECDSA:
-		fallthrough // When passing ECDSA, we generate an ECDH subkey
+	case packet.PubKeyAlgoEdDSA, packet.PubKeyAlgoECDSA:
+		fallthrough // When passing EdDSA or ECDSA, we generate an ECDH subkey
 	case packet.PubKeyAlgoECDH:
 		var kdf = ecdh.KDF{
 			Hash:   algorithm.SHA512,
 			Cipher: algorithm.AES256,
 		}
-		curve := ecc.FindECDHByType(string(config.CurveType()))
+		curve := ecc.FindECDHByGenName(string(config.CurveName()))
 		if curve == nil {
 			return nil, errors.InvalidArgumentError("unsupported curve")
 		}
