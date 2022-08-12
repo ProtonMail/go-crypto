@@ -99,7 +99,17 @@ func testMarshalUnmarshal(t *testing.T, priv *PrivateKey) {
 		t.Fatalf("unable to unmarshal integer: %s", err)
 	}
 
-	if !bytes.Equal(priv.Point, parsed.Point) || !bytes.Equal(priv.D, parsed.D) {
+	expectedD := make([]byte, len(priv.D))
+	copy(expectedD, priv.D)
+
+	// Curve25519 expects keys to be saved clamped
+	if priv.curve.GetCurveName() == "curve25519" {
+		expectedD[0] &= 248
+		expectedD[31] &= 127
+		expectedD[31] |= 64
+	}
+
+	if !bytes.Equal(priv.Point, parsed.Point) || !bytes.Equal(expectedD, parsed.D) {
 		t.Fatal("failed to marshal/unmarshal correctly")
 	}
 }
