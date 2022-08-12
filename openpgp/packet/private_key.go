@@ -300,14 +300,8 @@ func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 				return err
 			}
 			l = buf.Len()
-			if pk.sha1Checksum {
-				h := sha1.New()
-				h.Write(buf.Bytes())
-				buf.Write(h.Sum(nil))
-			} else {
-				checksum := mod64kHash(buf.Bytes())
-				buf.Write([]byte{byte(checksum >> 8), byte(checksum)})
-			}
+			checksum := mod64kHash(buf.Bytes())
+			buf.Write([]byte{byte(checksum >> 8), byte(checksum)})
 			priv = buf.Bytes()
 		} else {
 			priv, l = pk.encryptedData, len(pk.encryptedData)
