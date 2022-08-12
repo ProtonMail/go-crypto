@@ -51,7 +51,7 @@ func (c *ed448) MarshalByteSecret(d []byte) []byte {
 // UnmarshalByteSecret decodes a scalar from prefixed format to native.
 // See https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh-06#section-5.5.5.5
 func (c *ed448) UnmarshalByteSecret(s []byte) (d []byte) {
-	// Check size with prefix draft-ietf-openpgp-crypto-refresh-06#section-9.2.1
+	// Check prefixed size
 	if len(s) != ed448lib.SeedSize + 1 {
 		return nil
 	}
@@ -75,20 +75,24 @@ func getEd448Sk(publicKey, privateKey []byte) ed448lib.PrivateKey {
 }
 
 func (c *ed448) Sign(publicKey, privateKey, message []byte) (r, s []byte, err error) {
-	// Ed448 is used with the empty string as a context string draft-ietf-openpgp-crypto-refresh-06#section-13.7
+	// Ed448 is used with the empty string as a context string.
+	// See https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh-06#section-13.7
 	sig := ed448lib.Sign(getEd448Sk(publicKey, privateKey), message, "")
 
-	// Only R is used, in prefixed native format draft-ietf-openpgp-crypto-refresh-06#section-9.2.1
+	// Only R is used, in prefixed native format.
+	// See https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh-06#section-9.2.1
 	return append([]byte{0x40}, sig...), nil, nil
 }
 
 func (c *ed448) Verify(publicKey, message, r, s []byte) bool {
-	// Only R is used, in prefixed native format draft-ietf-openpgp-crypto-refresh-06#section-9.2.1
-	// Ed448 is used with the empty string as a context string draft-ietf-openpgp-crypto-refresh-06#section-13.7
+	// Only R is used, in prefixed native format.
+	// See https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh-06#section-9.2.1
+	// Ed448 is used with the empty string as a context string.
+	// See https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh-06#section-13.7
 	return ed448lib.Verify(publicKey, message, r[1:], "")
 }
 
-func (c *ed448) Validate(publicKey, privateKey []byte) (err error) {
+func (c *ed448) ValidateEdDSA(publicKey, privateKey []byte) (err error) {
 	priv := getEd448Sk(publicKey, privateKey)
 	expectedPriv := ed448lib.NewKeyFromSeed(priv.Seed())
 	if subtle.ConstantTimeCompare(priv, expectedPriv) == 0 {
