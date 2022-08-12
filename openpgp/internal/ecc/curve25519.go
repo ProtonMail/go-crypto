@@ -43,11 +43,14 @@ func (c *curve25519) UnmarshalBytePoint(point []byte) []byte {
 // MarshalByteSecret encodes the secret scalar from native format.
 // Note that the EC secret scalar differs from the definition of public keys in
 // [Curve25519] in two ways: (1) the byte-ordering is big-endian, which is
-// more uniform with how big integers are represented in TLS, and (2) the
+// more uniform with how big integers are represented in OpenPGP, and (2) the
 // leading zeros are truncated.
 // See https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh-06#section-5.5.5.6.1.1
-// Here Leading zero bytes are stripped when encoding to MPI.
+// Note that leading zero bytes are stripped later when encoding as an MPI.
 func (c *curve25519) MarshalByteSecret(secret []byte) []byte {
+	d := make([]byte, x25519lib.Size)
+	copyReversed(d, secret)
+
 	// The following ensures that the private key is a number of the form
 	// 2^{254} + 8 * [0, 2^{251}), in order to avoid the small subgroup of
 	// the curve.
@@ -55,22 +58,17 @@ func (c *curve25519) MarshalByteSecret(secret []byte) []byte {
 	// This masking is done internally in the underlying lib and so is unnecessary
 	// for security, but OpenPGP implementations require that private keys be
 	// pre-masked.
-	//
-	// Do not copy, since changing the stored secret is an invariant for crypto
-	// operations
-	secret[0] &= 248
-	secret[31] &= 127
-	secret[31] |= 64
+	d[0] &= 127
+	d[0] |= 64
+	d[31] &= 248
 
-	d := make([]byte, x25519lib.Size)
-	copyReversed(d, secret)
 	return d
 }
 
 // UnmarshalByteSecret decodes the secret scalar from native format.
 // Note that the EC secret scalar differs from the definition of public keys in
 // [Curve25519] in two ways: (1) the byte-ordering is big-endian, which is
-// more uniform with how big integers are represented in TLS, and (2) the
+// more uniform with how big integers are represented in OpenPGP, and (2) the
 // leading zeros are truncated.
 // See https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh-06#section-5.5.5.6.1.1
 func (c *curve25519) UnmarshalByteSecret(d []byte) []byte {
