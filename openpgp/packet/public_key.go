@@ -899,13 +899,13 @@ func GetECDHCurveFromAlgID(algId PublicKeyAlgorithm) (ecc.ECDHCurve, error) {
 	case PubKeyAlgoKyber1024X448:
 		return ecc.NewX448(), nil
 	case PubKeyAlgoKyber768P384:
-		return ecc.NewGenericCurve(elliptic.P384(), ecc.NISTCurve), nil
+		return ecc.NewGenericCurve(elliptic.P384()), nil
 	case PubKeyAlgoKyber1024P521:
-		return ecc.NewGenericCurve(elliptic.P521(), ecc.NISTCurve), nil
+		return ecc.NewGenericCurve(elliptic.P521()), nil
 	case PubKeyAlgoKyber768Brainpool384:
-		return ecc.NewGenericCurve(brainpool.P384r1(), ecc.NISTCurve), nil
+		return ecc.NewGenericCurve(brainpool.P384r1()), nil
 	case PubKeyAlgoKyber1024Brainpool512:
-		return ecc.NewGenericCurve(brainpool.P512r1(), ecc.NISTCurve), nil
+		return ecc.NewGenericCurve(brainpool.P512r1()), nil
 	default:
 		return nil, goerrors.New("packet: unsupported ECDH public key algorithm")
 	}
