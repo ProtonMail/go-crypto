@@ -89,7 +89,7 @@ func (c *ed25519) Verify(publicKey, message, r, s []byte) bool {
 	return ed25519lib.Verify(publicKey, message, signature)
 }
 
-func (c *ed25519) Validate(publicKey, privateKey []byte) (err error) {
+func (c *ed25519) ValidateEdDSA(publicKey, privateKey []byte) (err error) {
 	priv := getEd25519Sk(publicKey, privateKey)
 	expectedPriv := ed25519lib.NewKeyFromSeed(priv.Seed())
 	if subtle.ConstantTimeCompare(priv, expectedPriv) == 0 {

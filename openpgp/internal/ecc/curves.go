@@ -32,7 +32,7 @@ type EdDSACurve interface {
 	GenerateEdDSA(rand io.Reader) (pub, priv []byte, err error)
 	Sign(publicKey, privateKey, message []byte) (r, s []byte, err error)
 	Verify(publicKey, message, r, s []byte) bool
-	Validate(publicKey, privateKey []byte) (err error)
+	ValidateEdDSA(publicKey, privateKey []byte) (err error)
 }
 type ECDHCurve interface {
 	Curve
