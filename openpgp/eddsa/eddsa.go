@@ -76,5 +76,5 @@ func Verify(pub *PublicKey, message, r, s []byte) bool {
 }
 
 func Validate(priv *PrivateKey) error {
-	return priv.curve.Validate(priv.PublicKey.X, priv.D)
+	return priv.curve.ValidateEdDSA(priv.PublicKey.X, priv.D)
 }
