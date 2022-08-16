@@ -11,6 +11,7 @@ import (
 	"hash"
 	"io"
 	"strconv"
+	"fmt"
 
 	"github.com/ProtonMail/go-crypto/openpgp/armor"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
@@ -223,9 +224,9 @@ FindKey:
 	if err := packets.Push(decrypted); err != nil {
 		return nil, err
 	}
-	mdFinal, sensitiveParsingErr := readSignedMessage(packets, md, keyring, config)
-	if sensitiveParsingErr != nil {
-		return nil, errors.StructuralError(fmt.Sprintf("parsing error: %s", sensitiveParsingErr))
+	mdFinal, sensitiveParsingError := readSignedMessage(packets, md, keyring, config)
+	if sensitiveParsingError != nil {
+		return nil, errors.StructuralError(fmt.Sprintf("parsing error: %s", sensitiveParsingError))
 	}
 	return mdFinal, nil
 }
@@ -335,7 +336,7 @@ func (cr checkReader) Read(buf []byte) (int, error) {
 	}
 
 	if sensitiveParsingError != nil {
-		return n, errors.StructuralError(fmt.Sprintf("parsing error: %s", sensitiveParsingErr))
+		return n, errors.StructuralError(fmt.Sprintf("parsing error: %s", sensitiveParsingError))
 	}
 
 	return n, nil
@@ -422,7 +423,7 @@ func (scr *signatureCheckReader) Read(buf []byte) (int, error) {
 	}
 
 	if sensitiveParsingError != nil {
-		return n, errors.StructuralError(fmt.Sprintf("parsing error: %s", sensitiveParsingErr))
+		return n, errors.StructuralError(fmt.Sprintf("parsing error: %s", sensitiveParsingError))
 	}
 
 	return n, nil
