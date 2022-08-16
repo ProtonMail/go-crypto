@@ -13,10 +13,12 @@ import (
 	"math/big"
 
 	"github.com/ProtonMail/go-crypto/openpgp/ecdh"
+	"github.com/ProtonMail/go-crypto/openpgp/ecdsa"
+	"github.com/ProtonMail/go-crypto/openpgp/eddsa"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
+	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
-	"golang.org/x/crypto/ed25519"
 )
 
 // NewEntity returns an Entity that contains a fresh RSA/RSA keypair with a
@@ -243,7 +245,7 @@ func (e *Entity) AddEncryptionSubkey(config *packet.Config) error {
 }
 
 // Generates a signing key
-func newSigner(config *packet.Config) (signer crypto.Signer, err error) {
+func newSigner(config *packet.Config) (signer interface{}, err error) {
 	switch config.PublicKeyAlgorithm() {
 	case packet.PubKeyAlgoRSA:
 		bits := config.RSAModulusBits()
@@ -257,11 +259,27 @@ func newSigner(config *packet.Config) (signer crypto.Signer, err error) {
 		}
 		return rsa.GenerateKey(config.Random(), bits)
 	case packet.PubKeyAlgoEdDSA:
-		_, priv, err := ed25519.GenerateKey(config.Random())
+		curve := ecc.FindEdDSAByGenName(string(config.CurveName()))
+		if curve == nil {
+			return nil, errors.InvalidArgumentError("unsupported curve")
+		}
+
+		priv, err := eddsa.GenerateKey(config.Random(), curve)
 		if err != nil {
 			return nil, err
 		}
-		return &priv, nil
+		return priv, nil
+	case packet.PubKeyAlgoECDSA:
+		curve := ecc.FindECDSAByGenName(string(config.CurveName()))
+		if curve == nil {
+			return nil, errors.InvalidArgumentError("unsupported curve")
+		}
+
+		priv, err := ecdsa.GenerateKey(config.Random(), curve)
+		if err != nil {
+			return nil, err
+		}
+		return priv, nil
 	default:
 		return nil, errors.InvalidArgumentError("unsupported public key algorithm")
 	}
@@ -281,14 +299,18 @@ func newDecrypter(config *packet.Config) (decrypter interface{}, err error) {
 			return generateRSAKeyWithPrimes(config.Random(), 2, bits, primes)
 		}
 		return rsa.GenerateKey(config.Random(), bits)
-	case packet.PubKeyAlgoEdDSA:
-		fallthrough // When passing EdDSA, we generate an ECDH subkey
+	case packet.PubKeyAlgoEdDSA, packet.PubKeyAlgoECDSA:
+		fallthrough // When passing EdDSA or ECDSA, we generate an ECDH subkey
 	case packet.PubKeyAlgoECDH:
 		var kdf = ecdh.KDF{
 			Hash:   algorithm.SHA512,
 			Cipher: algorithm.AES256,
 		}
-		return ecdh.X25519GenerateKey(config.Random(), kdf)
+		curve := ecc.FindECDHByGenName(string(config.CurveName()))
+		if curve == nil {
+			return nil, errors.InvalidArgumentError("unsupported curve")
+		}
+		return ecdh.GenerateKey(config.Random(), curve, kdf)
 	default:
 		return nil, errors.InvalidArgumentError("unsupported public key algorithm")
 	}

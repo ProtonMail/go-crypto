@@ -367,7 +367,7 @@ func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *En
 		var ok bool
 		encryptKeys[i], ok = to[i].EncryptionKey(config.Now())
 		if !ok {
-			return nil, errors.InvalidArgumentError("cannot encrypt a message to key id " + strconv.FormatUint(to[i].PrimaryKey.KeyId, 16) + " because it has no encryption keys")
+			return nil, errors.InvalidArgumentError("cannot encrypt a message to key id " + strconv.FormatUint(to[i].PrimaryKey.KeyId, 16) + " because it has no valid encryption keys")
 		}
 
 		sig := to[i].PrimaryIdentity().SelfSignature
@@ -425,7 +425,7 @@ func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *En
 	}
 
 	var payload io.WriteCloser
-	if aeadSupported {
+	if config.AEAD() != nil && aeadSupported {
 		payload, err = packet.SerializeAEADEncrypted(dataWriter, symKey, cipher, mode, config)
 		if err != nil {
 			return

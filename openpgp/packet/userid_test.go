@@ -24,6 +24,7 @@ var userIdTests = []struct {
 	{"  John Smith  < email > lksdfj", "John Smith", "", "email"},
 	{"(<foo", "", "<foo", ""},
 	{"René Descartes (العربي)", "René Descartes", "العربي", ""},
+	{"John@Smith", "", "", "John@Smith"},
 }
 
 func TestParseUserId(t *testing.T) {

@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"crypto"
 	"crypto/dsa"
-	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
@@ -20,10 +19,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ProtonMail/go-crypto/openpgp/ecdh"
+	"github.com/ProtonMail/go-crypto/openpgp/ecdsa"
+	"github.com/ProtonMail/go-crypto/openpgp/eddsa"
 	"github.com/ProtonMail/go-crypto/openpgp/elgamal"
-	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
-	"golang.org/x/crypto/ed25519"
+	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
 )
 
 const maxMessageLength = 1 << 10
@@ -204,7 +203,7 @@ func TestExternalRSAPrivateKey(t *testing.T) {
 }
 
 func TestECDSAPrivateKeysRandomizeFast(t *testing.T) {
-	ecdsaPriv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	ecdsaPriv, err := ecdsa.GenerateKey(rand.Reader, ecc.NewGenericCurve(elliptic.P256()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -248,10 +247,6 @@ func TestECDSAPrivateKeysRandomizeFast(t *testing.T) {
 	}
 }
 
-type rsaSigner struct {
-	*rsa.PrivateKey
-}
-
 func TestRSASignerPrivateKeysRandomizeSlow(t *testing.T) {
 	// Generate random key
 	rsaPriv, err := rsa.GenerateKey(rand.Reader, 1024)
@@ -259,7 +254,7 @@ func TestRSASignerPrivateKeysRandomizeSlow(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	priv := NewSignerPrivateKey(time.Now(), &rsaSigner{rsaPriv})
+	priv := NewSignerPrivateKey(time.Now(), rsaPriv)
 
 	sig := &Signature{
 		Version:    4,
@@ -292,7 +287,7 @@ func TestRSASignerPrivateKeysRandomizeSlow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	incorrectPriv := NewSignerPrivateKey(time.Now(), &rsaSigner{incorrectRsaPriv})
+	incorrectPriv := NewSignerPrivateKey(time.Now(), incorrectRsaPriv)
 	if err = incorrectPriv.VerifySignature(h, sig); err == nil {
 		t.Fatalf(
 			"Verified signature with incorrect key.\nCorrect key:  \n%v\nIncorrect key:\n%v\nSignature:%v",
@@ -300,17 +295,13 @@ func TestRSASignerPrivateKeysRandomizeSlow(t *testing.T) {
 	}
 }
 
-type ecdsaSigner struct {
-	*ecdsa.PrivateKey
-}
-
 func TestECDSASignerPrivateKeysRandomizeFast(t *testing.T) {
-	ecdsaPriv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	ecdsaPriv, err := ecdsa.GenerateKey(rand.Reader, ecc.NewGenericCurve(elliptic.P256()))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	priv := NewSignerPrivateKey(time.Now(), &ecdsaSigner{ecdsaPriv})
+	priv := NewSignerPrivateKey(time.Now(), ecdsaPriv)
 
 	if priv.PubKeyAlgo != PubKeyAlgoECDSA {
 		t.Fatal("NewSignerPrivateKey should have made an ECSDA private key")
@@ -341,7 +332,7 @@ func TestECDSASignerPrivateKeysRandomizeFast(t *testing.T) {
 }
 
 func TestEdDSASignerPrivateKeyRandomizeFast(t *testing.T) {
-	_, eddsaPriv, err := ed25519.GenerateKey(rand.Reader)
+	eddsaPriv, err := eddsa.GenerateKey(rand.Reader, ecc.NewEd25519())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -382,71 +373,29 @@ func TestEncryptDecryptEdDSAPrivateKeyRandomizeFast(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	_, primaryKey, err := ed25519.GenerateKey(rand.Reader)
+	primaryKey, err := eddsa.GenerateKey(rand.Reader, ecc.NewEd25519())
 	if err != nil {
 		panic(err)
 	}
-	privKey := *NewEdDSAPrivateKey(time.Now(), &primaryKey)
-	copiedPrivKey := make([]byte, len(primaryKey))
-	copy(copiedPrivKey, *privKey.PrivateKey.(*ed25519.PrivateKey))
+	privKey := *NewEdDSAPrivateKey(time.Now(), primaryKey)
+
+	copiedSecret := make([]byte, len(primaryKey.D))
+	copy(copiedSecret, privKey.PrivateKey.(*eddsa.PrivateKey).D)
+
 	// Encrypt private key with random passphrase
 	privKey.Encrypt(password)
 	// Decrypt and check correctness
 	privKey.Decrypt(password)
-	if !bytes.Equal(*privKey.PrivateKey.(*ed25519.PrivateKey), copiedPrivKey) {
-		t.Fatalf("Private key was not correctly decrypted:\ngot:\n%v\nwant:\n%v", privKey.PrivateKey, copiedPrivKey)
+
+	decryptedSecret := privKey.PrivateKey.(*eddsa.PrivateKey).D
+	if !bytes.Equal(decryptedSecret, copiedSecret) {
+		t.Fatalf("Private key was not correctly decrypted:\ngot:\n%v\nwant:\n%v", decryptedSecret, copiedSecret)
 	}
 }
 
 func TestIssue11505(t *testing.T) {
 	// parsing a rsa private key with p or q == 1 used to panic due to a divide by zero
 	_, _ = Read(readerFromHex("9c3004303030300100000011303030000000000000010130303030303030303030303030303030303030303030303030303030303030303030303030303030303030"))
-}
-
-func TestEdDSAValidation(t *testing.T) {
-	_, priv, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		t.Fatalf("could not generate test key: %s", err)
-	}
-	if err = validateEdDSAParameters(&priv); err != nil {
-		t.Fatalf("valid key marked as invalid: %s", err)
-	}
-	priv[33] ^= 1
-	if err = validateEdDSAParameters(&priv); err == nil {
-		t.Fatalf("failed to detect invalid key")
-	}
-}
-
-func TestECDSAValidation(t *testing.T) {
-	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		t.Fatalf("could not generate test key: %s", err)
-	}
-	if err = validateECDSAParameters(priv); err != nil {
-		t.Fatalf("valid key marked as invalid: %s", err)
-	}
-	priv.X.Sub(priv.X, big.NewInt(1))
-	if err = validateECDSAParameters(priv); err == nil {
-		t.Fatalf("failed to detect invalid key")
-	}
-}
-
-func TestECDHValidation(t *testing.T) {
-	kdf := ecdh.KDF{
-		Hash:   algorithm.SHA512,
-		Cipher: algorithm.AES256,
-	}
-	priv, err := ecdh.GenerateKey(elliptic.P256(), kdf, rand.Reader)
-	if err != nil {
-		t.Fatalf("could not generate test key: %s", err)
-	}
-	if err = validateECDHParameters(priv); err != nil {
-		t.Fatalf("valid key marked as invalid: %s", err)
-	}
-	priv.X.Sub(priv.X, big.NewInt(1))
-	if err = validateECDHParameters(priv); err == nil {
-		t.Fatalf("failed to detect invalid key")
-	}
 }
 
 func TestDSAValidation(t *testing.T) {
