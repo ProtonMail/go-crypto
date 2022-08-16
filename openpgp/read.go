@@ -223,7 +223,7 @@ FindKey:
 	}
 	mdFinal, sensitiveParsingErr := readSignedMessage(packets, md, keyring, config)
 	if sensitiveParsingErr != nil {
-		return nil, errors.StructuralError("parsing error")
+		return nil, errors.StructuralError(fmt.Sprintf("parsing error: %s", sensitiveParsingErr))
 	}
 	return mdFinal, nil
 }
@@ -331,7 +331,7 @@ func (cr checkReader) Read(buf []byte) (int, error) {
 	}
 
 	if sensitiveParsingError != nil {
-		return n, errors.StructuralError("parsing error")
+		return n, errors.StructuralError(fmt.Sprintf("parsing error: %s", sensitiveParsingErr))
 	}
 
 	return n, nil
@@ -404,7 +404,7 @@ func (scr *signatureCheckReader) Read(buf []byte) (int, error) {
 	}
 
 	if sensitiveParsingError != nil {
-		return n, errors.StructuralError("parsing error")
+		return n, errors.StructuralError(fmt.Sprintf("parsing error: %s", sensitiveParsingErr))
 	}
 
 	return n, nil
