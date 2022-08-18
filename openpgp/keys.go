@@ -648,16 +648,10 @@ func (e *Entity) serializePrivate(w io.Writer, config *packet.Config, reSign boo
 				return
 			}
 		}
-		for _, revocation := range ident.Revocations {
-			err := revocation.Serialize(w)
+		for _, sig := range ident.Signatures {
+			err = sig.Serialize(w)
 			if err != nil {
 				return err
-			}
-		}
-		if ident.SelfSignature != nil {
-			err = ident.SelfSignature.Serialize(w)
-			if err != nil {
-				return
 			}
 		}
 	}
