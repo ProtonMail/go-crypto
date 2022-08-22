@@ -5,9 +5,7 @@
 package openpgp
 
 import (
-	"bytes"
 	"crypto"
-	"image/jpeg"
 	"io"
 
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
@@ -18,12 +16,7 @@ func (t *Entity) AddPhoto(jpegBytes []byte, config *packet.Config) error {
 	creationTime := config.Now()
 	keyLifetimeSecs := config.KeyLifetime()
 
-	img, err := jpeg.Decode(bytes.NewBuffer(jpegBytes))
-	if err != nil {
-		return err
-	}
-
-	uat, err := packet.NewUserAttributePhoto(img)
+	uat, err := packet.NewUserAttributePhotoBytes([][]byte{jpegBytes})
 	if err != nil {
 		return errors.InvalidArgumentError("add photo field contained invalid characters")
 	}

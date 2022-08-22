@@ -48,8 +48,9 @@ func TestUserattributeAdd(t *testing.T) {
 	if len(entity2.UserAttribute) != 1 {
 		t.Fatal("data err, entity have no uat")
 	}
+
 	imgBytes := entity2.UserAttribute[0].UserAttribute.ImageData()
-	if bytes.Equal(imgBytes[0], jpegBytes) {
+	if !bytes.Equal(imgBytes[0], jpegBytes) {
 		t.Fatal("image data not equal")
 	}
 

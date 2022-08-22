@@ -26,6 +26,19 @@ type UserAttribute struct {
 // NewUserAttributePhoto creates a user attribute packet
 // containing the given images.
 func NewUserAttributePhoto(photos ...image.Image) (uat *UserAttribute, err error) {
+	var imgBytes [][]byte
+	for _, photo := range photos {
+		var buf bytes.Buffer
+		if err = jpeg.Encode(&buf, photo, nil); err != nil {
+			return
+		}
+		imgBytes = append(imgBytes, buf.Bytes())
+	}
+
+	return NewUserAttributePhotoBytes(imgBytes)
+}
+
+func NewUserAttributePhotoBytes(photos [][]byte) (uat *UserAttribute, err error) {
 	uat = new(UserAttribute)
 	for _, photo := range photos {
 		var buf bytes.Buffer
@@ -40,9 +53,7 @@ func NewUserAttributePhoto(photos ...image.Image) (uat *UserAttribute, err error
 		if _, err = buf.Write(data); err != nil {
 			return
 		}
-		if err = jpeg.Encode(&buf, photo, nil); err != nil {
-			return
-		}
+		buf.Write(photo)
 		uat.Contents = append(uat.Contents, &OpaqueSubpacket{
 			SubType:  UserAttrImageSubpacket,
 			Contents: buf.Bytes(),
