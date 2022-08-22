@@ -689,6 +689,21 @@ func (sig *Signature) SignUserId(id string, pub *PublicKey, priv *PrivateKey, co
 	return sig.Sign(h, priv, config)
 }
 
+// SignPhoto computes a signature from priv, asserting that pub is a valid
+// key for the identity id.  On success, the signature is stored in sig. Call
+// Serialize to write it out.
+// If config is nil, sensible defaults will be used.
+func (sig *Signature) SignPhoto(uat *UserAttribute, pub *PublicKey, priv *PrivateKey, config *Config) error {
+	if priv.Dummy() {
+		return errors.ErrDummyPrivateKey("dummy key found")
+	}
+	h, err := userAttributeSignatureHash(uat, pub, sig.Hash)
+	if err != nil {
+		return err
+	}
+	return sig.Sign(h, priv, config)
+}
+
 // CrossSignKey computes a signature from signingKey on pub hashed using hashKey. On success,
 // the signature is stored in sig. Call Serialize to write it out.
 // If config is nil, sensible defaults will be used.
@@ -971,7 +986,7 @@ func (sig *Signature) AddMetadataToHashSuffix() {
 	n := sig.HashSuffix[len(sig.HashSuffix)-8:]
 	l := uint64(
 		uint64(n[0])<<56 | uint64(n[1])<<48 | uint64(n[2])<<40 | uint64(n[3])<<32 |
-		uint64(n[4])<<24 | uint64(n[5])<<16 | uint64(n[6])<<8 | uint64(n[7]))
+			uint64(n[4])<<24 | uint64(n[5])<<16 | uint64(n[6])<<8 | uint64(n[7]))
 
 	suffix := bytes.NewBuffer(nil)
 	suffix.Write(sig.HashSuffix[:l])

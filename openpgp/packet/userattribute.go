@@ -19,7 +19,8 @@ const UserAttrImageSubpacket = 1
 // to store a signed thumbnail photo JPEG image of the user.
 // See RFC 4880, section 5.12.
 type UserAttribute struct {
-	Contents []*OpaqueSubpacket
+	Contents        []*OpaqueSubpacket
+	ContentOriginal []byte //!!! for compatible with openpgp 2.2.34 & 2.3.6, the content len less than 16320, but packet conent[0] is 255, the verify sig will failed, key can not import
 }
 
 // NewUserAttributePhoto creates a user attribute packet
@@ -44,7 +45,8 @@ func NewUserAttributePhoto(photos ...image.Image) (uat *UserAttribute, err error
 		}
 		uat.Contents = append(uat.Contents, &OpaqueSubpacket{
 			SubType:  UserAttrImageSubpacket,
-			Contents: buf.Bytes()})
+			Contents: buf.Bytes(),
+		})
 	}
 	return
 }
@@ -53,20 +55,34 @@ func NewUserAttributePhoto(photos ...image.Image) (uat *UserAttribute, err error
 func NewUserAttribute(contents ...*OpaqueSubpacket) *UserAttribute {
 	return &UserAttribute{Contents: contents}
 }
-
+func (uat *UserAttribute) Data() []byte {
+	buf := bytes.NewBuffer(nil)
+	for _, osp := range uat.Contents {
+		osp.Serialize(buf)
+	}
+	return buf.Bytes()
+}
 func (uat *UserAttribute) parse(r io.Reader) (err error) {
 	// RFC 4880, section 5.13
 	b, err := ioutil.ReadAll(r)
 	if err != nil {
 		return
 	}
-	uat.Contents, err = OpaqueSubpackets(b)
+	var needCompatibleGunPG2_3_6 bool
+	uat.Contents, needCompatibleGunPG2_3_6, err = OpaqueSubpackets(b)
+	if needCompatibleGunPG2_3_6 {
+		uat.ContentOriginal = b
+	}
 	return
 }
 
 // Serialize marshals the user attribute to w in the form of an OpenPGP packet, including
 // header.
 func (uat *UserAttribute) Serialize(w io.Writer) (err error) {
+	if uat.ContentOriginal != nil {
+		_, err := w.Write(uat.ContentOriginal)
+		return err
+	}
 	var buf bytes.Buffer
 	for _, sp := range uat.Contents {
 		err = sp.Serialize(&buf)

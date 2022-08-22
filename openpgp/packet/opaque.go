@@ -90,15 +90,19 @@ type OpaqueSubpacket struct {
 
 // OpaqueSubpackets extracts opaque, unparsed OpenPGP subpackets from
 // their byte representation.
-func OpaqueSubpackets(contents []byte) (result []*OpaqueSubpacket, err error) {
+func OpaqueSubpackets(contents []byte) (result []*OpaqueSubpacket, needCompatibleGunPG2_3_6 bool, err error) {
 	var (
-		subHeaderLen int
-		subPacket    *OpaqueSubpacket
+		subHeaderLen                int
+		subPacket                   *OpaqueSubpacket
+		needCompatibleGunPG2_3_6Tmp bool
 	)
 	for len(contents) > 0 {
-		subHeaderLen, subPacket, err = nextSubpacket(contents)
+		subHeaderLen, subPacket, needCompatibleGunPG2_3_6Tmp, err = nextSubpacket(contents)
 		if err != nil {
 			break
+		}
+		if needCompatibleGunPG2_3_6Tmp {
+			needCompatibleGunPG2_3_6 = true
 		}
 		result = append(result, subPacket)
 		contents = contents[subHeaderLen+len(subPacket.Contents):]
@@ -106,7 +110,7 @@ func OpaqueSubpackets(contents []byte) (result []*OpaqueSubpacket, err error) {
 	return
 }
 
-func nextSubpacket(contents []byte) (subHeaderLen int, subPacket *OpaqueSubpacket, err error) {
+func nextSubpacket(contents []byte) (subHeaderLen int, subPacket *OpaqueSubpacket, needCompatibleGunPG2_3_6 bool, err error) {
 	// RFC 4880, section 5.2.3.1
 	var subLen uint32
 	if len(contents) < 1 {
@@ -138,6 +142,10 @@ func nextSubpacket(contents []byte) (subHeaderLen int, subPacket *OpaqueSubpacke
 			uint32(contents[3])<<8 |
 			uint32(contents[4])
 		contents = contents[5:]
+
+		if subpacketLengthLength(int(subLen)) != 5 {
+			needCompatibleGunPG2_3_6 = true
+		}
 	}
 	if subLen > uint32(len(contents)) || subLen == 0 {
 		goto Truncated
