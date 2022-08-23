@@ -104,11 +104,7 @@ func (t *Entity) AddUserId(name, comment, email string, config *packet.Config) e
 
 	primary := t.PrivateKey
 
-	isPrimaryId := false
-
-	if len(t.Identities) == 0 {
-		isPrimaryId = true
-	}
+	isPrimaryId := len(t.Identities) == 0
 
 	selfSignature := &packet.Signature{
 		Version:           primary.PublicKey.Version,
