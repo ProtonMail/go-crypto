@@ -964,6 +964,46 @@ func TestEntityPrivateSerialization(t *testing.T) {
 	}
 }
 
+func TestAddUserId(t *testing.T) {
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = entity.AddUserId("Golang Gopher", "Test Key", "add1---@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = entity.AddUserId("Golang Gopher", "Test Key", "add2---@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ignore_err := entity.AddUserId("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if ignore_err == nil {
+		t.Fatal(err)
+	}
+
+	if len(entity.Identities) != 3 {
+		t.Fatalf("Expected 3 id, got %d", len(entity.Identities))
+	}
+
+	for _, sk := range entity.Identities {
+		err = entity.PrimaryKey.VerifyUserIdSignature(sk.UserId.Id, entity.PrimaryKey, sk.SelfSignature)
+		if err != nil {
+			t.Errorf("Invalid subkey signature: %v", err)
+		}
+	}
+
+	serializedEntity := bytes.NewBuffer(nil)
+	entity.SerializePrivate(serializedEntity, nil)
+
+	_, err = ReadEntity(packet.NewReader(bytes.NewBuffer(serializedEntity.Bytes())))
+	if err != nil {
+		t.Fatal(err)
+	}
+}
 func TestAddSubkey(t *testing.T) {
 	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
 	if err != nil {
