@@ -9,15 +9,17 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
+	"github.com/ProtonMail/go-crypto/openpgp/internal/kyber"
 	aeskeywrap "github.com/google/tink/go/kwp/subtle"
-	kyber "github.com/kudelskisecurity/crystals-go/crystals-kyber"
+	libkyber "github.com/kudelskisecurity/crystals-go/crystals-kyber"
 	"golang.org/x/crypto/sha3"
 )
 
 type PublicKey struct {
-	AlgId uint8
-	Curve ecc.ECDHCurve
-	Kyber *kyber.Kyber
+	AlgId   uint8
+	ParamId kyber.ParameterSetId
+	Curve   ecc.ECDHCurve
+	Kyber *libkyber.Kyber
 	PublicPoint, PublicKyber []byte
 }
 
@@ -27,19 +29,20 @@ type PrivateKey struct {
 	SecretKyber []byte
 }
 
-func GenerateKey(rand io.Reader, algId uint8, c ecc.ECDHCurve, k *kyber.Kyber) (priv *PrivateKey, err error) {
+func GenerateKey(rand io.Reader, algId uint8, c ecc.ECDHCurve, paramId kyber.ParameterSetId) (priv *PrivateKey, err error) {
 	priv = new(PrivateKey)
 
 	priv.PublicKey.AlgId = algId
 	priv.PublicKey.Curve = c
-	priv.PublicKey.Kyber = k
+	priv.ParamId = paramId
+	priv.PublicKey.Kyber = paramId.GetKyber()
 
 	priv.PublicKey.PublicPoint, priv.SecretEC, err = c.GenerateECDH(rand)
 	if err != nil {
 		return nil, err
 	}
 
-	kyberSeed := make([]byte, kyber.SIZEZ + kyber.SEEDBYTES)
+	kyberSeed := make([]byte, libkyber.SIZEZ + libkyber.SEEDBYTES)
 	_, err = rand.Read(kyberSeed)
 	if err != nil {
 		return nil, err
@@ -63,7 +66,7 @@ func Encrypt(rand io.Reader, pub *PublicKey, msg, fingerprint []byte) (kEphemera
 	}
 
 	// Kyber shared secret derivation
-	kyberSeed := make([]byte, kyber.SEEDBYTES)
+	kyberSeed := make([]byte, libkyber.SEEDBYTES)
 	_, err = rand.Read(kyberSeed)
 	if err != nil {
 		return nil, nil, nil, err
@@ -121,6 +124,7 @@ func buildKey(pub *PublicKey, sK, zb, fingerprint []byte) ([]byte, error) {
 
 	// Hash never returns error
 	_, _ = h.Write([]byte{pub.AlgId})
+	_, _ = h.Write(pub.ParamId.EncodedBytes())
 	_, _ = h.Write(fingerprint)
 	_, _ = h.Write(sK)
 	_, _ = h.Write(zb)

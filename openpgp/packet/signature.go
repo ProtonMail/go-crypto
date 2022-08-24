@@ -11,6 +11,7 @@ import (
 	"encoding/binary"
 	"github.com/ProtonMail/go-crypto/openpgp/dilithium_ecdsa"
 	"github.com/ProtonMail/go-crypto/openpgp/dilithium_eddsa"
+	"github.com/ProtonMail/go-crypto/openpgp/internal/dilithium"
 	"hash"
 	"io"
 	"strconv"
@@ -59,7 +60,10 @@ type Signature struct {
 	DSASigR, DSASigS     encoding.Field
 	ECDSASigR, ECDSASigS encoding.Field
 	EdDSASigR, EdDSASigS encoding.Field
-	DilithumSig			 encoding.Field
+	DilithiumSig         encoding.Field
+
+	// dilithiumParameterSetID contains the parameter set ID for the dilithium instantiation
+	dilithiumParameterSetID dilithium.ParameterSetId
 
 	// rawSubpackets contains the unparsed subpackets, in order.
 	rawSubpackets []outputSubpacket
@@ -123,8 +127,8 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 	sig.PubKeyAlgo = PublicKeyAlgorithm(buf[1])
 	switch sig.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA,
-		PubKeyAlgoDilithium2Ed25519, PubKeyAlgoDilithium5Ed448, PubKeyAlgoDilithium3p384, PubKeyAlgoDilithium5p521,
-		PubKeyAlgoDilithium3Brainpool384, PubKeyAlgoDilithium5Brainpool512:
+		PubKeyAlgoDilithiumEd25519, PubKeyAlgoDilithiumEd448, PubKeyAlgoDilithiumP384, PubKeyAlgoDilithiumP521,
+		PubKeyAlgoDilithiumBrainpool384, PubKeyAlgoDilithiumBrainpool512:
 	default:
 		err = errors.UnsupportedError("public key algorithm " + strconv.Itoa(int(sig.PubKeyAlgo)))
 		return
@@ -198,77 +202,80 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 		if _, err = sig.EdDSASigS.ReadFrom(r); err != nil {
 			return
 		}
-	case PubKeyAlgoDilithium2Ed25519:
-		sig.EdDSASigR = encoding.NewEmptyOctetArray(64)
-		if _, err = sig.EdDSASigR.ReadFrom(r); err != nil {
+	case PubKeyAlgoDilithiumEd25519:
+		if err = sig.parseDilithiumEddsaSig(r, 64); err != nil {
 			return
 		}
-
-		sig.DilithumSig = encoding.NewEmptyOctetArray(2420)
-		_, err = sig.DilithumSig.ReadFrom(r)
-	case PubKeyAlgoDilithium5Ed448:
-		sig.EdDSASigR = encoding.NewEmptyOctetArray(114)
-		if _, err = sig.EdDSASigR.ReadFrom(r); err != nil {
+	case PubKeyAlgoDilithiumEd448:
+		if err = sig.parseDilithiumEddsaSig(r, 114); err != nil {
 			return
 		}
-
-		sig.DilithumSig = encoding.NewEmptyOctetArray(4595)
-		_, err = sig.DilithumSig.ReadFrom(r)
-	case PubKeyAlgoDilithium3p384:
-		sig.ECDSASigR = encoding.NewEmptyOctetArray(48)
-		if _, err = sig.ECDSASigR.ReadFrom(r); err != nil {
+	case PubKeyAlgoDilithiumP384:
+		if err = sig.parseDilithiumEcdsaSig(r, 48); err != nil {
 			return
 		}
-
-		sig.ECDSASigS = encoding.NewEmptyOctetArray(48)
-		if _, err = sig.ECDSASigS.ReadFrom(r); err != nil {
+	case PubKeyAlgoDilithiumP521:
+		if err = sig.parseDilithiumEcdsaSig(r, 66); err != nil {
 			return
 		}
-
-		sig.DilithumSig = encoding.NewEmptyOctetArray(3293)
-		_, err = sig.DilithumSig.ReadFrom(r)
-	case PubKeyAlgoDilithium5p521:
-		sig.ECDSASigR = encoding.NewEmptyOctetArray(66)
-		if _, err = sig.ECDSASigR.ReadFrom(r); err != nil {
+	case PubKeyAlgoDilithiumBrainpool384:
+		if err = sig.parseDilithiumEcdsaSig(r, 48); err != nil {
 			return
 		}
-
-		sig.ECDSASigS = encoding.NewEmptyOctetArray(66)
-		if _, err = sig.ECDSASigS.ReadFrom(r); err != nil {
+	case PubKeyAlgoDilithiumBrainpool512:
+		if err = sig.parseDilithiumEcdsaSig(r, 64); err != nil {
 			return
 		}
-
-		sig.DilithumSig = encoding.NewEmptyOctetArray(4595)
-		_, err = sig.DilithumSig.ReadFrom(r)
-	case PubKeyAlgoDilithium3Brainpool384:
-		sig.ECDSASigR = encoding.NewEmptyOctetArray(48)
-		if _, err = sig.ECDSASigR.ReadFrom(r); err != nil {
-			return
-		}
-
-		sig.ECDSASigS = encoding.NewEmptyOctetArray(48)
-		if _, err = sig.ECDSASigS.ReadFrom(r); err != nil {
-			return
-		}
-
-		sig.DilithumSig = encoding.NewEmptyOctetArray(3293)
-		_, err = sig.DilithumSig.ReadFrom(r)
-	case PubKeyAlgoDilithium5Brainpool512:
-		sig.ECDSASigR = encoding.NewEmptyOctetArray(64)
-		if _, err = sig.ECDSASigR.ReadFrom(r); err != nil {
-			return
-		}
-
-		sig.ECDSASigS = encoding.NewEmptyOctetArray(64)
-		if _, err = sig.ECDSASigS.ReadFrom(r); err != nil {
-			return
-		}
-
-		sig.DilithumSig = encoding.NewEmptyOctetArray(4595)
-		_, err = sig.DilithumSig.ReadFrom(r)
 	default:
 		panic("unreachable")
 	}
+	return
+}
+
+func (sig *Signature) parseDilithiumEddsaSig(r io.Reader, ecLen int) (err error) {
+	var dParam [1]byte
+	if _, err = readFull(r, dParam[:]); err != nil {
+		return
+	}
+
+	if sig.dilithiumParameterSetID, err = dilithium.ParseParameterSetID(dParam); err != nil {
+		return
+	}
+
+	sig.EdDSASigR = encoding.NewEmptyOctetArray(ecLen)
+	if _, err = sig.EdDSASigR.ReadFrom(r); err != nil {
+		return
+	}
+
+	sig.DilithiumSig = encoding.NewEmptyOctetArray(sig.dilithiumParameterSetID.GetSigLen())
+	_, err = sig.DilithiumSig.ReadFrom(r)
+
+	return
+}
+
+func (sig *Signature) parseDilithiumEcdsaSig(r io.Reader, ecLen int) (err error) {
+	var dParam [1]byte
+	if _, err = readFull(r, dParam[:]); err != nil {
+		return
+	}
+
+	if sig.dilithiumParameterSetID, err = dilithium.ParseParameterSetID(dParam); err != nil {
+		return
+	}
+
+	sig.ECDSASigR = encoding.NewEmptyOctetArray(ecLen)
+	if _, err = sig.ECDSASigR.ReadFrom(r); err != nil {
+		return
+	}
+
+	sig.ECDSASigS = encoding.NewEmptyOctetArray(ecLen)
+	if _, err = sig.ECDSASigS.ReadFrom(r); err != nil {
+		return
+	}
+
+	sig.DilithiumSig = encoding.NewEmptyOctetArray(sig.dilithiumParameterSetID.GetSigLen())
+	_, err = sig.DilithiumSig.ReadFrom(r)
+
 	return
 }
 
@@ -740,22 +747,24 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 			sig.EdDSASigR = encoding.NewMPI(r)
 			sig.EdDSASigS = encoding.NewMPI(s)
 		}
-	case PubKeyAlgoDilithium3p384, PubKeyAlgoDilithium5p521, PubKeyAlgoDilithium3Brainpool384,
-		PubKeyAlgoDilithium5Brainpool512:
+	case PubKeyAlgoDilithiumP384, PubKeyAlgoDilithiumP521, PubKeyAlgoDilithiumBrainpool384,
+		PubKeyAlgoDilithiumBrainpool512:
 		sk := priv.PrivateKey.(*dilithium_ecdsa.PrivateKey)
 		dSig, ecR, ecS, err := dilithium_ecdsa.Sign(config.Random(), sk, digest)
 
 		if err == nil {
-			sig.DilithumSig = encoding.NewOctetArray(dSig)
+			sig.dilithiumParameterSetID = priv.PublicKey.dilithiumParameterSetID
+			sig.DilithiumSig = encoding.NewOctetArray(dSig)
 			sig.ECDSASigR = encoding.NewOctetArray(ecR)
 			sig.ECDSASigS = encoding.NewOctetArray(ecS)
 		}
-	case PubKeyAlgoDilithium2Ed25519, PubKeyAlgoDilithium5Ed448:
+	case PubKeyAlgoDilithiumEd25519, PubKeyAlgoDilithiumEd448:
 		sk := priv.PrivateKey.(*dilithium_eddsa.PrivateKey)
 		dSig, ecSig, err := dilithium_eddsa.Sign(sk, digest)
 
 		if err == nil {
-			sig.DilithumSig = encoding.NewOctetArray(dSig)
+			sig.dilithiumParameterSetID = priv.PublicKey.dilithiumParameterSetID
+			sig.DilithiumSig = encoding.NewOctetArray(dSig)
 			sig.EdDSASigR = encoding.NewOctetArray(ecSig)
 		}
 	default:
@@ -848,14 +857,16 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 	case PubKeyAlgoEdDSA:
 		sigLength = int(sig.EdDSASigR.EncodedLength())
 		sigLength += int(sig.EdDSASigS.EncodedLength())
-	case PubKeyAlgoDilithium2Ed25519, PubKeyAlgoDilithium5Ed448:
-		sigLength = int(sig.EdDSASigR.EncodedLength())
-		sigLength += int(sig.DilithumSig.EncodedLength())
-	case PubKeyAlgoDilithium3p384, PubKeyAlgoDilithium5p521, PubKeyAlgoDilithium3Brainpool384,
-		PubKeyAlgoDilithium5Brainpool512:
-		sigLength = int(sig.ECDSASigR.EncodedLength())
+	case PubKeyAlgoDilithiumEd25519, PubKeyAlgoDilithiumEd448:
+		sigLength = 1 // Parameter ID
+		sigLength += int(sig.EdDSASigR.EncodedLength())
+		sigLength += int(sig.DilithiumSig.EncodedLength())
+	case PubKeyAlgoDilithiumP384, PubKeyAlgoDilithiumP521, PubKeyAlgoDilithiumBrainpool384,
+		PubKeyAlgoDilithiumBrainpool512:
+		sigLength = 1 // Parameter ID
+		sigLength += int(sig.ECDSASigR.EncodedLength())
 		sigLength += int(sig.ECDSASigS.EncodedLength())
-		sigLength += int(sig.DilithumSig.EncodedLength())
+		sigLength += int(sig.DilithiumSig.EncodedLength())
 	default:
 		panic("impossible")
 	}
@@ -919,20 +930,26 @@ func (sig *Signature) serializeBody(w io.Writer) (err error) {
 			return
 		}
 		_, err = w.Write(sig.EdDSASigS.EncodedBytes())
-	case PubKeyAlgoDilithium2Ed25519, PubKeyAlgoDilithium5Ed448:
+	case PubKeyAlgoDilithiumEd25519, PubKeyAlgoDilithiumEd448:
+		if _, err = w.Write(sig.dilithiumParameterSetID.EncodedBytes()); err != nil {
+			return
+		}
 		if _, err = w.Write(sig.EdDSASigR.EncodedBytes()); err != nil {
 			return
 		}
-		_, err = w.Write(sig.DilithumSig.EncodedBytes())
-	case PubKeyAlgoDilithium3p384, PubKeyAlgoDilithium5p521, PubKeyAlgoDilithium3Brainpool384,
-		PubKeyAlgoDilithium5Brainpool512:
+		_, err = w.Write(sig.DilithiumSig.EncodedBytes())
+	case PubKeyAlgoDilithiumP384, PubKeyAlgoDilithiumP521, PubKeyAlgoDilithiumBrainpool384,
+		PubKeyAlgoDilithiumBrainpool512:
+		if _, err = w.Write(sig.dilithiumParameterSetID.EncodedBytes()); err != nil {
+			return
+		}
 		if _, err = w.Write(sig.ECDSASigR.EncodedBytes()); err != nil {
 			return
 		}
 		if _, err = w.Write(sig.ECDSASigS.EncodedBytes()); err != nil {
 			return
 		}
-		_, err = w.Write(sig.DilithumSig.EncodedBytes())
+		_, err = w.Write(sig.DilithiumSig.EncodedBytes())
 	default:
 		panic("impossible")
 	}

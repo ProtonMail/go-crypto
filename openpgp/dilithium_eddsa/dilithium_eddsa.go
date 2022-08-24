@@ -7,15 +7,17 @@ import (
 	"io"
 
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
+	"github.com/ProtonMail/go-crypto/openpgp/internal/dilithium"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
-	dilithium "github.com/kudelskisecurity/crystals-go/crystals-dilithium"
+	libdilithium "github.com/kudelskisecurity/crystals-go/crystals-dilithium"
 	"golang.org/x/crypto/sha3"
 )
 
 type PublicKey struct {
 	AlgId uint8
+	ParamId dilithium.ParameterSetId
 	Curve ecc.EdDSACurve
-	Dilithium *dilithium.Dilithium
+	Dilithium *libdilithium.Dilithium
 	PublicPoint, PublicDilithium []byte
 }
 
@@ -25,19 +27,20 @@ type PrivateKey struct {
 	SecretDilithium []byte
 }
 
-func GenerateKey(rand io.Reader, algId uint8, c ecc.EdDSACurve, d *dilithium.Dilithium) (priv *PrivateKey, err error) {
+func GenerateKey(rand io.Reader, algId uint8, c ecc.EdDSACurve, paramId dilithium.ParameterSetId) (priv *PrivateKey, err error) {
 	priv = new(PrivateKey)
 
 	priv.PublicKey.AlgId = algId
 	priv.PublicKey.Curve = c
-	priv.PublicKey.Dilithium = d
+	priv.PublicKey.ParamId = paramId
+	priv.PublicKey.Dilithium = paramId.GetDilithium()
 
 	priv.PublicKey.PublicPoint, priv.SecretEC, err = c.GenerateEdDSA(rand)
 	if err != nil {
 		return nil, err
 	}
 
-	dilithiumSeed := make([]byte, dilithium.SEEDBYTES)
+	dilithiumSeed := make([]byte, libdilithium.SEEDBYTES)
 	_, err = rand.Read(dilithiumSeed)
 	if err != nil {
 		return nil, err
@@ -66,7 +69,7 @@ func Verify(pub *PublicKey, message, dSig, ecSig []byte) bool {
 }
 
 func Validate(priv *PrivateKey) (err error) {
-	var tr [dilithium.SEEDBYTES]byte
+	var tr [libdilithium.SEEDBYTES]byte
 
 	if err = priv.PublicKey.Curve.ValidateEdDSA(priv.PublicKey.PublicPoint, priv.SecretEC); err != nil {
 		return err

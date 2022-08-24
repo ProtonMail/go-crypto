@@ -560,30 +560,30 @@ func (pk *PrivateKey) parsePrivateKey(data []byte) (err error) {
 		return pk.parseECDHPrivateKey(data)
 	case PubKeyAlgoEdDSA:
 		return pk.parseEdDSAPrivateKey(data)
-	case PubKeyAlgoDilithium2Ed25519:
-		return pk.parseDilithiumEdDSAPrivateKey(data, 32, 2528)
-	case PubKeyAlgoDilithium5Ed448:
-		return pk.parseDilithiumEdDSAPrivateKey(data, 57, 4864)
-	case PubKeyAlgoDilithium3p384:
-		return pk.parseDilithiumECDSAPrivateKey(data, 48, 4000)
-	case PubKeyAlgoDilithium5p521:
-		return pk.parseDilithiumECDSAPrivateKey(data, 66, 4864)
-	case PubKeyAlgoDilithium3Brainpool384:
-		return pk.parseDilithiumECDSAPrivateKey(data, 48, 4000)
-	case PubKeyAlgoDilithium5Brainpool512:
-		return pk.parseDilithiumECDSAPrivateKey(data, 64, 4864)
-	case PubKeyAlgoKyber512X25519:
-		return pk.parseKyberECDHPrivateKey(data, 32, 1632)
-	case PubKeyAlgoKyber1024X448:
-		return pk.parseKyberECDHPrivateKey(data, 56, 3168)
-	case PubKeyAlgoKyber768P384:
-		return pk.parseKyberECDHPrivateKey(data, 48, 2400)
-	case PubKeyAlgoKyber1024P521:
-		return pk.parseKyberECDHPrivateKey(data, 66, 3168)
-	case PubKeyAlgoKyber768Brainpool384:
-		return pk.parseKyberECDHPrivateKey(data, 48, 2400)
-	case PubKeyAlgoKyber1024Brainpool512:
-		return pk.parseKyberECDHPrivateKey(data, 64, 3168)
+	case PubKeyAlgoDilithiumEd25519:
+		return pk.parseDilithiumEdDSAPrivateKey(data, 32)
+	case PubKeyAlgoDilithiumEd448:
+		return pk.parseDilithiumEdDSAPrivateKey(data, 57)
+	case PubKeyAlgoDilithiumP384:
+		return pk.parseDilithiumECDSAPrivateKey(data, 48)
+	case PubKeyAlgoDilithiumP521:
+		return pk.parseDilithiumECDSAPrivateKey(data, 66)
+	case PubKeyAlgoDilithiumBrainpool384:
+		return pk.parseDilithiumECDSAPrivateKey(data, 48)
+	case PubKeyAlgoDilithiumBrainpool512:
+		return pk.parseDilithiumECDSAPrivateKey(data, 64)
+	case PubKeyAlgoKyberX25519:
+		return pk.parseKyberECDHPrivateKey(data, 32)
+	case PubKeyAlgoKyberX448:
+		return pk.parseKyberECDHPrivateKey(data, 56)
+	case PubKeyAlgoKyberP384:
+		return pk.parseKyberECDHPrivateKey(data, 48)
+	case PubKeyAlgoKyberP521:
+		return pk.parseKyberECDHPrivateKey(data, 66)
+	case PubKeyAlgoKyberBrainpool384:
+		return pk.parseKyberECDHPrivateKey(data, 48)
+	case PubKeyAlgoKyberBrainpool512:
+		return pk.parseKyberECDHPrivateKey(data, 64)
 	}
 	panic("impossible")
 }
@@ -730,7 +730,7 @@ func (pk *PrivateKey) parseEdDSAPrivateKey(data []byte) (err error) {
 	return nil
 }
 
-func (pk *PrivateKey) parseDilithiumECDSAPrivateKey(data []byte, ecLen, dLen int) (err error) {
+func (pk *PrivateKey) parseDilithiumECDSAPrivateKey(data []byte, ecLen int) (err error) {
 	if pk.Version != 5 {
 		return goerrors.New("openpgp: cannot parse non-v5 dilithium_ecdsa key")
 	}
@@ -744,7 +744,7 @@ func (pk *PrivateKey) parseDilithiumECDSAPrivateKey(data []byte, ecLen, dLen int
 		return err
 	}
 
-	d := encoding.NewEmptyOctetArray(dLen)
+	d := encoding.NewEmptyOctetArray(pub.ParamId.GetSkLen())
 	if _, err := d.ReadFrom(buf); err != nil {
 		return err
 	}
@@ -763,7 +763,7 @@ func (pk *PrivateKey) parseDilithiumECDSAPrivateKey(data []byte, ecLen, dLen int
 	return nil
 }
 
-func (pk *PrivateKey) parseDilithiumEdDSAPrivateKey(data []byte, ecLen, dLen int) (err error) {
+func (pk *PrivateKey) parseDilithiumEdDSAPrivateKey(data []byte, ecLen int) (err error) {
 	if pk.Version != 5 {
 		return goerrors.New("openpgp: cannot parse non-v5 dilithium_eddsa key")
 	}
@@ -777,7 +777,7 @@ func (pk *PrivateKey) parseDilithiumEdDSAPrivateKey(data []byte, ecLen, dLen int
 		return err
 	}
 
-	d := encoding.NewEmptyOctetArray(dLen)
+	d := encoding.NewEmptyOctetArray(pub.ParamId.GetSkLen())
 	if _, err := d.ReadFrom(buf); err != nil {
 		return err
 	}
@@ -792,7 +792,7 @@ func (pk *PrivateKey) parseDilithiumEdDSAPrivateKey(data []byte, ecLen, dLen int
 	return nil
 }
 
-func (pk *PrivateKey) parseKyberECDHPrivateKey(data []byte, ecLen, kLen int) (err error) {
+func (pk *PrivateKey) parseKyberECDHPrivateKey(data []byte, ecLen int) (err error) {
 	if pk.Version != 5 {
 		return goerrors.New("openpgp: cannot parse non-v5 kyber_ecdh key")
 	}
@@ -806,7 +806,7 @@ func (pk *PrivateKey) parseKyberECDHPrivateKey(data []byte, ecLen, kLen int) (er
 		return err
 	}
 
-	k := encoding.NewEmptyOctetArray(kLen)
+	k := encoding.NewEmptyOctetArray(pub.ParamId.GetSkLen())
 	if _, err := k.ReadFrom(buf); err != nil {
 		return err
 	}

@@ -418,20 +418,20 @@ const (
 	PubKeyAlgoRSASignOnly    PublicKeyAlgorithm = 3
 
 	// Experimental PQC DSA algorithms
-	PubKeyAlgoDilithium2Ed25519 = 25
-	PubKeyAlgoDilithium5Ed448 = 26
-	PubKeyAlgoDilithium3p384 = 27
-	PubKeyAlgoDilithium5p521 = 28
-	PubKeyAlgoDilithium3Brainpool384 = 29
-	PubKeyAlgoDilithium5Brainpool512 = 30
+	PubKeyAlgoDilithiumEd25519 = 25
+	PubKeyAlgoDilithiumEd448 = 26
+	PubKeyAlgoDilithiumP384         = 27
+	PubKeyAlgoDilithiumP521         = 28
+	PubKeyAlgoDilithiumBrainpool384 = 29
+	PubKeyAlgoDilithiumBrainpool512 = 30
 
 	// Experimental PQC KEM algorithms
-	PubKeyAlgoKyber512X25519 = 32
-	PubKeyAlgoKyber1024X448 = 33
-	PubKeyAlgoKyber768P384 = 34
-	PubKeyAlgoKyber1024P521 = 35
-	PubKeyAlgoKyber768Brainpool384 = 36
-	PubKeyAlgoKyber1024Brainpool512 = 37
+	PubKeyAlgoKyberX25519 = 31
+	PubKeyAlgoKyberX448 = 32
+	PubKeyAlgoKyberP384 = 33
+	PubKeyAlgoKyberP521 = 34
+	PubKeyAlgoKyberBrainpool384 = 35
+	PubKeyAlgoKyberBrainpool512 = 36
 )
 
 // CanEncrypt returns true if it's possible to encrypt a message to a public
@@ -439,8 +439,8 @@ const (
 func (pka PublicKeyAlgorithm) CanEncrypt() bool {
 	switch pka {
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoElGamal, PubKeyAlgoECDH,
-		PubKeyAlgoKyber512X25519, PubKeyAlgoKyber1024X448, PubKeyAlgoKyber768P384, PubKeyAlgoKyber1024P521,
-		PubKeyAlgoKyber768Brainpool384, PubKeyAlgoKyber1024Brainpool512:
+		PubKeyAlgoKyberX25519, PubKeyAlgoKyberX448, PubKeyAlgoKyberP384, PubKeyAlgoKyberP521,
+		PubKeyAlgoKyberBrainpool384, PubKeyAlgoKyberBrainpool512:
 		return true
 	}
 	return false
@@ -451,8 +451,8 @@ func (pka PublicKeyAlgorithm) CanEncrypt() bool {
 func (pka PublicKeyAlgorithm) CanSign() bool {
 	switch pka {
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA,
-		PubKeyAlgoDilithium2Ed25519, PubKeyAlgoDilithium5Ed448, PubKeyAlgoDilithium3p384,
-		PubKeyAlgoDilithium5p521, PubKeyAlgoDilithium3Brainpool384, PubKeyAlgoDilithium5Brainpool512:
+		PubKeyAlgoDilithiumEd25519, PubKeyAlgoDilithiumEd448, PubKeyAlgoDilithiumP384,
+		PubKeyAlgoDilithiumP521, PubKeyAlgoDilithiumBrainpool384, PubKeyAlgoDilithiumBrainpool512:
 		return true
 	}
 	return false

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
+	"github.com/ProtonMail/go-crypto/openpgp/internal/kyber"
 	"github.com/ProtonMail/go-crypto/openpgp/kyber_ecdh"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	"testing"
@@ -15,12 +16,12 @@ func TestEncryptDecrypt(t *testing.T) {
 	rand.Read(testFingerprint)
 
 	asymmAlgos := map[string] packet.PublicKeyAlgorithm {
-		"Kyber512_X25519": packet.PubKeyAlgoKyber512X25519,
-		"Kyber1024_X448": packet.PubKeyAlgoKyber1024X448,
-		"Kyber768_P384": packet.PubKeyAlgoKyber768P384,
-		"Kyber1024_P521":packet.PubKeyAlgoKyber1024P521,
-		"Kyber768_Brainpool384": packet.PubKeyAlgoKyber768Brainpool384,
-		"Kyber1024_Brainpool521":packet.PubKeyAlgoKyber1024Brainpool512,
+		"Kyber512_X25519": packet.PubKeyAlgoKyberX25519,
+		"Kyber1024_X448": packet.PubKeyAlgoKyberX448,
+		"Kyber768_P384": packet.PubKeyAlgoKyberP384,
+		"Kyber1024_P521":packet.PubKeyAlgoKyberP521,
+		"Kyber768_Brainpool384": packet.PubKeyAlgoKyberBrainpool384,
+		"Kyber1024_Brainpool521":packet.PubKeyAlgoKyberBrainpool512,
 	}
 
 	symmAlgos := map[string] algorithm.Cipher {
@@ -29,21 +30,31 @@ func TestEncryptDecrypt(t *testing.T) {
 		"AES-256": algorithm.AES256,
 	}
 
+	kyberParamIds := map[string] kyber.ParameterSetId {
+		"ParamID_1": kyber.Parameter1,
+		"ParamID_2": kyber.Parameter2,
+		"ParamID_3": kyber.Parameter3,
+	}
+
 	for asymmName, asymmAlgo := range asymmAlgos {
 		t.Run(asymmName, func(t *testing.T) {
-			key := testGenerateKeyAlgo(t, asymmAlgo)
-			for symmName, symmAlgo := range symmAlgos {
-				t.Run(symmName, func(t *testing.T) {
-					testEncryptDecryptAlgo(t, key, testFingerprint, symmAlgo)
+			for paramIdName, paramId := range kyberParamIds {
+				t.Run(paramIdName, func(t *testing.T) {
+					key := testGenerateKeyAlgo(t, asymmAlgo, paramId)
+					for symmName, symmAlgo := range symmAlgos {
+						t.Run(symmName, func(t *testing.T) {
+							testEncryptDecryptAlgo(t, key, testFingerprint, symmAlgo)
+						})
+					}
+					testvalidateAlgo(t, asymmAlgo, paramId)
 				})
 			}
-			testvalidateAlgo(t, asymmAlgo)
 		})
 	}
 }
 
-func testvalidateAlgo(t *testing.T, algId packet.PublicKeyAlgorithm) {
-	key := testGenerateKeyAlgo(t, algId)
+func testvalidateAlgo(t *testing.T, algId packet.PublicKeyAlgorithm, paramId kyber.ParameterSetId) {
+	key := testGenerateKeyAlgo(t, algId, paramId)
 	if err := kyber_ecdh.Validate(key); err != nil {
 		t.Fatalf("valid key marked as invalid: %s", err)
 	}
@@ -54,7 +65,7 @@ func testvalidateAlgo(t *testing.T, algId packet.PublicKeyAlgorithm) {
 	}
 
 	// Generate fresh key
-	key = testGenerateKeyAlgo(t, algId)
+	key = testGenerateKeyAlgo(t, algId, paramId)
 	if err := kyber_ecdh.Validate(key); err != nil {
 		t.Fatalf("valid key marked as invalid: %s", err)
 	}
@@ -65,18 +76,13 @@ func testvalidateAlgo(t *testing.T, algId packet.PublicKeyAlgorithm) {
 	}
 }
 
-func testGenerateKeyAlgo(t *testing.T, algId packet.PublicKeyAlgorithm) *kyber_ecdh.PrivateKey {
+func testGenerateKeyAlgo(t *testing.T, algId packet.PublicKeyAlgorithm, paramId kyber.ParameterSetId) *kyber_ecdh.PrivateKey {
 	curveObj, err := packet.GetECDHCurveFromAlgID(algId)
 	if err != nil {
 		t.Errorf("error getting curve: %s", err)
 	}
 
-	kyberObj, err := packet.GetKyberFromAlgID(algId)
-	if err != nil {
-		t.Errorf("error getting kyber: %s", err)
-	}
-
-	priv, err := kyber_ecdh.GenerateKey(rand.Reader, uint8(algId), curveObj, kyberObj)
+	priv, err := kyber_ecdh.GenerateKey(rand.Reader, uint8(algId), curveObj, paramId)
 	if err != nil {
 		t.Fatal(err)
 	}

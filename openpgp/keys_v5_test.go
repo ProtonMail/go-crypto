@@ -215,12 +215,12 @@ func TestGenerateDilithiumKey(t *testing.T) {
 	}
 
 	asymmAlgos := map[string] packet.PublicKeyAlgorithm{
-		"Dilithium2_Ed25519": packet.PubKeyAlgoDilithium2Ed25519,
-		"Dilithium5_Ed448": packet.PubKeyAlgoDilithium5Ed448,
-		"Dilithium3_P384": packet.PubKeyAlgoDilithium3p384,
-		"Dilithium5_P521":packet.PubKeyAlgoDilithium5p521,
-		"Dilithium3_Brainpool384": packet.PubKeyAlgoDilithium3Brainpool384,
-		"Dilithium5_Brainpool512":packet.PubKeyAlgoDilithium5Brainpool512,
+		"Dilithium_Ed25519": packet.PubKeyAlgoDilithiumEd25519,
+		"Dilithium_Ed448": packet.PubKeyAlgoDilithiumEd448,
+		"Dilithium_P384": packet.PubKeyAlgoDilithiumP384,
+		"Dilithium_P521":packet.PubKeyAlgoDilithiumP521,
+		"Dilithium_Brainpool384": packet.PubKeyAlgoDilithiumBrainpool384,
+		"Dilithium_Brainpool512":packet.PubKeyAlgoDilithiumBrainpool512,
 	}
 
 	for name, algo := range asymmAlgos {
@@ -328,12 +328,12 @@ func TestAddKyberSubkey(t *testing.T) {
 	}
 
 	asymmAlgos := map[string] packet.PublicKeyAlgorithm{
-		"Kyber512_X25519": packet.PubKeyAlgoKyber512X25519,
-		"Kyber1024_X448": packet.PubKeyAlgoKyber1024X448,
-		"Kyber768_P384": packet.PubKeyAlgoKyber768P384,
-		"Kyber1024_P521":packet.PubKeyAlgoKyber1024P521,
-		"Kyber768_Brainpool384": packet.PubKeyAlgoKyber768Brainpool384,
-		"Kyber1024_Brainpool512":packet.PubKeyAlgoKyber1024Brainpool512,
+		"Kyber_X25519": packet.PubKeyAlgoKyberX25519,
+		"Kyber_X448": packet.PubKeyAlgoKyberX448,
+		"Kyber_P384": packet.PubKeyAlgoKyberP384,
+		"Kyber_P521":packet.PubKeyAlgoKyberP521,
+		"Kyber_Brainpool384": packet.PubKeyAlgoKyberBrainpool384,
+		"Kyber_Brainpool512":packet.PubKeyAlgoKyberBrainpool512,
 	}
 
 	for name, algo := range asymmAlgos {

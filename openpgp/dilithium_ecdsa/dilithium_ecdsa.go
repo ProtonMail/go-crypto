@@ -8,15 +8,17 @@ import (
 	"math/big"
 
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
+	"github.com/ProtonMail/go-crypto/openpgp/internal/dilithium"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
-	dilithium "github.com/kudelskisecurity/crystals-go/crystals-dilithium"
+	libdilithium "github.com/kudelskisecurity/crystals-go/crystals-dilithium"
 	"golang.org/x/crypto/sha3"
 )
 
 type PublicKey struct {
 	AlgId uint8
+	ParamId dilithium.ParameterSetId
 	Curve ecc.ECDSACurve
-	Dilithium *dilithium.Dilithium
+	Dilithium *libdilithium.Dilithium
 	X, Y *big.Int
 	PublicDilithium []byte
 }
@@ -26,20 +28,6 @@ type PrivateKey struct {
 	SecretEC *big.Int
 	SecretDilithium []byte
 }
-
-func NewPublicKey(curve ecc.ECDSACurve, dilithium *dilithium.Dilithium) *PublicKey {
-	return &PublicKey{
-		Curve: curve,
-		Dilithium: dilithium,
-	}
-}
-
-func NewPrivateKey(key PublicKey) *PrivateKey {
-	return &PrivateKey{
-		PublicKey: key,
-	}
-}
-
 
 func (pk *PublicKey) MarshalPoint() []byte {
 	return pk.Curve.MarshalIntegerPoint(pk.X, pk.Y)
@@ -66,19 +54,20 @@ func (sk *PrivateKey) UnmarshalIntegerSecret(d []byte) error {
 	return nil
 }
 
-func GenerateKey(rand io.Reader, algId uint8, c ecc.ECDSACurve, d *dilithium.Dilithium) (priv *PrivateKey, err error) {
+func GenerateKey(rand io.Reader, algId uint8, c ecc.ECDSACurve, paramId dilithium.ParameterSetId) (priv *PrivateKey, err error) {
 	priv = new(PrivateKey)
 
 	priv.PublicKey.AlgId = algId
 	priv.PublicKey.Curve = c
-	priv.PublicKey.Dilithium = d
+	priv.PublicKey.ParamId = paramId
+	priv.PublicKey.Dilithium = paramId.GetDilithium()
 
 	priv.PublicKey.X, priv.PublicKey.Y, priv.SecretEC, err = c.GenerateECDSA(rand)
 	if err != nil {
 		return nil, err
 	}
 
-	dilithiumSeed := make([]byte, dilithium.SEEDBYTES)
+	dilithiumSeed := make([]byte, libdilithium.SEEDBYTES)
 	_, err = rand.Read(dilithiumSeed)
 	if err != nil {
 		return nil, err
@@ -113,7 +102,7 @@ func Verify(pub *PublicKey, message, dSig, ecR, ecS []byte) bool {
 }
 
 func Validate(priv *PrivateKey) (err error) {
-	var tr [dilithium.SEEDBYTES]byte
+	var tr [libdilithium.SEEDBYTES]byte
 
 	if err = priv.PublicKey.Curve.ValidateECDSA(priv.PublicKey.X, priv.PublicKey.Y, priv.SecretEC.Bytes()); err != nil {
 		return err

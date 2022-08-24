@@ -3,6 +3,7 @@ package dilithium_ecdsa_test
 
 import (
 	"crypto/rand"
+	"github.com/ProtonMail/go-crypto/openpgp/internal/dilithium"
 	"io"
 	"math/big"
 	"testing"
@@ -13,23 +14,33 @@ import (
 
 func TestSignVerify(t *testing.T) {
 	asymmAlgos := map[string] packet.PublicKeyAlgorithm {
-		"Dilithium3_P384": packet.PubKeyAlgoDilithium3p384,
-		"Dilithium5_P521": packet.PubKeyAlgoDilithium5p521,
-		"Dilithium5_Brainpool384": packet.PubKeyAlgoDilithium3Brainpool384,
-		"Dilithium5_Brainpool512": packet.PubKeyAlgoDilithium5Brainpool512,
+		"Dilithium_P384": packet.PubKeyAlgoDilithiumP384,
+		"Dilithium_P521": packet.PubKeyAlgoDilithiumP521,
+		"Dilithium_Brainpool384": packet.PubKeyAlgoDilithiumBrainpool384,
+		"Dilithium_Brainpool512": packet.PubKeyAlgoDilithiumBrainpool512,
+	}
+
+	dilithiumParamIds := map[string] dilithium.ParameterSetId {
+		"ParamID_1": dilithium.Parameter1,
+		"ParamID_2": dilithium.Parameter2,
+		"ParamID_3": dilithium.Parameter3,
 	}
 
 	for asymmName, asymmAlgo := range asymmAlgos {
 		t.Run(asymmName, func(t *testing.T) {
-			key := testGenerateKeyAlgo(t, asymmAlgo)
-			testSignVerifyAlgo(t, key)
-			testvalidateAlgo(t, asymmAlgo)
+			for paramIdName, paramId := range dilithiumParamIds {
+				t.Run(paramIdName, func(t *testing.T) {
+					key := testGenerateKeyAlgo(t, asymmAlgo, paramId)
+					testSignVerifyAlgo(t, key)
+					testvalidateAlgo(t, asymmAlgo, paramId)
+				})
+			}
 		})
 	}
 }
 
-func testvalidateAlgo(t *testing.T, algId packet.PublicKeyAlgorithm) {
-	key := testGenerateKeyAlgo(t, algId)
+func testvalidateAlgo(t *testing.T, algId packet.PublicKeyAlgorithm, paramId dilithium.ParameterSetId) {
+	key := testGenerateKeyAlgo(t, algId, paramId)
 	if err := dilithium_ecdsa.Validate(key); err != nil {
 		t.Fatalf("valid key marked as invalid: %s", err)
 	}
@@ -40,7 +51,7 @@ func testvalidateAlgo(t *testing.T, algId packet.PublicKeyAlgorithm) {
 	}
 
 	// Generate fresh key
-	key = testGenerateKeyAlgo(t, algId)
+	key = testGenerateKeyAlgo(t, algId, paramId)
 	if err := dilithium_ecdsa.Validate(key); err != nil {
 		t.Fatalf("valid key marked as invalid: %s", err)
 	}
@@ -51,18 +62,13 @@ func testvalidateAlgo(t *testing.T, algId packet.PublicKeyAlgorithm) {
 	}
 }
 
-func testGenerateKeyAlgo(t *testing.T, algId packet.PublicKeyAlgorithm) *dilithium_ecdsa.PrivateKey {
+func testGenerateKeyAlgo(t *testing.T, algId packet.PublicKeyAlgorithm, paramId dilithium.ParameterSetId) *dilithium_ecdsa.PrivateKey {
 	curveObj, err := packet.GetECDSACurveFromAlgID(algId)
 	if err != nil {
 		t.Errorf("error getting curve: %s", err)
 	}
 
-	kyberObj, err := packet.GetDilithiumFromAlgID(algId)
-	if err != nil {
-		t.Errorf("error getting dilithium: %s", err)
-	}
-
-	priv, err := dilithium_ecdsa.GenerateKey(rand.Reader, uint8(algId), curveObj, kyberObj)
+	priv, err := dilithium_ecdsa.GenerateKey(rand.Reader, uint8(algId), curveObj, paramId)
 	if err != nil {
 		t.Fatal(err)
 	}

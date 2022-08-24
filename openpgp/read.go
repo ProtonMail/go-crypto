@@ -115,9 +115,9 @@ ParsePackets:
 			md.EncryptedToKeyIds = append(md.EncryptedToKeyIds, p.KeyId)
 			switch p.Algo {
 			case packet.PubKeyAlgoRSA, packet.PubKeyAlgoRSAEncryptOnly, packet.PubKeyAlgoElGamal, packet.PubKeyAlgoECDH,
-				packet.PubKeyAlgoKyber512X25519, packet.PubKeyAlgoKyber1024X448, packet.PubKeyAlgoKyber768P384,
-				packet.PubKeyAlgoKyber1024P521, packet.PubKeyAlgoKyber768Brainpool384,
-				packet.PubKeyAlgoKyber1024Brainpool512:
+				packet.PubKeyAlgoKyberX25519, packet.PubKeyAlgoKyberX448, packet.PubKeyAlgoKyberP384,
+				packet.PubKeyAlgoKyberP521, packet.PubKeyAlgoKyberBrainpool384,
+				packet.PubKeyAlgoKyberBrainpool512:
 				break
 			default:
 				continue
