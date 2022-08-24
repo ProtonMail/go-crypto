@@ -40,53 +40,25 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 		primary.UpgradeToV5()
 	}
 
-	// Generate an encryption subkey
-	subPrivRaw, err := newDecrypter(config)
-	if err != nil {
-		return nil, err
-	}
-	sub := packet.NewDecrypterPrivateKey(creationTime, subPrivRaw)
-	sub.IsSubkey = true
-	sub.PublicKey.IsSubkey = true
-	if config != nil && config.V5Keys {
-		sub.UpgradeToV5()
-	}
-
-	// NOTE: No KeyLifetimeSecs here, but we will not return this subkey in EncryptionKey()
-	// if the primary/master key has expired.
-	subKey := Subkey{
-		PublicKey:  &sub.PublicKey,
-		PrivateKey: sub,
-		Sig: &packet.Signature{
-			Version:                   primary.PublicKey.Version,
-			CreationTime:              creationTime,
-			SigType:                   packet.SigTypeSubkeyBinding,
-			PubKeyAlgo:                primary.PublicKey.PubKeyAlgo,
-			Hash:                      config.Hash(),
-			FlagsValid:                true,
-			FlagEncryptStorage:        true,
-			FlagEncryptCommunications: true,
-			IssuerKeyId:               &primary.PublicKey.KeyId,
-		},
-	}
-
-	// Subkey binding signature
-	err = subKey.Sig.SignKey(subKey.PublicKey, primary, config)
-	if err != nil {
-		return nil, err
-	}
-
 	e := &Entity{
 		PrimaryKey: &primary.PublicKey,
 		PrivateKey: primary,
 		Identities: make(map[string]*Identity),
-		Subkeys:    []Subkey{subKey},
+		Subkeys:    []Subkey{},
 	}
 
 	err = e.addUserId(name, comment, email, config, creationTime, keyLifetimeSecs)
 	if err != nil {
 		return nil, err
 	}
+
+	// NOTE: No key expiry here, but we will not return this subkey in EncryptionKey()
+	// if the primary/master key has expired.
+	err = e.addEncryptionSubkey(config, creationTime, 0)
+	if err != nil {
+		return nil, err
+	}
+
 	return e, nil
 }
 
@@ -229,7 +201,10 @@ func (e *Entity) AddSigningSubkey(config *packet.Config) error {
 func (e *Entity) AddEncryptionSubkey(config *packet.Config) error {
 	creationTime := config.Now()
 	keyLifetimeSecs := config.KeyLifetime()
+	return e.addEncryptionSubkey(config, creationTime, keyLifetimeSecs)
+}
 
+func (e *Entity) addEncryptionSubkey(config *packet.Config, creationTime time.Time, keyLifetimeSecs uint32) error {
 	subPrivRaw, err := newDecrypter(config)
 	if err != nil {
 		return err
