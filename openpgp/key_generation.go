@@ -11,6 +11,7 @@ import (
 	goerrors "errors"
 	"io"
 	"math/big"
+	"time"
 
 	"github.com/ProtonMail/go-crypto/openpgp/ecdh"
 	"github.com/ProtonMail/go-crypto/openpgp/ecdsa"
@@ -26,8 +27,8 @@ import (
 // which may be empty but must not contain any of "()<>\x00".
 // If config is nil, sensible defaults will be used.
 func NewEntity(name, comment, email string, config *packet.Config) (*Entity, error) {
-
 	creationTime := config.Now()
+	keyLifetimeSecs := config.KeyLifetime()
 
 	// Generate a primary signing key
 	primaryPrivRaw, err := newSigner(config)
@@ -82,7 +83,7 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 		Subkeys:    []Subkey{subKey},
 	}
 
-	err = e.AddUserId(name, comment, email, config)
+	err = e.addUserId(name, comment, email, config, creationTime, keyLifetimeSecs)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +93,10 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 func (t *Entity) AddUserId(name, comment, email string, config *packet.Config) error {
 	creationTime := config.Now()
 	keyLifetimeSecs := config.KeyLifetime()
+	return t.addUserId(name, comment, email, config, creationTime, keyLifetimeSecs)
+}
 
+func (t *Entity) addUserId(name, comment, email string, config *packet.Config, creationTime time.Time, keyLifetimeSecs uint32) error {
 	uid := packet.NewUserId(name, comment, email)
 	if uid == nil {
 		return errors.InvalidArgumentError("user id field contained invalid characters")
