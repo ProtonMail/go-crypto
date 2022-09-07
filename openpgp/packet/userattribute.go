@@ -6,6 +6,7 @@ package packet
 
 import (
 	"bytes"
+	"fmt"
 	"image"
 	"image/jpeg"
 	"io"
@@ -25,8 +26,32 @@ type UserAttribute struct {
 // NewUserAttributePhoto creates a user attribute packet
 // containing the given images.
 func NewUserAttributePhoto(photos ...image.Image) (uat *UserAttribute, err error) {
+	var imgBytes [][]byte
+	for _, photo := range photos {
+		var buf bytes.Buffer
+		if err = jpeg.Encode(&buf, photo, nil); err != nil {
+			return
+		}
+		imgBytes = append(imgBytes, buf.Bytes())
+	}
+	return newUserAttributePhotoBytes(imgBytes)
+}
+
+func NewUserAttributePhotoBytes(photos [][]byte) (uat *UserAttribute, err error) {
+	for _, photo := range photos {
+		//check jpeg
+		_, err = jpeg.Decode(bytes.NewBuffer(photo))
+		if err != nil {
+			return nil, fmt.Errorf("jpeg err: %v", err)
+		}
+	}
+	return newUserAttributePhotoBytes(photos)
+}
+
+func newUserAttributePhotoBytes(photos [][]byte) (uat *UserAttribute, err error) {
 	uat = new(UserAttribute)
 	for _, photo := range photos {
+
 		var buf bytes.Buffer
 		// RFC 4880, Section 5.12.1.
 		data := []byte{
@@ -39,12 +64,17 @@ func NewUserAttributePhoto(photos ...image.Image) (uat *UserAttribute, err error
 		if _, err = buf.Write(data); err != nil {
 			return
 		}
-		if err = jpeg.Encode(&buf, photo, nil); err != nil {
-			return
-		}
+		buf.Write(photo)
+
+		lengthBuf := make([]byte, 5)
+		n := serializeSubpacketLength(lengthBuf, len(buf.Bytes())+1)
+		lengthBuf = lengthBuf[:n]
+
 		uat.Contents = append(uat.Contents, &OpaqueSubpacket{
 			SubType:  UserAttrImageSubpacket,
-			Contents: buf.Bytes()})
+			Length:   lengthBuf,
+			Contents: buf.Bytes(),
+		})
 	}
 	return
 }
@@ -53,7 +83,6 @@ func NewUserAttributePhoto(photos ...image.Image) (uat *UserAttribute, err error
 func NewUserAttribute(contents ...*OpaqueSubpacket) *UserAttribute {
 	return &UserAttribute{Contents: contents}
 }
-
 func (uat *UserAttribute) parse(r io.Reader) (err error) {
 	// RFC 4880, section 5.13
 	b, err := ioutil.ReadAll(r)
@@ -67,6 +96,7 @@ func (uat *UserAttribute) parse(r io.Reader) (err error) {
 // Serialize marshals the user attribute to w in the form of an OpenPGP packet, including
 // header.
 func (uat *UserAttribute) Serialize(w io.Writer) (err error) {
+
 	var buf bytes.Buffer
 	for _, sp := range uat.Contents {
 		err = sp.Serialize(&buf)
