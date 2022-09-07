@@ -745,10 +745,47 @@ func userIdSignatureHash(id string, pk *PublicKey, hashFunc crypto.Hash) (h hash
 	return
 }
 
+// userAttributeSignatureHash returns a Hash of the message that needs to be signed
+// to assert that pk is a valid key for id.
+func userAttributeSignatureHash(uat *UserAttribute, pk *PublicKey, hashFunc crypto.Hash) (h hash.Hash, err error) {
+
+	if !hashFunc.Available() {
+		return nil, errors.UnsupportedError("hash function")
+	}
+	h = hashFunc.New()
+
+	// RFC 4880, section 5.2.4
+	pk.SerializeSignaturePrefix(h)
+	pk.serializeWithoutHeaders(h)
+
+	data := uat.Data()
+
+	var buf [5]byte
+	buf[0] = 0xd1
+	buf[1] = byte(len(data) >> 24)
+	buf[2] = byte(len(data) >> 16)
+	buf[3] = byte(len(data) >> 8)
+	buf[4] = byte(len(data))
+	h.Write(buf[:])
+	h.Write(data)
+
+	return
+}
+
 // VerifyUserIdSignature returns nil iff sig is a valid signature, made by this
 // public key, that id is the identity of pub.
 func (pk *PublicKey) VerifyUserIdSignature(id string, pub *PublicKey, sig *Signature) (err error) {
 	h, err := userIdSignatureHash(id, pub, sig.Hash)
+	if err != nil {
+		return err
+	}
+	return pk.VerifySignature(h, sig)
+}
+
+// VerifyUserAttributeSignature returns nil iff sig is a valid signature, made by this
+// public key, that id is the identity of pub.
+func (pk *PublicKey) VerifyUserAttributeSignature(pkt *UserAttribute, pub *PublicKey, sig *Signature) (err error) {
+	h, err := userAttributeSignatureHash(pkt, pub, sig.Hash)
 	if err != nil {
 		return err
 	}

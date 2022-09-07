@@ -6,11 +6,12 @@ package packet
 
 import (
 	"bytes"
-	"fmt"
 	"image"
 	"image/jpeg"
 	"io"
 	"io/ioutil"
+
+	"github.com/ProtonMail/go-crypto/openpgp/errors"
 )
 
 const UserAttrImageSubpacket = 1
@@ -42,7 +43,7 @@ func NewUserAttributePhotoBytes(photos [][]byte) (uat *UserAttribute, err error)
 		//check jpeg
 		_, err = jpeg.Decode(bytes.NewBuffer(photo))
 		if err != nil {
-			return nil, fmt.Errorf("jpeg err: %v", err)
+			return nil, errors.InvalidArgumentError("jpeg data err")
 		}
 	}
 	return newUserAttributePhotoBytes(photos)
@@ -82,6 +83,13 @@ func newUserAttributePhotoBytes(photos [][]byte) (uat *UserAttribute, err error)
 // NewUserAttribute creates a new user attribute packet containing the given subpackets.
 func NewUserAttribute(contents ...*OpaqueSubpacket) *UserAttribute {
 	return &UserAttribute{Contents: contents}
+}
+func (uat *UserAttribute) Data() []byte {
+	buf := bytes.NewBuffer(nil)
+	for _, osp := range uat.Contents {
+		osp.Serialize(buf)
+	}
+	return buf.Bytes()
 }
 func (uat *UserAttribute) parse(r io.Reader) (err error) {
 	// RFC 4880, section 5.13
