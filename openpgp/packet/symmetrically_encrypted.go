@@ -15,6 +15,16 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 )
 
+// AllowReadWithoutMDC controls, whether it is tolerated to read encrypted messages
+// without Modification Detection Code (MDC).
+// MDC is mandated by the IETF OpenPGP Crypto Refresh draft and has long been implemented
+// in most OpenPGP implementations. Messages without MDC are considered unnecessarily
+// insecure and should be prevented whenever possible.
+// In case one needs to deal with messages from very old OpenPGP implementations, there
+// might be no other way than to tolerate the missing MDC. Setting this (package wide)
+// flag, allows this mode of operation. It should be considered a measure of last resort.
+var AllowReadWithoutMDC = false
+
 // SymmetricallyEncrypted represents a symmetrically encrypted byte string. The
 // encrypted Contents will consist of more OpenPGP packets. See RFC 4880,
 // sections 5.7 and 5.13.
@@ -37,7 +47,7 @@ func (se *SymmetricallyEncrypted) parse(r io.Reader) error {
 		if buf[0] != symmetricallyEncryptedVersion {
 			return errors.UnsupportedError("unknown SymmetricallyEncrypted version")
 		}
-	} else {
+	} else if !AllowReadWithoutMDC {
 		return errors.UnsupportedError("Symmetrically encrypted packets without MDC are not supported")
 	}
 	se.Contents = r
