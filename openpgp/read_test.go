@@ -747,17 +747,14 @@ func TestMessageWithoutMdc(t *testing.T) {
 	})
 
 	t.Run("succeeds with AllowReadWithoutMDC enabled", func(t *testing.T) {
-		t.Cleanup(func() {
-			packet.AllowReadWithoutMDC = false
-		})
-		packet.AllowReadWithoutMDC = true
-
 		messageWithoutMdc, err := armor.Decode(bytes.NewReader(armoredMessageWithoutMdc))
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		md, err := ReadMessage(messageWithoutMdc.Body, el, nil, nil)
+		md, err := ReadMessage(messageWithoutMdc.Body, el, nil, &packet.Config{
+			AllowReadWithoutMDC: true,
+		})
 		if err != nil {
 			t.Fatal("reading the message should have worked")
 		}
