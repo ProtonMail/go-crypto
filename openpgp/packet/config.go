@@ -85,15 +85,15 @@ type Config struct {
 	// when producing a generic certification signature onto an existing user ID.
 	// The identity must be present in the signer Entity.
 	SigningIdentity string
-	// AllowReadWithoutMDC controls, whether it is tolerated to read encrypted messages
-	// without Modification Detection Code (MDC).
+	// InsecureAllowUnauthenticatedMessages controls, whether it is tolerated to read
+	// encrypted messages without Modification Detection Code (MDC).
 	// MDC is mandated by the IETF OpenPGP Crypto Refresh draft and has long been implemented
 	// in most OpenPGP implementations. Messages without MDC are considered unnecessarily
 	// insecure and should be prevented whenever possible.
 	// In case one needs to deal with messages from very old OpenPGP implementations, there
 	// might be no other way than to tolerate the missing MDC. Setting this flag, allows this
 	// mode of operation. It should be considered a measure of last resort.
-	AllowReadWithoutMDC bool
+	InsecureAllowUnauthenticatedMessages bool
 }
 
 func (c *Config) Random() io.Reader {
@@ -196,9 +196,9 @@ func (c *Config) SigningUserId() string {
 	return c.SigningIdentity
 }
 
-func (c *Config) ReadWithoutMdcAllowed() bool {
+func (c *Config) AllowUnauthenticatedMessages() bool {
 	if c == nil {
 		return false
 	}
-	return c.AllowReadWithoutMDC
+	return c.InsecureAllowUnauthenticatedMessages
 }

@@ -734,7 +734,7 @@ func TestMessageWithoutMdc(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Run("fails with AllowReadWithoutMDC disabled", func(t *testing.T) {
+	t.Run("fails with InsecureAllowUnauthenticatedMessages disabled", func(t *testing.T) {
 		messageWithoutMdc, err := armor.Decode(bytes.NewReader(armoredMessageWithoutMdc))
 		if err != nil {
 			t.Fatal(err)
@@ -746,14 +746,14 @@ func TestMessageWithoutMdc(t *testing.T) {
 		}
 	})
 
-	t.Run("succeeds with AllowReadWithoutMDC enabled", func(t *testing.T) {
+	t.Run("succeeds with InsecureAllowUnauthenticatedMessages enabled", func(t *testing.T) {
 		messageWithoutMdc, err := armor.Decode(bytes.NewReader(armoredMessageWithoutMdc))
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		md, err := ReadMessage(messageWithoutMdc.Body, el, nil, &packet.Config{
-			AllowReadWithoutMDC: true,
+			InsecureAllowUnauthenticatedMessages: true,
 		})
 		if err != nil {
 			t.Fatal("reading the message should have worked")
