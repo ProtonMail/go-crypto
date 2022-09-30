@@ -131,8 +131,8 @@ ParsePackets:
 				}
 			}
 		case *packet.SymmetricallyEncrypted:
-			if !p.MDC && !config.ReadWithoutMdcAllowed() {
-				return nil, errors.UnsupportedError("Symmetrically encrypted packets without MDC are not supported")
+			if !p.MDC && !config.AllowUnauthenticatedMessages() {
+				return nil, errors.UnsupportedError("message is not authenticated")
 			}
 			edp = p
 			break ParsePackets
