@@ -71,9 +71,9 @@ func newUserAttributePhotoBytes(photos [][]byte) (uat *UserAttribute, err error)
 		lengthBuf = lengthBuf[:n]
 
 		uat.Contents = append(uat.Contents, &OpaqueSubpacket{
-			SubType:  UserAttrImageSubpacket,
-			Length:   lengthBuf,
-			Contents: buf.Bytes(),
+			SubType:       UserAttrImageSubpacket,
+			EncodedLength: lengthBuf,
+			Contents:      buf.Bytes(),
 		})
 	}
 	return
