@@ -966,6 +966,23 @@ func TestNotationPacket(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	assertNotationPackets(t, keys)
+
+	serializedEntity := bytes.NewBuffer(nil)
+	err = keys[0].Serialize(serializedEntity)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	keys, err = ReadKeyRing(serializedEntity)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assertNotationPackets(t, keys)
+}
+
+func assertNotationPackets(t *testing.T, keys EntityList) {
 	if len(keys) != 1 {
 		t.Errorf("Failed to accept key, %d", len(keys))
 	}
