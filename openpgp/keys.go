@@ -134,6 +134,7 @@ func (e *Entity) EncryptionKey(now time.Time) (Key, bool) {
 
 	// Iterate the keys to find the newest, unexpired one
 	candidateSubkey := -1
+	isPQ := false
 	var maxTime time.Time
 	for i, subkey := range e.Subkeys {
 		if subkey.Sig.FlagsValid &&
@@ -142,9 +143,11 @@ func (e *Entity) EncryptionKey(now time.Time) (Key, bool) {
 			!subkey.PublicKey.KeyExpired(subkey.Sig, now) &&
 			!subkey.Sig.SigExpired(now) &&
 			!subkey.Revoked(now) &&
-			(maxTime.IsZero() || subkey.Sig.CreationTime.After(maxTime)) {
+			(maxTime.IsZero() || subkey.Sig.CreationTime.After(maxTime)) &&
+			(!isPQ || subkey.IsPQ()) {
 			candidateSubkey = i
 			maxTime = subkey.Sig.CreationTime
+			isPQ = subkey.IsPQ() // Prefer PQ keys
 		}
 	}
 
@@ -201,6 +204,7 @@ func (e *Entity) signingKeyByIdUsage(now time.Time, id uint64, flags int) (Key, 
 	// Iterate the keys to find the newest, unexpired one
 	candidateSubkey := -1
 	var maxTime time.Time
+	isPQ := false
 	for idx, subkey := range e.Subkeys {
 		if subkey.Sig.FlagsValid &&
 			(flags&packet.KeyFlagCertify == 0 || subkey.Sig.FlagCertify) &&
@@ -210,9 +214,11 @@ func (e *Entity) signingKeyByIdUsage(now time.Time, id uint64, flags int) (Key, 
 			!subkey.Sig.SigExpired(now) &&
 			!subkey.Revoked(now) &&
 			(maxTime.IsZero() || subkey.Sig.CreationTime.After(maxTime)) &&
-			(id == 0 || subkey.PublicKey.KeyId == id) {
+			(id == 0 || subkey.PublicKey.KeyId == id) &&
+			(!isPQ || subkey.IsPQ()) {
 			candidateSubkey = idx
 			maxTime = subkey.Sig.CreationTime
+			isPQ = subkey.IsPQ()
 		}
 	}
 
@@ -303,6 +309,20 @@ func (i *Identity) Revoked(now time.Time) bool {
 // Note that third-party revocation signatures are not supported.
 func (s *Subkey) Revoked(now time.Time) bool {
 	return revoked(s.Revocations, now)
+}
+
+// IsPQ returns true if the algorithm is Post-Quantum safe
+func (s *Subkey) IsPQ() bool {
+	switch s.PublicKey.PubKeyAlgo {
+	case packet.PubKeyAlgoKyber768X25519, packet.PubKeyAlgoKyber1024X448, packet.PubKeyAlgoKyber768P256,
+	packet.PubKeyAlgoKyber1024P384, packet.PubKeyAlgoKyber768Brainpool256, packet.PubKeyAlgoKyber1024Brainpool384,
+	packet.PubKeyAlgoDilithium3Ed25519, packet.PubKeyAlgoDilithium5Ed448, packet.PubKeyAlgoDilithium3p256,
+	packet.PubKeyAlgoDilithium5p384, packet.PubKeyAlgoDilithium3Brainpool256, packet.PubKeyAlgoDilithium5Brainpool384:
+		return true
+	default:
+		return false
+	}
+
 }
 
 // Revoked returns whether the key or subkey has been revoked by a self-signature.
