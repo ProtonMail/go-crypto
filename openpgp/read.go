@@ -8,6 +8,7 @@ package openpgp // import "github.com/ProtonMail/go-crypto/openpgp"
 import (
 	"crypto"
 	_ "crypto/sha256"
+	_ "crypto/sha512"
 	"hash"
 	"io"
 	"strconv"
@@ -15,6 +16,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/armor"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
+	_ "golang.org/x/crypto/sha3"
 )
 
 // SignatureType is the armor type for a PGP signature.
