@@ -1,4 +1,5 @@
 // Package kyber_ecdh implements hybrid Kyber + ECDH encryption, suitable for OpenPGP, experimental.
+// It follows the spec https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-4
 package kyber_ecdh
 
 import (
@@ -112,7 +113,7 @@ func Decrypt(priv *PrivateKey, kEphemeral, ecEphemeral, ciphertext, publicKeyHas
 
 	msg, err = keywrap.Unwrap(z, ciphertext)
 
-	return msg, nil
+	return msg, err
 }
 
 // buildKey implements the composite KDF as specified in
@@ -134,7 +135,7 @@ func buildKey(pub *PublicKey, eccKeyShare, kyberKeyShare, publicKeyHash []byte) 
 	return k.Sum(nil), nil
 }
 
-
+// Validate checks that the public key corresponds to the private key
 func Validate(priv *PrivateKey) (err error) {
 	if err = priv.PublicKey.Curve.ValidateECDH(priv.PublicKey.PublicPoint, priv.SecretEC); err != nil {
 		return err

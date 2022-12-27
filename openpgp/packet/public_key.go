@@ -331,30 +331,22 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 		err = pk.parseEd25519(r)
 	case PubKeyAlgoEd448:
 		err = pk.parseEd448(r)
-	case PubKeyAlgoDilithium3Ed25519:
-		err = pk.parseDilithiumEdDSA(r, 32, 1952)
-	case PubKeyAlgoDilithium5Ed448:
-		err = pk.parseDilithiumEdDSA(r, 57, 2592)
-	case PubKeyAlgoDilithium3p256:
-		err = pk.parseDilithiumECDSA(r, 65, 1952)
-	case PubKeyAlgoDilithium5p384:
-		err = pk.parseDilithiumECDSA(r, 97, 2592)
-	case PubKeyAlgoDilithium3Brainpool256:
-		err = pk.parseDilithiumECDSA(r, 65, 1952)
-	case PubKeyAlgoDilithium5Brainpool384:
-		err = pk.parseDilithiumECDSA(r, 97, 2592)
 	case PubKeyAlgoKyber768X25519:
 		err = pk.parseKyberECDH(r, 32, 1184)
 	case PubKeyAlgoKyber1024X448:
 		err = pk.parseKyberECDH(r, 56, 1568)
-	case PubKeyAlgoKyber768P256:
+	case PubKeyAlgoKyber768P256, PubKeyAlgoKyber768Brainpool256:
 		err = pk.parseKyberECDH(r, 65, 1184)
-	case PubKeyAlgoKyber1024P384:
+	case PubKeyAlgoKyber1024P384, PubKeyAlgoKyber1024Brainpool384:
 		err = pk.parseKyberECDH(r, 97, 1568)
-	case PubKeyAlgoKyber768Brainpool256:
-		err = pk.parseKyberECDH(r, 65, 1184)
-	case PubKeyAlgoKyber1024Brainpool384:
-		err = pk.parseKyberECDH(r, 97, 1568)
+	case PubKeyAlgoDilithium3Ed25519:
+		err = pk.parseDilithiumEdDSA(r, 32, 1952)
+	case PubKeyAlgoDilithium5Ed448:
+		err = pk.parseDilithiumEdDSA(r, 57, 2592)
+	case PubKeyAlgoDilithium3p256, PubKeyAlgoDilithium3Brainpool256:
+		err = pk.parseDilithiumECDSA(r, 65, 1952)
+	case PubKeyAlgoDilithium5p384, PubKeyAlgoDilithium5Brainpool384:
+		err = pk.parseDilithiumECDSA(r, 97, 2592)
 	default:
 		err = errors.UnsupportedError("public key type: " + strconv.Itoa(int(pk.PubKeyAlgo)))
 	}
@@ -549,6 +541,8 @@ func (pk *PublicKey) parseECDH(r io.Reader) (err error) {
 	return
 }
 
+// parseKyberECDH parses a Kyber + ECC public key as specified in
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-4.3.2
 func (pk *PublicKey) parseKyberECDH(r io.Reader, ecLen, kLen int) (err error) {
 	pk.p = encoding.NewEmptyOctetArray(ecLen)
 	if _, err = pk.p.ReadFrom(r); err != nil {
@@ -675,6 +669,8 @@ func (pk *PublicKey) parseEd448(r io.Reader) (err error) {
 	return
 }
 
+// parseKyberECDH parses a Dilithium + ECDSA public key as specified in
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-5.3.2
 func (pk *PublicKey) parseDilithiumECDSA(r io.Reader, ecLen, dLen int) (err error) {
 	pk.p = encoding.NewEmptyOctetArray(ecLen)
 	if _, err = pk.p.ReadFrom(r); err != nil {
@@ -709,6 +705,8 @@ func (pk *PublicKey) parseDilithiumECDSA(r io.Reader, ecLen, dLen int) (err erro
 	return
 }
 
+// parseKyberECDH parses a Dilithium + EdDSA public key as specified in
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-5.3.2
 func (pk *PublicKey) parseDilithiumEdDSA(r io.Reader, ecLen, dLen int) (err error) {
 	pk.p = encoding.NewEmptyOctetArray(ecLen)
 	if _, err = pk.p.ReadFrom(r); err != nil {
