@@ -377,11 +377,15 @@ func serializeECDHPrivateKey(w io.Writer, priv *ecdh.PrivateKey) error {
 	return err
 }
 
-func serializeKyberPrivateKey(w io.Writer, priv *kyber_ecdh.PrivateKey) error {
-	if _, err := w.Write(encoding.NewOctetArray(priv.SecretEC).EncodedBytes()); err != nil {
+func serializeKyberPrivateKey(w io.Writer, priv *kyber_ecdh.PrivateKey) (err error) {
+	var kyberBin []byte
+	if kyberBin, err = priv.SecretKyber.MarshalBinary(); err != nil {
 		return err
 	}
-	_, err := w.Write(encoding.NewOctetArray(priv.SecretKyber).EncodedBytes())
+	if _, err = w.Write(encoding.NewOctetArray(priv.SecretEC).EncodedBytes()); err != nil {
+		return err
+	}
+	_, err = w.Write(encoding.NewOctetArray(kyberBin).EncodedBytes())
 	return err
 }
 
@@ -389,7 +393,7 @@ func serializeDilithiumECDSAPrivateKey(w io.Writer, priv *dilithium_ecdsa.Privat
 	if _, err := w.Write(encoding.NewOctetArray(priv.MarshalIntegerSecret()).EncodedBytes()); err != nil {
 		return err
 	}
-	_, err := w.Write(encoding.NewOctetArray(priv.SecretDilithium).EncodedBytes())
+	_, err := w.Write(encoding.NewOctetArray(priv.SecretDilithium.Bytes()).EncodedBytes())
 	return err
 }
 
@@ -397,7 +401,7 @@ func serializeDilithiumEdDSAPrivateKey(w io.Writer, priv *dilithium_eddsa.Privat
 	if _, err := w.Write(encoding.NewOctetArray(priv.SecretEC).EncodedBytes()); err != nil {
 		return err
 	}
-	_, err := w.Write(encoding.NewOctetArray(priv.SecretDilithium).EncodedBytes())
+	_, err := w.Write(encoding.NewOctetArray(priv.SecretDilithium.Bytes()).EncodedBytes())
 	return err
 }
 
@@ -754,7 +758,7 @@ func (pk *PrivateKey) parseDilithiumECDSAPrivateKey(data []byte, ecLen, dLen int
 		return err
 	}
 
-	priv.SecretDilithium = d.Bytes()
+	priv.SecretDilithium = priv.Dilithium.PrivateKeyFromBytes(d.Bytes())
 	if err := dilithium_ecdsa.Validate(priv); err != nil {
 		return err
 	}
@@ -783,7 +787,7 @@ func (pk *PrivateKey) parseDilithiumEdDSAPrivateKey(data []byte, ecLen, dLen int
 	}
 
 	priv.SecretEC = ec.Bytes()
-	priv.SecretDilithium = d.Bytes()
+	priv.SecretDilithium = priv.Dilithium.PrivateKeyFromBytes(d.Bytes())
 	if err := dilithium_eddsa.Validate(priv); err != nil {
 		return err
 	}
@@ -812,7 +816,10 @@ func (pk *PrivateKey) parseKyberECDHPrivateKey(data []byte, ecLen, kLen int) (er
 	}
 
 	priv.SecretEC = ec.Bytes()
-	priv.SecretKyber = k.Bytes()
+	if priv.SecretKyber, err = priv.PublicKey.Kyber.UnmarshalBinaryPrivateKey(k.Bytes()); err != nil {
+		return err
+	}
+
 	if err := kyber_ecdh.Validate(priv); err != nil {
 		return err
 	}

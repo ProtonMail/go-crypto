@@ -4,42 +4,27 @@ package dilithium_ecdsa
 import (
 	"crypto/subtle"
 	goerrors "errors"
+	"github.com/cloudflare/circl/sign/dilithium"
 	"io"
 	"math/big"
 
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
-	dilithium "github.com/kudelskisecurity/crystals-go/crystals-dilithium"
-	"golang.org/x/crypto/sha3"
 )
 
 type PublicKey struct {
 	AlgId uint8
 	Curve ecc.ECDSACurve
-	Dilithium *dilithium.Dilithium
+	Dilithium dilithium.Mode
 	X, Y *big.Int
-	PublicDilithium []byte
+	PublicDilithium dilithium.PublicKey
 }
 
 type PrivateKey struct {
 	PublicKey
 	SecretEC *big.Int
-	SecretDilithium []byte
+	SecretDilithium dilithium.PrivateKey
 }
-
-func NewPublicKey(curve ecc.ECDSACurve, dilithium *dilithium.Dilithium) *PublicKey {
-	return &PublicKey{
-		Curve: curve,
-		Dilithium: dilithium,
-	}
-}
-
-func NewPrivateKey(key PublicKey) *PrivateKey {
-	return &PrivateKey{
-		PublicKey: key,
-	}
-}
-
 
 func (pk *PublicKey) MarshalPoint() []byte {
 	return pk.Curve.MarshalIntegerPoint(pk.X, pk.Y)
@@ -66,7 +51,7 @@ func (sk *PrivateKey) UnmarshalIntegerSecret(d []byte) error {
 	return nil
 }
 
-func GenerateKey(rand io.Reader, algId uint8, c ecc.ECDSACurve, d *dilithium.Dilithium) (priv *PrivateKey, err error) {
+func GenerateKey(rand io.Reader, algId uint8, c ecc.ECDSACurve, d dilithium.Mode) (priv *PrivateKey, err error) {
 	priv = new(PrivateKey)
 
 	priv.PublicKey.AlgId = algId
@@ -78,13 +63,7 @@ func GenerateKey(rand io.Reader, algId uint8, c ecc.ECDSACurve, d *dilithium.Dil
 		return nil, err
 	}
 
-	dilithiumSeed := make([]byte, dilithium.SEEDBYTES)
-	_, err = rand.Read(dilithiumSeed)
-	if err != nil {
-		return nil, err
-	}
-
-	priv.PublicKey.PublicDilithium, priv.SecretDilithium = priv.PublicKey.Dilithium.KeyGen(dilithiumSeed)
+	priv.PublicKey.PublicDilithium, priv.SecretDilithium, err = priv.PublicKey.Dilithium.GenerateKey(rand)
 	return
 }
 
@@ -113,19 +92,18 @@ func Verify(pub *PublicKey, message, dSig, ecR, ecS []byte) bool {
 }
 
 func Validate(priv *PrivateKey) (err error) {
-	var tr [dilithium.SEEDBYTES]byte
-
 	if err = priv.PublicKey.Curve.ValidateECDSA(priv.PublicKey.X, priv.PublicKey.Y, priv.SecretEC.Bytes()); err != nil {
 		return err
 	}
 
-	state := sha3.NewShake256()
+	pub := priv.SecretDilithium.Public()
+	casted, ok := pub.(dilithium.PublicKey)
+	if !ok {
+		return errors.KeyInvalidError("dilithium_ecdsa: invalid public key")
+	}
 
-	state.Write(priv.PublicKey.PublicDilithium)
-	state.Read(tr[:])
-	kSk := priv.PublicKey.Dilithium.UnpackSK(priv.SecretDilithium)
-	if subtle.ConstantTimeCompare(kSk.Tr[:], tr[:]) == 0 {
-		return errors.KeyInvalidError("dilithium_eddsa: invalid public key")
+	if subtle.ConstantTimeCompare(priv.PublicDilithium.Bytes(), casted.Bytes()) == 0 {
+		return errors.KeyInvalidError("dilithium_ecdsa: invalid public key")
 	}
 
 	return

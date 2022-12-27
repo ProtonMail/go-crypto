@@ -8,24 +8,24 @@ import (
 
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
-	dilithium "github.com/kudelskisecurity/crystals-go/crystals-dilithium"
-	"golang.org/x/crypto/sha3"
+	"github.com/cloudflare/circl/sign/dilithium"
 )
 
 type PublicKey struct {
 	AlgId uint8
 	Curve ecc.EdDSACurve
-	Dilithium *dilithium.Dilithium
-	PublicPoint, PublicDilithium []byte
+	Dilithium dilithium.Mode
+	PublicPoint []byte
+	PublicDilithium dilithium.PublicKey
 }
 
 type PrivateKey struct {
 	PublicKey
-	SecretEC    []byte
-	SecretDilithium []byte
+	SecretEC []byte
+	SecretDilithium dilithium.PrivateKey
 }
 
-func GenerateKey(rand io.Reader, algId uint8, c ecc.EdDSACurve, d *dilithium.Dilithium) (priv *PrivateKey, err error) {
+func GenerateKey(rand io.Reader, algId uint8, c ecc.EdDSACurve, d dilithium.Mode) (priv *PrivateKey, err error) {
 	priv = new(PrivateKey)
 
 	priv.PublicKey.AlgId = algId
@@ -37,13 +37,7 @@ func GenerateKey(rand io.Reader, algId uint8, c ecc.EdDSACurve, d *dilithium.Dil
 		return nil, err
 	}
 
-	dilithiumSeed := make([]byte, dilithium.SEEDBYTES)
-	_, err = rand.Read(dilithiumSeed)
-	if err != nil {
-		return nil, err
-	}
-
-	priv.PublicKey.PublicDilithium, priv.SecretDilithium = priv.PublicKey.Dilithium.KeyGen(dilithiumSeed)
+	priv.PublicKey.PublicDilithium, priv.SecretDilithium, err = priv.PublicKey.Dilithium.GenerateKey(rand)
 	return
 }
 
@@ -66,20 +60,18 @@ func Verify(pub *PublicKey, message, dSig, ecSig []byte) bool {
 }
 
 func Validate(priv *PrivateKey) (err error) {
-	var tr [dilithium.SEEDBYTES]byte
-
 	if err = priv.PublicKey.Curve.ValidateEdDSA(priv.PublicKey.PublicPoint, priv.SecretEC); err != nil {
 		return err
 	}
 
-	state := sha3.NewShake256()
-
-	state.Write(priv.PublicKey.PublicDilithium)
-	state.Read(tr[:])
-	kSk := priv.PublicKey.Dilithium.UnpackSK(priv.SecretDilithium)
-	if subtle.ConstantTimeCompare(kSk.Tr[:], tr[:]) == 0 {
+	pub := priv.SecretDilithium.Public()
+	casted, ok := pub.(dilithium.PublicKey)
+	if !ok {
 		return errors.KeyInvalidError("dilithium_eddsa: invalid public key")
 	}
 
+	if subtle.ConstantTimeCompare(priv.PublicDilithium.Bytes(), casted.Bytes()) == 0 {
+		return errors.KeyInvalidError("dilithium_eddsa: invalid public key")
+	}
 	return
 }

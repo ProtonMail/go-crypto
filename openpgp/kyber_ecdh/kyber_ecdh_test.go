@@ -43,12 +43,19 @@ func TestEncryptDecrypt(t *testing.T) {
 }
 
 func testvalidateAlgo(t *testing.T, algId packet.PublicKeyAlgorithm) {
+	var err error
 	key := testGenerateKeyAlgo(t, algId)
 	if err := kyber_ecdh.Validate(key); err != nil {
 		t.Fatalf("valid key marked as invalid: %s", err)
 	}
 
-	key.PublicKyber[5] ^= 1
+	bin, _ := key.PublicKyber.MarshalBinary()
+	bin[5] ^= 1
+	key.PublicKyber, err = key.Kyber.UnmarshalBinaryPublicKey(bin)
+	if err != nil {
+		t.Fatal("unable to corrupt key")
+	}
+
 	if err := kyber_ecdh.Validate(key); err == nil {
 		t.Fatalf("failed to detect invalid key")
 	}

@@ -34,7 +34,10 @@ func testvalidateAlgo(t *testing.T, algId packet.PublicKeyAlgorithm) {
 		t.Fatalf("valid key marked as invalid: %s", err)
 	}
 
-	key.PublicDilithium[5] ^= 1
+	bin := key.PublicDilithium.Bytes()
+	bin[5] ^= 1
+	key.PublicDilithium = key.Dilithium.PublicKeyFromBytes(bin)
+
 	if err := dilithium_ecdsa.Validate(key); err == nil {
 		t.Fatalf("failed to detect invalid key")
 	}

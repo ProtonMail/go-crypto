@@ -2,32 +2,32 @@
 package kyber_ecdh
 
 import (
-	"crypto/subtle"
 	goerrors "errors"
-	"github.com/ProtonMail/go-crypto/internal/kmac"
 	"io"
 
+	"github.com/ProtonMail/go-crypto/internal/kmac"
 	"github.com/ProtonMail/go-crypto/openpgp/aes/keywrap"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
-	kyber "github.com/kudelskisecurity/crystals-go/crystals-kyber"
+	"github.com/cloudflare/circl/kem"
 )
 
 type PublicKey struct {
 	AlgId uint8
 	Curve ecc.ECDHCurve
-	Kyber *kyber.Kyber
-	PublicPoint, PublicKyber []byte
+	Kyber kem.Scheme
+	PublicKyber kem.PublicKey
+	PublicPoint []byte
 }
 
 type PrivateKey struct {
 	PublicKey
 	SecretEC    []byte
-	SecretKyber []byte
+	SecretKyber kem.PrivateKey
 }
 
-func GenerateKey(rand io.Reader, algId uint8, c ecc.ECDHCurve, k *kyber.Kyber) (priv *PrivateKey, err error) {
+func GenerateKey(rand io.Reader, algId uint8, c ecc.ECDHCurve, k kem.Scheme) (priv *PrivateKey, err error) {
 	priv = new(PrivateKey)
 
 	priv.PublicKey.AlgId = algId
@@ -39,13 +39,13 @@ func GenerateKey(rand io.Reader, algId uint8, c ecc.ECDHCurve, k *kyber.Kyber) (
 		return nil, err
 	}
 
-	kyberSeed := make([]byte, kyber.SIZEZ + kyber.SEEDBYTES)
+	kyberSeed := make([]byte, k.SeedSize())
 	_, err = rand.Read(kyberSeed)
 	if err != nil {
 		return nil, err
 	}
 
-	priv.PublicKey.PublicKyber, priv.SecretKyber = priv.PublicKey.Kyber.KeyGen(kyberSeed)
+	priv.PublicKey.PublicKyber, priv.SecretKyber = priv.PublicKey.Kyber.DeriveKeyPair(kyberSeed)
 	return
 }
 
@@ -67,13 +67,16 @@ func Encrypt(rand io.Reader, pub *PublicKey, msg, publicKeyHash []byte) (kEpheme
 	}
 
 	// Kyber shared secret derivation
-	kyberSeed := make([]byte, kyber.SEEDBYTES)
+	kyberSeed := make([]byte, pub.Kyber.EncapsulationSeedSize())
 	_, err = rand.Read(kyberSeed)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	kEphemeral, kSS := pub.Kyber.Encaps(pub.PublicKyber, kyberSeed)
+	kEphemeral, kSS, err := pub.Kyber.EncapsulateDeterministically(pub.PublicKyber, kyberSeed)
+	if err != nil {
+		return nil, nil, nil, err
+	}
 
 	z, err := buildKey(pub, ecSS, kSS, publicKeyHash)
 	if err != nil {
@@ -97,7 +100,10 @@ func Decrypt(priv *PrivateKey, kEphemeral, ecEphemeral, ciphertext, publicKeyHas
 	}
 
 	// Kyber shared secret derivation
-	kSS := priv.PublicKey.Kyber.Decaps(priv.SecretKyber, kEphemeral)
+	kSS, err := priv.PublicKey.Kyber.Decapsulate(priv.SecretKyber, kEphemeral)
+	if err != nil {
+		return nil, err
+	}
 
 	z, err := buildKey(&priv.PublicKey, ecSS, kSS, publicKeyHash)
 	if err != nil {
@@ -134,8 +140,7 @@ func Validate(priv *PrivateKey) (err error) {
 		return err
 	}
 
-	kSk := priv.PublicKey.Kyber.UnpackSK(priv.SecretKyber)
-	if subtle.ConstantTimeCompare(kSk.Pk, priv.PublicKey.PublicKyber) == 0 {
+	if !priv.PublicKey.PublicKyber.Equal(priv.SecretKyber.Public()) {
 		return errors.KeyInvalidError("kyber_ecdh: invalid public key")
 	}
 

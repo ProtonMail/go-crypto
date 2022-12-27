@@ -269,11 +269,15 @@ func TestGenerateDilithiumKey(t *testing.T) {
 
 			// Corrupt public Dilithium in primary key
 			if pk, ok := read.PrivateKey.PublicKey.PublicKey.(*dilithium_ecdsa.PublicKey); ok {
-				pk.PublicDilithium[5] ^= 1
+				bin := pk.PublicDilithium.Bytes()
+				bin[5] ^= 1
+				pk.PublicDilithium = pk.Dilithium.PublicKeyFromBytes(bin)
 			}
 
 			if pk, ok := read.PrivateKey.PublicKey.PublicKey.(*dilithium_eddsa.PublicKey); ok {
-				pk.PublicDilithium[5] ^= 1
+				bin := pk.PublicDilithium.Bytes()
+				bin[5] ^= 1
+				pk.PublicDilithium = pk.Dilithium.PublicKeyFromBytes(bin)
 			}
 
 			err = read.PrivateKey.Decrypt(randomPassword)
@@ -297,7 +301,11 @@ func TestGenerateDilithiumKey(t *testing.T) {
 
 			// Corrupt public Kyber in primary key
 			if pk, ok := subkey.PublicKey.PublicKey.(*kyber_ecdh.PublicKey); ok {
-				pk.PublicKyber[5] ^= 1
+				bin, _ := pk.PublicKyber.MarshalBinary()
+				bin[5] ^= 1
+				if pk.PublicKyber, err = pk.Kyber.UnmarshalBinaryPublicKey(bin); err != nil {
+					t.Fatal("unable to corrupt key")
+				}
 			} else {
 				t.Fatal("Invalid subkey")
 			}
