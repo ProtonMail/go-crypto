@@ -174,6 +174,8 @@ func (e *EncryptedKey) parse(r io.Reader) (err error) {
 	return
 }
 
+// readKyberECDHKey reads Kyber + ECC PKESK as specified in
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-4.3.1
 func (e *EncryptedKey) readKyberECDHKey(r io.Reader, lenEcc, lenKyber int) (err error){
 	e.encryptedMPI1 = encoding.NewEmptyOctetArray(lenEcc)
 	if _, err = e.encryptedMPI1.ReadFrom(r); err != nil {
