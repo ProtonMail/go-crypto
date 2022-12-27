@@ -998,24 +998,24 @@ func assertNotationPackets(t *testing.T, keys EntityList) {
 		t.Fatalf("got %d Data Notation subpackets, expected %d", numSigs, numExpected)
 	}
 
-	if notations[0].IsHumanReadable() != true {
+	if notations[0].HumanReadable != true {
 		t.Fatalf("got false, expected true")
 	}
 
-	if notations[0].GetName() != "test@example.com" {
-		t.Fatalf("got %s, expected test@example.com", notations[0].GetName())
+	if notations[0].Name != "test@example.com" {
+		t.Fatalf("got %s, expected test@example.com", notations[0].Name)
 	}
 
-	if notations[0].GetStringValue() != "2" {
-		t.Fatalf("got %s, expected 2", notations[0].GetName())
+	if string(notations[0].Value) != "2" {
+		t.Fatalf("got %s, expected 2", string(notations[0].Value))
 	}
 
-	if notations[1].GetName() != "test@example.com" {
-		t.Fatalf("got %s, expected test@example.com", notations[0].GetName())
+	if notations[1].Name != "test@example.com" {
+		t.Fatalf("got %s, expected test@example.com", notations[1].Name)
 	}
 
-	if notations[1].GetStringValue() != "3" {
-		t.Fatalf("got %s, expected 3", notations[0].GetName())
+	if string(notations[1].Value) != "3" {
+		t.Fatalf("got %s, expected 3", string(notations[1].Value))
 	}
 }
 
