@@ -1,4 +1,5 @@
 // Package dilithium_eddsa implements hybrid Dilithium + EdDSA encryption, suitable for OpenPGP, experimental.
+// It follows the specs https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#name-composite-signature-schemes-3
 package dilithium_eddsa
 
 import (
@@ -41,6 +42,8 @@ func GenerateKey(rand io.Reader, algId uint8, c ecc.EdDSACurve, d dilithium.Mode
 	return
 }
 
+// Sign generates a Dilithium + EdDSA composite signature as specified in
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-5.2.2
 func Sign(priv *PrivateKey, message []byte) (dSig, ecSig []byte, err error) {
 	ecSig, err = priv.PublicKey.Curve.Sign(priv.PublicKey.PublicPoint, priv.SecretEC, message)
 	if err != nil {
@@ -55,10 +58,13 @@ func Sign(priv *PrivateKey, message []byte) (dSig, ecSig []byte, err error) {
 	return
 }
 
+// Verify verifies a Dilithium + EdDSA composite signature as specified in
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-5.2.3
 func Verify(pub *PublicKey, message, dSig, ecSig []byte) bool {
 	return pub.Curve.Verify(pub.PublicPoint, message, ecSig) && pub.Dilithium.Verify(pub.PublicDilithium, message, dSig)
 }
 
+// Validate checks that the public key corresponds to the private key
 func Validate(priv *PrivateKey) (err error) {
 	if err = priv.PublicKey.Curve.ValidateEdDSA(priv.PublicKey.PublicPoint, priv.SecretEC); err != nil {
 		return err

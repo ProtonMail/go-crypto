@@ -564,30 +564,20 @@ func (pk *PrivateKey) parsePrivateKey(data []byte) (err error) {
 		return pk.parseECDHPrivateKey(data)
 	case PubKeyAlgoEdDSA:
 		return pk.parseEdDSAPrivateKey(data)
+	case PubKeyAlgoKyber768X25519, PubKeyAlgoKyber768P256, PubKeyAlgoKyber768Brainpool256:
+		return pk.parseKyberECDHPrivateKey(data, 32, 2400)
+	case PubKeyAlgoKyber1024X448:
+		return pk.parseKyberECDHPrivateKey(data, 56, 3168)
+	case PubKeyAlgoKyber1024P384, PubKeyAlgoKyber1024Brainpool384:
+		return pk.parseKyberECDHPrivateKey(data, 48, 3168)
 	case PubKeyAlgoDilithium3Ed25519:
 		return pk.parseDilithiumEdDSAPrivateKey(data, 32, 4000)
 	case PubKeyAlgoDilithium5Ed448:
 		return pk.parseDilithiumEdDSAPrivateKey(data, 57, 4864)
-	case PubKeyAlgoDilithium3p256:
+	case PubKeyAlgoDilithium3p256, PubKeyAlgoDilithium3Brainpool256:
 		return pk.parseDilithiumECDSAPrivateKey(data, 32, 4000)
-	case PubKeyAlgoDilithium5p384:
+	case PubKeyAlgoDilithium5p384, PubKeyAlgoDilithium5Brainpool384:
 		return pk.parseDilithiumECDSAPrivateKey(data, 48, 4864)
-	case PubKeyAlgoDilithium3Brainpool256:
-		return pk.parseDilithiumECDSAPrivateKey(data, 32, 4000)
-	case PubKeyAlgoDilithium5Brainpool384:
-		return pk.parseDilithiumECDSAPrivateKey(data, 48, 4864)
-	case PubKeyAlgoKyber768X25519:
-		return pk.parseKyberECDHPrivateKey(data, 32, 2400)
-	case PubKeyAlgoKyber1024X448:
-		return pk.parseKyberECDHPrivateKey(data, 56, 3168)
-	case PubKeyAlgoKyber768P256:
-		return pk.parseKyberECDHPrivateKey(data, 32, 2400)
-	case PubKeyAlgoKyber1024P384:
-		return pk.parseKyberECDHPrivateKey(data, 48, 3168)
-	case PubKeyAlgoKyber768Brainpool256:
-		return pk.parseKyberECDHPrivateKey(data, 32, 2400)
-	case PubKeyAlgoKyber1024Brainpool384:
-		return pk.parseKyberECDHPrivateKey(data, 48, 3168)
 	}
 	panic("impossible")
 }
@@ -734,6 +724,8 @@ func (pk *PrivateKey) parseEdDSAPrivateKey(data []byte) (err error) {
 	return nil
 }
 
+// parseDilithiumECDSAPrivateKey parses a Dilithium + ECDSA private key as specified in
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-5.3.2
 func (pk *PrivateKey) parseDilithiumECDSAPrivateKey(data []byte, ecLen, dLen int) (err error) {
 	if pk.Version != 5 {
 		return goerrors.New("openpgp: cannot parse non-v5 dilithium_ecdsa key")
@@ -767,6 +759,8 @@ func (pk *PrivateKey) parseDilithiumECDSAPrivateKey(data []byte, ecLen, dLen int
 	return nil
 }
 
+// parseDilithiumEdDSAPrivateKey parses a Dilithium + EdDSA private key as specified in
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-5.3.2
 func (pk *PrivateKey) parseDilithiumEdDSAPrivateKey(data []byte, ecLen, dLen int) (err error) {
 	if pk.Version != 5 {
 		return goerrors.New("openpgp: cannot parse non-v5 dilithium_eddsa key")
@@ -796,6 +790,8 @@ func (pk *PrivateKey) parseDilithiumEdDSAPrivateKey(data []byte, ecLen, dLen int
 	return nil
 }
 
+// parseKyberECDHPrivateKey parses a Kyber + ECC private key as specified in
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-4.3.2
 func (pk *PrivateKey) parseKyberECDHPrivateKey(data []byte, ecLen, kLen int) (err error) {
 	if pk.Version != 5 {
 		return goerrors.New("openpgp: cannot parse non-v5 kyber_ecdh key")

@@ -199,76 +199,55 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 			return
 		}
 	case PubKeyAlgoDilithium3Ed25519:
-		sig.EdDSASigR = encoding.NewEmptyOctetArray(64)
-		if _, err = sig.EdDSASigR.ReadFrom(r); err != nil {
+		if err = sig.parseDilithiumEddsaSignature(r, 64, 3293); err != nil {
 			return
 		}
-
-		sig.DilithumSig = encoding.NewEmptyOctetArray(3293)
-		_, err = sig.DilithumSig.ReadFrom(r)
 	case PubKeyAlgoDilithium5Ed448:
-		sig.EdDSASigR = encoding.NewEmptyOctetArray(114)
-		if _, err = sig.EdDSASigR.ReadFrom(r); err != nil {
+		if err = sig.parseDilithiumEddsaSignature(r, 114, 4595); err != nil {
 			return
 		}
-
-		sig.DilithumSig = encoding.NewEmptyOctetArray(4595)
-		_, err = sig.DilithumSig.ReadFrom(r)
-	case PubKeyAlgoDilithium3p256:
-		sig.ECDSASigR = encoding.NewEmptyOctetArray(32)
-		if _, err = sig.ECDSASigR.ReadFrom(r); err != nil {
+	case PubKeyAlgoDilithium3p256, PubKeyAlgoDilithium3Brainpool256:
+		if err = sig.parseDilithiumEcdsaSignature(r, 32, 3293); err != nil {
 			return
 		}
-
-		sig.ECDSASigS = encoding.NewEmptyOctetArray(32)
-		if _, err = sig.ECDSASigS.ReadFrom(r); err != nil {
+	case PubKeyAlgoDilithium5p384, PubKeyAlgoDilithium5Brainpool384:
+		if err = sig.parseDilithiumEcdsaSignature(r, 48, 4595); err != nil {
 			return
 		}
-
-		sig.DilithumSig = encoding.NewEmptyOctetArray(3293)
-		_, err = sig.DilithumSig.ReadFrom(r)
-	case PubKeyAlgoDilithium5p384:
-		sig.ECDSASigR = encoding.NewEmptyOctetArray(48)
-		if _, err = sig.ECDSASigR.ReadFrom(r); err != nil {
-			return
-		}
-
-		sig.ECDSASigS = encoding.NewEmptyOctetArray(48)
-		if _, err = sig.ECDSASigS.ReadFrom(r); err != nil {
-			return
-		}
-
-		sig.DilithumSig = encoding.NewEmptyOctetArray(4595)
-		_, err = sig.DilithumSig.ReadFrom(r)
-	case PubKeyAlgoDilithium3Brainpool256:
-		sig.ECDSASigR = encoding.NewEmptyOctetArray(32)
-		if _, err = sig.ECDSASigR.ReadFrom(r); err != nil {
-			return
-		}
-
-		sig.ECDSASigS = encoding.NewEmptyOctetArray(32)
-		if _, err = sig.ECDSASigS.ReadFrom(r); err != nil {
-			return
-		}
-
-		sig.DilithumSig = encoding.NewEmptyOctetArray(3293)
-		_, err = sig.DilithumSig.ReadFrom(r)
-	case PubKeyAlgoDilithium5Brainpool384:
-		sig.ECDSASigR = encoding.NewEmptyOctetArray(48)
-		if _, err = sig.ECDSASigR.ReadFrom(r); err != nil {
-			return
-		}
-
-		sig.ECDSASigS = encoding.NewEmptyOctetArray(48)
-		if _, err = sig.ECDSASigS.ReadFrom(r); err != nil {
-			return
-		}
-
-		sig.DilithumSig = encoding.NewEmptyOctetArray(4595)
-		_, err = sig.DilithumSig.ReadFrom(r)
 	default:
 		panic("unreachable")
 	}
+	return
+}
+
+// parseDilithiumEddsaSignature parses a Dilithium + EdDSA signature as specified in
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-5.3.1
+func (sig *Signature) parseDilithiumEddsaSignature(r io.Reader, ecLen, dLen int) (err error) {
+	sig.EdDSASigR = encoding.NewEmptyOctetArray(ecLen)
+	if _, err = sig.EdDSASigR.ReadFrom(r); err != nil {
+		return
+	}
+
+	sig.DilithumSig = encoding.NewEmptyOctetArray(dLen)
+	_, err = sig.DilithumSig.ReadFrom(r)
+	return
+}
+
+// parseDilithiumEcdsaSignature parses a Dilithium + ECDSA signature as specified in
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-5.3.1
+func (sig *Signature) parseDilithiumEcdsaSignature(r io.Reader, ecLen, dLen int) (err error) {
+	sig.ECDSASigR = encoding.NewEmptyOctetArray(ecLen)
+	if _, err = sig.ECDSASigR.ReadFrom(r); err != nil {
+		return
+	}
+
+	sig.ECDSASigS = encoding.NewEmptyOctetArray(ecLen)
+	if _, err = sig.ECDSASigS.ReadFrom(r); err != nil {
+		return
+	}
+
+	sig.DilithumSig = encoding.NewEmptyOctetArray(dLen)
+	_, err = sig.DilithumSig.ReadFrom(r)
 	return
 }
 
