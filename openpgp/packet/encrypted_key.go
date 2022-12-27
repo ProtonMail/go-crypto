@@ -9,6 +9,7 @@ import (
 	"crypto/rsa"
 	"encoding/binary"
 	"github.com/ProtonMail/go-crypto/openpgp/kyber_ecdh"
+	"golang.org/x/crypto/sha3"
 	"io"
 	"math/big"
 	"strconv"
@@ -166,7 +167,13 @@ func (e *EncryptedKey) Decrypt(priv *PrivateKey, config *Config) error {
 		ecE := e.encryptedMPI1.Bytes()
 		kE := e.encryptedMPI2.Bytes()
 		m := e.encryptedMPI3.Bytes()
-		b, err = kyber_ecdh.Decrypt(priv.PrivateKey.(*kyber_ecdh.PrivateKey), kE, ecE, m, priv.PublicKey.Fingerprint[:])
+		h := sha3.New256()
+		err = priv.PublicKey.SerializeForHash(h)
+		if err != nil {
+			break
+		}
+
+		b, err = kyber_ecdh.Decrypt(priv.PrivateKey.(*kyber_ecdh.PrivateKey), kE, ecE, m, h.Sum(nil))
 	default:
 		err = errors.InvalidArgumentError("cannot decrypt encrypted session key with private key of type " + strconv.Itoa(int(priv.PubKeyAlgo)))
 	}
@@ -268,7 +275,7 @@ func SerializeEncryptedKey(w io.Writer, pub *PublicKey, cipherFunc CipherFunctio
 		return serializeEncryptedKeyECDH(w, config.Random(), buf, pub.PublicKey.(*ecdh.PublicKey), keyBlock, pub.oid, pub.Fingerprint)
 	case PubKeyAlgoKyber768X25519, PubKeyAlgoKyber1024X448, PubKeyAlgoKyber768P256, PubKeyAlgoKyber1024P384,
 		PubKeyAlgoKyber768Brainpool256, PubKeyAlgoKyber1024Brainpool384:
-		return serializeEncryptedKeyKyber(w, config.Random(), buf, pub.PublicKey.(*kyber_ecdh.PublicKey), keyBlock, pub.Fingerprint)
+		return serializeEncryptedKeyKyber(w, config.Random(), buf, pub.PublicKey.(*kyber_ecdh.PublicKey), keyBlock, pub)
 	case PubKeyAlgoDSA, PubKeyAlgoRSASignOnly:
 		return errors.InvalidArgumentError("cannot encrypt to public key of type " + strconv.Itoa(int(pub.PubKeyAlgo)))
 	}
@@ -350,8 +357,10 @@ func serializeEncryptedKeyECDH(w io.Writer, rand io.Reader, header [10]byte, pub
 	return err
 }
 
-func serializeEncryptedKeyKyber(w io.Writer, rand io.Reader, header [10]byte, pub *kyber_ecdh.PublicKey, keyBlock []byte, fingerprint []byte) error {
-	kE, ecE, c, err := kyber_ecdh.Encrypt(rand, pub, keyBlock, fingerprint)
+func serializeEncryptedKeyKyber(w io.Writer, rand io.Reader, header [10]byte, pub *kyber_ecdh.PublicKey, keyBlock []byte, publicKey *PublicKey) error {
+	h := sha3.New256()
+	publicKey.SerializeForHash(h)
+	kE, ecE, c, err := kyber_ecdh.Encrypt(rand, pub, keyBlock, h.Sum(nil))
 	if err != nil {
 		return errors.InvalidArgumentError("ECDH encryption failed: " + err.Error())
 	}

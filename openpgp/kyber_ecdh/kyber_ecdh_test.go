@@ -11,8 +11,8 @@ import (
 )
 
 func TestEncryptDecrypt(t *testing.T) {
-	testFingerprint := make([]byte, 32)
-	rand.Read(testFingerprint)
+	randomData := make([]byte, 32)
+	rand.Read(randomData)
 
 	asymmAlgos := map[string] packet.PublicKeyAlgorithm {
 		"Kyber768_X25519": packet.PubKeyAlgoKyber768X25519,
@@ -34,7 +34,7 @@ func TestEncryptDecrypt(t *testing.T) {
 			key := testGenerateKeyAlgo(t, asymmAlgo)
 			for symmName, symmAlgo := range symmAlgos {
 				t.Run(symmName, func(t *testing.T) {
-					testEncryptDecryptAlgo(t, key, testFingerprint, symmAlgo)
+					testEncryptDecryptAlgo(t, key, randomData, symmAlgo)
 				})
 			}
 			testvalidateAlgo(t, asymmAlgo)
@@ -84,16 +84,16 @@ func testGenerateKeyAlgo(t *testing.T, algId packet.PublicKeyAlgorithm) *kyber_e
 	return priv
 }
 
-func testEncryptDecryptAlgo(t *testing.T, priv *kyber_ecdh.PrivateKey, testFingerprint []byte, kdfCipher algorithm.Cipher) {
-	expectedMessage := make([]byte, kdfCipher.KeySize() + 3) // encryption algo + checksum
+func testEncryptDecryptAlgo(t *testing.T, priv *kyber_ecdh.PrivateKey, publicKeyHash []byte, kdfCipher algorithm.Cipher) {
+	expectedMessage := make([]byte, kdfCipher.KeySize()) // encryption algo + checksum
 	rand.Read(expectedMessage)
 
-	kE, ecE, c, err := kyber_ecdh.Encrypt(rand.Reader, &priv.PublicKey, expectedMessage, testFingerprint)
+	kE, ecE, c, err := kyber_ecdh.Encrypt(rand.Reader, &priv.PublicKey, expectedMessage, publicKeyHash)
 	if err != nil {
 		t.Errorf("error encrypting: %s", err)
 	}
 
-	decryptedMessage, err := kyber_ecdh.Decrypt(priv, kE, ecE, c, testFingerprint)
+	decryptedMessage, err := kyber_ecdh.Decrypt(priv, kE, ecE, c, publicKeyHash)
 	if err != nil {
 		t.Errorf("error decrypting: %s", err)
 	}

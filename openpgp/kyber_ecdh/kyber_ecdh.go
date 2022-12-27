@@ -4,14 +4,14 @@ package kyber_ecdh
 import (
 	"crypto/subtle"
 	goerrors "errors"
+	"github.com/ProtonMail/go-crypto/internal/kmac"
 	"io"
 
+	"github.com/ProtonMail/go-crypto/openpgp/aes/keywrap"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
-	aeskeywrap "github.com/google/tink/go/kwp/subtle"
 	kyber "github.com/kudelskisecurity/crystals-go/crystals-kyber"
-	"golang.org/x/crypto/sha3"
 )
 
 type PublicKey struct {
@@ -49,11 +49,15 @@ func GenerateKey(rand io.Reader, algId uint8, c ecc.ECDHCurve, k *kyber.Kyber) (
 	return
 }
 
-func Encrypt(rand io.Reader, pub *PublicKey, msg, fingerprint []byte) (kEphemeral, ecEphemeral, ciphertext []byte, err error) {
-	var kwp *aeskeywrap.KWP
-
+// Encrypt implements Kyber + ECC encryption as specified in
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-4.2.3
+func Encrypt(rand io.Reader, pub *PublicKey, msg, publicKeyHash []byte) (kEphemeral, ecEphemeral, ciphertext []byte, err error) {
 	if len(msg) > 64 {
-		return nil, nil, nil, goerrors.New("kyber_ecdh: message too long")
+		return nil, nil, nil, goerrors.New("kyber_ecdh: session key too long")
+	}
+
+	if len(msg) % 8 != 0 {
+		return nil, nil, nil, goerrors.New("kyber_ecdh: session key not a multiple of 8")
 	}
 
 	// EC shared secret derivation
@@ -71,25 +75,21 @@ func Encrypt(rand io.Reader, pub *PublicKey, msg, fingerprint []byte) (kEphemera
 
 	kEphemeral, kSS := pub.Kyber.Encaps(pub.PublicKyber, kyberSeed)
 
-	z, err := buildKey(pub, kSS, ecSS, fingerprint)
+	z, err := buildKey(pub, ecSS, kSS, publicKeyHash)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	if kwp, err = aeskeywrap.NewKWP(z); err != nil {
-		return nil, nil, nil, err
-	}
-
-	if ciphertext, err = kwp.Wrap(msg); err != nil {
+	if ciphertext, err = keywrap.Wrap(z, msg); err != nil {
 		return nil, nil, nil, err
 	}
 
 	return kEphemeral, ecEphemeral, ciphertext, nil
 }
 
-func Decrypt(priv *PrivateKey, kEphemeral, ecEphemeral, ciphertext, fingerprint []byte) (msg []byte, err error) {
-	var kwp *aeskeywrap.KWP
-
+// Decrypt implements Kyber + ECC decryption as specified in
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-4.2.4
+func Decrypt(priv *PrivateKey, kEphemeral, ecEphemeral, ciphertext, publicKeyHash []byte) (msg []byte, err error) {
 	// EC shared secret derivation
 	ecSS, err := priv.PublicKey.Curve.Decaps(ecEphemeral, priv.SecretEC)
 	if err != nil {
@@ -99,35 +99,33 @@ func Decrypt(priv *PrivateKey, kEphemeral, ecEphemeral, ciphertext, fingerprint 
 	// Kyber shared secret derivation
 	kSS := priv.PublicKey.Kyber.Decaps(priv.SecretKyber, kEphemeral)
 
-	z, err := buildKey(&priv.PublicKey, kSS, ecSS, fingerprint)
+	z, err := buildKey(&priv.PublicKey, ecSS, kSS, publicKeyHash)
 	if err != nil {
 		return nil, err
 	}
 
-	if kwp, err = aeskeywrap.NewKWP(z); err != nil {
-		return nil, err
-	}
-
-	if msg, err = kwp.Unwrap(ciphertext); err != nil {
-		return nil, err
-	}
+	msg, err = keywrap.Unwrap(z, ciphertext)
 
 	return msg, nil
 }
 
-func buildKey(pub *PublicKey, sK, zb, fingerprint []byte) ([]byte, error) {
-	// MB = Hash ( ID || Fprint || sK || sEC );
-	h := sha3.New512()
+// buildKey implements the composite KDF as specified in
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-4.2.2
+// Note: the domain separation has been already updated
+func buildKey(pub *PublicKey, eccKeyShare, kyberKeyShare, publicKeyHash []byte) ([]byte, error) {
+	// fixedInfo = algID || SHA3-256(publicKey)
+	// encKeyShares = counter || eccKeyShare || kyberKeyShare || fixedInfo
+	// MB = KMAC256(domSeparation, encKeyShares, oBits, customizationString)
+	k := kmac.NewKMAC256([]byte("OpenPGPKyberCompositeKeyDerivation"), algorithm.AES256.KeySize(), []byte("KDF"))
 
-	// Hash never returns error
-	_, _ = h.Write([]byte{pub.AlgId})
-	_, _ = h.Write(fingerprint)
-	_, _ = h.Write(sK)
-	_, _ = h.Write(zb)
+	// KMAC never returns error
+	_, _ = k.Write([]byte{0x00, 0x00, 0x00, 0x01})
+	_, _ = k.Write(eccKeyShare)
+	_, _ = k.Write(kyberKeyShare)
+	_, _ = k.Write([]byte{pub.AlgId})
+	_, _ = k.Write(publicKeyHash)
 
-	mb := h.Sum(nil)
-
-	return mb[:algorithm.AES256.KeySize()], nil // return oBits leftmost bits of MB.
+	return k.Sum(nil), nil
 }
 
 
