@@ -72,28 +72,28 @@ func (e *EncryptedKey) parse(r io.Reader) (err error) {
 		if _, err = e.encryptedMPI2.ReadFrom(r); err != nil {
 			return
 		}
-	case PubKeyAlgoKyber512X25519:
-		if err = e.readKyberECDHKey(r, 32, 768); err != nil {
+	case PubKeyAlgoKyber768X25519:
+		if err = e.readKyberECDHKey(r, 32, 1088); err != nil {
 			return err
 		}
 	case PubKeyAlgoKyber1024X448:
 		if err = e.readKyberECDHKey(r, 56, 1568); err != nil {
 			return err
 		}
-	case PubKeyAlgoKyber768P384:
-		if err = e.readKyberECDHKey(r, 97, 1088); err != nil {
+	case PubKeyAlgoKyber768P256:
+		if err = e.readKyberECDHKey(r, 65, 1088); err != nil {
 			return err
 		}
-	case PubKeyAlgoKyber1024P521:
-		if err = e.readKyberECDHKey(r, 133, 1568); err != nil {
+	case PubKeyAlgoKyber1024P384:
+		if err = e.readKyberECDHKey(r, 97, 1568); err != nil {
 			return err
 		}
-	case PubKeyAlgoKyber768Brainpool384:
-		if err = e.readKyberECDHKey(r, 97, 1088); err != nil {
+	case PubKeyAlgoKyber768Brainpool256:
+		if err = e.readKyberECDHKey(r, 65, 1088); err != nil {
 			return err
 		}
-	case PubKeyAlgoKyber1024Brainpool512:
-		if err = e.readKyberECDHKey(r, 129, 1568); err != nil {
+	case PubKeyAlgoKyber1024Brainpool384:
+		if err = e.readKyberECDHKey(r, 97, 1568); err != nil {
 			return err
 		}
 	}
@@ -161,8 +161,8 @@ func (e *EncryptedKey) Decrypt(priv *PrivateKey, config *Config) error {
 		m := e.encryptedMPI2.Bytes()
 		oid := priv.PublicKey.oid.EncodedBytes()
 		b, err = ecdh.Decrypt(priv.PrivateKey.(*ecdh.PrivateKey), vsG, m, oid, priv.PublicKey.Fingerprint[:])
-	case PubKeyAlgoKyber512X25519, PubKeyAlgoKyber1024X448, PubKeyAlgoKyber768P384, PubKeyAlgoKyber1024P521,
-		PubKeyAlgoKyber768Brainpool384, PubKeyAlgoKyber1024Brainpool512:
+	case PubKeyAlgoKyber768X25519, PubKeyAlgoKyber1024X448, PubKeyAlgoKyber768P256, PubKeyAlgoKyber1024P384,
+		PubKeyAlgoKyber768Brainpool256, PubKeyAlgoKyber1024Brainpool384:
 		ecE := e.encryptedMPI1.Bytes()
 		kE := e.encryptedMPI2.Bytes()
 		m := e.encryptedMPI3.Bytes()
@@ -196,8 +196,8 @@ func (e *EncryptedKey) Serialize(w io.Writer) error {
 		mpiLen = int(e.encryptedMPI1.EncodedLength()) + int(e.encryptedMPI2.EncodedLength())
 	case PubKeyAlgoECDH:
 		mpiLen = int(e.encryptedMPI1.EncodedLength()) + int(e.encryptedMPI2.EncodedLength())
-	case PubKeyAlgoKyber512X25519, PubKeyAlgoKyber1024X448, PubKeyAlgoKyber768P384, PubKeyAlgoKyber1024P521,
-		PubKeyAlgoKyber768Brainpool384, PubKeyAlgoKyber1024Brainpool512:
+	case PubKeyAlgoKyber768X25519, PubKeyAlgoKyber1024X448, PubKeyAlgoKyber768P256, PubKeyAlgoKyber1024P384,
+		PubKeyAlgoKyber768Brainpool256, PubKeyAlgoKyber1024Brainpool384:
 		mpiLen = int(e.encryptedMPI1.EncodedLength()) + int(e.encryptedMPI2.EncodedLength()) + int(e.encryptedMPI3.EncodedLength())
 	default:
 		return errors.InvalidArgumentError("don't know how to serialize encrypted key type " + strconv.Itoa(int(e.Algo)))
@@ -228,8 +228,8 @@ func (e *EncryptedKey) Serialize(w io.Writer) error {
 		}
 		_, err := w.Write(e.encryptedMPI2.EncodedBytes())
 		return err
-	case PubKeyAlgoKyber512X25519, PubKeyAlgoKyber1024X448, PubKeyAlgoKyber768P384, PubKeyAlgoKyber1024P521,
-		PubKeyAlgoKyber768Brainpool384, PubKeyAlgoKyber1024Brainpool512:
+	case PubKeyAlgoKyber768X25519, PubKeyAlgoKyber1024X448, PubKeyAlgoKyber768P256, PubKeyAlgoKyber1024P384,
+		PubKeyAlgoKyber768Brainpool256, PubKeyAlgoKyber1024Brainpool384:
 		if _, err := w.Write(e.encryptedMPI1.EncodedBytes()); err != nil {
 			return err
 		}
@@ -266,8 +266,8 @@ func SerializeEncryptedKey(w io.Writer, pub *PublicKey, cipherFunc CipherFunctio
 		return serializeEncryptedKeyElGamal(w, config.Random(), buf, pub.PublicKey.(*elgamal.PublicKey), keyBlock)
 	case PubKeyAlgoECDH:
 		return serializeEncryptedKeyECDH(w, config.Random(), buf, pub.PublicKey.(*ecdh.PublicKey), keyBlock, pub.oid, pub.Fingerprint)
-	case PubKeyAlgoKyber512X25519, PubKeyAlgoKyber1024X448, PubKeyAlgoKyber768P384, PubKeyAlgoKyber1024P521,
-		PubKeyAlgoKyber768Brainpool384, PubKeyAlgoKyber1024Brainpool512:
+	case PubKeyAlgoKyber768X25519, PubKeyAlgoKyber1024X448, PubKeyAlgoKyber768P256, PubKeyAlgoKyber1024P384,
+		PubKeyAlgoKyber768Brainpool256, PubKeyAlgoKyber1024Brainpool384:
 		return serializeEncryptedKeyKyber(w, config.Random(), buf, pub.PublicKey.(*kyber_ecdh.PublicKey), keyBlock, pub.Fingerprint)
 	case PubKeyAlgoDSA, PubKeyAlgoRSASignOnly:
 		return errors.InvalidArgumentError("cannot encrypt to public key of type " + strconv.Itoa(int(pub.PubKeyAlgo)))

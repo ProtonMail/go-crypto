@@ -264,30 +264,30 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 		err = pk.parseECDH(r)
 	case PubKeyAlgoEdDSA:
 		err = pk.parseEdDSA(r)
-	case PubKeyAlgoDilithium2Ed25519:
-		err = pk.parseDilithiumEdDSA(r, 32, 1312)
+	case PubKeyAlgoDilithium3Ed25519:
+		err = pk.parseDilithiumEdDSA(r, 32, 1952)
 	case PubKeyAlgoDilithium5Ed448:
 		err = pk.parseDilithiumEdDSA(r, 57, 2592)
-	case PubKeyAlgoDilithium3p384:
-		err = pk.parseDilithiumECDSA(r, 97, 1952)
-	case PubKeyAlgoDilithium5p521:
-		err = pk.parseDilithiumECDSA(r, 133, 2592)
-	case PubKeyAlgoDilithium3Brainpool384:
-		err = pk.parseDilithiumECDSA(r, 97, 1952)
-	case PubKeyAlgoDilithium5Brainpool512:
-		err = pk.parseDilithiumECDSA(r, 129, 2592)
-	case PubKeyAlgoKyber512X25519:
-		err = pk.parseKyberECDH(r, 32, 800)
+	case PubKeyAlgoDilithium3p256:
+		err = pk.parseDilithiumECDSA(r, 65, 1952)
+	case PubKeyAlgoDilithium5p384:
+		err = pk.parseDilithiumECDSA(r, 97, 2592)
+	case PubKeyAlgoDilithium3Brainpool256:
+		err = pk.parseDilithiumECDSA(r, 65, 1952)
+	case PubKeyAlgoDilithium5Brainpool384:
+		err = pk.parseDilithiumECDSA(r, 97, 2592)
+	case PubKeyAlgoKyber768X25519:
+		err = pk.parseKyberECDH(r, 32, 1184)
 	case PubKeyAlgoKyber1024X448:
 		err = pk.parseKyberECDH(r, 56, 1568)
-	case PubKeyAlgoKyber768P384:
-		err = pk.parseKyberECDH(r, 97, 1184)
-	case PubKeyAlgoKyber1024P521:
-		err = pk.parseKyberECDH(r, 133, 1568)
-	case PubKeyAlgoKyber768Brainpool384:
-		err = pk.parseKyberECDH(r, 97, 1184)
-	case PubKeyAlgoKyber1024Brainpool512:
-		err = pk.parseKyberECDH(r, 129, 1568)
+	case PubKeyAlgoKyber768P256:
+		err = pk.parseKyberECDH(r, 65, 1184)
+	case PubKeyAlgoKyber1024P384:
+		err = pk.parseKyberECDH(r, 97, 1568)
+	case PubKeyAlgoKyber768Brainpool256:
+		err = pk.parseKyberECDH(r, 65, 1184)
+	case PubKeyAlgoKyber1024Brainpool384:
+		err = pk.parseKyberECDH(r, 97, 1568)
 	default:
 		err = errors.UnsupportedError("public key type: " + strconv.Itoa(int(pk.PubKeyAlgo)))
 	}
@@ -673,10 +673,10 @@ func (pk *PublicKey) algorithmSpecificByteCount() int {
 	case PubKeyAlgoEdDSA:
 		length += int(pk.oid.EncodedLength())
 		length += int(pk.p.EncodedLength())
-	case PubKeyAlgoKyber512X25519, PubKeyAlgoKyber1024X448, PubKeyAlgoKyber768P384, PubKeyAlgoKyber1024P521,
-		PubKeyAlgoKyber768Brainpool384, PubKeyAlgoKyber1024Brainpool512, PubKeyAlgoDilithium2Ed25519,
-		PubKeyAlgoDilithium5Ed448, PubKeyAlgoDilithium3p384, PubKeyAlgoDilithium5p521,
-		PubKeyAlgoDilithium3Brainpool384, PubKeyAlgoDilithium5Brainpool512:
+	case PubKeyAlgoKyber768X25519, PubKeyAlgoKyber1024X448, PubKeyAlgoKyber768P256, PubKeyAlgoKyber1024P384,
+		PubKeyAlgoKyber768Brainpool256, PubKeyAlgoKyber1024Brainpool384, PubKeyAlgoDilithium3Ed25519,
+		PubKeyAlgoDilithium5Ed448, PubKeyAlgoDilithium3p256, PubKeyAlgoDilithium5p384,
+		PubKeyAlgoDilithium3Brainpool256, PubKeyAlgoDilithium5Brainpool384:
 		length += int(pk.p.EncodedLength())
 		length += int(pk.q.EncodedLength())
 	default:
@@ -755,10 +755,10 @@ func (pk *PublicKey) serializeWithoutHeaders(w io.Writer) (err error) {
 		}
 		_, err = w.Write(pk.p.EncodedBytes())
 		return
-	case PubKeyAlgoKyber512X25519, PubKeyAlgoKyber1024X448, PubKeyAlgoKyber768P384, PubKeyAlgoKyber1024P521,
-		PubKeyAlgoKyber768Brainpool384, PubKeyAlgoKyber1024Brainpool512, PubKeyAlgoDilithium2Ed25519,
-		PubKeyAlgoDilithium5Ed448, PubKeyAlgoDilithium3p384, PubKeyAlgoDilithium5p521,
-		PubKeyAlgoDilithium3Brainpool384, PubKeyAlgoDilithium5Brainpool512:
+	case PubKeyAlgoKyber768X25519, PubKeyAlgoKyber1024X448, PubKeyAlgoKyber768P256, PubKeyAlgoKyber1024P384,
+		PubKeyAlgoKyber768Brainpool256, PubKeyAlgoKyber1024Brainpool384, PubKeyAlgoDilithium3Ed25519,
+		PubKeyAlgoDilithium5Ed448, PubKeyAlgoDilithium3p256, PubKeyAlgoDilithium5p384,
+		PubKeyAlgoDilithium3Brainpool256, PubKeyAlgoDilithium5Brainpool384:
 		if _, err = w.Write(pk.p.EncodedBytes()); err != nil {
 			return
 		}
@@ -823,14 +823,14 @@ func (pk *PublicKey) VerifySignature(signed hash.Hash, sig *Signature) (err erro
 			return errors.SignatureError("EdDSA verification failure")
 		}
 		return nil
-	case PubKeyAlgoDilithium2Ed25519, PubKeyAlgoDilithium5Ed448:
+	case PubKeyAlgoDilithium3Ed25519, PubKeyAlgoDilithium5Ed448:
 		dilithiumEdDSAPublicKey := pk.PublicKey.(*dilithium_eddsa.PublicKey)
 		if !dilithium_eddsa.Verify(dilithiumEdDSAPublicKey, hashBytes, sig.DilithumSig.Bytes(), sig.EdDSASigR.Bytes()) {
 			return errors.SignatureError("dilithium_eddsa verification failure")
 		}
 		return nil
-	case PubKeyAlgoDilithium3p384, PubKeyAlgoDilithium5p521, PubKeyAlgoDilithium3Brainpool384,
-		PubKeyAlgoDilithium5Brainpool512:
+	case PubKeyAlgoDilithium3p256, PubKeyAlgoDilithium5p384, PubKeyAlgoDilithium3Brainpool256,
+		PubKeyAlgoDilithium5Brainpool384:
 		dilithiumECDSAPublicKey := pk.PublicKey.(*dilithium_ecdsa.PublicKey)
 		if !dilithium_ecdsa.Verify(dilithiumECDSAPublicKey, hashBytes, sig.DilithumSig.Bytes(), sig.ECDSASigR.Bytes(), sig.ECDSASigS.Bytes()) {
 			return errors.SignatureError("dilithium_ecdsa verification failure")
@@ -983,10 +983,10 @@ func (pk *PublicKey) BitLength() (bitLength uint16, err error) {
 		bitLength = pk.p.BitLength()
 	case PubKeyAlgoEdDSA:
 		bitLength = pk.p.BitLength()
-	case PubKeyAlgoKyber512X25519, PubKeyAlgoKyber1024X448, PubKeyAlgoKyber768P384, PubKeyAlgoKyber1024P521,
-		PubKeyAlgoKyber768Brainpool384, PubKeyAlgoKyber1024Brainpool512, PubKeyAlgoDilithium2Ed25519,
-		PubKeyAlgoDilithium5Ed448, PubKeyAlgoDilithium3p384, PubKeyAlgoDilithium5p521,
-		PubKeyAlgoDilithium3Brainpool384, PubKeyAlgoDilithium5Brainpool512:
+	case PubKeyAlgoKyber768X25519, PubKeyAlgoKyber1024X448, PubKeyAlgoKyber768P256, PubKeyAlgoKyber1024P384,
+		PubKeyAlgoKyber768Brainpool256, PubKeyAlgoKyber1024Brainpool384, PubKeyAlgoDilithium3Ed25519,
+		PubKeyAlgoDilithium5Ed448, PubKeyAlgoDilithium3p256, PubKeyAlgoDilithium5p384,
+		PubKeyAlgoDilithium3Brainpool256, PubKeyAlgoDilithium5Brainpool384:
 		bitLength = pk.q.BitLength() // Very questionable
 	default:
 		err = errors.InvalidArgumentError("bad public-key algorithm")
@@ -1009,18 +1009,18 @@ func (pk *PublicKey) KeyExpired(sig *Signature, currentTime time.Time) bool {
 
 func GetMatchingKyberKem(algId PublicKeyAlgorithm) (PublicKeyAlgorithm, error) {
 	switch algId {
-	case PubKeyAlgoDilithium2Ed25519:
-		return PubKeyAlgoKyber512X25519, nil
+	case PubKeyAlgoDilithium3Ed25519:
+		return PubKeyAlgoKyber768X25519, nil
 	case PubKeyAlgoDilithium5Ed448:
 		return PubKeyAlgoKyber1024X448, nil
-	case PubKeyAlgoDilithium3p384:
-		return PubKeyAlgoKyber768P384, nil
-	case PubKeyAlgoDilithium5p521:
-		return PubKeyAlgoKyber1024P521, nil
-	case PubKeyAlgoDilithium3Brainpool384:
-		return PubKeyAlgoKyber768Brainpool384, nil
-	case PubKeyAlgoDilithium5Brainpool512:
-		return PubKeyAlgoKyber1024Brainpool512, nil
+	case PubKeyAlgoDilithium3p256:
+		return PubKeyAlgoKyber768P256, nil
+	case PubKeyAlgoDilithium5p384:
+		return PubKeyAlgoKyber1024P384, nil
+	case PubKeyAlgoDilithium3Brainpool256:
+		return PubKeyAlgoKyber768Brainpool256, nil
+	case PubKeyAlgoDilithium5Brainpool384:
+		return PubKeyAlgoKyber1024Brainpool384, nil
 	default:
 		return 0, goerrors.New("packet: unsupported Kyber public key algorithm")
 	}
@@ -1029,11 +1029,9 @@ func GetMatchingKyberKem(algId PublicKeyAlgorithm) (PublicKeyAlgorithm, error) {
 // GetKyberFromAlgID returns the Kyber instance from the matching KEM
 func GetKyberFromAlgID(algId PublicKeyAlgorithm) (*libkyber.Kyber, error) {
 	switch algId {
-	case PubKeyAlgoKyber512X25519:
-		return libkyber.NewKyber512(), nil
-	case PubKeyAlgoKyber768P384, PubKeyAlgoKyber768Brainpool384:
+	case PubKeyAlgoKyber768X25519, PubKeyAlgoKyber768P256, PubKeyAlgoKyber768Brainpool256:
 		return libkyber.NewKyber768(), nil
-	case PubKeyAlgoKyber1024X448, PubKeyAlgoKyber1024P521, PubKeyAlgoKyber1024Brainpool512:
+	case PubKeyAlgoKyber1024X448, PubKeyAlgoKyber1024P384, PubKeyAlgoKyber1024Brainpool384:
 		return libkyber.NewKyber1024(), nil
 	default:
 		return nil, goerrors.New("packet: unsupported Kyber public key algorithm")
@@ -1043,18 +1041,18 @@ func GetKyberFromAlgID(algId PublicKeyAlgorithm) (*libkyber.Kyber, error) {
 // GetECDHCurveFromAlgID returns the ECDH curve instance from the matching KEM
 func GetECDHCurveFromAlgID(algId PublicKeyAlgorithm) (ecc.ECDHCurve, error) {
 	switch algId {
-	case PubKeyAlgoKyber512X25519:
+	case PubKeyAlgoKyber768X25519:
 		return ecc.NewCurve25519(), nil
 	case PubKeyAlgoKyber1024X448:
 		return ecc.NewX448(), nil
-	case PubKeyAlgoKyber768P384:
+	case PubKeyAlgoKyber768P256:
+		return ecc.NewGenericCurve(elliptic.P256()), nil
+	case PubKeyAlgoKyber1024P384:
 		return ecc.NewGenericCurve(elliptic.P384()), nil
-	case PubKeyAlgoKyber1024P521:
-		return ecc.NewGenericCurve(elliptic.P521()), nil
-	case PubKeyAlgoKyber768Brainpool384:
+	case PubKeyAlgoKyber768Brainpool256:
+		return ecc.NewGenericCurve(brainpool.P256r1()), nil
+	case PubKeyAlgoKyber1024Brainpool384:
 		return ecc.NewGenericCurve(brainpool.P384r1()), nil
-	case PubKeyAlgoKyber1024Brainpool512:
-		return ecc.NewGenericCurve(brainpool.P512r1()), nil
 	default:
 		return nil, goerrors.New("packet: unsupported ECDH public key algorithm")
 	}
@@ -1062,14 +1060,14 @@ func GetECDHCurveFromAlgID(algId PublicKeyAlgorithm) (ecc.ECDHCurve, error) {
 
 func GetECDSACurveFromAlgID(algId PublicKeyAlgorithm) (ecc.ECDSACurve, error) {
 	switch algId {
-	case PubKeyAlgoDilithium3p384:
+	case PubKeyAlgoDilithium3p256:
+		return ecc.NewGenericCurve(elliptic.P256()), nil
+	case PubKeyAlgoDilithium5p384:
 		return ecc.NewGenericCurve(elliptic.P384()), nil
-	case PubKeyAlgoDilithium5p521:
-		return ecc.NewGenericCurve(elliptic.P521()), nil
-	case PubKeyAlgoDilithium3Brainpool384:
+	case PubKeyAlgoDilithium3Brainpool256:
+		return ecc.NewGenericCurve(brainpool.P256r1()), nil
+	case PubKeyAlgoDilithium5Brainpool384:
 		return ecc.NewGenericCurve(brainpool.P384r1()), nil
-	case PubKeyAlgoDilithium5Brainpool512:
-		return ecc.NewGenericCurve(brainpool.P512r1()), nil
 	default:
 		return nil, goerrors.New("packet: unsupported ECDSA public key algorithm")
 	}
@@ -1077,7 +1075,7 @@ func GetECDSACurveFromAlgID(algId PublicKeyAlgorithm) (ecc.ECDSACurve, error) {
 
 func GetEdDSACurveFromAlgID(algId PublicKeyAlgorithm) (ecc.EdDSACurve, error) {
 	switch algId {
-	case PubKeyAlgoDilithium2Ed25519:
+	case PubKeyAlgoDilithium3Ed25519:
 		return ecc.NewEd25519(), nil
 	case PubKeyAlgoDilithium5Ed448:
 		return ecc.NewEd448(), nil
@@ -1089,11 +1087,9 @@ func GetEdDSACurveFromAlgID(algId PublicKeyAlgorithm) (ecc.EdDSACurve, error) {
 
 func GetDilithiumFromAlgID(algId PublicKeyAlgorithm) (*dilithium.Dilithium, error) {
 	switch algId {
-	case PubKeyAlgoDilithium2Ed25519:
-		return dilithium.NewDilithium2(), nil
-	case PubKeyAlgoDilithium3p384, PubKeyAlgoDilithium3Brainpool384:
+	case PubKeyAlgoDilithium3Ed25519, PubKeyAlgoDilithium3p256, PubKeyAlgoDilithium3Brainpool256:
 		return dilithium.NewDilithium3(), nil
-	case PubKeyAlgoDilithium5Ed448, PubKeyAlgoDilithium5p521, PubKeyAlgoDilithium5Brainpool512:
+	case PubKeyAlgoDilithium5Ed448, PubKeyAlgoDilithium5p384, PubKeyAlgoDilithium5Brainpool384:
 		return dilithium.NewDilithium5(), nil
 	default:
 		return nil, goerrors.New("packet: unsupported Dilithium public key algorithm")

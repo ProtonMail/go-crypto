@@ -12,7 +12,7 @@ import (
 
 func TestSignVerify(t *testing.T) {
 	asymmAlgos := map[string] packet.PublicKeyAlgorithm {
-		"Dilithium2_Ed25519": packet.PubKeyAlgoDilithium2Ed25519,
+		"Dilithium3_Ed25519": packet.PubKeyAlgoDilithium3Ed25519,
 		"Dilithium5_Ed448": packet.PubKeyAlgoDilithium5Ed448,
 	}
 

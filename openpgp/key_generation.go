@@ -280,8 +280,8 @@ func newSigner(config *packet.Config) (signer interface{}, err error) {
 			return nil, err
 		}
 		return priv, nil
-	case packet.PubKeyAlgoDilithium3p384, packet.PubKeyAlgoDilithium5p521, packet.PubKeyAlgoDilithium3Brainpool384,
-		packet.PubKeyAlgoDilithium5Brainpool512:
+	case packet.PubKeyAlgoDilithium3p256, packet.PubKeyAlgoDilithium5p384, packet.PubKeyAlgoDilithium3Brainpool256,
+		packet.PubKeyAlgoDilithium5Brainpool384:
 		if !config.V5Keys {
 			return nil, goerrors.New("openpgp: cannot create a non-v5 dilithium_ecdsa key")
 		}
@@ -296,7 +296,7 @@ func newSigner(config *packet.Config) (signer interface{}, err error) {
 		}
 
 		return dilithium_ecdsa.GenerateKey(config.Random(), uint8(config.PublicKeyAlgorithm()), c, d)
-	case packet.PubKeyAlgoDilithium2Ed25519, packet.PubKeyAlgoDilithium5Ed448:
+	case packet.PubKeyAlgoDilithium3Ed25519, packet.PubKeyAlgoDilithium5Ed448:
 		if !config.V5Keys {
 			return nil, goerrors.New("openpgp: cannot create a non-v5 dilithium_eddsa key")
 		}
@@ -343,15 +343,15 @@ func newDecrypter(config *packet.Config) (decrypter interface{}, err error) {
 			return nil, errors.InvalidArgumentError("unsupported curve")
 		}
 		return ecdh.GenerateKey(config.Random(), curve, kdf)
-	case packet.PubKeyAlgoDilithium2Ed25519, packet.PubKeyAlgoDilithium5Ed448, packet.PubKeyAlgoDilithium3p384,
-		packet.PubKeyAlgoDilithium5p521, packet.PubKeyAlgoDilithium3Brainpool384,
-		packet.PubKeyAlgoDilithium5Brainpool512:
+	case packet.PubKeyAlgoDilithium3Ed25519, packet.PubKeyAlgoDilithium5Ed448, packet.PubKeyAlgoDilithium3p256,
+		packet.PubKeyAlgoDilithium5p384, packet.PubKeyAlgoDilithium3Brainpool256,
+		packet.PubKeyAlgoDilithium5Brainpool384:
 		if pubKeyAlgo, err = packet.GetMatchingKyberKem(config.PublicKeyAlgorithm()); err != nil {
 			return nil, err
 		}
 		fallthrough // When passing Dilithium + EdDSA or ECDSA, we generate a Kyber + ECDH subkey
-	case packet.PubKeyAlgoKyber512X25519, packet.PubKeyAlgoKyber1024X448, packet.PubKeyAlgoKyber768P384,
-		packet.PubKeyAlgoKyber1024P521, packet.PubKeyAlgoKyber768Brainpool384, packet.PubKeyAlgoKyber1024Brainpool512:
+	case packet.PubKeyAlgoKyber768X25519, packet.PubKeyAlgoKyber1024X448, packet.PubKeyAlgoKyber768P256,
+		packet.PubKeyAlgoKyber1024P384, packet.PubKeyAlgoKyber768Brainpool256, packet.PubKeyAlgoKyber1024Brainpool384:
 		if !config.V5Keys {
 			return nil, goerrors.New("openpgp: cannot create a non-v5 kyber_ecdh key")
 		}

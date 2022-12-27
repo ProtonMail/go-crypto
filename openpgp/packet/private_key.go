@@ -560,30 +560,30 @@ func (pk *PrivateKey) parsePrivateKey(data []byte) (err error) {
 		return pk.parseECDHPrivateKey(data)
 	case PubKeyAlgoEdDSA:
 		return pk.parseEdDSAPrivateKey(data)
-	case PubKeyAlgoDilithium2Ed25519:
-		return pk.parseDilithiumEdDSAPrivateKey(data, 32, 2528)
+	case PubKeyAlgoDilithium3Ed25519:
+		return pk.parseDilithiumEdDSAPrivateKey(data, 32, 4000)
 	case PubKeyAlgoDilithium5Ed448:
 		return pk.parseDilithiumEdDSAPrivateKey(data, 57, 4864)
-	case PubKeyAlgoDilithium3p384:
-		return pk.parseDilithiumECDSAPrivateKey(data, 48, 4000)
-	case PubKeyAlgoDilithium5p521:
-		return pk.parseDilithiumECDSAPrivateKey(data, 66, 4864)
-	case PubKeyAlgoDilithium3Brainpool384:
-		return pk.parseDilithiumECDSAPrivateKey(data, 48, 4000)
-	case PubKeyAlgoDilithium5Brainpool512:
-		return pk.parseDilithiumECDSAPrivateKey(data, 64, 4864)
-	case PubKeyAlgoKyber512X25519:
-		return pk.parseKyberECDHPrivateKey(data, 32, 1632)
+	case PubKeyAlgoDilithium3p256:
+		return pk.parseDilithiumECDSAPrivateKey(data, 32, 4000)
+	case PubKeyAlgoDilithium5p384:
+		return pk.parseDilithiumECDSAPrivateKey(data, 48, 4864)
+	case PubKeyAlgoDilithium3Brainpool256:
+		return pk.parseDilithiumECDSAPrivateKey(data, 32, 4000)
+	case PubKeyAlgoDilithium5Brainpool384:
+		return pk.parseDilithiumECDSAPrivateKey(data, 48, 4864)
+	case PubKeyAlgoKyber768X25519:
+		return pk.parseKyberECDHPrivateKey(data, 32, 2400)
 	case PubKeyAlgoKyber1024X448:
 		return pk.parseKyberECDHPrivateKey(data, 56, 3168)
-	case PubKeyAlgoKyber768P384:
-		return pk.parseKyberECDHPrivateKey(data, 48, 2400)
-	case PubKeyAlgoKyber1024P521:
-		return pk.parseKyberECDHPrivateKey(data, 66, 3168)
-	case PubKeyAlgoKyber768Brainpool384:
-		return pk.parseKyberECDHPrivateKey(data, 48, 2400)
-	case PubKeyAlgoKyber1024Brainpool512:
-		return pk.parseKyberECDHPrivateKey(data, 64, 3168)
+	case PubKeyAlgoKyber768P256:
+		return pk.parseKyberECDHPrivateKey(data, 32, 2400)
+	case PubKeyAlgoKyber1024P384:
+		return pk.parseKyberECDHPrivateKey(data, 48, 3168)
+	case PubKeyAlgoKyber768Brainpool256:
+		return pk.parseKyberECDHPrivateKey(data, 32, 2400)
+	case PubKeyAlgoKyber1024Brainpool384:
+		return pk.parseKyberECDHPrivateKey(data, 48, 3168)
 	}
 	panic("impossible")
 }

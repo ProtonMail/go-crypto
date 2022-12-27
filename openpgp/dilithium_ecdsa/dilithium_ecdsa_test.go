@@ -13,10 +13,10 @@ import (
 
 func TestSignVerify(t *testing.T) {
 	asymmAlgos := map[string] packet.PublicKeyAlgorithm {
-		"Dilithium3_P384": packet.PubKeyAlgoDilithium3p384,
-		"Dilithium5_P521": packet.PubKeyAlgoDilithium5p521,
-		"Dilithium5_Brainpool384": packet.PubKeyAlgoDilithium3Brainpool384,
-		"Dilithium5_Brainpool512": packet.PubKeyAlgoDilithium5Brainpool512,
+		"Dilithium3_P256": packet.PubKeyAlgoDilithium3p256,
+		"Dilithium5_P384": packet.PubKeyAlgoDilithium5p384,
+		"Dilithium3_Brainpool256": packet.PubKeyAlgoDilithium3Brainpool256,
+		"Dilithium5_Brainpool384": packet.PubKeyAlgoDilithium5Brainpool384,
 	}
 
 	for asymmName, asymmAlgo := range asymmAlgos {

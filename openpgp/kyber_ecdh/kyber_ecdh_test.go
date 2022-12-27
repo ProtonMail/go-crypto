@@ -15,12 +15,12 @@ func TestEncryptDecrypt(t *testing.T) {
 	rand.Read(testFingerprint)
 
 	asymmAlgos := map[string] packet.PublicKeyAlgorithm {
-		"Kyber512_X25519": packet.PubKeyAlgoKyber512X25519,
+		"Kyber768_X25519": packet.PubKeyAlgoKyber768X25519,
 		"Kyber1024_X448": packet.PubKeyAlgoKyber1024X448,
-		"Kyber768_P384": packet.PubKeyAlgoKyber768P384,
-		"Kyber1024_P521":packet.PubKeyAlgoKyber1024P521,
-		"Kyber768_Brainpool384": packet.PubKeyAlgoKyber768Brainpool384,
-		"Kyber1024_Brainpool521":packet.PubKeyAlgoKyber1024Brainpool512,
+		"Kyber768_P256": packet.PubKeyAlgoKyber768P256,
+		"Kyber1024_P384":packet.PubKeyAlgoKyber1024P384,
+		"Kyber768_Brainpool256": packet.PubKeyAlgoKyber768Brainpool256,
+		"Kyber1024_Brainpool384":packet.PubKeyAlgoKyber1024Brainpool384,
 	}
 
 	symmAlgos := map[string] algorithm.Cipher {
