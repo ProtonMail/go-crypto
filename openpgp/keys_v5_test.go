@@ -8,6 +8,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/dilithium_eddsa"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/kyber_ecdh"
+	"github.com/ProtonMail/go-crypto/openpgp/sphincs_plus"
 	"io/ioutil"
 	"strings"
 	"testing"
@@ -207,7 +208,7 @@ func checkSerializeRead(t *testing.T, e *Entity) {
 	checkV5Key(t, el[0])
 }
 
-func TestGenerateDilithiumKey(t *testing.T) {
+func TestGeneratePqKey(t *testing.T) {
 	randomPassword := make([]byte, 128)
 	_, err := rand.Read(randomPassword)
 	if err != nil {
@@ -221,11 +222,13 @@ func TestGenerateDilithiumKey(t *testing.T) {
 		"Dilithium5_P384":packet.PubKeyAlgoDilithium5p384,
 		"Dilithium3_Brainpool256": packet.PubKeyAlgoDilithium3Brainpool256,
 		"Dilithium5_Brainpool384":packet.PubKeyAlgoDilithium5Brainpool384,
+		"SphincsPlus_simple_SHA2":packet.PubKeyAlgoSphincsPlusSha2,
+		"SphincsPlus_simple_SHAKE":packet.PubKeyAlgoSphincsPlusShake,
 	}
 
 	for name, algo := range asymmAlgos {
 		t.Run(name, func(t *testing.T) {
-			dilithiumConfig := &packet.Config{
+			config := &packet.Config{
 				DefaultHash: crypto.SHA512,
 				Algorithm:   algo,
 				V5Keys:      true,
@@ -235,7 +238,7 @@ func TestGenerateDilithiumKey(t *testing.T) {
 				},
 			}
 
-			entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", dilithiumConfig)
+			entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", config)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -252,7 +255,7 @@ func TestGenerateDilithiumKey(t *testing.T) {
 			}
 
 			if read.PrimaryKey.PubKeyAlgo != algo {
-				t.Fatalf("Expected subkey algorithm: %v, got: %v", packet.PubKeyAlgoEdDSA, read.PrimaryKey.PubKeyAlgo)
+				t.Fatalf("Expected subkey algorithm: %v, got: %v", algo, read.PrimaryKey.PubKeyAlgo)
 			}
 
 			if err = read.PrivateKey.Encrypt(randomPassword); err != nil {
@@ -280,41 +283,48 @@ func TestGenerateDilithiumKey(t *testing.T) {
 				pk.PublicDilithium = pk.Dilithium.PublicKeyFromBytes(bin)
 			}
 
+			if pk, ok := read.PrivateKey.PublicKey.PublicKey.(*sphincs_plus.PublicKey); ok {
+				pk.PublicData.PKseed[5] ^= 1
+			}
+
 			err = read.PrivateKey.Decrypt(randomPassword)
 			if _, ok := err.(errors.KeyInvalidError); !ok {
 				t.Fatal("Failed to detect invalid Dilithium key")
 			}
 
-			// Kyber subkey
-			subkey := read.Subkeys[0]
-			if err = subkey.PrivateKey.Encrypt(randomPassword); err != nil {
-				t.Fatal(err)
-			}
-
-			if err := subkey.PrivateKey.Decrypt(randomPassword); err != nil {
-				t.Fatal("Valid Kyber key was marked as invalid: ", err)
-			}
-
-			if err = subkey.PrivateKey.Encrypt(randomPassword); err != nil {
-				t.Fatal(err)
-			}
-
-			// Corrupt public Kyber in primary key
-			if pk, ok := subkey.PublicKey.PublicKey.(*kyber_ecdh.PublicKey); ok {
-				bin, _ := pk.PublicKyber.MarshalBinary()
-				bin[5] ^= 1
-				if pk.PublicKyber, err = pk.Kyber.UnmarshalBinaryPublicKey(bin); err != nil {
-					t.Fatal("unable to corrupt key")
-				}
-			} else {
-				t.Fatal("Invalid subkey")
-			}
-
-			err = subkey.PrivateKey.Decrypt(randomPassword)
-			if _, ok := err.(errors.KeyInvalidError); !ok {
-				t.Fatal("Failed to detect invalid Dilithium key")
-			}
+			testKyberSubkey(t, read.Subkeys[0], randomPassword)
 		})
+	}
+}
+
+func testKyberSubkey(t *testing.T, subkey Subkey, randomPassword []byte) {
+	var err error
+	if err = subkey.PrivateKey.Encrypt(randomPassword); err != nil {
+		t.Fatal(err)
+	}
+
+	if err = subkey.PrivateKey.Decrypt(randomPassword); err != nil {
+		t.Fatal("Valid Kyber key was marked as invalid: ", err)
+	}
+
+	if err = subkey.PrivateKey.Encrypt(randomPassword); err != nil {
+		t.Fatal(err)
+	}
+
+	// Corrupt public Kyber in primary key
+	if pk, ok := subkey.PublicKey.PublicKey.(*kyber_ecdh.PublicKey); ok {
+		bin, _ := pk.PublicKyber.MarshalBinary()
+		bin[5] ^= 1
+		if pk.PublicKyber, err = pk.Kyber.UnmarshalBinaryPublicKey(bin); err != nil {
+			t.Fatal("unable to corrupt key")
+		}
+	} else {
+		t.Fatal("Invalid subkey")
+	}
+
+	err = subkey.PrivateKey.Decrypt(randomPassword)
+	if _, ok := err.(errors.KeyInvalidError); !ok {
+		t.Fatal("Failed to detect invalid kyber key")
 	}
 }
 
