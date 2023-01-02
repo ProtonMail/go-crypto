@@ -7,6 +7,7 @@ package packet
 import (
 	"crypto"
 	"crypto/rand"
+	"github.com/ProtonMail/go-crypto/openpgp/sphincs_plus"
 	"io"
 	"math/big"
 	"time"
@@ -80,6 +81,8 @@ type Config struct {
 	// Curve configures the desired packet.Curve if the Algorithm is PubKeyAlgoECDSA,
 	// PubKeyAlgoEdDSA, or PubKeyAlgoECDH. If empty Curve25519 is used.
 	Curve Curve
+	// SphincsPlusParameterId configures the desired sphincs plus security level parameter.
+	SphincsPlusParameterId sphincs_plus.ParameterSetId
 	// AEADConfig configures the use of the new AEAD Encrypted Data Packet,
 	// defined in the draft of the next version of the OpenPGP specification.
 	// If a non-nil AEADConfig is passed, usage of this packet is enabled. By
@@ -239,6 +242,13 @@ func (c *Config) S2K() *s2k.Config {
 		}
 	}
 	return c.S2KConfig
+}
+
+func (c *Config) SphincsPlusParam() sphincs_plus.ParameterSetId {
+	if c == nil || c.SphincsPlusParameterId == 0 {
+		return sphincs_plus.Param128f
+	}
+	return c.SphincsPlusParameterId
 }
 
 func (c *Config) AEAD() *AEADConfig {

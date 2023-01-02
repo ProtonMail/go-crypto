@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"github.com/ProtonMail/go-crypto/openpgp/dilithium_ecdsa"
 	"github.com/ProtonMail/go-crypto/openpgp/dilithium_eddsa"
+	"github.com/ProtonMail/go-crypto/openpgp/sphincs_plus"
 	"io"
 	"math/big"
 	"strconv"
@@ -174,6 +175,8 @@ func NewSignerPrivateKey(creationTime time.Time, signer interface{}) *PrivateKey
 		pk.PublicKey = *NewDilithiumECDSAPublicKey(creationTime, &pubkey.PublicKey)
 	case *dilithium_eddsa.PrivateKey:
 		pk.PublicKey = *NewDilithiumEdDSAPublicKey(creationTime, &pubkey.PublicKey)
+	case *sphincs_plus.PrivateKey:
+		pk.PublicKey = *NewSphincsPlusPublicKey(creationTime, &pubkey.PublicKey)
 	default:
 		panic("openpgp: unknown signer type in NewSignerPrivateKey")
 	}
@@ -530,6 +533,8 @@ func serializeEd448PrivateKey(w io.Writer, priv *ed448.PrivateKey) error {
 	return err
 }
 
+// serializeKyberPrivateKey serializes a Kyber + ECC private key according to
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#name-key-material-packets-7
 func serializeKyberPrivateKey(w io.Writer, priv *kyber_ecdh.PrivateKey) (err error) {
 	var kyberBin []byte
 	if kyberBin, err = priv.SecretKyber.MarshalBinary(); err != nil {
@@ -542,6 +547,8 @@ func serializeKyberPrivateKey(w io.Writer, priv *kyber_ecdh.PrivateKey) (err err
 	return err
 }
 
+// serializeDilithiumECDSAPrivateKey serializes a Dilithium + ECDSA private key according to
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-5.3.2
 func serializeDilithiumECDSAPrivateKey(w io.Writer, priv *dilithium_ecdsa.PrivateKey) error {
 	if _, err := w.Write(encoding.NewOctetArray(priv.MarshalIntegerSecret()).EncodedBytes()); err != nil {
 		return err
@@ -550,11 +557,25 @@ func serializeDilithiumECDSAPrivateKey(w io.Writer, priv *dilithium_ecdsa.Privat
 	return err
 }
 
+// serializeDilithiumEdDSAPrivateKey serializes a Dilithium + EdDSA private key according to
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-5.3.2
 func serializeDilithiumEdDSAPrivateKey(w io.Writer, priv *dilithium_eddsa.PrivateKey) error {
 	if _, err := w.Write(encoding.NewOctetArray(priv.SecretEC).EncodedBytes()); err != nil {
 		return err
 	}
 	_, err := w.Write(encoding.NewOctetArray(priv.SecretDilithium.Bytes()).EncodedBytes())
+	return err
+}
+
+// serializeSphincsPlusPrivateKey serializes a SPHINCS+ private key according to
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-6.2.2
+func serializeSphincsPlusPrivateKey(w io.Writer, priv *sphincs_plus.PrivateKey) error {
+	privateData, err := priv.SerializePrivate()
+	if err != nil {
+		return err
+	}
+
+	_, err = w.Write(encoding.NewOctetArray(privateData).EncodedBytes())
 	return err
 }
 
@@ -856,6 +877,9 @@ func (pk *PrivateKey) serializePrivateKey(w io.Writer) (err error) {
 		err = serializeDilithiumECDSAPrivateKey(w, priv)
 	case *dilithium_eddsa.PrivateKey:
 		err = serializeDilithiumEdDSAPrivateKey(w, priv)
+	case *sphincs_plus.PrivateKey:
+		err = serializeSphincsPlusPrivateKey(w, priv)
+
 	default:
 		err = errors.InvalidArgumentError("unknown private key type")
 	}
@@ -898,6 +922,8 @@ func (pk *PrivateKey) parsePrivateKey(data []byte) (err error) {
 		return pk.parseDilithiumECDSAPrivateKey(data, 32, 4000)
 	case PubKeyAlgoDilithium5p384, PubKeyAlgoDilithium5Brainpool384:
 		return pk.parseDilithiumECDSAPrivateKey(data, 48, 4864)
+	case PubKeyAlgoSphincsPlusSha2, PubKeyAlgoSphincsPlusShake:
+		return pk.parseSphincsPlusPrivateKey(data)
 	default:
 		err = errors.StructuralError("unknown private key type")
 		return
@@ -1254,6 +1280,31 @@ func (pk *PrivateKey) parseKyberECDHPrivateKey(data []byte, ecLen, kLen int) (er
 	}
 
 	if err := kyber_ecdh.Validate(priv); err != nil {
+		return err
+	}
+	pk.PrivateKey = priv
+
+	return nil
+}
+
+// parseSphincsPlusPrivateKey parses a Sphincs+ private key as specified in
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-6.2.2
+func (pk *PrivateKey) parseSphincsPlusPrivateKey(data []byte) (err error) {
+	if pk.Version != 6 {
+		return goerrors.New("openpgp: cannot parse non-v6 sphincs+ key")
+	}
+	pub := pk.PublicKey.PublicKey.(*sphincs_plus.PublicKey)
+	priv := new(sphincs_plus.PrivateKey)
+	priv.PublicKey = *pub
+
+	buf := bytes.NewBuffer(data)
+	spx := encoding.NewEmptyOctetArray(priv.ParameterSetId.GetSkLen())
+	if _, err := spx.ReadFrom(buf); err != nil {
+		return err
+	}
+
+	priv.UnmarshalPrivate(spx.Bytes())
+	if err := sphincs_plus.Validate(priv); err != nil {
 		return err
 	}
 	pk.PrivateKey = priv

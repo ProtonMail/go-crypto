@@ -11,6 +11,7 @@ import (
 	"encoding/binary"
 	"github.com/ProtonMail/go-crypto/openpgp/dilithium_ecdsa"
 	"github.com/ProtonMail/go-crypto/openpgp/dilithium_eddsa"
+	"github.com/ProtonMail/go-crypto/openpgp/sphincs_plus"
 	"hash"
 	"io"
 	"strconv"
@@ -66,6 +67,10 @@ type Signature struct {
 	EdDSASigR, EdDSASigS encoding.Field
 	EdSig                []byte
 	DilithumSig			 encoding.Field
+	SphincsPlusSig	     encoding.Field
+
+	// sphincsPlusParameterSetId contains the parameter set ID for the sphincs+ instantiation
+	sphincsPlusParameterSetId sphincs_plus.ParameterSetId
 
 	// rawSubpackets contains the unparsed subpackets, in order.
 	rawSubpackets []outputSubpacket
@@ -170,7 +175,8 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 	switch sig.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA, PubKeyAlgoEd25519,
 		PubKeyAlgoEd448, PubKeyAlgoDilithium3Ed25519, PubKeyAlgoDilithium5Ed448, PubKeyAlgoDilithium3p256,
-		PubKeyAlgoDilithium5p384, PubKeyAlgoDilithium3Brainpool256, PubKeyAlgoDilithium5Brainpool384:
+		PubKeyAlgoDilithium5p384, PubKeyAlgoDilithium3Brainpool256, PubKeyAlgoDilithium5Brainpool384,
+		PubKeyAlgoSphincsPlusSha2, PubKeyAlgoSphincsPlusShake:
 	default:
 		err = errors.UnsupportedError("public key algorithm " + strconv.Itoa(int(sig.PubKeyAlgo)))
 		return
@@ -324,6 +330,10 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 		if err = sig.parseDilithiumEcdsaSignature(r, 48, 4595); err != nil {
 			return
 		}
+	case PubKeyAlgoSphincsPlusSha2, PubKeyAlgoSphincsPlusShake:
+		if err = sig.parseSphincsPlusSignature(r); err != nil {
+			return
+		}
 	default:
 		panic("unreachable")
 	}
@@ -358,6 +368,23 @@ func (sig *Signature) parseDilithiumEcdsaSignature(r io.Reader, ecLen, dLen int)
 
 	sig.DilithumSig = encoding.NewEmptyOctetArray(dLen)
 	_, err = sig.DilithumSig.ReadFrom(r)
+	return
+}
+
+// parseSphincsPlusSignature parses a SPHINCS+ signature as specified in
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-6.2.1
+func (sig *Signature) parseSphincsPlusSignature(r io.Reader) (err error) {
+	var param [1]byte
+	if _, err = readFull(r, param[:]); err != nil {
+		return
+	}
+
+	if sig.sphincsPlusParameterSetId, err = sphincs_plus.ParseParameterSetID(param); err != nil {
+		return
+	}
+
+	sig.SphincsPlusSig = encoding.NewEmptyOctetArray(sig.sphincsPlusParameterSetId.GetSigLen())
+	_, err = sig.SphincsPlusSig.ReadFrom(r)
 	return
 }
 
@@ -997,6 +1024,14 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 			sig.DilithumSig = encoding.NewOctetArray(dSig)
 			sig.EdDSASigR = encoding.NewOctetArray(ecSig)
 		}
+	case PubKeyAlgoSphincsPlusSha2, PubKeyAlgoSphincsPlusShake:
+		sk := priv.PrivateKey.(*sphincs_plus.PrivateKey)
+		spxSig, err := sphincs_plus.Sign(sk, digest)
+
+		if err == nil {
+			sig.sphincsPlusParameterSetId = sk.ParameterSetId
+			sig.SphincsPlusSig = encoding.NewOctetArray(spxSig)
+		}
 	default:
 		err = errors.UnsupportedError("public key algorithm: " + strconv.Itoa(int(sig.PubKeyAlgo)))
 	}
@@ -1102,7 +1137,7 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 	if len(sig.outSubpackets) == 0 {
 		sig.outSubpackets = sig.rawSubpackets
 	}
-	if sig.RSASignature == nil && sig.DSASigR == nil && sig.ECDSASigR == nil && sig.EdDSASigR == nil && sig.EdSig == nil {
+	if sig.RSASignature == nil && sig.DSASigR == nil && sig.ECDSASigR == nil && sig.EdDSASigR == nil && sig.EdSig == nil && sig.SphincsPlusSig == nil {
 		return errors.InvalidArgumentError("Signature: need to call Sign, SignUserId or SignKey before Serialize")
 	}
 
@@ -1131,6 +1166,9 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 		sigLength = int(sig.ECDSASigR.EncodedLength())
 		sigLength += int(sig.ECDSASigS.EncodedLength())
 		sigLength += int(sig.DilithumSig.EncodedLength())
+	case PubKeyAlgoSphincsPlusSha2, PubKeyAlgoSphincsPlusShake:
+		sigLength = 1 // Parameter ID
+		sigLength += int(sig.SphincsPlusSig.EncodedLength())
 	default:
 		panic("impossible")
 	}
@@ -1251,6 +1289,11 @@ func (sig *Signature) serializeBody(w io.Writer) (err error) {
 			return
 		}
 		_, err = w.Write(sig.DilithumSig.EncodedBytes())
+	case PubKeyAlgoSphincsPlusSha2, PubKeyAlgoSphincsPlusShake:
+		if _, err = w.Write(sig.sphincsPlusParameterSetId.EncodedBytes()); err != nil {
+			return
+		}
+		_, err = w.Write(sig.SphincsPlusSig.EncodedBytes())
 	default:
 		panic("impossible")
 	}
