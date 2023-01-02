@@ -8,6 +8,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/dilithium_eddsa"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/kyber_ecdh"
+	"github.com/ProtonMail/go-crypto/openpgp/sphincs_plus"
 	"strings"
 	"testing"
 	"time"
@@ -315,6 +316,125 @@ func TestGenerateDilithiumKey(t *testing.T) {
 	}
 }
 
+func TestGeneratePqKey(t *testing.T) {
+	randomPassword := make([]byte, 128)
+	_, err := rand.Read(randomPassword)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	asymmAlgos := map[string] packet.PublicKeyAlgorithm{
+		"Dilithium3_Ed25519": packet.PubKeyAlgoDilithium3Ed25519,
+		"Dilithium5_Ed448": packet.PubKeyAlgoDilithium5Ed448,
+		"Dilithium3_P256": packet.PubKeyAlgoDilithium3p256,
+		"Dilithium5_P384":packet.PubKeyAlgoDilithium5p384,
+		"Dilithium3_Brainpool256": packet.PubKeyAlgoDilithium3Brainpool256,
+		"Dilithium5_Brainpool384":packet.PubKeyAlgoDilithium5Brainpool384,
+		"SphincsPlus_simple_SHA2":packet.PubKeyAlgoSphincsPlusSha2,
+		"SphincsPlus_simple_SHAKE":packet.PubKeyAlgoSphincsPlusShake,
+	}
+
+	for name, algo := range asymmAlgos {
+		t.Run(name, func(t *testing.T) {
+			config := &packet.Config{
+				DefaultHash: crypto.SHA512,
+				Algorithm:   algo,
+				V6Keys:      true,
+				Time: func() time.Time {
+					parsed, _ := time.Parse("2006-01-02", "2013-07-01")
+					return parsed
+				},
+			}
+
+			entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", config)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			serializedEntity := bytes.NewBuffer(nil)
+			err = entity.SerializePrivate(serializedEntity, nil)
+			if err != nil {
+				t.Fatalf("Failed to serialize entity: %s", err)
+			}
+
+			read, err := ReadEntity(packet.NewReader(bytes.NewBuffer(serializedEntity.Bytes())))
+			if err != nil {
+				t.Fatalf("Failed to parse entity: %s", err)
+			}
+
+			if read.PrimaryKey.PubKeyAlgo != algo {
+				t.Fatalf("Expected subkey algorithm: %v, got: %v", algo, read.PrimaryKey.PubKeyAlgo)
+			}
+
+			if err = read.PrivateKey.Encrypt(randomPassword); err != nil {
+				t.Fatal(err)
+			}
+
+			if err := read.PrivateKey.Decrypt(randomPassword); err != nil {
+				t.Fatal("Valid Dilithium key was marked as invalid: ", err)
+			}
+
+			if err = read.PrivateKey.Encrypt(randomPassword); err != nil {
+				t.Fatal(err)
+			}
+
+			// Corrupt public Dilithium in primary key
+			if pk, ok := read.PrivateKey.PublicKey.PublicKey.(*dilithium_ecdsa.PublicKey); ok {
+				bin := pk.PublicDilithium.Bytes()
+				bin[5] ^= 1
+				pk.PublicDilithium = pk.Dilithium.PublicKeyFromBytes(bin)
+			}
+
+			if pk, ok := read.PrivateKey.PublicKey.PublicKey.(*dilithium_eddsa.PublicKey); ok {
+				bin := pk.PublicDilithium.Bytes()
+				bin[5] ^= 1
+				pk.PublicDilithium = pk.Dilithium.PublicKeyFromBytes(bin)
+			}
+
+			if pk, ok := read.PrivateKey.PublicKey.PublicKey.(*sphincs_plus.PublicKey); ok {
+				pk.PublicData.PKseed[5] ^= 1
+			}
+
+			err = read.PrivateKey.Decrypt(randomPassword)
+			if _, ok := err.(errors.KeyInvalidError); !ok {
+				t.Fatal("Failed to detect invalid Dilithium key")
+			}
+
+			testKyberSubkey(t, read.Subkeys[0], randomPassword)
+		})
+	}
+}
+
+func testKyberSubkey(t *testing.T, subkey Subkey, randomPassword []byte) {
+	var err error
+	if err = subkey.PrivateKey.Encrypt(randomPassword); err != nil {
+		t.Fatal(err)
+	}
+
+	if err = subkey.PrivateKey.Decrypt(randomPassword); err != nil {
+		t.Fatal("Valid Kyber key was marked as invalid: ", err)
+	}
+
+	if err = subkey.PrivateKey.Encrypt(randomPassword); err != nil {
+		t.Fatal(err)
+	}
+
+	// Corrupt public Kyber in primary key
+	if pk, ok := subkey.PublicKey.PublicKey.(*kyber_ecdh.PublicKey); ok {
+		bin, _ := pk.PublicKyber.MarshalBinary()
+		bin[5] ^= 1
+		if pk.PublicKyber, err = pk.Kyber.UnmarshalBinaryPublicKey(bin); err != nil {
+			t.Fatal("unable to corrupt key")
+		}
+	} else {
+		t.Fatal("Invalid subkey")
+	}
+
+	err = subkey.PrivateKey.Decrypt(randomPassword)
+	if _, ok := err.(errors.KeyInvalidError); !ok {
+		t.Fatal("Failed to detect invalid kyber key")
+	}
+}
 
 func TestAddKyberSubkey(t *testing.T) {
 	eddsaConfig := &packet.Config{

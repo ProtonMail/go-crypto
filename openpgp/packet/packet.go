@@ -525,6 +525,8 @@ const (
 	PubKeyAlgoDilithium5p384 = 38
 	PubKeyAlgoDilithium3Brainpool256 = 39
 	PubKeyAlgoDilithium5Brainpool384 = 40
+	PubKeyAlgoSphincsPlusSha2  = 41
+	PubKeyAlgoSphincsPlusShake = 42
 )
 
 // CanEncrypt returns true if it's possible to encrypt a message to a public
@@ -545,7 +547,8 @@ func (pka PublicKeyAlgorithm) CanSign() bool {
 	switch pka {
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA, PubKeyAlgoEd25519,
 		PubKeyAlgoEd448, PubKeyAlgoDilithium3Ed25519, PubKeyAlgoDilithium5Ed448, PubKeyAlgoDilithium3p256,
-		PubKeyAlgoDilithium5p384, PubKeyAlgoDilithium3Brainpool256, PubKeyAlgoDilithium5Brainpool384:
+		PubKeyAlgoDilithium5p384, PubKeyAlgoDilithium3Brainpool256, PubKeyAlgoDilithium5Brainpool384,
+		PubKeyAlgoSphincsPlusSha2, PubKeyAlgoSphincsPlusShake:
 		return true
 	}
 	return false
