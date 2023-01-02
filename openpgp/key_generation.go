@@ -11,6 +11,7 @@ import (
 	goerrors "errors"
 	"github.com/ProtonMail/go-crypto/openpgp/dilithium_ecdsa"
 	"github.com/ProtonMail/go-crypto/openpgp/dilithium_eddsa"
+	"github.com/ProtonMail/go-crypto/openpgp/sphincs_plus"
 	"io"
 	"math/big"
 	"time"
@@ -342,6 +343,18 @@ func newSigner(config *packet.Config) (signer interface{}, err error) {
 		}
 
 		return dilithium_eddsa.GenerateKey(config.Random(), uint8(config.PublicKeyAlgorithm()), c, d)
+	case packet.PubKeyAlgoSphincsPlusSha2, packet.PubKeyAlgoSphincsPlusShake:
+		if !config.V6() {
+			return nil, goerrors.New("openpgp: cannot create a non-v6 sphincs+ key")
+		}
+
+		mode, err := packet.GetSphincsPlusModeFromAlgID(config.PublicKeyAlgorithm())
+		if err != nil {
+			return nil, err
+		}
+		parameter := config.SphincsPlusParam()
+
+		return sphincs_plus.GenerateKey(config.Random(), mode, parameter)
 	default:
 		return nil, errors.InvalidArgumentError("unsupported public key algorithm")
 	}
@@ -387,7 +400,7 @@ func newDecrypter(config *packet.Config) (decrypter interface{}, err error) {
 		return x448.GenerateKey(config.Random())
 	case packet.PubKeyAlgoDilithium3Ed25519, packet.PubKeyAlgoDilithium5Ed448, packet.PubKeyAlgoDilithium3p256,
 		packet.PubKeyAlgoDilithium5p384, packet.PubKeyAlgoDilithium3Brainpool256,
-		packet.PubKeyAlgoDilithium5Brainpool384:
+		packet.PubKeyAlgoDilithium5Brainpool384, packet.PubKeyAlgoSphincsPlusSha2, packet.PubKeyAlgoSphincsPlusShake:
 		if pubKeyAlgo, err = packet.GetMatchingKyberKem(config.PublicKeyAlgorithm()); err != nil {
 			return nil, err
 		}
