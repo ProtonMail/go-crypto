@@ -457,36 +457,13 @@ var testEncryptionTests = []struct {
 		true,
 		false,
 	},
+	// Broken as it needs v5 PKESK
 	//{
-	//	eddsaKyber512X25519PrivateHex,
+	//	eddsaKyber768X25519PrivateHex,
 	//	false,
 	//},
 	//{
-	//	eddsaKyber512X25519PrivateHex,
-	//	true,
-	//},
-	//{
-	//	eddsaKyber1024X448PrivateHex,
-	//	false,
-	//},
-	//{
-	//	eddsaKyber1024X448PrivateHex,
-	//	true,
-	//},
-	//{
-	//	eddsaKyber768P384PrivateHex,
-	//	false,
-	//},
-	//{
-	//	eddsaKyber768P384PrivateHex,
-	//	true,
-	//},
-	//{
-	//	eddsaKyber1024P521PrivateHex,
-	//	false,
-	//},
-	//{
-	//	eddsaKyber1024P521PrivateHex,
+	//	eddsaKyber768X25519PrivateHex,
 	//	true,
 	//},
 }
