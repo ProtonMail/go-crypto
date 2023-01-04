@@ -486,6 +486,7 @@ func SerializeEncryptedKeyAEADwithHiddenOption(w io.Writer, pub *PublicKey, ciph
 		return serializeEncryptedKeyX448(w, config.Random(), buf[:lenHeaderWritten], pub.PublicKey.(*x448.PublicKey), keyBlock, byte(cipherFunc), version)
 	case PubKeyAlgoKyber768X25519, PubKeyAlgoKyber1024X448, PubKeyAlgoKyber768P256, PubKeyAlgoKyber1024P384,
 		PubKeyAlgoKyber768Brainpool256, PubKeyAlgoKyber1024Brainpool384:
+		// TODO: check v6 PKESK
 		return serializeEncryptedKeyKyber(w, config.Random(), buf[:lenHeaderWritten], pub.PublicKey.(*kyber_ecdh.PublicKey), keyBlock, pub)
 	case PubKeyAlgoDSA, PubKeyAlgoRSASignOnly:
 		return errors.InvalidArgumentError("cannot encrypt to public key of type " + strconv.Itoa(int(pub.PubKeyAlgo)))
