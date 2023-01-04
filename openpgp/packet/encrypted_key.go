@@ -277,7 +277,8 @@ func SerializeEncryptedKey(w io.Writer, pub *PublicKey, cipherFunc CipherFunctio
 		return serializeEncryptedKeyECDH(w, config.Random(), buf, pub.PublicKey.(*ecdh.PublicKey), keyBlock, pub.oid, pub.Fingerprint)
 	case PubKeyAlgoKyber768X25519, PubKeyAlgoKyber1024X448, PubKeyAlgoKyber768P256, PubKeyAlgoKyber1024P384,
 		PubKeyAlgoKyber768Brainpool256, PubKeyAlgoKyber1024Brainpool384:
-		return serializeEncryptedKeyKyber(w, config.Random(), buf, pub.PublicKey.(*kyber_ecdh.PublicKey), keyBlock, pub)
+		// TODO: check v5 PKESK
+		return serializeEncryptedKeyKyber(w, config.Random(), buf, pub.PublicKey.(*kyber_ecdh.PublicKey), key, pub)
 	case PubKeyAlgoDSA, PubKeyAlgoRSASignOnly:
 		return errors.InvalidArgumentError("cannot encrypt to public key of type " + strconv.Itoa(int(pub.PubKeyAlgo)))
 	}
@@ -364,7 +365,7 @@ func serializeEncryptedKeyKyber(w io.Writer, rand io.Reader, header [10]byte, pu
 	publicKey.SerializeForHash(h)
 	kE, ecE, c, err := kyber_ecdh.Encrypt(rand, pub, keyBlock, h.Sum(nil))
 	if err != nil {
-		return errors.InvalidArgumentError("ECDH encryption failed: " + err.Error())
+		return errors.InvalidArgumentError("kyber_ecdh encryption failed: " + err.Error())
 	}
 
 	k := encoding.NewOctetArray(kE)
