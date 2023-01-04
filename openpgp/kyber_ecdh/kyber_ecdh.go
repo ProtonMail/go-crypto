@@ -123,7 +123,7 @@ func buildKey(pub *PublicKey, eccKeyShare, kyberKeyShare, publicKeyHash []byte) 
 	// fixedInfo = algID || SHA3-256(publicKey)
 	// encKeyShares = counter || eccKeyShare || kyberKeyShare || fixedInfo
 	// MB = KMAC256(domSeparation, encKeyShares, oBits, customizationString)
-	k := kmac.NewKMAC256([]byte("OpenPGPKyberCompositeKeyDerivation"), algorithm.AES256.KeySize(), []byte("KDF"))
+	k := kmac.NewKMAC256([]byte("OpenPGPCompositeKeyDerivationFunction"), algorithm.AES256.KeySize(), []byte("KDF"))
 
 	// KMAC never returns error
 	_, _ = k.Write([]byte{0x00, 0x00, 0x00, 0x01})
