@@ -537,3 +537,9 @@ const (
 	CurveBrainpoolP384 Curve = "BrainpoolP384"
 	CurveBrainpoolP512 Curve = "BrainpoolP512"
 )
+
+// TrustSignature represents a level and trust amount as per RFC4880 5.2.3.13
+type TrustSignature struct {
+	Level  uint8
+	Amount uint8
+}

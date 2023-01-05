@@ -72,6 +72,9 @@ type Signature struct {
 	SignerUserId                                            *string
 	IsPrimaryId                                             *bool
 
+	// TrustSignature
+	TrustSignature *TrustSignature
+
 	// PolicyURI can be set to the URI of a document that describes the
 	// policy under which the signature was issued. See RFC 4880, section
 	// 5.2.3.20 for details.
@@ -221,6 +224,7 @@ type signatureSubpacketType uint8
 const (
 	creationTimeSubpacket        signatureSubpacketType = 2
 	signatureExpirationSubpacket signatureSubpacketType = 3
+	trustSignatureSubpacket      signatureSubpacketType = 5
 	keyExpirationSubpacket       signatureSubpacketType = 9
 	prefSymmetricAlgosSubpacket  signatureSubpacketType = 11
 	issuerSubpacket              signatureSubpacketType = 16
@@ -301,6 +305,9 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		}
 		sig.SigLifetimeSecs = new(uint32)
 		*sig.SigLifetimeSecs = binary.BigEndian.Uint32(subpacket)
+	case trustSignatureSubpacket:
+		// Trust signature, section 5.2.3.13
+		sig.TrustSignature = &TrustSignature{subpacket[0], subpacket[1]}
 	case keyExpirationSubpacket:
 		// Key expiration time, section 5.2.3.6
 		if !isHashed {
@@ -900,6 +907,10 @@ func (sig *Signature) buildSubpackets(issuer PublicKey) (subpackets []outputSubp
 
 	if features != 0x00 {
 		subpackets = append(subpackets, outputSubpacket{true, featuresSubpacket, false, []byte{features}})
+	}
+
+	if sig.TrustSignature != nil {
+		subpackets = append(subpackets, outputSubpacket{true, trustSignatureSubpacket, true, []byte{sig.TrustSignature.Level, sig.TrustSignature.Amount}})
 	}
 
 	if sig.KeyLifetimeSecs != nil && *sig.KeyLifetimeSecs != 0 {
