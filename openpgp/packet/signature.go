@@ -72,7 +72,9 @@ type Signature struct {
 	SignerUserId                                            *string
 	IsPrimaryId                                             *bool
 
-	// TrustSignature
+	// TrustSignature can be set by the signer to assert that the key is 
+	// not only valid but also trustworthy at the specified level. 
+	// See RFC 4880, section 5.2.3.13 for details. 
 	TrustSignature *TrustSignature
 
 	// PolicyURI can be set to the URI of a document that describes the
