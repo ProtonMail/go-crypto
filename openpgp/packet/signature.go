@@ -72,10 +72,12 @@ type Signature struct {
 	SignerUserId                                            *string
 	IsPrimaryId                                             *bool
 
-	// TrustSignature can be set by the signer to assert that the key is 
-	// not only valid but also trustworthy at the specified level. 
+	// TrustLevel and TrustAmount can be set by the signer to assert that 
+	// the key is not only valid but also trustworthy at the specified 
+	// level. 
 	// See RFC 4880, section 5.2.3.13 for details. 
-	TrustSignature *TrustSignature
+	TrustLevel TrustLevel
+	TrustAmount *TrustAmount
 
 	// PolicyURI can be set to the URI of a document that describes the
 	// policy under which the signature was issued. See RFC 4880, section
@@ -226,7 +228,7 @@ type signatureSubpacketType uint8
 const (
 	creationTimeSubpacket        signatureSubpacketType = 2
 	signatureExpirationSubpacket signatureSubpacketType = 3
-	trustSignatureSubpacket      signatureSubpacketType = 5
+	trustSubpacket               signatureSubpacketType = 5
 	keyExpirationSubpacket       signatureSubpacketType = 9
 	prefSymmetricAlgosSubpacket  signatureSubpacketType = 11
 	issuerSubpacket              signatureSubpacketType = 16
@@ -307,9 +309,11 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		}
 		sig.SigLifetimeSecs = new(uint32)
 		*sig.SigLifetimeSecs = binary.BigEndian.Uint32(subpacket)
-	case trustSignatureSubpacket:
-		// Trust signature, section 5.2.3.13
-		sig.TrustSignature = &TrustSignature{subpacket[0], subpacket[1]}
+	case trustSubpacket:
+		// Trust level and amount, section 5.2.3.13
+		sig.TrustLevel = TrustLevel(subpacket[0])
+		trustAmount := TrustAmount(subpacket[1])
+		sig.TrustAmount = &trustAmount
 	case keyExpirationSubpacket:
 		// Key expiration time, section 5.2.3.6
 		if !isHashed {
@@ -911,8 +915,8 @@ func (sig *Signature) buildSubpackets(issuer PublicKey) (subpackets []outputSubp
 		subpackets = append(subpackets, outputSubpacket{true, featuresSubpacket, false, []byte{features}})
 	}
 
-	if sig.TrustSignature != nil {
-		subpackets = append(subpackets, outputSubpacket{true, trustSignatureSubpacket, true, []byte{sig.TrustSignature.Level, sig.TrustSignature.Amount}})
+	if sig.TrustLevel != 0 && sig.TrustAmount != nil {
+		subpackets = append(subpackets, outputSubpacket{true, trustSubpacket, true, []byte{byte(sig.TrustLevel), byte(*sig.TrustAmount)}})
 	}
 
 	if sig.KeyLifetimeSecs != nil && *sig.KeyLifetimeSecs != 0 {
