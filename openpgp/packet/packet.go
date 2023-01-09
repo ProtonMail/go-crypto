@@ -537,3 +537,9 @@ const (
 	CurveBrainpoolP384 Curve = "BrainpoolP384"
 	CurveBrainpoolP512 Curve = "BrainpoolP512"
 )
+
+// TrustLevel represents a trust level per RFC4880 5.2.3.13
+type TrustLevel uint8 
+
+// TrustAmount represents a trust amount per RFC4880 5.2.3.13
+type TrustAmount uint8
