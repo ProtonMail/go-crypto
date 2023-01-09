@@ -215,7 +215,7 @@ func TestSignatureWithTrust(t *testing.T) {
 		return
 	}
 	sig, ok := packet.(*Signature)
-	if !ok || sig.SigType != SigTypeGenericCert || sig.PubKeyAlgo != PubKeyAlgoRSA || sig.Hash != crypto.SHA256 || sig.TrustLevel != 0x01 || *sig.TrustAmount != 0x03C {
+	if !ok || sig.SigType != SigTypeGenericCert || sig.PubKeyAlgo != PubKeyAlgoRSA || sig.Hash != crypto.SHA256 || sig.TrustLevel != 0x01 || sig.TrustAmount != 0x03C {
 		t.Errorf("failed to parse, got: %#v", packet)
 	}
 

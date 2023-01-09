@@ -77,7 +77,7 @@ type Signature struct {
 	// level. 
 	// See RFC 4880, section 5.2.3.13 for details. 
 	TrustLevel TrustLevel
-	TrustAmount *TrustAmount
+	TrustAmount TrustAmount
 
 	// PolicyURI can be set to the URI of a document that describes the
 	// policy under which the signature was issued. See RFC 4880, section
@@ -312,8 +312,7 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 	case trustSubpacket:
 		// Trust level and amount, section 5.2.3.13
 		sig.TrustLevel = TrustLevel(subpacket[0])
-		trustAmount := TrustAmount(subpacket[1])
-		sig.TrustAmount = &trustAmount
+		sig.TrustAmount = TrustAmount(subpacket[1])
 	case keyExpirationSubpacket:
 		// Key expiration time, section 5.2.3.6
 		if !isHashed {
@@ -915,8 +914,8 @@ func (sig *Signature) buildSubpackets(issuer PublicKey) (subpackets []outputSubp
 		subpackets = append(subpackets, outputSubpacket{true, featuresSubpacket, false, []byte{features}})
 	}
 
-	if sig.TrustLevel != 0 && sig.TrustAmount != nil {
-		subpackets = append(subpackets, outputSubpacket{true, trustSubpacket, true, []byte{byte(sig.TrustLevel), byte(*sig.TrustAmount)}})
+	if sig.TrustLevel != 0 {
+		subpackets = append(subpackets, outputSubpacket{true, trustSubpacket, true, []byte{byte(sig.TrustLevel), byte(sig.TrustAmount)}})
 	}
 
 	if sig.KeyLifetimeSecs != nil && *sig.KeyLifetimeSecs != 0 {
