@@ -79,6 +79,11 @@ type Signature struct {
 	TrustLevel TrustLevel
 	TrustAmount TrustAmount
 
+	// TrustRegularExpression can be used in conjunction with trust Signature
+	// packets to limit the scope of the trust that is extended. 
+	// See RFC 4880, section 5.2.3.14 for details.
+	TrustRegularExpression *string
+
 	// PolicyURI can be set to the URI of a document that describes the
 	// policy under which the signature was issued. See RFC 4880, section
 	// 5.2.3.20 for details.
@@ -229,6 +234,7 @@ const (
 	creationTimeSubpacket        signatureSubpacketType = 2
 	signatureExpirationSubpacket signatureSubpacketType = 3
 	trustSubpacket               signatureSubpacketType = 5
+	regularExpressionSubpacket   signatureSubpacketType = 6
 	keyExpirationSubpacket       signatureSubpacketType = 9
 	prefSymmetricAlgosSubpacket  signatureSubpacketType = 11
 	issuerSubpacket              signatureSubpacketType = 16
@@ -313,6 +319,10 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		// Trust level and amount, section 5.2.3.13
 		sig.TrustLevel = TrustLevel(subpacket[0])
 		sig.TrustAmount = TrustAmount(subpacket[1])
+	case regularExpressionSubpacket:
+		// Trust regular expression, section 5.2.3.14
+		trustRegularExpression := string(subpacket)
+		sig.TrustRegularExpression = &trustRegularExpression
 	case keyExpirationSubpacket:
 		// Key expiration time, section 5.2.3.6
 		if !isHashed {
@@ -916,6 +926,10 @@ func (sig *Signature) buildSubpackets(issuer PublicKey) (subpackets []outputSubp
 
 	if sig.TrustLevel != 0 {
 		subpackets = append(subpackets, outputSubpacket{true, trustSubpacket, true, []byte{byte(sig.TrustLevel), byte(sig.TrustAmount)}})
+	}
+
+	if sig.TrustRegularExpression != nil {
+		subpackets = append(subpackets, outputSubpacket{true, regularExpressionSubpacket, true, []byte(*sig.TrustRegularExpression)})
 	}
 
 	if sig.KeyLifetimeSecs != nil && *sig.KeyLifetimeSecs != 0 {
