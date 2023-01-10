@@ -321,7 +321,8 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		sig.TrustAmount = TrustAmount(subpacket[1])
 	case regularExpressionSubpacket:
 		// Trust regular expression, section 5.2.3.14
-		trustRegularExpression := string(subpacket)
+		// RFC specifies the string should be null-terminated; remove a null byte from the end
+		trustRegularExpression := string(subpacket[:len(subpacket)-1])
 		sig.TrustRegularExpression = &trustRegularExpression
 	case keyExpirationSubpacket:
 		// Key expiration time, section 5.2.3.6
@@ -929,7 +930,8 @@ func (sig *Signature) buildSubpackets(issuer PublicKey) (subpackets []outputSubp
 	}
 
 	if sig.TrustRegularExpression != nil {
-		subpackets = append(subpackets, outputSubpacket{true, regularExpressionSubpacket, true, []byte(*sig.TrustRegularExpression)})
+		// RFC specifies the string should be null-terminated; add a null byte to the end
+		subpackets = append(subpackets, outputSubpacket{true, regularExpressionSubpacket, true, []byte(*sig.TrustRegularExpression + "\000")})
 	}
 
 	if sig.KeyLifetimeSecs != nil && *sig.KeyLifetimeSecs != 0 {
