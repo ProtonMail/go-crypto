@@ -302,21 +302,21 @@ func consumeAll(r io.Reader) (n int64, err error) {
 type packetType uint8
 
 const (
-	packetTypeEncryptedKey              packetType = 1
-	packetTypeSignature                 packetType = 2
-	packetTypeSymmetricKeyEncrypted     packetType = 3
-	packetTypeOnePassSignature          packetType = 4
-	packetTypePrivateKey                packetType = 5
-	packetTypePublicKey                 packetType = 6
-	packetTypePrivateSubkey             packetType = 7
-	packetTypeCompressed                packetType = 8
-	packetTypeSymmetricallyEncrypted    packetType = 9
-	packetTypeLiteralData               packetType = 11
-	packetTypeUserId                    packetType = 13
-	packetTypePublicSubkey              packetType = 14
-	packetTypeUserAttribute             packetType = 17
-	packetTypeSymmetricallyEncryptedMDC packetType = 18
-	packetTypeAEADEncrypted             packetType = 20
+	packetTypeEncryptedKey                             packetType = 1
+	packetTypeSignature                                packetType = 2
+	packetTypeSymmetricKeyEncrypted                    packetType = 3
+	packetTypeOnePassSignature                         packetType = 4
+	packetTypePrivateKey                               packetType = 5
+	packetTypePublicKey                                packetType = 6
+	packetTypePrivateSubkey                            packetType = 7
+	packetTypeCompressed                               packetType = 8
+	packetTypeSymmetricallyEncrypted                   packetType = 9
+	packetTypeLiteralData                              packetType = 11
+	packetTypeUserId                                   packetType = 13
+	packetTypePublicSubkey                             packetType = 14
+	packetTypeUserAttribute                            packetType = 17
+	packetTypeSymmetricallyEncryptedIntegrityProtected packetType = 18
+	packetTypeAEADEncrypted                            packetType = 20
 )
 
 // EncryptedDataPacket holds encrypted data. It is currently implemented by
@@ -361,9 +361,9 @@ func Read(r io.Reader) (p Packet, err error) {
 		p = new(UserId)
 	case packetTypeUserAttribute:
 		p = new(UserAttribute)
-	case packetTypeSymmetricallyEncryptedMDC:
+	case packetTypeSymmetricallyEncryptedIntegrityProtected:
 		se := new(SymmetricallyEncrypted)
-		se.MDC = true
+		se.IntegrityProtected = true
 		p = se
 	case packetTypeAEADEncrypted:
 		p = new(AEADEncrypted)
@@ -490,15 +490,16 @@ const (
 
 // AEADMode represents the different Authenticated Encryption with Associated
 // Data specified for OpenPGP.
+// See https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-07.html#section-9.6
 type AEADMode algorithm.AEADMode
 
 const (
-	AEADModeEAX             AEADMode = 1
-	AEADModeOCB             AEADMode = 2
-	AEADModeExperimentalGCM AEADMode = 100
+	AEADModeEAX AEADMode = 1
+	AEADModeOCB AEADMode = 2
+	AEADModeGCM AEADMode = 3
 )
 
-func (mode AEADMode) NonceLength() int {
+func (mode AEADMode) IvLength() int {
 	return algorithm.AEADMode(mode).NonceLength()
 }
 

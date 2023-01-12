@@ -82,7 +82,7 @@ func TestSerialize(t *testing.T) {
 	c := CipherAES128
 	key := make([]byte, c.KeySize())
 
-	w, err := SerializeSymmetricallyEncrypted(buf, c, key, nil)
+	w, err := SerializeSymmetricallyEncrypted(buf, c, false, AEADModeOCB, key, nil)
 	if err != nil {
 		t.Errorf("error from SerializeSymmetricallyEncrypted: %s", err)
 		return

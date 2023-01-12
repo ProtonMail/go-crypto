@@ -39,8 +39,9 @@ var ciphers = []packet.CipherFunction{
 }
 
 var aeadModes = []packet.AEADMode{
-	packet.AEADModeEAX,
 	packet.AEADModeOCB,
+	packet.AEADModeEAX,
+	packet.AEADModeGCM,
 }
 
 func TestKeyExpiry(t *testing.T) {

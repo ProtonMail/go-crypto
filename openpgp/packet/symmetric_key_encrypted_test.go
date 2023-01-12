@@ -72,9 +72,9 @@ func TestRandomSerializeSymmetricKeyEncryptedV5RandomizeSlow(t *testing.T) {
 		CipherAES256,
 	}
 	var modes = []AEADMode{
-		AEADModeEAX,
 		AEADModeOCB,
-		AEADModeExperimentalGCM,
+		AEADModeEAX,
+		AEADModeGCM,
 	}
 
 	var buf bytes.Buffer

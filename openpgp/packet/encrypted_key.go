@@ -25,7 +25,7 @@ const encryptedKeyVersion = 3
 type EncryptedKey struct {
 	KeyId      uint64
 	Algo       PublicKeyAlgorithm
-	CipherFunc CipherFunction // only valid after a successful Decrypt
+	CipherFunc CipherFunction // only valid after a successful Decrypt for a v4 packet
 	Key        []byte         // only valid after a successful Decrypt
 
 	encryptedMPI1, encryptedMPI2 encoding.Field

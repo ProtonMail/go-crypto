@@ -124,8 +124,8 @@ func (t *Entity) addUserId(name, comment, email string, config *packet.Config, c
 
 	// And for DefaultMode.
 	selfSignature.PreferredAEAD = []uint8{uint8(config.AEAD().Mode())}
-	if config.AEAD().Mode() != packet.AEADModeEAX {
-		selfSignature.PreferredAEAD = append(selfSignature.PreferredAEAD, uint8(packet.AEADModeEAX))
+	if config.AEAD().Mode() != packet.AEADModeOCB {
+		selfSignature.PreferredAEAD = append(selfSignature.PreferredAEAD, uint8(packet.AEADModeOCB))
 	}
 
 	// User ID binding signature

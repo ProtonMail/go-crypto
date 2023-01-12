@@ -125,16 +125,9 @@ func SymmetricallyEncrypt(ciphertext io.Writer, passphrase []byte, hints *FileHi
 	}
 
 	var w io.WriteCloser
-	if config.AEAD() != nil {
-		w, err = packet.SerializeAEADEncrypted(ciphertext, key, config.Cipher(), config.AEAD().Mode(), config)
-		if err != nil {
-			return
-		}
-	} else {
-		w, err = packet.SerializeSymmetricallyEncrypted(ciphertext, config.Cipher(), key, config)
-		if err != nil {
-			return
-		}
+	w, err = packet.SerializeSymmetricallyEncrypted(ciphertext, config.Cipher(), config.AEAD() != nil, config.AEAD().Mode(), key, config)
+	if err != nil {
+		return
 	}
 
 	literalData := w
@@ -342,9 +335,9 @@ func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *En
 		hashToHashId(crypto.RIPEMD160),
 	}
 	candidateAeadModes := []uint8{
-		uint8(packet.AEADModeEAX),
+		uint8(packet.AEADModeGCM), // Prefer GCM if everyone supports it
 		uint8(packet.AEADModeOCB),
-		uint8(packet.AEADModeExperimentalGCM),
+		uint8(packet.AEADModeEAX),
 	}
 	candidateCompression := []uint8{
 		uint8(packet.CompressionNone),
@@ -353,8 +346,9 @@ func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *En
 	}
 
 	encryptKeys := make([]Key, len(to))
-	// AEAD is used only if every key supports it.
-	aeadSupported := true
+
+	// AEAD is used only if config enables it and every key supports it
+	aeadSupported := config.AEAD() != nil
 
 	for i := range to {
 		var ok bool
@@ -386,11 +380,12 @@ func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *En
 	}
 	if len(candidateAeadModes) == 0 {
 		// https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-07.html#section-9.6
-		candidateAeadModes = []uint8{uint8(packet.AEADModeEAX)}
+		candidateAeadModes = []uint8{uint8(packet.AEADModeOCB)}
 	}
 
 	cipher := packet.CipherFunction(candidateCiphers[0])
 	mode := packet.AEADMode(candidateAeadModes[0])
+
 	// If the cipher specified by config is a candidate, we'll use that.
 	configuredCipher := config.Cipher()
 	for _, c := range candidateCiphers {
@@ -413,17 +408,11 @@ func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *En
 	}
 
 	var payload io.WriteCloser
-	if config.AEAD() != nil && aeadSupported {
-		payload, err = packet.SerializeAEADEncrypted(dataWriter, symKey, cipher, mode, config)
-		if err != nil {
+	payload, err = packet.SerializeSymmetricallyEncrypted(dataWriter, cipher, aeadSupported, mode, symKey, config)
+	if err != nil {
 			return
 		}
-	} else {
-		payload, err = packet.SerializeSymmetricallyEncrypted(dataWriter, cipher, symKey, config)
-		if err != nil {
-			return
-		}
-	}
+
 	payload, err = handleCompression(payload, candidateCompression, config)
 	if err != nil {
 		return nil, err
