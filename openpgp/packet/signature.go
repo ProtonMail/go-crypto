@@ -322,6 +322,10 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 	case regularExpressionSubpacket:
 		// Trust regular expression, section 5.2.3.14
 		// RFC specifies the string should be null-terminated; remove a null byte from the end
+		if subpacket[len(subpacket)-1] != 0x00 {
+			err = errors.StructuralError("expected regular expression to be null-terminated")
+			return
+		}
 		trustRegularExpression := string(subpacket[:len(subpacket)-1])
 		sig.TrustRegularExpression = &trustRegularExpression
 	case keyExpirationSubpacket:
