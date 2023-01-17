@@ -435,6 +435,10 @@ func nameOfHash(h crypto.Hash) string {
 		return "SHA384"
 	case crypto.SHA512:
 		return "SHA512"
+	case crypto.SHA3_256:
+		return "SHA3-256"
+	case crypto.SHA3_512:
+		return "SHA3-512"
 	}
 	return ""
 }
@@ -457,6 +461,10 @@ func nameToHash(h string) crypto.Hash {
 		return crypto.SHA384
 	case "SHA512":
 		return crypto.SHA512
+	case "SHA3-256":
+		return crypto.SHA3_256
+	case "SHA3-512":
+		return crypto.SHA3_512
 	}
 	return crypto.Hash(0)
 }

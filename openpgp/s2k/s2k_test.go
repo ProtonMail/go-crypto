@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	_ "golang.org/x/crypto/ripemd160"
+	_ "golang.org/x/crypto/sha3"
 )
 
 var saltedTests = []struct {
@@ -136,7 +137,8 @@ func TestParseIntoParams(t *testing.T) {
 }
 
 func TestSerializeOK(t *testing.T) {
-	hashes := []crypto.Hash{crypto.SHA1, crypto.RIPEMD160, crypto.SHA256, crypto.SHA384, crypto.SHA512, crypto.SHA224}
+	hashes := []crypto.Hash{crypto.SHA256, crypto.SHA384, crypto.SHA512, crypto.SHA224, crypto.SHA3_256,
+		crypto.SHA3_512, crypto.SHA1, crypto.RIPEMD160}
 	testCounts := []int{-1, 0, 1024, 65536, 4063232, 65011712}
 	for _, h := range hashes {
 		for _, c := range testCounts {

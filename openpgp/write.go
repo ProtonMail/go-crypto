@@ -338,6 +338,8 @@ func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *En
 		hashToHashId(crypto.SHA256),
 		hashToHashId(crypto.SHA384),
 		hashToHashId(crypto.SHA512),
+		hashToHashId(crypto.SHA3_256),
+		hashToHashId(crypto.SHA3_512),
 		hashToHashId(crypto.SHA1),
 		hashToHashId(crypto.RIPEMD160),
 	}
@@ -446,6 +448,8 @@ func Sign(output io.Writer, signed *Entity, hints *FileHints, config *packet.Con
 		hashToHashId(crypto.SHA256),
 		hashToHashId(crypto.SHA384),
 		hashToHashId(crypto.SHA512),
+		hashToHashId(crypto.SHA3_256),
+		hashToHashId(crypto.SHA3_512),
 		hashToHashId(crypto.SHA1),
 		hashToHashId(crypto.RIPEMD160),
 	}
