@@ -125,7 +125,11 @@ func SymmetricallyEncrypt(ciphertext io.Writer, passphrase []byte, hints *FileHi
 	}
 
 	var w io.WriteCloser
-	w, err = packet.SerializeSymmetricallyEncrypted(ciphertext, config.Cipher(), config.AEAD() != nil, config.AEAD().Mode(), key, config)
+	cipherSuite := packet.CipherSuite{
+		Cipher: config.Cipher(),
+		Mode: config.AEAD().Mode(),
+	}
+	w, err = packet.SerializeSymmetricallyEncrypted(ciphertext, config.Cipher(), config.AEAD() != nil, cipherSuite, key, config)
 	if err != nil {
 		return
 	}
@@ -164,6 +168,25 @@ func intersectPreferences(a []uint8, b []uint8) (intersection []uint8) {
 	}
 
 	return a[:j]
+}
+
+// intersectPreferences mutates and returns a prefix of a that contains only
+// the values in the intersection of a and b. The order of a is preserved.
+func intersectCipherSuites(a []uint8, b []uint8) (intersection []uint8) {
+	var k int
+	for i := 0; i < len(a) / 2; i++ {
+		for j := 0; j < len(b) / 2; j++ {
+			if a[i] == b[j] && a[i+1] == b[j+1] {
+				a[k] = a[i]
+				k++
+				a[k] = a[i+1]
+				k++
+				break
+			}
+		}
+	}
+
+	return a[:k]
 }
 
 func hashToHashId(h crypto.Hash) uint8 {
@@ -326,6 +349,7 @@ func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *En
 		uint8(packet.CipherAES256),
 		uint8(packet.CipherCAST5),
 	}
+
 	// These are the possible hash functions that we'll use for the signature.
 	candidateHashes := []uint8{
 		hashToHashId(crypto.SHA256),
@@ -334,11 +358,17 @@ func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *En
 		hashToHashId(crypto.SHA1),
 		hashToHashId(crypto.RIPEMD160),
 	}
-	candidateAeadModes := []uint8{
-		uint8(packet.AEADModeGCM), // Prefer GCM if everyone supports it
-		uint8(packet.AEADModeOCB),
-		uint8(packet.AEADModeEAX),
+
+	// Prefer GCM if everyone supports it
+	candidateCipherSuites := []uint8{
+		uint8(packet.CipherAES256), uint8(packet.AEADModeGCM),
+		uint8(packet.CipherAES256), uint8(packet.AEADModeOCB),
+		uint8(packet.CipherAES256), uint8(packet.AEADModeEAX),
+		uint8(packet.CipherAES128), uint8(packet.AEADModeGCM),
+		uint8(packet.CipherAES128), uint8(packet.AEADModeOCB),
+		uint8(packet.CipherAES128), uint8(packet.AEADModeEAX),
 	}
+
 	candidateCompression := []uint8{
 		uint8(packet.CompressionNone),
 		uint8(packet.CompressionZIP),
@@ -364,7 +394,7 @@ func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *En
 
 		candidateCiphers = intersectPreferences(candidateCiphers, sig.PreferredSymmetric)
 		candidateHashes = intersectPreferences(candidateHashes, sig.PreferredHash)
-		candidateAeadModes = intersectPreferences(candidateAeadModes, sig.PreferredAEAD)
+		candidateCipherSuites = intersectCipherSuites(candidateCipherSuites, sig.PreferredCipherSuite)
 		candidateCompression = intersectPreferences(candidateCompression, sig.PreferredCompression)
 	}
 
@@ -378,13 +408,16 @@ func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *En
 		// https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-07.html#hash-algos
 		candidateHashes = []uint8{hashToHashId(crypto.SHA256)}
 	}
-	if len(candidateAeadModes) == 0 {
+	if len(candidateCipherSuites) == 0 {
 		// https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-07.html#section-9.6
-		candidateAeadModes = []uint8{uint8(packet.AEADModeOCB)}
+		candidateCipherSuites = []uint8{uint8(packet.CipherAES128), uint8(packet.AEADModeOCB)}
 	}
 
 	cipher := packet.CipherFunction(candidateCiphers[0])
-	mode := packet.AEADMode(candidateAeadModes[0])
+	aeadCipherSuite := packet.CipherSuite{
+		Cipher: packet.CipherFunction(candidateCipherSuites[0]),
+		Mode: packet.AEADMode(candidateCipherSuites[1]),
+	}
 
 	// If the cipher specified by config is a candidate, we'll use that.
 	configuredCipher := config.Cipher()
@@ -408,7 +441,7 @@ func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *En
 	}
 
 	var payload io.WriteCloser
-	payload, err = packet.SerializeSymmetricallyEncrypted(dataWriter, cipher, aeadSupported, mode, symKey, config)
+	payload, err = packet.SerializeSymmetricallyEncrypted(dataWriter, cipher, aeadSupported, aeadCipherSuite, symKey, config)
 	if err != nil {
 			return
 		}

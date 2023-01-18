@@ -76,7 +76,7 @@ func (se *SymmetricallyEncrypted) Decrypt(c CipherFunction, key []byte) (io.Read
 // to w and returns a WriteCloser to which the to-be-encrypted packets can be
 // written.
 // If config is nil, sensible defaults will be used.
-func SerializeSymmetricallyEncrypted(w io.Writer, c CipherFunction, aeadSupported bool, mode AEADMode, key []byte, config *Config) (Contents io.WriteCloser, err error) {
+func SerializeSymmetricallyEncrypted(w io.Writer, c CipherFunction, aeadSupported bool, cipherSuite CipherSuite, key []byte, config *Config) (Contents io.WriteCloser, err error) {
 	if c.KeySize() != len(key) {
 		return nil, errors.InvalidArgumentError("SymmetricallyEncrypted.Serialize: bad key length")
 	}
@@ -87,7 +87,7 @@ func SerializeSymmetricallyEncrypted(w io.Writer, c CipherFunction, aeadSupporte
 	}
 
 	if aeadSupported {
-		return serializeSymmetricallyEncryptedAead(ciphertext, c, mode, config.AEADConfig.ChunkSizeByte(), config.Random(), key)
+		return serializeSymmetricallyEncryptedAead(ciphertext, cipherSuite, config.AEADConfig.ChunkSizeByte(), config.Random(), key)
 	}
 
 	return serializeSymmetricallyEncryptedMdc(ciphertext, c, key, config)

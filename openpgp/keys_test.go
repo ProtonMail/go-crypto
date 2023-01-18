@@ -898,14 +898,20 @@ func TestNewEntityWithDefaultAead(t *testing.T) {
 		}
 
 		for _, identity := range entity.Identities {
-			if len(identity.SelfSignature.PreferredAEAD) == 0 {
+			if len(identity.SelfSignature.PreferredCipherSuite) < 2 {
 				t.Fatal("didn't find a preferred mode in self signature")
 			}
-			mode := identity.SelfSignature.PreferredAEAD[0]
+			cipher := identity.SelfSignature.PreferredCipherSuite[0]
+			if cipher != uint8(cfg.Cipher()) {
+				t.Fatalf("Expected preferred cipher to be %d, got %d",
+					uint8(cfg.Cipher()),
+					identity.SelfSignature.PreferredCipherSuite[0])
+			}
+			mode := identity.SelfSignature.PreferredCipherSuite[1]
 			if mode != uint8(cfg.AEAD().DefaultMode) {
 				t.Fatalf("Expected preferred mode to be %d, got %d",
 					uint8(cfg.AEAD().DefaultMode),
-					identity.SelfSignature.PreferredAEAD[0])
+					identity.SelfSignature.PreferredCipherSuite[1])
 			}
 		}
 	}

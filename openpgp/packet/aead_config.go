@@ -4,6 +4,14 @@ package packet
 
 import "math/bits"
 
+// CipherSuite contains a combination of Cipher and Mode
+type CipherSuite struct {
+	// The cipher function
+	Cipher CipherFunction
+	// The AEAD mode of operation.
+	Mode AEADMode
+}
+
 // AEADConfig collects a number of AEAD parameters along with sensible defaults.
 // A nil AEADConfig is valid and results in all default values.
 type AEADConfig struct {
@@ -29,7 +37,7 @@ func (conf *AEADConfig) Mode() AEADMode {
 
 // ChunkSizeByte returns the byte indicating the chunk size. The effective
 // chunk size is computed with the formula uint64(1) << (chunkSizeByte + 6)
-// limit to 16, 4 MiB
+// limit to 16 = 4 MiB
 // https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-07.html#section-5.13.2
 func (conf *AEADConfig) ChunkSizeByte() byte {
 	if conf == nil || conf.ChunkSize == 0 {

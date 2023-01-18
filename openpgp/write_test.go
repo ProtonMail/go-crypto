@@ -234,13 +234,8 @@ func TestSymmetricEncryption(t *testing.T) {
 }
 
 func TestSymmetricEncryptionV5RandomizeSlow(t *testing.T) {
-	var modes = []packet.AEADMode{
-		packet.AEADModeOCB,
-		packet.AEADModeEAX,
-		packet.AEADModeGCM,
-	}
 	aeadConf := packet.AEADConfig{
-		DefaultMode: modes[mathrand.Intn(len(modes))],
+		DefaultMode: aeadModes[mathrand.Intn(len(aeadModes))],
 	}
 	config := &packet.Config{AEADConfig: &aeadConf}
 	buf := new(bytes.Buffer)
@@ -372,16 +367,11 @@ func TestEncryption(t *testing.T) {
 			DefaultCompressionAlgo: compAlgo,
 			CompressionConfig:      compConf,
 		}
-		// Flip coin to enable AEAD mode
-		var modes = []packet.AEADMode{
-			packet.AEADModeOCB,
-			packet.AEADModeEAX,
-			packet.AEADModeGCM,
-		}
 
+		// Flip coin to enable AEAD mode
 		if mathrand.Int()%2 == 0 {
 			aeadConf := packet.AEADConfig{
-				DefaultMode: modes[mathrand.Intn(len(modes))],
+				DefaultMode: aeadModes[mathrand.Intn(len(aeadModes))],
 			}
 			config.AEADConfig = &aeadConf
 		}

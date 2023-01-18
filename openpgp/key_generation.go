@@ -97,7 +97,6 @@ func (t *Entity) addUserId(name, comment, email string, config *packet.Config, c
 		FlagCertify:       true,
 		MDC:               true, // true by default, see 5.8 vs. 5.14
 		AEAD:              config.AEAD() != nil,
-		V5Keys:            config != nil && config.V5Keys,
 	}
 
 	// Set the PreferredHash for the SelfSignature from the packet.Config.
@@ -123,9 +122,16 @@ func (t *Entity) addUserId(name, comment, email string, config *packet.Config, c
 	}
 
 	// And for DefaultMode.
-	selfSignature.PreferredAEAD = []uint8{uint8(config.AEAD().Mode())}
+	modes := []uint8{uint8(config.AEAD().Mode())}
 	if config.AEAD().Mode() != packet.AEADModeOCB {
-		selfSignature.PreferredAEAD = append(selfSignature.PreferredAEAD, uint8(packet.AEADModeOCB))
+		modes = append(modes, uint8(packet.AEADModeOCB))
+	}
+
+	// For preferred (AES256, GCM), we'll generate (AES256, GCM), (AES256, OCB), (AES128, GCM), (AES128, OCB)
+	for _, cipher := range selfSignature.PreferredSymmetric {
+		for _, mode := range modes {
+			selfSignature.PreferredCipherSuite = append(selfSignature.PreferredCipherSuite, cipher, mode)
+		}
 	}
 
 	// User ID binding signature
