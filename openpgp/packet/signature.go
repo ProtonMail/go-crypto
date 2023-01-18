@@ -8,15 +8,14 @@ import (
 	"bytes"
 	"crypto"
 	"crypto/dsa"
-	"crypto/ecdsa"
-	"encoding/asn1"
 	"encoding/binary"
 	"hash"
 	"io"
-	"math/big"
 	"strconv"
 	"time"
 
+	"github.com/ProtonMail/go-crypto/openpgp/ecdsa"
+	"github.com/ProtonMail/go-crypto/openpgp/eddsa"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/encoding"
 	"github.com/ProtonMail/go-crypto/openpgp/s2k"
@@ -72,6 +71,18 @@ type Signature struct {
 	IssuerFingerprint                                       []byte
 	SignerUserId                                            *string
 	IsPrimaryId                                             *bool
+
+	// TrustLevel and TrustAmount can be set by the signer to assert that 
+	// the key is not only valid but also trustworthy at the specified 
+	// level. 
+	// See RFC 4880, section 5.2.3.13 for details. 
+	TrustLevel TrustLevel
+	TrustAmount TrustAmount
+
+	// TrustRegularExpression can be used in conjunction with trust Signature
+	// packets to limit the scope of the trust that is extended. 
+	// See RFC 4880, section 5.2.3.14 for details.
+	TrustRegularExpression *string
 
 	// PolicyURI can be set to the URI of a document that describes the
 	// policy under which the signature was issued. See RFC 4880, section
@@ -222,6 +233,8 @@ type signatureSubpacketType uint8
 const (
 	creationTimeSubpacket        signatureSubpacketType = 2
 	signatureExpirationSubpacket signatureSubpacketType = 3
+	trustSubpacket               signatureSubpacketType = 5
+	regularExpressionSubpacket   signatureSubpacketType = 6
 	keyExpirationSubpacket       signatureSubpacketType = 9
 	prefSymmetricAlgosSubpacket  signatureSubpacketType = 11
 	issuerSubpacket              signatureSubpacketType = 16
@@ -302,6 +315,19 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		}
 		sig.SigLifetimeSecs = new(uint32)
 		*sig.SigLifetimeSecs = binary.BigEndian.Uint32(subpacket)
+	case trustSubpacket:
+		// Trust level and amount, section 5.2.3.13
+		sig.TrustLevel = TrustLevel(subpacket[0])
+		sig.TrustAmount = TrustAmount(subpacket[1])
+	case regularExpressionSubpacket:
+		// Trust regular expression, section 5.2.3.14
+		// RFC specifies the string should be null-terminated; remove a null byte from the end
+		if subpacket[len(subpacket)-1] != 0x00 {
+			err = errors.StructuralError("expected regular expression to be null-terminated")
+			return
+		}
+		trustRegularExpression := string(subpacket[:len(subpacket)-1])
+		sig.TrustRegularExpression = &trustRegularExpression
 	case keyExpirationSubpacket:
 		// Key expiration time, section 5.2.3.6
 		if !isHashed {
@@ -654,45 +680,25 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 			sig.DSASigS = new(encoding.MPI).SetBig(s)
 		}
 	case PubKeyAlgoECDSA:
-		var r, s *big.Int
-		if pk, ok := priv.PrivateKey.(*ecdsa.PrivateKey); ok {
-			// direct support, avoid asn1 wrapping/unwrapping
-			r, s, err = ecdsa.Sign(config.Random(), pk, digest)
-		} else {
-			var b []byte
-			b, err = priv.PrivateKey.(crypto.Signer).Sign(config.Random(), digest, sig.Hash)
-			if err == nil {
-				r, s, err = unwrapECDSASig(b)
-			}
-		}
+		sk := priv.PrivateKey.(*ecdsa.PrivateKey)
+		r, s, err := ecdsa.Sign(config.Random(), sk, digest)
+
 		if err == nil {
 			sig.ECDSASigR = new(encoding.MPI).SetBig(r)
 			sig.ECDSASigS = new(encoding.MPI).SetBig(s)
 		}
 	case PubKeyAlgoEdDSA:
-		sigdata, err := priv.PrivateKey.(crypto.Signer).Sign(config.Random(), digest, crypto.Hash(0))
+		sk := priv.PrivateKey.(*eddsa.PrivateKey)
+		r, s, err := eddsa.Sign(sk, digest)
 		if err == nil {
-			sig.EdDSASigR = encoding.NewMPI(sigdata[:32])
-			sig.EdDSASigS = encoding.NewMPI(sigdata[32:])
+			sig.EdDSASigR = encoding.NewMPI(r)
+			sig.EdDSASigS = encoding.NewMPI(s)
 		}
 	default:
 		err = errors.UnsupportedError("public key algorithm: " + strconv.Itoa(int(sig.PubKeyAlgo)))
 	}
 
 	return
-}
-
-// unwrapECDSASig parses the two integer components of an ASN.1-encoded ECDSA
-// signature.
-func unwrapECDSASig(b []byte) (r, s *big.Int, err error) {
-	var ecsdaSig struct {
-		R, S *big.Int
-	}
-	_, err = asn1.Unmarshal(b, &ecsdaSig)
-	if err != nil {
-		return
-	}
-	return ecsdaSig.R, ecsdaSig.S, nil
 }
 
 // SignUserId computes a signature from priv, asserting that pub is a valid
@@ -921,6 +927,15 @@ func (sig *Signature) buildSubpackets(issuer PublicKey) (subpackets []outputSubp
 
 	if features != 0x00 {
 		subpackets = append(subpackets, outputSubpacket{true, featuresSubpacket, false, []byte{features}})
+	}
+
+	if sig.TrustLevel != 0 {
+		subpackets = append(subpackets, outputSubpacket{true, trustSubpacket, true, []byte{byte(sig.TrustLevel), byte(sig.TrustAmount)}})
+	}
+
+	if sig.TrustRegularExpression != nil {
+		// RFC specifies the string should be null-terminated; add a null byte to the end
+		subpackets = append(subpackets, outputSubpacket{true, regularExpressionSubpacket, true, []byte(*sig.TrustRegularExpression + "\000")})
 	}
 
 	if sig.KeyLifetimeSecs != nil && *sig.KeyLifetimeSecs != 0 {

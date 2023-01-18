@@ -4,20 +4,22 @@ import (
 	"bytes"
 	"crypto"
 	"crypto/dsa"
-	"crypto/ecdsa"
+	"crypto/rand"
 	"crypto/rsa"
 	"math/big"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/ProtonMail/go-crypto/openpgp/armor"
 	"github.com/ProtonMail/go-crypto/openpgp/ecdh"
+	"github.com/ProtonMail/go-crypto/openpgp/ecdsa"
+	"github.com/ProtonMail/go-crypto/openpgp/eddsa"
 	"github.com/ProtonMail/go-crypto/openpgp/elgamal"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
-	"golang.org/x/crypto/ed25519"
 )
 
 var hashes = []crypto.Hash{
@@ -26,6 +28,8 @@ var hashes = []crypto.Hash{
 	crypto.SHA256,
 	crypto.SHA384,
 	crypto.SHA512,
+	crypto.SHA3_256,
+	crypto.SHA3_512,
 }
 
 var ciphers = []packet.CipherFunction{
@@ -962,6 +966,46 @@ func TestEntityPrivateSerialization(t *testing.T) {
 	}
 }
 
+func TestAddUserId(t *testing.T) {
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = entity.AddUserId("Golang Gopher", "Test Key", "add1---@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = entity.AddUserId("Golang Gopher", "Test Key", "add2---@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ignore_err := entity.AddUserId("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if ignore_err == nil {
+		t.Fatal(err)
+	}
+
+	if len(entity.Identities) != 3 {
+		t.Fatalf("Expected 3 id, got %d", len(entity.Identities))
+	}
+
+	for _, sk := range entity.Identities {
+		err = entity.PrimaryKey.VerifyUserIdSignature(sk.UserId.Id, entity.PrimaryKey, sk.SelfSignature)
+		if err != nil {
+			t.Errorf("Invalid subkey signature: %v", err)
+		}
+	}
+
+	serializedEntity := bytes.NewBuffer(nil)
+	entity.SerializePrivate(serializedEntity, nil)
+
+	_, err = ReadEntity(packet.NewReader(bytes.NewBuffer(serializedEntity.Bytes())))
+	if err != nil {
+		t.Fatal(err)
+	}
+}
 func TestAddSubkey(t *testing.T) {
 	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
 	if err != nil {
@@ -1335,12 +1379,117 @@ func TestRevokeSubkeyWithConfig(t *testing.T) {
 }
 
 func TestKeyValidateOnDecrypt(t *testing.T) {
-	password := []byte("password")
-	// RSA
-	rsaEntity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	randomPassword := make([]byte, 128)
+	_, err := rand.Read(randomPassword)
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	t.Run("RSA", func(t *testing.T) {
+		t.Run("Hardcoded:2048 bits", func(t *testing.T) {
+			keys, err := ReadArmoredKeyRing(bytes.NewBufferString(rsa2048PrivateKey))
+			if err != nil {
+				t.Fatal("Unable to parse hardcoded key: ", err)
+			}
+
+			if err := keys[0].PrivateKey.Decrypt([]byte("password")); err != nil {
+				t.Fatal("Unable to decrypt hardcoded key: ", err)
+			}
+
+			testKeyValidateRsaOnDecrypt(t, keys[0], randomPassword)
+		})
+
+		for _, bits := range []int{2048, 3072, 4096} {
+			t.Run("Generated:" + strconv.Itoa(bits) + " bits", func(t *testing.T) {
+				key := testGenerateRSA(t, bits)
+				testKeyValidateRsaOnDecrypt(t, key, randomPassword)
+			})
+		}
+	})
+
+	t.Run("ECDSA", func(t *testing.T) {
+		t.Run("Hardcoded:NIST P-256", func(t *testing.T) {
+			keys, err := ReadArmoredKeyRing(bytes.NewBufferString(ecdsaPrivateKey))
+			if err != nil {
+				t.Fatal("Unable to parse hardcoded key: ", err)
+			}
+
+			if err := keys[0].PrivateKey.Decrypt([]byte("password")); err != nil {
+				t.Fatal("Unable to decrypt hardcoded key: ", err)
+			}
+
+			if err := keys[0].Subkeys[0].PrivateKey.Decrypt([]byte("password")); err != nil {
+				t.Fatal("Unable to decrypt hardcoded subkey: ", err)
+			}
+
+			testKeyValidateEcdsaOnDecrypt(t, keys[0], randomPassword)
+		})
+
+		ecdsaCurves := map[string] packet.Curve {
+			"NIST P-256": packet.CurveNistP256,
+			"NIST P-384": packet.CurveNistP384,
+			"NIST P-521": packet.CurveNistP521,
+			"Brainpool P-256": packet.CurveBrainpoolP256,
+			"Brainpool P-384": packet.CurveBrainpoolP384,
+			"Brainpool P-512": packet.CurveBrainpoolP512,
+			"SecP256k1": packet.CurveSecP256k1,
+		}
+
+		for name, curveType := range ecdsaCurves {
+			t.Run("Generated:" + name, func(t *testing.T) {
+				key := testGenerateEC(t, packet.PubKeyAlgoECDSA, curveType)
+				testKeyValidateEcdsaOnDecrypt(t, key, randomPassword)
+			})
+		}
+	})
+
+	t.Run("EdDSA", func(t *testing.T) {
+		eddsaHardcoded := map[string] string {
+			"Curve25519": curve25519PrivateKey,
+			"Curve448": curve448PrivateKey,
+		}
+
+		for name, skData := range eddsaHardcoded {
+			t.Run("Hardcoded:" + name, func(t *testing.T) {
+				keys, err := ReadArmoredKeyRing(bytes.NewBufferString(skData))
+				if err != nil {
+					t.Fatal("Unable to parse hardcoded key: ", err)
+				}
+
+				testKeyValidateEddsaOnDecrypt(t, keys[0], randomPassword)
+			})
+		}
+
+		eddsaCurves := map[string] packet.Curve {
+			"Curve25519": packet.Curve25519,
+			"Curve448": packet.Curve448,
+		}
+
+		for name, curveType := range eddsaCurves {
+			t.Run("Generated:" + name, func(t *testing.T) {
+				key := testGenerateEC(t, packet.PubKeyAlgoEdDSA, curveType)
+				testKeyValidateEddsaOnDecrypt(t, key, randomPassword)
+			})
+		}
+	})
+
+	t.Run("DSA With El Gamal Subkey", func(t *testing.T) {
+		testKeyValidateDsaElGamalOnDecrypt(t, randomPassword)
+	})
+}
+
+func testGenerateRSA(t *testing.T, bits int) *Entity {
+	config := &packet.Config{Algorithm:packet.PubKeyAlgoRSA, RSABits: bits}
+	rsaEntity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", config)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return rsaEntity
+}
+
+func testKeyValidateRsaOnDecrypt(t *testing.T, rsaEntity *Entity, password []byte) {
+	var err error
 	rsaPrimaryKey := rsaEntity.PrivateKey
 	if err = rsaPrimaryKey.Encrypt(password); err != nil {
 		t.Fatal(err)
@@ -1348,9 +1497,11 @@ func TestKeyValidateOnDecrypt(t *testing.T) {
 	if err = rsaPrimaryKey.Decrypt(password); err != nil {
 		t.Fatal("Valid RSA key was marked as invalid: ", err)
 	}
+
 	if err = rsaPrimaryKey.Encrypt(password); err != nil {
 		t.Fatal(err)
 	}
+
 	// Corrupt public modulo n in primary key
 	n := rsaPrimaryKey.PublicKey.PublicKey.(*rsa.PublicKey).N
 	rsaPrimaryKey.PublicKey.PublicKey.(*rsa.PublicKey).N = new(big.Int).Add(n, big.NewInt(2))
@@ -1358,19 +1509,34 @@ func TestKeyValidateOnDecrypt(t *testing.T) {
 	if _, ok := err.(errors.KeyInvalidError); !ok {
 		t.Fatal("Failed to detect invalid RSA key")
 	}
+}
 
-	// ECDSA
-	ecdsaKeys, err := ReadArmoredKeyRing(bytes.NewBufferString(ecdsaPrivateKey))
+func testGenerateEC(t *testing.T, algorithm packet.PublicKeyAlgorithm, curve packet.Curve) *Entity {
+	config := &packet.Config{Algorithm: algorithm, Curve: curve}
+	rsaEntity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", config)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ecdsaPrimaryKey := ecdsaKeys[0].PrivateKey // already encrypted
-	if err := ecdsaPrimaryKey.Decrypt(password); err != nil {
-		t.Fatal("Valid ECDSA key was marked as invalid: ", err)
-	}
+
+	return rsaEntity
+}
+
+func testKeyValidateEcdsaOnDecrypt(t *testing.T, ecdsaKey *Entity, password []byte) {
+	var err error
+	ecdsaPrimaryKey := ecdsaKey.PrivateKey
+
 	if err = ecdsaPrimaryKey.Encrypt(password); err != nil {
 		t.Fatal(err)
 	}
+
+	if err := ecdsaPrimaryKey.Decrypt(password); err != nil {
+		t.Fatal("Valid ECDSA key was marked as invalid: ", err)
+	}
+
+	if err = ecdsaPrimaryKey.Encrypt(password); err != nil {
+		t.Fatal(err)
+	}
+
 	// Corrupt public X in primary key
 	X := ecdsaPrimaryKey.PublicKey.PublicKey.(*ecdsa.PublicKey).X
 	ecdsaPrimaryKey.PublicKey.PublicKey.(*ecdsa.PublicKey).X = new(big.Int).Add(X, big.NewInt(1))
@@ -1378,95 +1544,113 @@ func TestKeyValidateOnDecrypt(t *testing.T) {
 	if _, ok := err.(errors.KeyInvalidError); !ok {
 		t.Fatal("Failed to detect invalid ECDSA key")
 	}
-	// ECDH Nist
-	ecdsaSubkey := ecdsaKeys[0].Subkeys[0].PrivateKey
-	if err := ecdsaSubkey.Decrypt(password); err != nil {
-		t.Fatal("Valid ECDH key was marked as invalid: ", err)
-	}
+
+	// ECDH
+	ecdsaSubkey := ecdsaKey.Subkeys[0].PrivateKey
 	if err = ecdsaSubkey.Encrypt(password); err != nil {
 		t.Fatal(err)
 	}
+
+	if err := ecdsaSubkey.Decrypt(password); err != nil {
+		t.Fatal("Valid ECDH key was marked as invalid: ", err)
+	}
+
+	if err = ecdsaSubkey.Encrypt(password); err != nil {
+		t.Fatal(err)
+	}
+
 	// Corrupt public X in subkey
-	X = ecdsaSubkey.PublicKey.PublicKey.(*ecdh.PublicKey).X
-	ecdsaSubkey.PublicKey.PublicKey.(*ecdh.PublicKey).X = new(big.Int).Add(X, big.NewInt(1))
+	ecdsaSubkey.PublicKey.PublicKey.(*ecdh.PublicKey).Point[5] ^= 1
+
 	err = ecdsaSubkey.Decrypt(password)
 	if _, ok := err.(errors.KeyInvalidError); !ok {
 		t.Fatal("Failed to detect invalid ECDH key")
 	}
+}
 
-	// EdDSA
-	eddsaConfig := &packet.Config{
-		DefaultHash: crypto.SHA512,
-		Algorithm:   packet.PubKeyAlgoEdDSA,
-	}
-	eddsaEntity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", eddsaConfig)
-	if err != nil {
-		t.Fatal(err)
-	}
+func testKeyValidateEddsaOnDecrypt(t *testing.T, eddsaEntity *Entity, password []byte) {
+	var err error
+
 	eddsaPrimaryKey := eddsaEntity.PrivateKey // already encrypted
-	if err := eddsaPrimaryKey.Decrypt(password); err != nil {
-		t.Fatal("Valid EdDSA key was marked as invalid: ", err)
-	}
 	if err = eddsaPrimaryKey.Encrypt(password); err != nil {
 		t.Fatal(err)
 	}
-	pubBytes := *eddsaPrimaryKey.PublicKey.PublicKey.(*ed25519.PublicKey)
-	pubBytes[10] ^= 1
+
+	if err := eddsaPrimaryKey.Decrypt(password); err != nil {
+		t.Fatal("Valid EdDSA key was marked as invalid: ", err)
+	}
+
+	if err = eddsaPrimaryKey.Encrypt(password); err != nil {
+		t.Fatal(err)
+	}
+
+	pubKey := *eddsaPrimaryKey.PublicKey.PublicKey.(*eddsa.PublicKey)
+	pubKey.X[10] ^= 1
 	err = eddsaPrimaryKey.Decrypt(password)
 	if _, ok := err.(errors.KeyInvalidError); !ok {
 		t.Fatal("Failed to detect invalid EdDSA key")
 	}
-	// ECDH ed25519
-	eddsaSubkey := eddsaEntity.Subkeys[0].PrivateKey
-	if err = eddsaSubkey.Encrypt(password); err != nil {
+
+	// ECDH
+	ecdhSubkey := eddsaEntity.Subkeys[len(eddsaEntity.Subkeys) - 1].PrivateKey
+	if err = ecdhSubkey.Encrypt(password); err != nil {
 		t.Fatal(err)
-	}
-	if err := eddsaSubkey.Decrypt(password); err != nil {
-		t.Fatal("Valid ECDH 25519 key was marked as invalid: ", err)
-	}
-	if err = eddsaSubkey.Encrypt(password); err != nil {
-		t.Fatal(err)
-	}
-	// Corrupt public X in subkey
-	X = eddsaSubkey.PublicKey.PublicKey.(*ecdh.PublicKey).X
-	eddsaSubkey.PublicKey.PublicKey.(*ecdh.PublicKey).X = new(big.Int).Add(X, big.NewInt(1))
-	err = eddsaSubkey.Decrypt(password)
-	if _, ok := err.(errors.KeyInvalidError); !ok {
-		t.Fatal("Failed to detect invalid ECDH 25519 key")
 	}
 
-	// DSA
+	if err := ecdhSubkey.Decrypt(password); err != nil {
+		t.Fatal("Valid ECDH key was marked as invalid: ", err)
+	}
+
+	if err = ecdhSubkey.Encrypt(password); err != nil {
+		t.Fatal(err)
+	}
+
+	// Corrupt public X in subkey
+	ecdhSubkey.PublicKey.PublicKey.(*ecdh.PublicKey).Point[5] ^= 1
+	err = ecdhSubkey.Decrypt(password)
+	if _, ok := err.(errors.KeyInvalidError); !ok {
+		t.Fatal("Failed to detect invalid ECDH key")
+	}
+}
+
+// ...the legacy bits
+func testKeyValidateDsaElGamalOnDecrypt(t *testing.T, randomPassword []byte) {
+	var err error
+
 	dsaKeys, err := ReadArmoredKeyRing(bytes.NewBufferString(dsaPrivateKeyWithElGamalSubkey))
 	if err != nil {
 		t.Fatal(err)
 	}
 	dsaPrimaryKey := dsaKeys[0].PrivateKey // already encrypted
-	if err := dsaPrimaryKey.Decrypt(password); err != nil {
+	if err := dsaPrimaryKey.Decrypt([]byte("password")); err != nil {
 		t.Fatal("Valid DSA key was marked as invalid: ", err)
 	}
-	if err = dsaPrimaryKey.Encrypt(password); err != nil {
+
+	if err = dsaPrimaryKey.Encrypt(randomPassword); err != nil {
 		t.Fatal(err)
 	}
 	// corrupt DSA generator
 	G := dsaPrimaryKey.PublicKey.PublicKey.(*dsa.PublicKey).G
 	dsaPrimaryKey.PublicKey.PublicKey.(*dsa.PublicKey).G = new(big.Int).Add(G, big.NewInt(1))
-	err = dsaPrimaryKey.Decrypt(password)
+	err = dsaPrimaryKey.Decrypt(randomPassword)
 	if _, ok := err.(errors.KeyInvalidError); !ok {
 		t.Fatal("Failed to detect invalid DSA key")
 	}
 
 	// ElGamal
 	elGamalSubkey := dsaKeys[0].Subkeys[0].PrivateKey // already encrypted
-	if err := elGamalSubkey.Decrypt(password); err != nil {
+	if err := elGamalSubkey.Decrypt([]byte("password")); err != nil {
 		t.Fatal("Valid ElGamal key was marked as invalid: ", err)
 	}
-	if err = elGamalSubkey.Encrypt(password); err != nil {
+
+	if err = elGamalSubkey.Encrypt(randomPassword); err != nil {
 		t.Fatal(err)
 	}
+
 	// corrupt ElGamal generator
 	G = elGamalSubkey.PublicKey.PublicKey.(*elgamal.PublicKey).G
 	elGamalSubkey.PublicKey.PublicKey.(*elgamal.PublicKey).G = new(big.Int).Add(G, big.NewInt(1))
-	err = elGamalSubkey.Decrypt(password)
+	err = elGamalSubkey.Decrypt(randomPassword)
 	if _, ok := err.(errors.KeyInvalidError); !ok {
 		t.Fatal("Failed to detect invalid ElGamal key")
 	}

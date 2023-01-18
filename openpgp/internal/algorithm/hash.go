@@ -39,6 +39,8 @@ var (
 	SHA384    Hash = cryptoHash{9, crypto.SHA384}
 	SHA512    Hash = cryptoHash{10, crypto.SHA512}
 	SHA224    Hash = cryptoHash{11, crypto.SHA224}
+	SHA3_256  Hash = cryptoHash{12, crypto.SHA3_256}
+	SHA3_512  Hash = cryptoHash{14, crypto.SHA3_512}
 )
 
 // HashById represents the different hash functions specified for OpenPGP. See
@@ -52,6 +54,8 @@ var (
 		SHA384.Id():    SHA384,
 		SHA512.Id():    SHA512,
 		SHA224.Id():    SHA224,
+		SHA3_256.Id():  SHA3_256,
+		SHA3_512.Id():  SHA3_512,
 	}
 )
 
@@ -75,6 +79,8 @@ var hashNames = map[uint8]string{
 	SHA384.Id():    "SHA384",
 	SHA512.Id():    "SHA512",
 	SHA224.Id():    "SHA224",
+	SHA3_256.Id():  "SHA3-256",
+	SHA3_512.Id():  "SHA3-512",
 }
 
 func (h cryptoHash) String() string {

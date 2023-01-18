@@ -130,6 +130,26 @@ func TestNewEntity(t *testing.T) {
 	if !bytes.Equal(w.Bytes(), serialized) {
 		t.Errorf("results differed")
 	}
+
+	if err := e.PrivateKey.Encrypt([]byte("password")); err != nil {
+		t.Errorf("failed to encrypt private key: %s", err)
+	}
+
+	if err := e.PrivateKey.Decrypt([]byte("password")); err != nil {
+		t.Errorf("failed to decrypt private key: %s", err)
+	}
+
+	w = bytes.NewBuffer(nil)
+	if err := e.SerializePrivate(w, nil); err != nil {
+		t.Errorf("failed to serialize after encryption round: %s", err)
+		return
+	}
+
+	_, err = ReadKeyRing(w)
+	if err != nil {
+		t.Errorf("failed to reparse entity after encryption round: %s", err)
+		return
+	}
 }
 
 func TestEncryptWithCompression(t *testing.T) {

@@ -338,6 +338,8 @@ func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *En
 		hashToHashId(crypto.SHA256),
 		hashToHashId(crypto.SHA384),
 		hashToHashId(crypto.SHA512),
+		hashToHashId(crypto.SHA3_256),
+		hashToHashId(crypto.SHA3_512),
 		hashToHashId(crypto.SHA1),
 		hashToHashId(crypto.RIPEMD160),
 	}
@@ -351,13 +353,6 @@ func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *En
 		uint8(packet.CompressionZIP),
 		uint8(packet.CompressionZLIB),
 	}
-	// In the event that a recipient doesn't specify any supported ciphers
-	// or hash functions, these are the ones that we assume that every
-	// implementation supports.
-	defaultCiphers := candidateCiphers[0:1]
-	defaultHashes := candidateHashes[0:1]
-	defaultAeadModes := candidateAeadModes[0:1]
-	defaultCompression := candidateCompression[0:1]
 
 	encryptKeys := make([]Key, len(to))
 	// AEAD is used only if every key supports it.
@@ -375,30 +370,25 @@ func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *En
 			aeadSupported = false
 		}
 
-		preferredSymmetric := sig.PreferredSymmetric
-		if len(preferredSymmetric) == 0 {
-			preferredSymmetric = defaultCiphers
-		}
-		preferredHashes := sig.PreferredHash
-		if len(preferredHashes) == 0 {
-			preferredHashes = defaultHashes
-		}
-		preferredAeadModes := sig.PreferredAEAD
-		if len(preferredAeadModes) == 0 {
-			preferredAeadModes = defaultAeadModes
-		}
-		preferredCompression := sig.PreferredCompression
-		if len(preferredCompression) == 0 {
-			preferredCompression = defaultCompression
-		}
-		candidateCiphers = intersectPreferences(candidateCiphers, preferredSymmetric)
-		candidateHashes = intersectPreferences(candidateHashes, preferredHashes)
-		candidateAeadModes = intersectPreferences(candidateAeadModes, preferredAeadModes)
-		candidateCompression = intersectPreferences(candidateCompression, preferredCompression)
+		candidateCiphers = intersectPreferences(candidateCiphers, sig.PreferredSymmetric)
+		candidateHashes = intersectPreferences(candidateHashes, sig.PreferredHash)
+		candidateAeadModes = intersectPreferences(candidateAeadModes, sig.PreferredAEAD)
+		candidateCompression = intersectPreferences(candidateCompression, sig.PreferredCompression)
 	}
 
-	if len(candidateCiphers) == 0 || len(candidateHashes) == 0 || len(candidateAeadModes) == 0 {
-		return nil, errors.InvalidArgumentError("cannot encrypt because recipient set shares no common algorithms")
+	// In the event that the intersection of supported algorithms is empty we use the ones
+	// labelled as MUST that every implementation supports.
+	if len(candidateCiphers) == 0 {
+		// https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-07.html#section-9.3
+		candidateCiphers = []uint8{uint8(packet.CipherAES128)}
+	}
+	if len(candidateHashes) == 0 {
+		// https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-07.html#hash-algos
+		candidateHashes = []uint8{hashToHashId(crypto.SHA256)}
+	}
+	if len(candidateAeadModes) == 0 {
+		// https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-07.html#section-9.6
+		candidateAeadModes = []uint8{uint8(packet.AEADModeEAX)}
 	}
 
 	cipher := packet.CipherFunction(candidateCiphers[0])
@@ -458,6 +448,8 @@ func Sign(output io.Writer, signed *Entity, hints *FileHints, config *packet.Con
 		hashToHashId(crypto.SHA256),
 		hashToHashId(crypto.SHA384),
 		hashToHashId(crypto.SHA512),
+		hashToHashId(crypto.SHA3_256),
+		hashToHashId(crypto.SHA3_512),
 		hashToHashId(crypto.SHA1),
 		hashToHashId(crypto.RIPEMD160),
 	}
@@ -545,6 +537,9 @@ func handleCompression(compressed io.WriteCloser, candidateCompression []uint8, 
 	if confAlgo == packet.CompressionNone {
 		return
 	}
+
+	// Set algorithm labelled as MUST as fallback
+	// https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-07.html#section-9.4
 	finalAlgo := packet.CompressionNone
 	// if compression specified by config available we will use it
 	for _, c := range candidateCompression {

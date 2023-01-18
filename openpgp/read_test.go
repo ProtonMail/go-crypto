@@ -716,3 +716,56 @@ func TestCorruptedMessageWrongLength(t *testing.T) {
 		t.Errorf("Expected error '%s', but got error '%s'", expectedErr, err)
 	}
 }
+
+func TestMessageWithoutMdc(t *testing.T) {
+	armored, err := os.Open("test_data/aead-ocb-asym-key.asc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer armored.Close()
+
+	el, err := ReadArmoredKeyRing(armored)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	armoredMessageWithoutMdc, err := ioutil.ReadFile("test_data/sym-message-without-mdc.asc")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("fails with InsecureAllowUnauthenticatedMessages disabled", func(t *testing.T) {
+		messageWithoutMdc, err := armor.Decode(bytes.NewReader(armoredMessageWithoutMdc))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, err = ReadMessage(messageWithoutMdc.Body, el, nil, nil)
+		if err == nil {
+			t.Fatal("reading the message should have failed")
+		}
+	})
+
+	t.Run("succeeds with InsecureAllowUnauthenticatedMessages enabled", func(t *testing.T) {
+		messageWithoutMdc, err := armor.Decode(bytes.NewReader(armoredMessageWithoutMdc))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		md, err := ReadMessage(messageWithoutMdc.Body, el, nil, &packet.Config{
+			InsecureAllowUnauthenticatedMessages: true,
+		})
+		if err != nil {
+			t.Fatal("reading the message should have worked")
+		}
+
+		b, err := ioutil.ReadAll(md.UnverifiedBody)
+		if err != nil {
+			t.Fatal("reading the message should have worked")
+		}
+
+		if !bytes.Equal(b, []byte("message without mdc\n")) {
+			t.Error("unexpected message content")
+		}
+	})
+}

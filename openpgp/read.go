@@ -8,6 +8,7 @@ package openpgp // import "github.com/ProtonMail/go-crypto/openpgp"
 import (
 	"crypto"
 	_ "crypto/sha256"
+	_ "crypto/sha512"
 	"hash"
 	"io"
 	"strconv"
@@ -15,6 +16,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/armor"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
+	_ "golang.org/x/crypto/sha3"
 )
 
 // SignatureType is the armor type for a PGP signature.
@@ -130,8 +132,14 @@ ParsePackets:
 					pubKeys = append(pubKeys, keyEnvelopePair{k, p})
 				}
 			}
-		case *packet.SymmetricallyEncrypted, *packet.AEADEncrypted:
-			edp = p.(packet.EncryptedDataPacket)
+		case *packet.SymmetricallyEncrypted:
+			if !p.MDC && !config.AllowUnauthenticatedMessages() {
+				return nil, errors.UnsupportedError("message is not authenticated")
+			}
+			edp = p
+			break ParsePackets
+		case *packet.AEADEncrypted:
+			edp = p
 			break ParsePackets
 		case *packet.Compressed, *packet.LiteralData, *packet.OnePassSignature:
 			// This message isn't encrypted.
