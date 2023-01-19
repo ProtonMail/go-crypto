@@ -17,10 +17,7 @@ import (
 // them within limits of the running system. See RFC4880bis, sec 5.16.
 var maxChunkSizeExp = 62
 
-const (
-	keyLength          = 16
-	maxPlaintextLength = 1 << 18
-)
+const maxPlaintextLength = 1 << 18
 
 func TestAeadRFCParse(t *testing.T) {
 	for _, sample := range samplesAeadEncryptedDataPacket {
