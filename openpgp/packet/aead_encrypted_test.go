@@ -6,10 +6,11 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/hex"
-	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"io"
 	mathrand "math/rand"
 	"testing"
+
+	"github.com/ProtonMail/go-crypto/openpgp/errors"
 )
 
 // Note: This implementation does not produce packets with chunk sizes over
@@ -272,9 +273,7 @@ func TestAeadUnclosedStreamRandomizeSlow(t *testing.T) {
 	}
 	// 'writeCloser' encrypts and writes the plaintext bytes.
 	rawCipher := bytes.NewBuffer(nil)
-	writeCloser, err := SerializeAEADEncrypted(
-		rawCipher, key, config,
-	)
+	writeCloser, err := SerializeAEADEncrypted(rawCipher, key, config)
 	if err != nil {
 		t.Error(err)
 	}
@@ -326,8 +325,8 @@ func randomConfig() *Config {
 		CipherAES256,
 	}
 	var modes = []AEADMode{
-		AEADModeOCB,
 		AEADModeEAX,
+		AEADModeOCB,
 	}
 
 	// Random chunk size

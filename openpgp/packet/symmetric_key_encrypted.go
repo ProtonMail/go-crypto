@@ -47,7 +47,7 @@ func (ske *SymmetricKeyEncrypted) parse(r io.Reader) error {
 
 	if ske.Version == 5 {
 		// Scalar octet count
-		if _, err := readFull(r, buf[0:]); err != nil {
+		if _, err := readFull(r, buf[:]); err != nil {
 			return err
 		}
 	}
@@ -230,9 +230,8 @@ func SerializeSymmetricKeyEncryptedReuseKey(w io.Writer, sessionKey []byte, pass
 		return
 	}
 
-	buf := make([]byte, 1)
 	// Symmetric Key Encrypted Version
-	buf[0] = byte(version)
+	buf := []byte{byte(version)}
 
 	if version == 5 {
 		// Scalar octet count

@@ -414,6 +414,7 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 			if subpacket[0]&0x01 != 0 {
 				sig.MDC = true
 			}
+			// 0x02 and 0x04 are reserved
 			if subpacket[0]&0x08 != 0 {
 				sig.AEAD = true
 			}

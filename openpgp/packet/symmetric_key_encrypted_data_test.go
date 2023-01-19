@@ -1,7 +1,7 @@
 package packet
 
 // These test vectors contain V4 or V5 symmetric key encrypted packets followed
-// by an integrity protected packet (SymmetricallyEncrypted V1 or V2).
+// by an integrity protected packet (SEIPD v1 or v2).
 
 type packetSequence struct {
 	password string

@@ -12,7 +12,7 @@ import (
 	"io"
 )
 
-// parseAead parses a V2 SEPID packet (AEAD) as specified in
+// parseAead parses a V2 SEIPD packet (AEAD) as specified in
 // https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-07.html#section-5.13.2
 func (se *SymmetricallyEncrypted) parseAead(r io.Reader) error {
 	headerData := make([]byte, 3)
@@ -57,7 +57,7 @@ func (se *SymmetricallyEncrypted) associatedData() []byte {
 	}
 }
 
-// decryptAead decrypts a V2 SEPID packet (AEAD) as specified in
+// decryptAead decrypts a V2 SEIPD packet (AEAD) as specified in
 // https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-07.html#section-5.13.2
 func (se *SymmetricallyEncrypted) decryptAead(inputKey []byte) (io.ReadCloser, error) {
 	aead, nonce := getSymmetricallyEncryptedAeadInstance(se.cipher, se.mode, inputKey, se.salt[:], se.associatedData())
@@ -84,7 +84,7 @@ func (se *SymmetricallyEncrypted) decryptAead(inputKey []byte) (io.ReadCloser, e
 	}, nil
 }
 
-// serializeSymmetricallyEncryptedAead encrypts to a writer a V2 SEPID packet (AEAD) as specified in
+// serializeSymmetricallyEncryptedAead encrypts to a writer a V2 SEIPD packet (AEAD) as specified in
 // https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-07.html#section-5.13.2
 func serializeSymmetricallyEncryptedAead(ciphertext io.WriteCloser, cipherSuite CipherSuite, chunkSizeByte byte, rand io.Reader, inputKey []byte) (Contents io.WriteCloser, err error) {
 	if cipherSuite.Cipher.KeySize() != len(inputKey) {

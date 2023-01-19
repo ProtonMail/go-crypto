@@ -79,7 +79,7 @@ func (ae *AEADEncrypted) decrypt(key []byte) (io.ReadCloser, error) {
 			initialNonce:   ae.initialNonce,
 			associatedData: ae.associatedData(),
 			chunkIndex:     make([]byte, 8),
-			packetTag: 	    packetTypeAEADEncrypted,
+			packetTag:      packetTypeAEADEncrypted,
 		},
 		reader:      ae.Contents,
 		peekedBytes: peekedBytes}, nil
