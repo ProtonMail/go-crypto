@@ -9,10 +9,12 @@ import (
 	"crypto/rand"
 	"crypto/sha1"
 	"encoding/hex"
-	"github.com/ProtonMail/go-crypto/openpgp/errors"
+	goerrors "errors"
 	"io"
 	"io/ioutil"
 	"testing"
+
+	"github.com/ProtonMail/go-crypto/openpgp/errors"
 )
 
 // TestReader wraps a []byte and returns reads of a specific length.
@@ -29,17 +31,21 @@ func (t *testReader) Read(buf []byte) (n int, err error) {
 	if n > len(buf) {
 		n = len(buf)
 	}
-	copy(buf, t.data)
+
+	copy(buf[:n], t.data)
 	t.data = t.data[n:]
+
 	if len(t.data) == 0 {
 		err = io.EOF
 	}
+
 	return
 }
 
-func testMDCReader(t *testing.T) {
-	mdcPlaintext, _ := hex.DecodeString(mdcPlaintextHex)
+const mdcPlaintextHex = "cb1362000000000048656c6c6f2c20776f726c6421d314c23d643f478a9a2098811fcb191e7b24b80966a1"
 
+func TestMDCReader(t *testing.T) {
+	mdcPlaintext, _ := hex.DecodeString(mdcPlaintextHex)
 	for stride := 1; stride < len(mdcPlaintext)/2; stride++ {
 		r := &testReader{data: mdcPlaintext, stride: stride}
 		mdcReader := &seMDCReader{in: r, h: sha1.New()}
@@ -71,12 +77,10 @@ func testMDCReader(t *testing.T) {
 	err = mdcReader.Close()
 	if err == nil {
 		t.Error("corruption: no error")
-	} else if _, ok := err.(*errors.SignatureError); !ok {
+	} else if !goerrors.Is(err, errors.ErrMDCHashMismatch) {
 		t.Errorf("corruption: expected SignatureError, got: %s", err)
 	}
 }
-
-const mdcPlaintextHex = "a302789c3b2d93c4e0eb9aba22283539b3203335af44a134afb800c849cb4c4de10200aff40b45d31432c80cb384299a0655966d6939dfdeed1dddf980"
 
 func TestSerializeMdc(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
