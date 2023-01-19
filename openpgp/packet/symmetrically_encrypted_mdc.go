@@ -220,6 +220,10 @@ func (c noOpCloser) Close() error {
 }
 
 func serializeSymmetricallyEncryptedMdc(ciphertext io.WriteCloser, c CipherFunction, key []byte, config *Config) (Contents io.WriteCloser, err error) {
+	if c.KeySize() != len(key) {
+		return nil, errors.InvalidArgumentError("error in mdc serialization: bad key length")
+	}
+
 	_, err = ciphertext.Write([]byte{symmetricallyEncryptedVersionMdc})
 	if err != nil {
 		return

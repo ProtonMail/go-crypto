@@ -87,6 +87,10 @@ func (se *SymmetricallyEncrypted) decryptAead(inputKey []byte) (io.ReadCloser, e
 // serializeSymmetricallyEncryptedAead encrypts to a writer a V2 SEPID packet (AEAD) as specified in
 // https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-07.html#section-5.13.2
 func serializeSymmetricallyEncryptedAead(ciphertext io.WriteCloser, cipherSuite CipherSuite, chunkSizeByte byte, rand io.Reader, inputKey []byte) (Contents io.WriteCloser, err error) {
+	if cipherSuite.Cipher.KeySize() != len(inputKey) {
+		return nil, errors.InvalidArgumentError("error in aead serialization: bad key length")
+	}
+
 	// Data for en/decryption: tag, version, cipher, aead mode, chunk size
 	prefix := []byte{
 		0xD2,

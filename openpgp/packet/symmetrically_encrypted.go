@@ -77,9 +77,6 @@ func (se *SymmetricallyEncrypted) Decrypt(c CipherFunction, key []byte) (io.Read
 // written.
 // If config is nil, sensible defaults will be used.
 func SerializeSymmetricallyEncrypted(w io.Writer, c CipherFunction, aeadSupported bool, cipherSuite CipherSuite, key []byte, config *Config) (Contents io.WriteCloser, err error) {
-	if c.KeySize() != len(key) {
-		return nil, errors.InvalidArgumentError("SymmetricallyEncrypted.Serialize: bad key length")
-	}
 	writeCloser := noOpCloser{w}
 	ciphertext, err := serializeStreamHeader(writeCloser, packetTypeSymmetricallyEncryptedIntegrityProtected)
 	if err != nil {
