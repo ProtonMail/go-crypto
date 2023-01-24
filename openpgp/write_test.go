@@ -234,13 +234,8 @@ func TestSymmetricEncryption(t *testing.T) {
 }
 
 func TestSymmetricEncryptionV5RandomizeSlow(t *testing.T) {
-	var modes = []packet.AEADMode{
-		packet.AEADModeEAX,
-		packet.AEADModeOCB,
-		packet.AEADModeExperimentalGCM,
-	}
 	aeadConf := packet.AEADConfig{
-		DefaultMode: modes[mathrand.Intn(len(modes))],
+		DefaultMode: aeadModes[mathrand.Intn(len(aeadModes))],
 	}
 	config := &packet.Config{AEADConfig: &aeadConf}
 	buf := new(bytes.Buffer)
@@ -280,12 +275,15 @@ func TestSymmetricEncryptionV5RandomizeSlow(t *testing.T) {
 	default:
 		t.Errorf("Didn't find a SymmetricKeyEncrypted packet (found %T instead)", tp)
 	}
-	// Then an AEADEncrypted packet
+	// Then an SymmetricallyEncrypted packet version 2
 	p, err = packets.Next()
 	switch tp := p.(type) {
-	case *packet.AEADEncrypted:
+	case *packet.SymmetricallyEncrypted:
+		if tp.Version != 2 {
+			t.Errorf("Wrong packet version, expected 2, found %d", tp.Version)
+		}
 	default:
-		t.Errorf("Didn't find an AEADEncrypted packet (found %T instead)", tp)
+		t.Errorf("Didn't find an SymmetricallyEncrypted packet (found %T instead)", tp)
 	}
 
 	promptFunc := func(keys []Key, symmetric bool) ([]byte, error) {
@@ -369,16 +367,11 @@ func TestEncryption(t *testing.T) {
 			DefaultCompressionAlgo: compAlgo,
 			CompressionConfig:      compConf,
 		}
-		// Flip coin to enable AEAD mode
-		var modes = []packet.AEADMode{
-			packet.AEADModeEAX,
-			packet.AEADModeOCB,
-			packet.AEADModeExperimentalGCM,
-		}
 
+		// Flip coin to enable AEAD mode
 		if mathrand.Int()%2 == 0 {
 			aeadConf := packet.AEADConfig{
-				DefaultMode: modes[mathrand.Intn(len(modes))],
+				DefaultMode: aeadModes[mathrand.Intn(len(aeadModes))],
 			}
 			config.AEADConfig = &aeadConf
 		}

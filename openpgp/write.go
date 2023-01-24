@@ -125,16 +125,13 @@ func SymmetricallyEncrypt(ciphertext io.Writer, passphrase []byte, hints *FileHi
 	}
 
 	var w io.WriteCloser
-	if config.AEAD() != nil {
-		w, err = packet.SerializeAEADEncrypted(ciphertext, key, config.Cipher(), config.AEAD().Mode(), config)
-		if err != nil {
-			return
-		}
-	} else {
-		w, err = packet.SerializeSymmetricallyEncrypted(ciphertext, config.Cipher(), key, config)
-		if err != nil {
-			return
-		}
+	cipherSuite := packet.CipherSuite{
+		Cipher: config.Cipher(),
+		Mode: config.AEAD().Mode(),
+	}
+	w, err = packet.SerializeSymmetricallyEncrypted(ciphertext, config.Cipher(), config.AEAD() != nil, cipherSuite, key, config)
+	if err != nil {
+		return
 	}
 
 	literalData := w
@@ -163,6 +160,23 @@ func intersectPreferences(a []uint8, b []uint8) (intersection []uint8) {
 	for _, v := range a {
 		for _, v2 := range b {
 			if v == v2 {
+				a[j] = v
+				j++
+				break
+			}
+		}
+	}
+
+	return a[:j]
+}
+
+// intersectPreferences mutates and returns a prefix of a that contains only
+// the values in the intersection of a and b. The order of a is preserved.
+func intersectCipherSuites(a [][2]uint8, b [][2]uint8) (intersection [][2]uint8) {
+	var j int
+	for _, v := range a {
+		for _, v2 := range b {
+			if v[0] == v2[0] && v[1] == v2[1] {
 				a[j] = v
 				j++
 				break
@@ -333,6 +347,7 @@ func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *En
 		uint8(packet.CipherAES256),
 		uint8(packet.CipherCAST5),
 	}
+
 	// These are the possible hash functions that we'll use for the signature.
 	candidateHashes := []uint8{
 		hashToHashId(crypto.SHA256),
@@ -343,11 +358,17 @@ func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *En
 		hashToHashId(crypto.SHA1),
 		hashToHashId(crypto.RIPEMD160),
 	}
-	candidateAeadModes := []uint8{
-		uint8(packet.AEADModeEAX),
-		uint8(packet.AEADModeOCB),
-		uint8(packet.AEADModeExperimentalGCM),
+
+	// Prefer GCM if everyone supports it
+	candidateCipherSuites := [][2]uint8{
+		{uint8(packet.CipherAES256), uint8(packet.AEADModeGCM)},
+		{uint8(packet.CipherAES256), uint8(packet.AEADModeEAX)},
+		{uint8(packet.CipherAES256), uint8(packet.AEADModeOCB)},
+		{uint8(packet.CipherAES128), uint8(packet.AEADModeGCM)},
+		{uint8(packet.CipherAES128), uint8(packet.AEADModeEAX)},
+		{uint8(packet.CipherAES128), uint8(packet.AEADModeOCB)},
 	}
+
 	candidateCompression := []uint8{
 		uint8(packet.CompressionNone),
 		uint8(packet.CompressionZIP),
@@ -355,8 +376,9 @@ func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *En
 	}
 
 	encryptKeys := make([]Key, len(to))
-	// AEAD is used only if every key supports it.
-	aeadSupported := true
+
+	// AEAD is used only if config enables it and every key supports it
+	aeadSupported := config.AEAD() != nil
 
 	for i := range to {
 		var ok bool
@@ -366,13 +388,13 @@ func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *En
 		}
 
 		sig := to[i].PrimaryIdentity().SelfSignature
-		if sig.AEAD == false {
+		if sig.SEIPDv2 == false {
 			aeadSupported = false
 		}
 
 		candidateCiphers = intersectPreferences(candidateCiphers, sig.PreferredSymmetric)
 		candidateHashes = intersectPreferences(candidateHashes, sig.PreferredHash)
-		candidateAeadModes = intersectPreferences(candidateAeadModes, sig.PreferredAEAD)
+		candidateCipherSuites = intersectCipherSuites(candidateCipherSuites, sig.PreferredCipherSuites)
 		candidateCompression = intersectPreferences(candidateCompression, sig.PreferredCompression)
 	}
 
@@ -386,13 +408,17 @@ func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *En
 		// https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-07.html#hash-algos
 		candidateHashes = []uint8{hashToHashId(crypto.SHA256)}
 	}
-	if len(candidateAeadModes) == 0 {
+	if len(candidateCipherSuites) == 0 {
 		// https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-07.html#section-9.6
-		candidateAeadModes = []uint8{uint8(packet.AEADModeEAX)}
+		candidateCipherSuites = [][2]uint8{{uint8(packet.CipherAES128), uint8(packet.AEADModeOCB)}}
 	}
 
 	cipher := packet.CipherFunction(candidateCiphers[0])
-	mode := packet.AEADMode(candidateAeadModes[0])
+	aeadCipherSuite := packet.CipherSuite{
+		Cipher: packet.CipherFunction(candidateCipherSuites[0][0]),
+		Mode: packet.AEADMode(candidateCipherSuites[0][1]),
+	}
+
 	// If the cipher specified by config is a candidate, we'll use that.
 	configuredCipher := config.Cipher()
 	for _, c := range candidateCiphers {
@@ -415,17 +441,11 @@ func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *En
 	}
 
 	var payload io.WriteCloser
-	if config.AEAD() != nil && aeadSupported {
-		payload, err = packet.SerializeAEADEncrypted(dataWriter, symKey, cipher, mode, config)
-		if err != nil {
+	payload, err = packet.SerializeSymmetricallyEncrypted(dataWriter, cipher, aeadSupported, aeadCipherSuite, symKey, config)
+	if err != nil {
 			return
 		}
-	} else {
-		payload, err = packet.SerializeSymmetricallyEncrypted(dataWriter, cipher, symKey, config)
-		if err != nil {
-			return
-		}
-	}
+
 	payload, err = handleCompression(payload, candidateCompression, config)
 	if err != nil {
 		return nil, err

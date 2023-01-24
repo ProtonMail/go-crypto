@@ -66,7 +66,7 @@ type Signature struct {
 
 	SigLifetimeSecs, KeyLifetimeSecs                        *uint32
 	PreferredSymmetric, PreferredHash, PreferredCompression []uint8
-	PreferredAEAD                                           []uint8
+	PreferredCipherSuites                                   [][2]uint8
 	IssuerKeyId                                             *uint64
 	IssuerFingerprint                                       []byte
 	SignerUserId                                            *string
@@ -101,8 +101,8 @@ type Signature struct {
 
 	// In a self-signature, these flags are set there is a features subpacket
 	// indicating that the issuer implementation supports these features
-	// (section 5.2.5.25).
-	MDC, AEAD, V5Keys bool
+	// see https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh#features-subpacket
+	SEIPDv1, SEIPDv2 bool
 
 	// EmbeddedSignature, if non-nil, is a signature of the parent key, by
 	// this key. This prevents an attacker from claiming another's signing
@@ -248,7 +248,7 @@ const (
 	featuresSubpacket            signatureSubpacketType = 30
 	embeddedSignatureSubpacket   signatureSubpacketType = 32
 	issuerFingerprintSubpacket   signatureSubpacketType = 33
-	prefAeadAlgosSubpacket       signatureSubpacketType = 34
+	prefCipherSuitesSubpacket    signatureSubpacketType = 39
 )
 
 // parseSignatureSubpacket parses a single subpacket. len(subpacket) is >= 1.
@@ -439,13 +439,11 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		}
 		if len(subpacket) > 0 {
 			if subpacket[0]&0x01 != 0 {
-				sig.MDC = true
+				sig.SEIPDv1 = true
 			}
-			if subpacket[0]&0x02 != 0 {
-				sig.AEAD = true
-			}
-			if subpacket[0]&0x04 != 0 {
-				sig.V5Keys = true
+			// 0x02 and 0x04 are reserved
+			if subpacket[0]&0x08 != 0 {
+				sig.SEIPDv2 = true
 			}
 		}
 	case embeddedSignatureSubpacket:
@@ -485,13 +483,23 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		} else {
 			*sig.IssuerKeyId = binary.BigEndian.Uint64(subpacket[13:21])
 		}
-	case prefAeadAlgosSubpacket:
-		// Preferred symmetric algorithms, section 5.2.3.8
+	case prefCipherSuitesSubpacket:
+		// Preferred AEAD cipher suites
+		// See https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-07.html#name-preferred-aead-ciphersuites
 		if !isHashed {
 			return
 		}
-		sig.PreferredAEAD = make([]byte, len(subpacket))
-		copy(sig.PreferredAEAD, subpacket)
+
+		if len(subpacket) % 2 != 0 {
+			err = errors.StructuralError("invalid aead cipher suite length")
+			return
+		}
+
+		sig.PreferredCipherSuites = make([][2]byte, len(subpacket) / 2)
+
+		for i := 0; i < len(subpacket) / 2; i++ {
+			sig.PreferredCipherSuites[i] = [2]uint8{subpacket[2*i], subpacket[2*i+1]}
+		}
 	default:
 		if isCritical {
 			err = errors.UnsupportedError("unknown critical signature subpacket type " + strconv.Itoa(int(packetType)))
@@ -915,14 +923,11 @@ func (sig *Signature) buildSubpackets(issuer PublicKey) (subpackets []outputSubp
 	// The following subpackets may only appear in self-signatures.
 
 	var features = byte(0x00)
-	if sig.MDC {
+	if sig.SEIPDv1 {
 		features |= 0x01
 	}
-	if sig.AEAD {
-		features |= 0x02
-	}
-	if sig.V5Keys {
-		features |= 0x04
+	if sig.SEIPDv2 {
+		features |= 0x08
 	}
 
 	if features != 0x00 {
@@ -964,8 +969,13 @@ func (sig *Signature) buildSubpackets(issuer PublicKey) (subpackets []outputSubp
 		subpackets = append(subpackets, outputSubpacket{true, policyUriSubpacket, false, []uint8(sig.PolicyURI)})
 	}
 
-	if len(sig.PreferredAEAD) > 0 {
-		subpackets = append(subpackets, outputSubpacket{true, prefAeadAlgosSubpacket, false, sig.PreferredAEAD})
+	if len(sig.PreferredCipherSuites) > 0 {
+		serialized := make([]byte, len(sig.PreferredCipherSuites)*2)
+		for i, cipherSuite := range sig.PreferredCipherSuites {
+			serialized[2*i] = cipherSuite[0]
+			serialized[2*i+1] = cipherSuite[1]
+		}
+		subpackets = append(subpackets, outputSubpacket{true, prefCipherSuitesSubpacket, false, serialized})
 	}
 
 	// Revocation reason appears only in revocation signatures and is serialized as per section 5.2.3.23.

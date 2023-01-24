@@ -9,6 +9,8 @@ import (
 	"io"
 	mathrand "math/rand"
 	"testing"
+
+	"github.com/ProtonMail/go-crypto/openpgp/errors"
 )
 
 // Note: This implementation does not produce packets with chunk sizes over
@@ -16,10 +18,7 @@ import (
 // them within limits of the running system. See RFC4880bis, sec 5.16.
 var maxChunkSizeExp = 62
 
-const (
-	keyLength          = 16
-	maxPlaintextLength = 1 << 18
-)
+const maxPlaintextLength = 1 << 18
 
 func TestAeadRFCParse(t *testing.T) {
 	for _, sample := range samplesAeadEncryptedDataPacket {
@@ -274,9 +273,7 @@ func TestAeadUnclosedStreamRandomizeSlow(t *testing.T) {
 	}
 	// 'writeCloser' encrypts and writes the plaintext bytes.
 	rawCipher := bytes.NewBuffer(nil)
-	writeCloser, err := SerializeAEADEncrypted(
-		rawCipher, key, config.Cipher(), config.AEAD().Mode(), config,
-	)
+	writeCloser, err := SerializeAEADEncrypted(rawCipher, key, config)
 	if err != nil {
 		t.Error(err)
 	}
@@ -330,7 +327,6 @@ func randomConfig() *Config {
 	var modes = []AEADMode{
 		AEADModeEAX,
 		AEADModeOCB,
-		AEADModeExperimentalGCM,
 	}
 
 	// Random chunk size
@@ -361,9 +357,7 @@ func randomStream(key []byte, ptLen int, config *Config) (*bytes.Buffer, []byte,
 
 	// 'writeCloser' encrypts and writes the plaintext bytes.
 	rawCipher := bytes.NewBuffer(nil)
-	writeCloser, err := SerializeAEADEncrypted(
-		rawCipher, key, config.Cipher(), config.AEAD().Mode(), config,
-	)
+	writeCloser, err := SerializeAEADEncrypted(rawCipher, key, config)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -398,4 +392,55 @@ func readDecryptedStream(rc io.ReadCloser) (got []byte, err error) {
 		}
 	}
 	return got, err
+}
+
+// SerializeAEADEncrypted initializes the aeadCrypter and returns a writer.
+// This writer encrypts and writes bytes (see aeadEncrypter.Write()).
+// This funcion is moved to the test suite to prevent it from creating this deprecated package
+func SerializeAEADEncrypted(w io.Writer, key []byte, config *Config) (io.WriteCloser, error) {
+	writeCloser := noOpCloser{w}
+	writer, err := serializeStreamHeader(writeCloser, packetTypeAEADEncrypted)
+	if err != nil {
+		return nil, err
+	}
+
+	// Data for en/decryption: tag, version, cipher, aead mode, chunk size
+	aeadConf := config.AEAD()
+	prefix := []byte{
+		0xD4,
+		aeadEncryptedVersion,
+		byte(config.Cipher()),
+		byte(aeadConf.Mode()),
+		aeadConf.ChunkSizeByte(),
+	}
+	n, err := writer.Write(prefix[1:])
+	if err != nil || n < 4 {
+		return nil, errors.AEADError("could not write AEAD headers")
+	}
+	// Sample nonce
+	nonceLen := aeadConf.Mode().IvLength()
+	nonce := make([]byte, nonceLen)
+	n, err = rand.Read(nonce)
+	if err != nil {
+		panic("Could not sample random nonce")
+	}
+	_, err = writer.Write(nonce)
+	if err != nil {
+		return nil, err
+	}
+	blockCipher := CipherFunction(config.Cipher()).new(key)
+	alg := aeadConf.Mode().new(blockCipher)
+
+	chunkSize := decodeAEADChunkSize(aeadConf.ChunkSizeByte())
+	return &aeadEncrypter{
+		aeadCrypter: aeadCrypter{
+			aead:           alg,
+			chunkSize:      chunkSize,
+			associatedData: prefix,
+			chunkIndex:     make([]byte, 8),
+			initialNonce:   nonce,
+			packetTag:      packetTypeAEADEncrypted,
+		},
+		writer: writer,
+	}, nil
 }

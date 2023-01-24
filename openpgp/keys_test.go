@@ -41,8 +41,9 @@ var ciphers = []packet.CipherFunction{
 }
 
 var aeadModes = []packet.AEADMode{
-	packet.AEADModeEAX,
 	packet.AEADModeOCB,
+	packet.AEADModeEAX,
+	packet.AEADModeGCM,
 }
 
 func TestKeyExpiry(t *testing.T) {
@@ -899,14 +900,20 @@ func TestNewEntityWithDefaultAead(t *testing.T) {
 		}
 
 		for _, identity := range entity.Identities {
-			if len(identity.SelfSignature.PreferredAEAD) == 0 {
+			if len(identity.SelfSignature.PreferredCipherSuites) == 0 {
 				t.Fatal("didn't find a preferred mode in self signature")
 			}
-			mode := identity.SelfSignature.PreferredAEAD[0]
+			cipher := identity.SelfSignature.PreferredCipherSuites[0][0]
+			if cipher != uint8(cfg.Cipher()) {
+				t.Fatalf("Expected preferred cipher to be %d, got %d",
+					uint8(cfg.Cipher()),
+					identity.SelfSignature.PreferredCipherSuites[0][0])
+			}
+			mode := identity.SelfSignature.PreferredCipherSuites[0][1]
 			if mode != uint8(cfg.AEAD().DefaultMode) {
 				t.Fatalf("Expected preferred mode to be %d, got %d",
 					uint8(cfg.AEAD().DefaultMode),
-					identity.SelfSignature.PreferredAEAD[0])
+					identity.SelfSignature.PreferredCipherSuites[0][1])
 			}
 		}
 	}

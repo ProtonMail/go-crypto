@@ -237,9 +237,9 @@ func randConfig() *packet.Config {
 	pkAlgo := pkAlgos[mathrand.Intn(len(pkAlgos))]
 
 	aeadModes := []packet.AEADMode{
-		packet.AEADModeEAX,
 		packet.AEADModeOCB,
-		packet.AEADModeExperimentalGCM,
+		packet.AEADModeEAX,
+		packet.AEADModeGCM,
 	}
 	var aeadConf = packet.AEADConfig{
 		DefaultMode: aeadModes[mathrand.Intn(len(aeadModes))],

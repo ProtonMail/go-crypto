@@ -65,104 +65,103 @@ func TestDecryptSymmetricKeyAndEncryptedDataPacket(t *testing.T) {
 	}
 }
 
-func TestRandomSerializeSymmetricKeyEncryptedV5RandomizeSlow(t *testing.T) {
-	var ciphers = []CipherFunction{
-		CipherAES128,
-		CipherAES192,
-		CipherAES256,
-	}
-	var modes = []AEADMode{
-		AEADModeEAX,
-		AEADModeOCB,
-		AEADModeExperimentalGCM,
+func TestSerializeSymmetricKeyEncryptedV5RandomizeSlow(t *testing.T) {
+	ciphers := map[string] CipherFunction {
+		"AES128": CipherAES128,
+		"AES192": CipherAES192,
+		"AES256": CipherAES256,
 	}
 
-	var buf bytes.Buffer
-	passphrase := make([]byte, mathrand.Intn(maxPassLen))
-	_, err := rand.Read(passphrase)
-	if err != nil {
-		panic(err)
-	}
-	aeadConf := AEADConfig{
-		DefaultMode: modes[mathrand.Intn(len(modes))],
-	}
-	config := &Config{
-		DefaultCipher: ciphers[mathrand.Intn(len(ciphers))],
-		AEADConfig:    &aeadConf,
-	}
-	key, err := SerializeSymmetricKeyEncrypted(&buf, passphrase, config)
-	p, err := Read(&buf)
-	if err != nil {
-		t.Errorf("failed to reparse %s", err)
-	}
-	ske, ok := p.(*SymmetricKeyEncrypted)
-	if !ok {
-		t.Errorf("parsed a different packet type: %#v", p)
+	modes := map[string] AEADMode {
+		"EAX": AEADModeEAX,
+		"OCB": AEADModeOCB,
+		"GCM": AEADModeGCM,
 	}
 
-	parsedKey, _, err := ske.Decrypt(passphrase)
-	if err != nil {
-		t.Errorf("failed to decrypt reparsed SKE: %s", err)
-	}
-	if !bytes.Equal(key, parsedKey) {
-		t.Errorf("keys don't match after Decrypt: %x (original) vs %x (parsed)", key, parsedKey)
+	for cipherName, cipher := range ciphers {
+		t.Run(cipherName, func(t *testing.T) {
+			for modeName, mode := range modes {
+				t.Run(modeName, func(t *testing.T) {
+					var buf bytes.Buffer
+					passphrase := randomKey(mathrand.Intn(maxPassLen))
+
+					config := &Config{
+						DefaultCipher: cipher,
+						AEADConfig:    &AEADConfig{DefaultMode: mode},
+					}
+
+					key, err := SerializeSymmetricKeyEncrypted(&buf, passphrase, config)
+					p, err := Read(&buf)
+					if err != nil {
+						t.Errorf("failed to reparse %s", err)
+					}
+					ske, ok := p.(*SymmetricKeyEncrypted)
+					if !ok {
+						t.Errorf("parsed a different packet type: %#v", p)
+					}
+
+					parsedKey, _, err := ske.Decrypt(passphrase)
+					if err != nil {
+						t.Errorf("failed to decrypt reparsed SKE: %s", err)
+					}
+					if !bytes.Equal(key, parsedKey) {
+						t.Errorf("keys don't match after Decrypt: %x (original) vs %x (parsed)", key, parsedKey)
+					}
+				})
+			}
+		})
 	}
 }
 
 func TestSerializeSymmetricKeyEncryptedCiphersV4(t *testing.T) {
-	tests := [...]struct {
-		cipherFunc CipherFunction
-		name       string
-	}{
-		{Cipher3DES, "Cipher3DES"},
-		{CipherCAST5, "CipherCAST5"},
-		{CipherAES128, "CipherAES128"},
-		{CipherAES192, "CipherAES192"},
-		{CipherAES256, "CipherAES256"},
+	tests := map[string] CipherFunction {
+		"3DES": Cipher3DES,
+		"CAST5": CipherCAST5,
+		"AES128": CipherAES128,
+		"AES192": CipherAES192,
+		"AES256": CipherAES256,
 	}
 
-	for _, test := range tests {
-		var buf bytes.Buffer
-		passphrase := make([]byte, mathrand.Intn(maxPassLen))
-		if _, err := rand.Read(passphrase); err != nil {
-			panic(err)
-		}
-		config := &Config{
-			DefaultCipher: test.cipherFunc,
-		}
+	for cipherName, cipher := range tests {
+		t.Run(cipherName, func(t *testing.T) {
+			var buf bytes.Buffer
+			passphrase := make([]byte, mathrand.Intn(maxPassLen))
+			if _, err := rand.Read(passphrase); err != nil {
+				panic(err)
+			}
+			config := &Config{
+				DefaultCipher: cipher,
+			}
 
-		key, err := SerializeSymmetricKeyEncrypted(&buf, passphrase, config)
-		if err != nil {
-			t.Errorf("cipher(%s) failed to serialize: %s", test.name, err)
-			continue
-		}
+			key, err := SerializeSymmetricKeyEncrypted(&buf, passphrase, config)
+			if err != nil {
+				t.Fatalf("failed to serialize: %s", err)
+			}
 
-		p, err := Read(&buf)
-		if err != nil {
-			t.Errorf("cipher(%s) failed to reparse: %s", test.name, err)
-			continue
-		}
+			p, err := Read(&buf)
+			if err != nil {
+				t.Fatalf("failed to reparse: %s", err)
+			}
 
-		ske, ok := p.(*SymmetricKeyEncrypted)
-		if !ok {
-			t.Errorf("cipher(%s) parsed a different packet type: %#v", test.name, p)
-			continue
-		}
+			ske, ok := p.(*SymmetricKeyEncrypted)
+			if !ok {
+				t.Fatalf("parsed a different packet type: %#v", p)
+			}
 
-		if ske.CipherFunc != config.DefaultCipher {
-			t.Errorf("cipher(%s) SKE cipher function is %d (expected %d)", test.name, ske.CipherFunc, config.DefaultCipher)
-		}
-		parsedKey, parsedCipherFunc, err := ske.Decrypt(passphrase)
-		if err != nil {
-			t.Errorf("cipher(%s) failed to decrypt reparsed SKE: %s", test.name, err)
-			continue
-		}
-		if !bytes.Equal(key, parsedKey) {
-			t.Errorf("cipher(%s) keys don't match after Decrypt: %x (original) vs %x (parsed)", test.name, key, parsedKey)
-		}
-		if parsedCipherFunc != test.cipherFunc {
-			t.Errorf("cipher(%s) cipher function doesn't match after Decrypt: %d (original) vs %d (parsed)",
-				test.name, test.cipherFunc, parsedCipherFunc)
-		}
+			if ske.CipherFunc != config.DefaultCipher {
+				t.Fatalf("SKE cipher function is %d (expected %d)", ske.CipherFunc, config.DefaultCipher)
+			}
+			parsedKey, parsedCipherFunc, err := ske.Decrypt(passphrase)
+			if err != nil {
+				t.Fatalf("failed to decrypt reparsed SKE: %s", err)
+			}
+			if !bytes.Equal(key, parsedKey) {
+				t.Fatalf("keys don't match after Decrypt: %x (original) vs %x (parsed)", key, parsedKey)
+			}
+			if parsedCipherFunc != cipher {
+				t.Fatalf("cipher function doesn't match after Decrypt: %d (original) vs %d (parsed)",
+					cipher, parsedCipherFunc)
+			}
+		})
 	}
 }
