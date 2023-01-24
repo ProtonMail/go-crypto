@@ -439,7 +439,7 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, config *Config) (io.WriteCl
 			associatedData: prefix,
 			chunkIndex:     make([]byte, 8),
 			initialNonce:   nonce,
-			packetTag: 		packetTypeAEADEncrypted,
+			packetTag:      packetTypeAEADEncrypted,
 		},
 		writer: writer,
 	}, nil

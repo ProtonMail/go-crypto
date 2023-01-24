@@ -95,8 +95,8 @@ func (t *Entity) addUserId(name, comment, email string, config *packet.Config, c
 		FlagsValid:        true,
 		FlagSign:          true,
 		FlagCertify:       true,
-		MDC:               true, // true by default, see 5.8 vs. 5.14
-		AEAD:              config.AEAD() != nil,
+		SEIPDv1:           true, // true by default, see 5.8 vs. 5.14
+		SEIPDv2:           config.AEAD() != nil,
 	}
 
 	// Set the PreferredHash for the SelfSignature from the packet.Config.
@@ -130,7 +130,7 @@ func (t *Entity) addUserId(name, comment, email string, config *packet.Config, c
 	// For preferred (AES256, GCM), we'll generate (AES256, GCM), (AES256, OCB), (AES128, GCM), (AES128, OCB)
 	for _, cipher := range selfSignature.PreferredSymmetric {
 		for _, mode := range modes {
-			selfSignature.PreferredCipherSuite = append(selfSignature.PreferredCipherSuite, cipher, mode)
+			selfSignature.PreferredCipherSuites = append(selfSignature.PreferredCipherSuites, [2]uint8{cipher, mode})
 		}
 	}
 

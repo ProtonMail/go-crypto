@@ -66,7 +66,7 @@ type Signature struct {
 
 	SigLifetimeSecs, KeyLifetimeSecs                        *uint32
 	PreferredSymmetric, PreferredHash, PreferredCompression []uint8
-	PreferredCipherSuite                                    []uint8
+	PreferredCipherSuites                                   [][2]uint8
 	IssuerKeyId                                             *uint64
 	IssuerFingerprint                                       []byte
 	SignerUserId                                            *string
@@ -90,7 +90,7 @@ type Signature struct {
 	// In a self-signature, these flags are set there is a features subpacket
 	// indicating that the issuer implementation supports these features
 	// see https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh#features-subpacket
-	MDC, AEAD bool
+	SEIPDv1, SEIPDv2 bool
 
 	// EmbeddedSignature, if non-nil, is a signature of the parent key, by
 	// this key. This prevents an attacker from claiming another's signing
@@ -412,11 +412,11 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		}
 		if len(subpacket) > 0 {
 			if subpacket[0]&0x01 != 0 {
-				sig.MDC = true
+				sig.SEIPDv1 = true
 			}
 			// 0x02 and 0x04 are reserved
 			if subpacket[0]&0x08 != 0 {
-				sig.AEAD = true
+				sig.SEIPDv2 = true
 			}
 		}
 	case embeddedSignatureSubpacket:
@@ -468,8 +468,11 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 			return
 		}
 
-		sig.PreferredCipherSuite = make([]byte, len(subpacket))
-		copy(sig.PreferredCipherSuite, subpacket)
+		sig.PreferredCipherSuites = make([][2]byte, len(subpacket) / 2)
+
+		for i := 0; i < len(subpacket) / 2; i++ {
+			sig.PreferredCipherSuites[i] = [2]uint8{subpacket[2*i], subpacket[2*i+1]}
+		}
 	default:
 		if isCritical {
 			err = errors.UnsupportedError("unknown critical signature subpacket type " + strconv.Itoa(int(packetType)))
@@ -893,10 +896,10 @@ func (sig *Signature) buildSubpackets(issuer PublicKey) (subpackets []outputSubp
 	// The following subpackets may only appear in self-signatures.
 
 	var features = byte(0x00)
-	if sig.MDC {
+	if sig.SEIPDv1 {
 		features |= 0x01
 	}
-	if sig.AEAD {
+	if sig.SEIPDv2 {
 		features |= 0x08
 	}
 
@@ -930,8 +933,13 @@ func (sig *Signature) buildSubpackets(issuer PublicKey) (subpackets []outputSubp
 		subpackets = append(subpackets, outputSubpacket{true, policyUriSubpacket, false, []uint8(sig.PolicyURI)})
 	}
 
-	if len(sig.PreferredCipherSuite) > 0 {
-		subpackets = append(subpackets, outputSubpacket{true, prefCipherSuitesSubpacket, false, sig.PreferredCipherSuite})
+	if len(sig.PreferredCipherSuites) > 0 {
+		serialized := make([]byte, len(sig.PreferredCipherSuites)*2)
+		for i, cipherSuite := range sig.PreferredCipherSuites {
+			serialized[2*i] = cipherSuite[0]
+			serialized[2*i+1] = cipherSuite[1]
+		}
+		subpackets = append(subpackets, outputSubpacket{true, prefCipherSuitesSubpacket, false, serialized})
 	}
 
 	// Revocation reason appears only in revocation signatures and is serialized as per section 5.2.3.23.

@@ -16,7 +16,7 @@ const aeadSaltSize = 32
 // encrypted Contents will consist of more OpenPGP packets. See RFC 4880,
 // sections 5.7 and 5.13.
 type SymmetricallyEncrypted struct {
-	Version            uint8
+	Version            int
 	Contents           io.Reader // contains tag for version 2
 	IntegrityProtected bool      // If true it is type 18 (with MDC or AEAD). False is packet type 9
 

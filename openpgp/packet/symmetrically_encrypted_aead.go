@@ -77,7 +77,7 @@ func (se *SymmetricallyEncrypted) decryptAead(inputKey []byte) (io.ReadCloser, e
 			initialNonce:   nonce,
 			associatedData: se.associatedData(),
 			chunkIndex:     make([]byte, 8),
-			packetTag: 		packetTypeSymmetricallyEncryptedIntegrityProtected,
+			packetTag:      packetTypeSymmetricallyEncryptedIntegrityProtected,
 		},
 		reader:      se.Contents,
 		peekedBytes: peekedBytes,
@@ -125,7 +125,7 @@ func serializeSymmetricallyEncryptedAead(ciphertext io.WriteCloser, cipherSuite 
 			associatedData: prefix,
 			chunkIndex:     make([]byte, 8),
 			initialNonce:   nonce,
-			packetTag: 		packetTypeSymmetricallyEncryptedIntegrityProtected,
+			packetTag:      packetTypeSymmetricallyEncryptedIntegrityProtected,
 		},
 		writer: ciphertext,
 	}, nil

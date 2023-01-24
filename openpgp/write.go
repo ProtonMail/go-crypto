@@ -172,21 +172,19 @@ func intersectPreferences(a []uint8, b []uint8) (intersection []uint8) {
 
 // intersectPreferences mutates and returns a prefix of a that contains only
 // the values in the intersection of a and b. The order of a is preserved.
-func intersectCipherSuites(a []uint8, b []uint8) (intersection []uint8) {
-	var k int
-	for i := 0; i < len(a) / 2; i++ {
-		for j := 0; j < len(b) / 2; j++ {
-			if a[i] == b[j] && a[i+1] == b[j+1] {
-				a[k] = a[i]
-				k++
-				a[k] = a[i+1]
-				k++
+func intersectCipherSuites(a [][2]uint8, b [][2]uint8) (intersection [][2]uint8) {
+	var j int
+	for _, v := range a {
+		for _, v2 := range b {
+			if v[0] == v2[0] && v[1] == v2[1] {
+				a[j] = v
+				j++
 				break
 			}
 		}
 	}
 
-	return a[:k]
+	return a[:j]
 }
 
 func hashToHashId(h crypto.Hash) uint8 {
@@ -360,13 +358,13 @@ func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *En
 	}
 
 	// Prefer GCM if everyone supports it
-	candidateCipherSuites := []uint8{
-		uint8(packet.CipherAES256), uint8(packet.AEADModeGCM),
-		uint8(packet.CipherAES256), uint8(packet.AEADModeOCB),
-		uint8(packet.CipherAES256), uint8(packet.AEADModeEAX),
-		uint8(packet.CipherAES128), uint8(packet.AEADModeGCM),
-		uint8(packet.CipherAES128), uint8(packet.AEADModeOCB),
-		uint8(packet.CipherAES128), uint8(packet.AEADModeEAX),
+	candidateCipherSuites := [][2]uint8{
+		{uint8(packet.CipherAES256), uint8(packet.AEADModeGCM)},
+		{uint8(packet.CipherAES256), uint8(packet.AEADModeEAX)},
+		{uint8(packet.CipherAES256), uint8(packet.AEADModeOCB)},
+		{uint8(packet.CipherAES128), uint8(packet.AEADModeGCM)},
+		{uint8(packet.CipherAES128), uint8(packet.AEADModeEAX)},
+		{uint8(packet.CipherAES128), uint8(packet.AEADModeOCB)},
 	}
 
 	candidateCompression := []uint8{
@@ -388,13 +386,13 @@ func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *En
 		}
 
 		sig := to[i].PrimaryIdentity().SelfSignature
-		if sig.AEAD == false {
+		if sig.SEIPDv2 == false {
 			aeadSupported = false
 		}
 
 		candidateCiphers = intersectPreferences(candidateCiphers, sig.PreferredSymmetric)
 		candidateHashes = intersectPreferences(candidateHashes, sig.PreferredHash)
-		candidateCipherSuites = intersectCipherSuites(candidateCipherSuites, sig.PreferredCipherSuite)
+		candidateCipherSuites = intersectCipherSuites(candidateCipherSuites, sig.PreferredCipherSuites)
 		candidateCompression = intersectPreferences(candidateCompression, sig.PreferredCompression)
 	}
 
@@ -410,13 +408,13 @@ func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *En
 	}
 	if len(candidateCipherSuites) == 0 {
 		// https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-07.html#section-9.6
-		candidateCipherSuites = []uint8{uint8(packet.CipherAES128), uint8(packet.AEADModeOCB)}
+		candidateCipherSuites = [][2]uint8{{uint8(packet.CipherAES128), uint8(packet.AEADModeOCB)}}
 	}
 
 	cipher := packet.CipherFunction(candidateCiphers[0])
 	aeadCipherSuite := packet.CipherSuite{
-		Cipher: packet.CipherFunction(candidateCipherSuites[0]),
-		Mode: packet.AEADMode(candidateCipherSuites[1]),
+		Cipher: packet.CipherFunction(candidateCipherSuites[0][0]),
+		Mode: packet.AEADMode(candidateCipherSuites[0][1]),
 	}
 
 	// If the cipher specified by config is a candidate, we'll use that.

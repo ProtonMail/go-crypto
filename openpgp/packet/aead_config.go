@@ -23,7 +23,7 @@ type AEADConfig struct {
 
 // Mode returns the AEAD mode of operation.
 func (conf *AEADConfig) Mode() AEADMode {
-	// If no preference is specified use MUST
+	// If no preference is specified, OCB is used (which is mandatory to implement).
 	if conf == nil || conf.DefaultMode == 0 {
 		return AEADModeOCB
 	}
