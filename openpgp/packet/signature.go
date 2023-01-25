@@ -9,7 +9,6 @@ import (
 	"crypto"
 	"crypto/dsa"
 	"encoding/binary"
-	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
 	"hash"
 	"io"
 	"strconv"
@@ -18,6 +17,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/ecdsa"
 	"github.com/ProtonMail/go-crypto/openpgp/eddsa"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
+	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/encoding"
 )
 

@@ -9,13 +9,13 @@ import (
 	"crypto"
 	_ "crypto/sha256"
 	_ "crypto/sha512"
-	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
 	"hash"
 	"io"
 	"strconv"
 
 	"github.com/ProtonMail/go-crypto/openpgp/armor"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
+	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	_ "golang.org/x/crypto/sha3"
 )
