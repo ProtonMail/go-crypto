@@ -421,12 +421,6 @@ func (b *Block) VerifySignature(keyring openpgp.KeyRing, config *packet.Config) 
 // if the name isn't known. See RFC 4880, section 9.4.
 func nameOfHash(h crypto.Hash) string {
 	switch h {
-	case crypto.MD5:
-		return "MD5"
-	case crypto.SHA1:
-		return "SHA1"
-	case crypto.RIPEMD160:
-		return "RIPEMD160"
 	case crypto.SHA224:
 		return "SHA224"
 	case crypto.SHA256:
@@ -447,12 +441,8 @@ func nameOfHash(h crypto.Hash) string {
 // if the name isn't known. See RFC 4880, section 9.4.
 func nameToHash(h string) crypto.Hash {
 	switch h {
-	case "MD5":
-		return crypto.MD5
 	case "SHA1":
 		return crypto.SHA1
-	case "RIPEMD160":
-		return crypto.RIPEMD160
 	case "SHA224":
 		return crypto.SHA224
 	case "SHA256":

@@ -9,6 +9,7 @@ import (
 	"crypto"
 	"crypto/dsa"
 	"encoding/binary"
+	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
 	"hash"
 	"io"
 	"strconv"
@@ -18,7 +19,6 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/eddsa"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/encoding"
-	"github.com/ProtonMail/go-crypto/openpgp/s2k"
 )
 
 const (
@@ -138,7 +138,13 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 	}
 
 	var ok bool
-	sig.Hash, ok = s2k.HashIdToHash(buf[2])
+
+	if sig.Version < 5 {
+		sig.Hash, ok = algorithm.HashIdToHashWithSha1(buf[2])
+	} else {
+		sig.Hash, ok = algorithm.HashIdToHash(buf[2])
+	}
+
 	if !ok {
 		return errors.UnsupportedError("hash function " + strconv.Itoa(int(buf[2])))
 	}
@@ -149,7 +155,11 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	sig.buildHashSuffix(hashedSubpackets)
+	err = sig.buildHashSuffix(hashedSubpackets)
+	if err != nil {
+		return
+	}
+
 	err = parseSignatureSubpackets(sig, hashedSubpackets, true)
 	if err != nil {
 		return
@@ -597,7 +607,15 @@ func (sig *Signature) SigExpired(currentTime time.Time) bool {
 
 // buildHashSuffix constructs the HashSuffix member of sig in preparation for signing.
 func (sig *Signature) buildHashSuffix(hashedSubpackets []byte) (err error) {
-	hash, ok := s2k.HashToHashId(sig.Hash)
+	var hashId byte
+	var ok bool
+
+	if sig.Version < 5 {
+		hashId, ok = algorithm.HashToHashIdWithSha1(sig.Hash)
+	} else {
+		hashId, ok = algorithm.HashToHashId(sig.Hash)
+	}
+
 	if !ok {
 		sig.HashSuffix = nil
 		return errors.InvalidArgumentError("hash cannot be represented in OpenPGP: " + strconv.Itoa(int(sig.Hash)))
@@ -607,7 +625,7 @@ func (sig *Signature) buildHashSuffix(hashedSubpackets []byte) (err error) {
 		uint8(sig.Version),
 		uint8(sig.SigType),
 		uint8(sig.PubKeyAlgo),
-		uint8(hash),
+		uint8(hashId),
 		uint8(len(hashedSubpackets) >> 8),
 		uint8(len(hashedSubpackets)),
 	})

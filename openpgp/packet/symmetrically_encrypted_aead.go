@@ -22,7 +22,7 @@ func (se *SymmetricallyEncrypted) parseAead(r io.Reader) error {
 
 	// Cipher
 	se.cipher = CipherFunction(headerData[0])
-	if se.cipher.KeySize() == 0 {
+	if !se.cipher.IsAes() {
 		return errors.UnsupportedError("unknown cipher: " + string(se.cipher))
 	}
 
@@ -87,6 +87,10 @@ func (se *SymmetricallyEncrypted) decryptAead(inputKey []byte) (io.ReadCloser, e
 // serializeSymmetricallyEncryptedAead encrypts to a writer a V2 SEIPD packet (AEAD) as specified in
 // https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-07.html#section-5.13.2
 func serializeSymmetricallyEncryptedAead(ciphertext io.WriteCloser, cipherSuite CipherSuite, chunkSizeByte byte, rand io.Reader, inputKey []byte) (Contents io.WriteCloser, err error) {
+	if !cipherSuite.Cipher.IsAes() {
+		return nil, errors.InvalidArgumentError("invalid aead cipher function")
+	}
+
 	if cipherSuite.Cipher.KeySize() != len(inputKey) {
 		return nil, errors.InvalidArgumentError("error in aead serialization: bad key length")
 	}

@@ -9,6 +9,7 @@ import (
 	"crypto"
 	_ "crypto/sha256"
 	_ "crypto/sha512"
+	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
 	"hash"
 	"io"
 	"strconv"
@@ -304,14 +305,14 @@ FindLiteralData:
 // should be preprocessed (i.e. to normalize line endings). Thus this function
 // returns two hashes. The second should be used to hash the message itself and
 // performs any needed preprocessing.
-func hashForSignature(hashId crypto.Hash, sigType packet.SignatureType) (hash.Hash, hash.Hash, error) {
-	if hashId == crypto.MD5 {
-		return nil, nil, errors.UnsupportedError("insecure hash algorithm: MD5")
+func hashForSignature(hashFunc crypto.Hash, sigType packet.SignatureType) (hash.Hash, hash.Hash, error) {
+	if _, ok := algorithm.HashToHashIdWithSha1(hashFunc); !ok  {
+		return nil, nil, errors.UnsupportedError("unsupported hash function")
 	}
-	if !hashId.Available() {
-		return nil, nil, errors.UnsupportedError("hash not available: " + strconv.Itoa(int(hashId)))
+	if !hashFunc.Available() {
+		return nil, nil, errors.UnsupportedError("hash not available: " + strconv.Itoa(int(hashFunc)))
 	}
-	h := hashId.New()
+	h := hashFunc.New()
 
 	switch sigType {
 	case packet.SigTypeBinary:

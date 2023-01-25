@@ -29,11 +29,11 @@ func (ser seMdcReader) Close() error {
 }
 
 func (se *SymmetricallyEncrypted) decryptMdc(c CipherFunction, key []byte) (io.ReadCloser, error) {
-	keySize := c.KeySize()
-	if keySize == 0 {
-		return nil, errors.UnsupportedError("unknown cipher: " + strconv.Itoa(int(c)))
+	if !c.IsSupported() {
+		return nil, errors.UnsupportedError("unsupported cipher: " + strconv.Itoa(int(c)))
 	}
-	if len(key) != keySize {
+
+	if len(key) != c.KeySize() {
 		return nil, errors.InvalidArgumentError("SymmetricallyEncrypted: incorrect key length")
 	}
 
@@ -220,6 +220,10 @@ func (c noOpCloser) Close() error {
 }
 
 func serializeSymmetricallyEncryptedMdc(ciphertext io.WriteCloser, c CipherFunction, key []byte, config *Config) (Contents io.WriteCloser, err error) {
+	if !c.IsAes() {
+		return nil, errors.InvalidArgumentError("invalid mdc cipher function")
+	}
+
 	if c.KeySize() != len(key) {
 		return nil, errors.InvalidArgumentError("error in mdc serialization: bad key length")
 	}
