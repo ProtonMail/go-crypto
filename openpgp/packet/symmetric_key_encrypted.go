@@ -168,9 +168,6 @@ func (ske *SymmetricKeyEncrypted) decryptV5(key []byte) ([]byte, error) {
 // If config is nil, sensible defaults will be used.
 func SerializeSymmetricKeyEncrypted(w io.Writer, passphrase []byte, config *Config) (key []byte, err error) {
 	cipherFunc := config.Cipher()
-	if !cipherFunc.IsAes() {
-		return nil, errors.UnsupportedError("unsupported cipher: " + strconv.Itoa(int(cipherFunc)))
-	}
 
 	sessionKey := make([]byte, cipherFunc.KeySize())
 	_, err = io.ReadFull(config.Random(), sessionKey)
@@ -200,7 +197,8 @@ func SerializeSymmetricKeyEncryptedReuseKey(w io.Writer, sessionKey []byte, pass
 		version = 4
 	}
 	cipherFunc := config.Cipher()
-	if !cipherFunc.IsAes() {
+	// cipherFunc must be AES
+	if !cipherFunc.IsSupported() ||  cipherFunc < CipherAES128 || cipherFunc > CipherAES256 {
 		return errors.UnsupportedError("unsupported cipher: " + strconv.Itoa(int(cipherFunc)))
 	}
 
