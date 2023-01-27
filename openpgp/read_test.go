@@ -423,6 +423,18 @@ func TestRSASignatureBadMPILength(t *testing.T) {
 	}
 }
 
+func TestDetachedSignatureExpiredCrossSig(t *testing.T) {
+	kring, _ := ReadArmoredKeyRing(bytes.NewBufferString(keyWithExpiredCrossSig))
+	config := &packet.Config{}
+	_, err := CheckArmoredDetachedSignature(kring, bytes.NewBufferString("Hello World :)"), bytes.NewBufferString(sigFromKeyWithExpiredCrossSig), config)
+	if err == nil {
+		t.Fatal("Signature from key with expired subkey binding embedded signature was accepted")
+	}
+	if err != errors.ErrSignatureExpired {
+		t.Fatalf("Unexpected class of error: %s", err)
+	}
+}
+
 func TestReadingArmoredPrivateKey(t *testing.T) {
 	el, err := ReadArmoredKeyRing(bytes.NewBufferString(armoredPrivateKeyBlock))
 	if err != nil {

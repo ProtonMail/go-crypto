@@ -384,19 +384,7 @@ func (scr *signatureCheckReader) Read(buf []byte) (int, error) {
 					key := scr.md.SignedBy
 					signatureError := key.PublicKey.VerifySignature(scr.h, sig)
 					if signatureError == nil {
-						now := scr.config.Now()
-						if key.Revoked(now) ||
-							key.Entity.Revoked(now) || // primary key is revoked (redundant if key is the primary key)
-							key.Entity.PrimaryIdentity().Revoked(now) {
-							signatureError = errors.ErrKeyRevoked
-						}
-						if sig.SigExpired(now) {
-							signatureError = errors.ErrSignatureExpired
-						}
-						if key.PublicKey.KeyExpired(key.SelfSignature, now) ||
-							key.SelfSignature.SigExpired(now) {
-							signatureError = errors.ErrKeyExpired
-						}
+						signatureError = checkSignatureDetails(key, sig, scr.config)
 					}
 					scr.md.Signature = sig
 					scr.md.SignatureError = signatureError
@@ -436,7 +424,8 @@ func (scr *signatureCheckReader) Read(buf []byte) (int, error) {
 }
 
 // CheckDetachedSignature takes a signed file and a detached signature and
-// returns the signer if the signature is valid. If the signer isn't known,
+// returns the entity the signature was signed by, if any, and a possible
+// signature verification error. If the signer isn't known,
 // ErrUnknownIssuer is returned.
 func CheckDetachedSignature(keyring KeyRing, signed, signature io.Reader, config *packet.Config) (signer *Entity, err error) {
 	var expectedHashes []crypto.Hash
@@ -507,20 +496,7 @@ func CheckDetachedSignatureAndHash(keyring KeyRing, signed, signature io.Reader,
 	for _, key := range keys {
 		err = key.PublicKey.VerifySignature(h, sig)
 		if err == nil {
-			now := config.Now()
-			if key.Revoked(now) ||
-				key.Entity.Revoked(now) || // primary key is revoked (redundant if key is the primary key)
-				key.Entity.PrimaryIdentity().Revoked(now) {
-				return key.Entity, errors.ErrKeyRevoked
-			}
-			if sig.SigExpired(now) {
-				return key.Entity, errors.ErrSignatureExpired
-			}
-			if key.PublicKey.KeyExpired(key.SelfSignature, now) ||
-				key.SelfSignature.SigExpired(now) {
-				return key.Entity, errors.ErrKeyExpired
-			}
-			return key.Entity, nil
+			return key.Entity, checkSignatureDetails(&key, sig, config)
 		}
 	}
 
@@ -536,4 +512,47 @@ func CheckArmoredDetachedSignature(keyring KeyRing, signed, signature io.Reader,
 	}
 
 	return CheckDetachedSignature(keyring, signed, body, config)
+}
+
+// checkSignatureDetails returns an error if:
+// - The primary key of the signing entity is revoked
+// The signature was signed by a subkey and:
+//   - The signing subkey is revoked
+// - The primary identity is revoked
+// - The signature is expired
+// - The primary key of the signing entity is expired according to the primary identity binding signature
+// The signature was signed by a subkey and:
+//   - The signing subkey is expired according to the subkey binding signature
+//   - The signing subkey binding signature is expired
+//   - The signing subkey cross-signature is expired
+// NOTE: The order of these checks is important, as the caller may choose to
+// ignore ErrSignatureExpired or ErrKeyExpired errors, but should never
+// ignore any other errors.
+// TODO: Also return an error if:
+// - The primary key is expired according to a direct-key signature
+// - (For V5 keys only:) The direct-key signature (exists and) is expired
+func checkSignatureDetails(key *Key, signature *packet.Signature, config *packet.Config) error {
+	now := config.Now()
+	primaryIdentity := key.Entity.PrimaryIdentity()
+	sigsToCheck := []*packet.Signature{ signature, primaryIdentity.SelfSignature }
+	if key.Entity.Revoked(now) || // primary key is revoked
+		(key.PublicKey != key.Entity.PrimaryKey && key.Revoked(now)) || // subkey is revoked
+		primaryIdentity.Revoked(now) { // primary identity is revoked
+		return errors.ErrKeyRevoked
+	}
+	if key.Entity.PrimaryKey.KeyExpired(primaryIdentity.SelfSignature, now) { // primary key is expired
+		return errors.ErrKeyExpired
+	}
+	if key.PublicKey != key.Entity.PrimaryKey {
+		if key.PublicKey.KeyExpired(key.SelfSignature, now) { // subkey is expired
+			return errors.ErrKeyExpired
+		}
+		sigsToCheck = append(sigsToCheck, key.SelfSignature, key.SelfSignature.EmbeddedSignature)
+	}
+	for _, sig := range sigsToCheck {
+		if sig.SigExpired(now) { // any of the relevant signatures are expired
+			return errors.ErrSignatureExpired
+		}
+	}
+	return nil
 }
