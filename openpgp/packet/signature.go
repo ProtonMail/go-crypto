@@ -380,10 +380,10 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		}
 
 		notation := Notation{
-			HumanReadable: (subpacket[0] & 0x80) == 0x80,
+			IsHumanReadable: (subpacket[0] & 0x80) == 0x80,
 			Name: string(subpacket[8: (nameLength + 8)]),
 			Value: subpacket[(nameLength + 8) : (valueLength + nameLength + 8)],
-			Critical: isCritical,
+			IsCritical: isCritical,
 		}
 
 		sig.Notations = append(sig.Notations, notation)
@@ -964,7 +964,7 @@ func (sig *Signature) buildSubpackets(issuer PublicKey) (subpackets []outputSubp
 			outputSubpacket{
 				true,
 				notationDataSubpacket,
-				notation.Critical,
+				notation.IsCritical,
 				notation.getData(),
 			})
 	}

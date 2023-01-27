@@ -998,7 +998,7 @@ func assertNotationPackets(t *testing.T, keys EntityList) {
 		t.Fatalf("got %d Data Notation subpackets, expected %d", numSigs, numExpected)
 	}
 
-	if notations[0].HumanReadable != true {
+	if notations[0].IsHumanReadable != true {
 		t.Fatalf("got false, expected true")
 	}
 

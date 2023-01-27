@@ -5,8 +5,8 @@ package packet
 type Notation struct {
 	Name string
 	Value []byte
-	Critical bool
-	HumanReadable bool
+	IsCritical bool
+	IsHumanReadable bool
 }
 
 func (not *Notation) getData() []byte {
@@ -15,7 +15,7 @@ func (not *Notation) getData() []byte {
 	valueLen := len(not.Value)
 
 	data := make([]byte, 8 + nameLen + valueLen)
-	if not.HumanReadable {
+	if not.IsHumanReadable {
 		data[0] = 0x80
 	}
 
