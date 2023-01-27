@@ -179,7 +179,7 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 			return
 		}
 		pk.cipher = CipherFunction(buf[0])
-		if !pk.cipher.IsSupported() {
+		if pk.cipher != 0 && !pk.cipher.IsSupported() {
 			return errors.UnsupportedError("unsupported cipher function in private key")
 		}
 		pk.s2kParams, err = s2k.ParseIntoParams(r)
