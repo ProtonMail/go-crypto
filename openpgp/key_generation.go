@@ -101,7 +101,12 @@ func (t *Entity) addUserId(name, comment, email string, config *packet.Config, c
 
 	// Set the PreferredHash for the SelfSignature from the packet.Config.
 	// If it is not the must-implement algorithm from rfc4880bis, append that.
-	selfSignature.PreferredHash = []uint8{hashToHashId(config.Hash())}
+	hash, ok := algorithm.HashToHashId(config.Hash())
+	if !ok {
+		return errors.UnsupportedError("unsupported preferred hash function")
+	}
+
+	selfSignature.PreferredHash = []uint8{hash}
 	if config.Hash() != crypto.SHA256 {
 		selfSignature.PreferredHash = append(selfSignature.PreferredHash, hashToHashId(crypto.SHA256))
 	}

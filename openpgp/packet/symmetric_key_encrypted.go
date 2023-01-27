@@ -57,7 +57,7 @@ func (ske *SymmetricKeyEncrypted) parse(r io.Reader) error {
 		return err
 	}
 	ske.CipherFunc = CipherFunction(buf[0])
-	if ske.CipherFunc.KeySize() == 0 {
+	if !ske.CipherFunc.IsSupported() {
 		return errors.UnsupportedError("unknown cipher: " + strconv.Itoa(int(buf[0])))
 	}
 
@@ -168,12 +168,8 @@ func (ske *SymmetricKeyEncrypted) decryptV5(key []byte) ([]byte, error) {
 // If config is nil, sensible defaults will be used.
 func SerializeSymmetricKeyEncrypted(w io.Writer, passphrase []byte, config *Config) (key []byte, err error) {
 	cipherFunc := config.Cipher()
-	keySize := cipherFunc.KeySize()
-	if keySize == 0 {
-		return nil, errors.UnsupportedError("unknown cipher: " + strconv.Itoa(int(cipherFunc)))
-	}
 
-	sessionKey := make([]byte, keySize)
+	sessionKey := make([]byte, cipherFunc.KeySize())
 	_, err = io.ReadFull(config.Random(), sessionKey)
 	if err != nil {
 		return
@@ -201,11 +197,12 @@ func SerializeSymmetricKeyEncryptedReuseKey(w io.Writer, sessionKey []byte, pass
 		version = 4
 	}
 	cipherFunc := config.Cipher()
-	keySize := cipherFunc.KeySize()
-	if keySize == 0 {
-		return errors.UnsupportedError("unknown cipher: " + strconv.Itoa(int(cipherFunc)))
+	// cipherFunc must be AES
+	if !cipherFunc.IsSupported() ||  cipherFunc < CipherAES128 || cipherFunc > CipherAES256 {
+		return errors.UnsupportedError("unsupported cipher: " + strconv.Itoa(int(cipherFunc)))
 	}
 
+	keySize := cipherFunc.KeySize()
 	s2kBuf := new(bytes.Buffer)
 	keyEncryptingKey := make([]byte, keySize)
 	// s2k.Serialize salts and stretches the passphrase, and writes the

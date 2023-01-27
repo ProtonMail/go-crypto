@@ -455,6 +455,11 @@ func (cipher CipherFunction) KeySize() int {
 	return algorithm.CipherFunction(cipher).KeySize()
 }
 
+// IsSupported returns true if the cipher is supported from the library
+func (cipher CipherFunction) IsSupported() bool {
+	return algorithm.CipherFunction(cipher).KeySize() > 0
+}
+
 // blockSize returns the block size, in bytes, of cipher.
 func (cipher CipherFunction) blockSize() int {
 	return algorithm.CipherFunction(cipher).BlockSize()

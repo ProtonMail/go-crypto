@@ -13,8 +13,8 @@ import (
 
 	"github.com/ProtonMail/go-crypto/openpgp/armor"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
+	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
-	"github.com/ProtonMail/go-crypto/openpgp/s2k"
 )
 
 // DetachSign signs message with the private key from signer (which must
@@ -69,6 +69,9 @@ func detachSign(w io.Writer, signer *Entity, message io.Reader, sigType packet.S
 	}
 	if signingKey.PrivateKey.Encrypted {
 		return errors.InvalidArgumentError("signing key is encrypted")
+	}
+	if _, ok := algorithm.HashToHashId(config.Hash()); !ok {
+		return errors.InvalidArgumentError("invalid hash function")
 	}
 
 	sig := new(packet.Signature)
@@ -188,7 +191,7 @@ func intersectCipherSuites(a [][2]uint8, b [][2]uint8) (intersection [][2]uint8)
 }
 
 func hashToHashId(h crypto.Hash) uint8 {
-	v, ok := s2k.HashToHashId(h)
+	v, ok := algorithm.HashToHashId(h)
 	if !ok {
 		panic("tried to convert unknown hash")
 	}
@@ -254,7 +257,7 @@ func writeAndSign(payload io.WriteCloser, candidateHashes []uint8, signed *Entit
 
 	var hash crypto.Hash
 	for _, hashId := range candidateHashes {
-		if h, ok := s2k.HashIdToHash(hashId); ok && h.Available() {
+		if h, ok := algorithm.HashIdToHash(hashId); ok && h.Available() {
 			hash = h
 			break
 		}
@@ -263,7 +266,7 @@ func writeAndSign(payload io.WriteCloser, candidateHashes []uint8, signed *Entit
 	// If the hash specified by config is a candidate, we'll use that.
 	if configuredHash := config.Hash(); configuredHash.Available() {
 		for _, hashId := range candidateHashes {
-			if h, ok := s2k.HashIdToHash(hashId); ok && h == configuredHash {
+			if h, ok := algorithm.HashIdToHash(hashId); ok && h == configuredHash {
 				hash = h
 				break
 			}
@@ -272,7 +275,7 @@ func writeAndSign(payload io.WriteCloser, candidateHashes []uint8, signed *Entit
 
 	if hash == 0 {
 		hashId := candidateHashes[0]
-		name, ok := s2k.HashIdToString(hashId)
+		name, ok := algorithm.HashIdToString(hashId)
 		if !ok {
 			name = "#" + strconv.Itoa(int(hashId))
 		}
@@ -343,9 +346,8 @@ func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *En
 
 	// These are the possible ciphers that we'll use for the message.
 	candidateCiphers := []uint8{
-		uint8(packet.CipherAES128),
 		uint8(packet.CipherAES256),
-		uint8(packet.CipherCAST5),
+		uint8(packet.CipherAES128),
 	}
 
 	// These are the possible hash functions that we'll use for the signature.
@@ -355,8 +357,6 @@ func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *En
 		hashToHashId(crypto.SHA512),
 		hashToHashId(crypto.SHA3_256),
 		hashToHashId(crypto.SHA3_512),
-		hashToHashId(crypto.SHA1),
-		hashToHashId(crypto.RIPEMD160),
 	}
 
 	// Prefer GCM if everyone supports it
@@ -470,8 +470,6 @@ func Sign(output io.Writer, signed *Entity, hints *FileHints, config *packet.Con
 		hashToHashId(crypto.SHA512),
 		hashToHashId(crypto.SHA3_256),
 		hashToHashId(crypto.SHA3_512),
-		hashToHashId(crypto.SHA1),
-		hashToHashId(crypto.RIPEMD160),
 	}
 	defaultHashes := candidateHashes[0:1]
 	preferredHashes := signed.PrimaryIdentity().SelfSignature.PreferredHash

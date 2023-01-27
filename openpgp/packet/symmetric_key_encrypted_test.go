@@ -115,8 +115,6 @@ func TestSerializeSymmetricKeyEncryptedV5RandomizeSlow(t *testing.T) {
 
 func TestSerializeSymmetricKeyEncryptedCiphersV4(t *testing.T) {
 	tests := map[string] CipherFunction {
-		"3DES": Cipher3DES,
-		"CAST5": CipherCAST5,
 		"AES128": CipherAES128,
 		"AES192": CipherAES192,
 		"AES256": CipherAES256,

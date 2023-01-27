@@ -802,6 +802,13 @@ func TestNewEntityWithDefaultHash(t *testing.T) {
 			DefaultHash: hash,
 		}
 		entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", c)
+		if hash == crypto.SHA1 {
+			if err == nil {
+				t.Fatal("should fail on SHA1 key creation")
+			}
+			continue
+		}
+
 		if err != nil {
 			t.Fatal(err)
 		}
