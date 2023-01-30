@@ -969,7 +969,7 @@ func TestNotationPacket(t *testing.T) {
 	assertNotationPackets(t, keys)
 
 	serializedEntity := bytes.NewBuffer(nil)
-	err = keys[0].Serialize(serializedEntity)
+	err = keys[0].SerializePrivate(serializedEntity, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -987,7 +987,7 @@ func assertNotationPackets(t *testing.T, keys EntityList) {
 		t.Errorf("Failed to accept key, %d", len(keys))
 	}
 
-	identity := keys[0].Identities["Testt <test@exa>"]
+	identity := keys[0].Identities["Test <test@example.com>"]
 
 	if numSigs, numExpected := len(identity.Signatures), 1; numSigs != numExpected {
 		t.Fatalf("got %d signatures, expected %d", numSigs, numExpected)
@@ -1002,19 +1002,23 @@ func assertNotationPackets(t *testing.T, keys EntityList) {
 		t.Fatalf("got false, expected true")
 	}
 
-	if notations[0].Name != "test@example.com" {
+	if notations[0].Name != "text@example.com" {
 		t.Fatalf("got %s, expected test@example.com", notations[0].Name)
 	}
 
-	if string(notations[0].Value) != "2" {
+	if string(notations[0].Value) != "test" {
 		t.Fatalf("got %s, expected 2", string(notations[0].Value))
 	}
 
-	if notations[1].Name != "test@example.com" {
+	if notations[1].IsHumanReadable != false {
+		t.Fatalf("got true, expected false")
+	}
+
+	if notations[1].Name != "binary@example.com" {
 		t.Fatalf("got %s, expected test@example.com", notations[1].Name)
 	}
 
-	if string(notations[1].Value) != "3" {
+	if !bytes.Equal(notations[1].Value, []byte{0, 1, 2, 3}) {
 		t.Fatalf("got %s, expected 3", string(notations[1].Value))
 	}
 }
