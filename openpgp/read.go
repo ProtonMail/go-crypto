@@ -543,9 +543,9 @@ func checkSignatureDetails(key *Key, signature *packet.Signature, config *packet
 		sigsToCheck = append(sigsToCheck, key.SelfSignature, key.SelfSignature.EmbeddedSignature)
 	}
 	for _, sig := range sigsToCheck {
-		for _, not := range sig.Notations {
-			if not.IsCritical && !config.KnownNotation(not.Name) {
-				return errors.SignatureError("unknown critical notation: " + not.Name)
+		for _, notation := range sig.Notations {
+			if notation.IsCritical && !config.KnownNotation(notation.Name) {
+				return errors.SignatureError("unknown critical notation: " + notation.Name)
 			}
 		}
 	}

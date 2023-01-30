@@ -9,13 +9,13 @@ type Notation struct {
 	IsHumanReadable bool
 }
 
-func (not *Notation) getData() []byte {
-	nameData := []byte(not.Name)
+func (notation *Notation) getData() []byte {
+	nameData := []byte(notation.Name)
 	nameLen := len(nameData)
-	valueLen := len(not.Value)
+	valueLen := len(notation.Value)
 
 	data := make([]byte, 8+nameLen+valueLen)
-	if not.IsHumanReadable {
+	if notation.IsHumanReadable {
 		data[0] = 0x80
 	}
 
@@ -24,6 +24,6 @@ func (not *Notation) getData() []byte {
 	data[6] = byte(valueLen >> 8)
 	data[7] = byte(valueLen)
 	copy(data[8:8+nameLen], nameData)
-	copy(data[8+nameLen:], not.Value)
+	copy(data[8+nameLen:], notation.Value)
 	return data
 }
