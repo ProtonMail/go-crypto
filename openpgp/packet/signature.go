@@ -371,10 +371,14 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		*sig.IssuerKeyId = binary.BigEndian.Uint64(subpacket)
 	case notationDataSubpacket:
 		// Notation data, section 5.2.3.16
+		if len(subpacket) < 8 {
+			err = errors.StructuralError("notation data subpacket with bad length")
+			return
+		}
+
 		nameLength := uint32(subpacket[4])<<8 | uint32(subpacket[5])
 		valueLength := uint32(subpacket[6])<<8 | uint32(subpacket[7])
-
-		if len(subpacket) != (int(nameLength) + int(valueLength) + 8) {
+		if len(subpacket) != int(nameLength) + int(valueLength) + 8 {
 			err = errors.StructuralError("notation data subpacket with bad length")
 			return
 		}
