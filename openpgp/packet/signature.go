@@ -359,10 +359,11 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		sig.PreferredSymmetric = make([]byte, len(subpacket))
 		copy(sig.PreferredSymmetric, subpacket)
 	case issuerSubpacket:
+		// Issuer, section 5.2.3.5
 		if sig.Version > 4 {
 			err = errors.StructuralError("issuer subpacket found in v5 key")
+			return
 		}
-		// Issuer, section 5.2.3.5
 		if len(subpacket) != 8 {
 			err = errors.StructuralError("issuer subpacket with bad length")
 			return
