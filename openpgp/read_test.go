@@ -435,6 +435,63 @@ func TestDetachedSignatureExpiredCrossSig(t *testing.T) {
 	}
 }
 
+func TestSignatureUnknownNotation(t *testing.T) {
+	el, err := ReadArmoredKeyRing(bytes.NewBufferString(criticalNotationSigner))
+	if err != nil {
+		t.Error(err)
+	}
+	raw, err := armor.Decode(strings.NewReader(signedMessageWithCriticalNotation))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	md, err := ReadMessage(raw.Body, el, nil, nil)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	_, err = ioutil.ReadAll(md.UnverifiedBody)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	const expectedErr string = "openpgp: invalid signature: unknown critical notation: test@example.com"
+	if md.SignatureError == nil || md.SignatureError.Error() != expectedErr {
+		t.Errorf("Expected error '%s', but got error '%s'", expectedErr, md.SignatureError)
+	}
+}
+
+func TestSignatureKnownNotation(t *testing.T) {
+	el, err := ReadArmoredKeyRing(bytes.NewBufferString(criticalNotationSigner))
+	if err != nil {
+		t.Error(err)
+	}
+	raw, err := armor.Decode(strings.NewReader(signedMessageWithCriticalNotation))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	config := &packet.Config{
+		KnownNotations: map[string]bool{
+			"test@example.com": true,
+		},
+	}
+	md, err := ReadMessage(raw.Body, el, nil, config)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	_, err = ioutil.ReadAll(md.UnverifiedBody)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	if md.SignatureError != nil {
+		t.Error(md.SignatureError)
+		return
+	}
+}
+
 func TestReadingArmoredPrivateKey(t *testing.T) {
 	el, err := ReadArmoredKeyRing(bytes.NewBufferString(armoredPrivateKeyBlock))
 	if err != nil {

@@ -960,6 +960,69 @@ func TestNewEntityPrivateSerialization(t *testing.T) {
 	}
 }
 
+func TestNotationPacket(t *testing.T) {
+	keys, err := ReadArmoredKeyRing(bytes.NewBufferString(keyWithNotation))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assertNotationPackets(t, keys)
+
+	serializedEntity := bytes.NewBuffer(nil)
+	err = keys[0].SerializePrivate(serializedEntity, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	keys, err = ReadKeyRing(serializedEntity)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assertNotationPackets(t, keys)
+}
+
+func assertNotationPackets(t *testing.T, keys EntityList) {
+	if len(keys) != 1 {
+		t.Errorf("Failed to accept key, %d", len(keys))
+	}
+
+	identity := keys[0].Identities["Test <test@example.com>"]
+
+	if numSigs, numExpected := len(identity.Signatures), 1; numSigs != numExpected {
+		t.Fatalf("got %d signatures, expected %d", numSigs, numExpected)
+	}
+
+	notations := identity.Signatures[0].Notations
+	if numSigs, numExpected := len(notations), 2; numSigs != numExpected {
+		t.Fatalf("got %d Data Notation subpackets, expected %d", numSigs, numExpected)
+	}
+
+	if notations[0].IsHumanReadable != true {
+		t.Fatalf("got false, expected true")
+	}
+
+	if notations[0].Name != "text@example.com" {
+		t.Fatalf("got %s, expected test@example.com", notations[0].Name)
+	}
+
+	if string(notations[0].Value) != "test" {
+		t.Fatalf("got %s, expected 2", string(notations[0].Value))
+	}
+
+	if notations[1].IsHumanReadable != false {
+		t.Fatalf("got true, expected false")
+	}
+
+	if notations[1].Name != "binary@example.com" {
+		t.Fatalf("got %s, expected test@example.com", notations[1].Name)
+	}
+
+	if !bytes.Equal(notations[1].Value, []byte{0, 1, 2, 3}) {
+		t.Fatalf("got %s, expected 3", string(notations[1].Value))
+	}
+}
+
 func TestEntityPrivateSerialization(t *testing.T) {
 	keys, err := ReadArmoredKeyRing(bytes.NewBufferString(armoredPrivateKeyBlock))
 	if err != nil {
