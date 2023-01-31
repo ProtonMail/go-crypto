@@ -71,7 +71,7 @@ type Signature struct {
 	IssuerFingerprint                                       []byte
 	SignerUserId                                            *string
 	IsPrimaryId                                             *bool
-	Notations                                               []Notation
+	Notations                                               []*Notation
 
 	// TrustLevel and TrustAmount can be set by the signer to assert that 
 	// the key is not only valid but also trustworthy at the specified 
@@ -393,7 +393,7 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 			IsCritical: isCritical,
 		}
 
-		sig.Notations = append(sig.Notations, notation)
+		sig.Notations = append(sig.Notations, &notation)
 	case prefHashAlgosSubpacket:
 		// Preferred hash algorithms, section 5.2.3.8
 		if !isHashed {
