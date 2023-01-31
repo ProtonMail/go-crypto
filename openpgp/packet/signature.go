@@ -304,12 +304,14 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 	isCritical = subpacket[0]&0x80 == 0x80
 	subpacket = subpacket[1:]
 	sig.rawSubpackets = append(sig.rawSubpackets, outputSubpacket{isHashed, packetType, isCritical, subpacket})
+	if !isHashed &&
+		packetType != issuerSubpacket &&
+		packetType != issuerFingerprintSubpacket &&
+		packetType != embeddedSignatureSubpacket {
+		return
+	}
 	switch packetType {
 	case creationTimeSubpacket:
-		if !isHashed {
-			err = errors.StructuralError("signature creation time in non-hashed area")
-			return
-		}
 		if len(subpacket) != 4 {
 			err = errors.StructuralError("signature creation time not four bytes")
 			return
@@ -318,9 +320,6 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		sig.CreationTime = time.Unix(int64(t), 0)
 	case signatureExpirationSubpacket:
 		// Signature expiration time, section 5.2.3.10
-		if !isHashed {
-			return
-		}
 		if len(subpacket) != 4 {
 			err = errors.StructuralError("expiration subpacket with bad length")
 			return
@@ -342,9 +341,6 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		sig.TrustRegularExpression = &trustRegularExpression
 	case keyExpirationSubpacket:
 		// Key expiration time, section 5.2.3.6
-		if !isHashed {
-			return
-		}
 		if len(subpacket) != 4 {
 			err = errors.StructuralError("key expiration subpacket with bad length")
 			return
@@ -353,9 +349,6 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		*sig.KeyLifetimeSecs = binary.BigEndian.Uint32(subpacket)
 	case prefSymmetricAlgosSubpacket:
 		// Preferred symmetric algorithms, section 5.2.3.7
-		if !isHashed {
-			return
-		}
 		sig.PreferredSymmetric = make([]byte, len(subpacket))
 		copy(sig.PreferredSymmetric, subpacket)
 	case issuerSubpacket:
@@ -372,9 +365,6 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		*sig.IssuerKeyId = binary.BigEndian.Uint64(subpacket)
 	case notationDataSubpacket:
 		// Notation data, section 5.2.3.16
-		if !isHashed {
-			return
-		}
 		if len(subpacket) < 8 {
 			err = errors.StructuralError("notation data subpacket with bad length")
 			return
@@ -397,23 +387,14 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		sig.Notations = append(sig.Notations, &notation)
 	case prefHashAlgosSubpacket:
 		// Preferred hash algorithms, section 5.2.3.8
-		if !isHashed {
-			return
-		}
 		sig.PreferredHash = make([]byte, len(subpacket))
 		copy(sig.PreferredHash, subpacket)
 	case prefCompressionSubpacket:
 		// Preferred compression algorithms, section 5.2.3.9
-		if !isHashed {
-			return
-		}
 		sig.PreferredCompression = make([]byte, len(subpacket))
 		copy(sig.PreferredCompression, subpacket)
 	case primaryUserIdSubpacket:
 		// Primary User ID, section 5.2.3.19
-		if !isHashed {
-			return
-		}
 		if len(subpacket) != 1 {
 			err = errors.StructuralError("primary user id subpacket with bad length")
 			return
@@ -424,9 +405,6 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		}
 	case keyFlagsSubpacket:
 		// Key flags, section 5.2.3.21
-		if !isHashed {
-			return
-		}
 		if len(subpacket) == 0 {
 			err = errors.StructuralError("empty key flags subpacket")
 			return
@@ -458,9 +436,6 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		sig.SignerUserId = &userId
 	case reasonForRevocationSubpacket:
 		// Reason For Revocation, section 5.2.3.23
-		if !isHashed {
-			return
-		}
 		if len(subpacket) == 0 {
 			err = errors.StructuralError("empty revocation reason subpacket")
 			return
@@ -472,9 +447,6 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		// Features subpacket, section 5.2.3.24 specifies a very general
 		// mechanism for OpenPGP implementations to signal support for new
 		// features.
-		if !isHashed {
-			return
-		}
 		if len(subpacket) > 0 {
 			if subpacket[0]&0x01 != 0 {
 				sig.SEIPDv1 = true
@@ -504,9 +476,6 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		}
 	case policyUriSubpacket:
 		// Policy URI, section 5.2.3.20
-		if !isHashed {
-			return
-		}
 		sig.PolicyURI = string(subpacket)
 	case issuerFingerprintSubpacket:
 		v, l := subpacket[0], len(subpacket[1:])
@@ -524,10 +493,6 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 	case prefCipherSuitesSubpacket:
 		// Preferred AEAD cipher suites
 		// See https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-07.html#name-preferred-aead-ciphersuites
-		if !isHashed {
-			return
-		}
-
 		if len(subpacket) % 2 != 0 {
 			err = errors.StructuralError("invalid aead cipher suite length")
 			return
