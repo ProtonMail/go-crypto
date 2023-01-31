@@ -371,6 +371,9 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		*sig.IssuerKeyId = binary.BigEndian.Uint64(subpacket)
 	case notationDataSubpacket:
 		// Notation data, section 5.2.3.16
+		if !isHashed {
+			return
+		}
 		if len(subpacket) < 8 {
 			err = errors.StructuralError("notation data subpacket with bad length")
 			return
