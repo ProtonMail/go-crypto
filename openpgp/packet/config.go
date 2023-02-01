@@ -98,6 +98,8 @@ type Config struct {
 	// the notation names that are allowed to be present in critical Notation Data
 	// signature subpackets.
 	KnownNotations map[string]bool
+	// SignatureNotations is a list of Notations to be added to any signatures.
+	SignatureNotations []*Notation
 }
 
 func (c *Config) Random() io.Reader {
@@ -212,4 +214,11 @@ func (c *Config) KnownNotation(notationName string) bool {
 		return false
 	}
 	return c.KnownNotations[notationName]
+}
+
+func (c *Config) Notations() []*Notation {
+	if c == nil {
+		return nil
+	}
+	return c.SignatureNotations
 }

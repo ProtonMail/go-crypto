@@ -82,6 +82,7 @@ func detachSign(w io.Writer, signer *Entity, message io.Reader, sigType packet.S
 	sigLifetimeSecs := config.SigLifetime()
 	sig.SigLifetimeSecs = &sigLifetimeSecs
 	sig.IssuerKeyId = &signingKey.PrivateKey.KeyId
+	sig.Notations = config.Notations()
 
 	h, wrappedHash, err := hashForSignature(sig.Hash, sig.SigType)
 	if err != nil {
@@ -520,6 +521,7 @@ func (s signatureWriter) Close() error {
 		CreationTime: s.config.Now(),
 		IssuerKeyId:  &s.signer.KeyId,
 		Metadata:     s.metadata,
+		Notations:    s.config.Notations(),
 	}
 
 	if err := sig.Sign(s.h, s.signer, s.config); err != nil {

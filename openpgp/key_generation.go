@@ -97,6 +97,7 @@ func (t *Entity) addUserId(name, comment, email string, config *packet.Config, c
 		FlagCertify:       true,
 		SEIPDv1:           true, // true by default, see 5.8 vs. 5.14
 		SEIPDv2:           config.AEAD() != nil,
+		Notations:         config.Notations(),
 	}
 
 	// Set the PreferredHash for the SelfSignature from the packet.Config.
@@ -185,7 +186,9 @@ func (e *Entity) AddSigningSubkey(config *packet.Config) error {
 				PubKeyAlgo:   sub.PublicKey.PubKeyAlgo,
 				Hash:         config.Hash(),
 				IssuerKeyId:  &e.PrimaryKey.KeyId,
+				Notations:    config.Notations(),
 			},
+			Notations:       config.Notations(),
 		},
 	}
 	if config != nil && config.V5Keys {
@@ -236,6 +239,7 @@ func (e *Entity) addEncryptionSubkey(config *packet.Config, creationTime time.Ti
 			FlagEncryptStorage:        true,
 			FlagEncryptCommunications: true,
 			IssuerKeyId:               &e.PrimaryKey.KeyId,
+			Notations:                 config.Notations(),
 		},
 	}
 	if config != nil && config.V5Keys {

@@ -307,6 +307,7 @@ func (d *dashEscaper) Close() (err error) {
 		sig.Hash = d.hashType
 		sig.CreationTime = t
 		sig.IssuerKeyId = &k.KeyId
+		sig.Notations = d.config.Notations()
 
 		if err = sig.Sign(d.hashers[i], k, d.config); err != nil {
 			return
