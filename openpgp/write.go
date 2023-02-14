@@ -74,15 +74,7 @@ func detachSign(w io.Writer, signer *Entity, message io.Reader, sigType packet.S
 		return errors.InvalidArgumentError("invalid hash function")
 	}
 
-	sig := new(packet.Signature)
-	sig.SigType = sigType
-	sig.PubKeyAlgo = signingKey.PrivateKey.PubKeyAlgo
-	sig.Hash = config.Hash()
-	sig.CreationTime = config.Now()
-	sigLifetimeSecs := config.SigLifetime()
-	sig.SigLifetimeSecs = &sigLifetimeSecs
-	sig.IssuerKeyId = &signingKey.PrivateKey.KeyId
-	sig.Notations = config.Notations()
+	sig := createSignaturePacket(signingKey.PublicKey, sigType, config)
 
 	h, wrappedHash, err := hashForSignature(sig.Hash, sig.SigType)
 	if err != nil {
@@ -513,16 +505,9 @@ func (s signatureWriter) Write(data []byte) (int, error) {
 }
 
 func (s signatureWriter) Close() error {
-	sig := &packet.Signature{
-		Version:      s.signer.Version,
-		SigType:      s.sigType,
-		PubKeyAlgo:   s.signer.PubKeyAlgo,
-		Hash:         s.hashType,
-		CreationTime: s.config.Now(),
-		IssuerKeyId:  &s.signer.KeyId,
-		Metadata:     s.metadata,
-		Notations:    s.config.Notations(),
-	}
+	sig := createSignaturePacket(&s.signer.PublicKey, s.sigType, s.config)
+	sig.Hash = s.hashType
+	sig.Metadata = s.metadata
 
 	if err := sig.Sign(s.h, s.signer, s.config); err != nil {
 		return err
@@ -534,6 +519,21 @@ func (s signatureWriter) Close() error {
 		return err
 	}
 	return s.encryptedData.Close()
+}
+
+func createSignaturePacket(signer *packet.PublicKey, sigType packet.SignatureType, config *packet.Config) *packet.Signature {
+	sigLifetimeSecs := config.SigLifetime()
+	return &packet.Signature{
+		Version:           signer.Version,
+		SigType:           sigType,
+		PubKeyAlgo:        signer.PubKeyAlgo,
+		Hash:              config.Hash(),
+		CreationTime:      config.Now(),
+		IssuerKeyId:       &signer.KeyId,
+		IssuerFingerprint: signer.Fingerprint,
+		Notations:         config.Notations(),
+		SigLifetimeSecs:   &sigLifetimeSecs,
+	}
 }
 
 // noOpCloser is like an ioutil.NopCloser, but for an io.Writer.
