@@ -72,6 +72,111 @@ func TestSignDetachedP256(t *testing.T) {
 	testDetachedSignature(t, kring, out, signedInput, "check", testKeyP256KeyId)
 }
 
+func TestSignDetachedWithNotation(t *testing.T) {
+	kring, _ := ReadKeyRing(readerFromHex(testKeys1And2PrivateHex))
+	signature := bytes.NewBuffer(nil)
+	message := bytes.NewBufferString(signedInput)
+	config := &packet.Config{
+		SignatureNotations: []*packet.Notation{
+			{
+				Name: "test@example.com",
+				Value: []byte("test"),
+				IsHumanReadable: true,
+			},
+		},
+	}
+	err := DetachSign(signature, kring[0], message, config)
+	if err != nil {
+		t.Error(err)
+	}
+
+	signed := bytes.NewBufferString(signedInput)
+	config = &packet.Config{}
+	sig, signer, err := VerifyDetachedSignature(kring, signed, signature, config)
+	if err != nil {
+		t.Errorf("signature error: %s", err)
+		return
+	}
+	if sig == nil {
+		t.Errorf("sig is nil")
+		return
+	}
+	if numNotations, numExpected := len(sig.Notations), 1; numNotations != numExpected {
+		t.Fatalf("got %d Notation Data subpackets, expected %d", numNotations, numExpected)
+	}
+	if sig.Notations[0].IsHumanReadable != true {
+		t.Fatalf("got false, expected true")
+	}
+	if sig.Notations[0].Name != "test@example.com" {
+		t.Fatalf("got %s, expected test@example.com", sig.Notations[0].Name)
+	}
+	if string(sig.Notations[0].Value) != "test" {
+		t.Fatalf("got %s, expected \"test\"", string(sig.Notations[0].Value))
+	}
+	if signer == nil {
+		t.Errorf("signer is nil")
+		return
+	}
+	if signer.PrimaryKey.KeyId != testKey1KeyId {
+		t.Errorf("wrong signer: got %x, expected %x", signer.PrimaryKey.KeyId, testKey1KeyId)
+	}
+}
+
+func TestSignDetachedWithCriticalNotation(t *testing.T) {
+	kring, _ := ReadKeyRing(readerFromHex(testKeys1And2PrivateHex))
+	signature := bytes.NewBuffer(nil)
+	message := bytes.NewBufferString(signedInput)
+	config := &packet.Config{
+		SignatureNotations: []*packet.Notation{
+			{
+				Name: "test@example.com",
+				Value: []byte("test"),
+				IsHumanReadable: true,
+				IsCritical: true,
+			},
+		},
+	}
+	err := DetachSign(signature, kring[0], message, config)
+	if err != nil {
+		t.Error(err)
+	}
+
+	signed := bytes.NewBufferString(signedInput)
+	config = &packet.Config{
+		KnownNotations: map[string]bool{
+			"test@example.com": true,
+		},
+	}
+	sig, signer, err := VerifyDetachedSignature(kring, signed, signature, config)
+	if err != nil {
+		t.Errorf("signature error: %s", err)
+		return
+	}
+	if sig == nil {
+		t.Errorf("sig is nil")
+		return
+	}
+	if numNotations, numExpected := len(sig.Notations), 1; numNotations != numExpected {
+		t.Fatalf("got %d Notation Data subpackets, expected %d", numNotations, numExpected)
+	}
+	if sig.Notations[0].IsHumanReadable != true {
+		t.Fatalf("got false, expected true")
+	}
+	if sig.Notations[0].Name != "test@example.com" {
+		t.Fatalf("got %s, expected test@example.com", sig.Notations[0].Name)
+	}
+	if string(sig.Notations[0].Value) != "test" {
+		t.Fatalf("got %s, expected \"test\"", string(sig.Notations[0].Value))
+	}
+	if signer == nil {
+		t.Errorf("signer is nil")
+		return
+	}
+	if signer.PrimaryKey.KeyId != testKey1KeyId {
+		t.Errorf("wrong signer: got %x, expected %x", signer.PrimaryKey.KeyId, testKey1KeyId)
+	}
+}
+
 func TestNewEntity(t *testing.T) {
 
 	// Check bit-length with no config.

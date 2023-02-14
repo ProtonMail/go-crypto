@@ -353,7 +353,7 @@ func testDetachedSignature(t *testing.T, kring KeyRing, signature io.Reader, sig
 		return
 	}
 	if signer.PrimaryKey.KeyId != expectedSignerKeyId {
-		t.Errorf("%s: wrong signer got:%x want:%x", tag, signer.PrimaryKey.KeyId, expectedSignerKeyId)
+		t.Errorf("%s: wrong signer: got %x, expected %x", tag, signer.PrimaryKey.KeyId, expectedSignerKeyId)
 	}
 }
 

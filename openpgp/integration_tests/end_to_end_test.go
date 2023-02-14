@@ -308,7 +308,7 @@ func signVerifyTest(
 		}
 		if otherSigner.PrimaryKey.KeyId != skFrom[0].PrimaryKey.KeyId {
 			t.Errorf(
-				"wrong signer got:%x want:%x", otherSigner.PrimaryKey.KeyId, 0)
+				"wrong signer: got %x, expected %x", otherSigner.PrimaryKey.KeyId, 0)
 		}
 	}
 
@@ -333,7 +333,7 @@ func signVerifyTest(
 	}
 	if otherSigner.PrimaryKey.KeyId != skFrom[0].PrimaryKey.KeyId {
 		t.Errorf(
-			"wrong signer got:%x want:%x",
+			"wrong signer: got %x, expected %x",
 			skFrom[0].PrimaryKey.KeyId,
 			skFrom[0].PrimaryKey.KeyId,
 		)

@@ -758,6 +758,7 @@ func (e *Entity) SignIdentity(identity string, signer *Entity, config *packet.Co
 		Hash:         config.Hash(),
 		CreationTime: config.Now(),
 		IssuerKeyId:  &certificationKey.PrivateKey.KeyId,
+		Notations:    config.Notations(),
 	}
 
 	if config.SigLifetime() != 0 {
@@ -792,6 +793,7 @@ func (e *Entity) RevokeKey(reason packet.ReasonForRevocation, reasonText string,
 		RevocationReason:     &reason,
 		RevocationReasonText: reasonText,
 		IssuerKeyId:          &e.PrimaryKey.KeyId,
+		Notations:            config.Notations(),
 	}
 
 	if err := revSig.RevokeKey(e.PrimaryKey, e.PrivateKey, config); err != nil {
@@ -818,6 +820,7 @@ func (e *Entity) RevokeSubkey(sk *Subkey, reason packet.ReasonForRevocation, rea
 		RevocationReason:     &reason,
 		RevocationReasonText: reasonText,
 		IssuerKeyId:          &e.PrimaryKey.KeyId,
+		Notations:            config.Notations(),
 	}
 
 	if err := revSig.RevokeSubkey(sk.PublicKey, e.PrivateKey, config); err != nil {

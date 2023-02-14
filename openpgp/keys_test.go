@@ -994,8 +994,8 @@ func assertNotationPackets(t *testing.T, keys EntityList) {
 	}
 
 	notations := identity.Signatures[0].Notations
-	if numSigs, numExpected := len(notations), 2; numSigs != numExpected {
-		t.Fatalf("got %d Data Notation subpackets, expected %d", numSigs, numExpected)
+	if numNotations, numExpected := len(notations), 2; numNotations != numExpected {
+		t.Fatalf("got %d Notation Data subpackets, expected %d", numNotations, numExpected)
 	}
 
 	if notations[0].IsHumanReadable != true {
@@ -1003,11 +1003,11 @@ func assertNotationPackets(t *testing.T, keys EntityList) {
 	}
 
 	if notations[0].Name != "text@example.com" {
-		t.Fatalf("got %s, expected test@example.com", notations[0].Name)
+		t.Fatalf("got %s, expected text@example.com", notations[0].Name)
 	}
 
 	if string(notations[0].Value) != "test" {
-		t.Fatalf("got %s, expected 2", string(notations[0].Value))
+		t.Fatalf("got %s, expected \"test\"", string(notations[0].Value))
 	}
 
 	if notations[1].IsHumanReadable != false {
@@ -1015,11 +1015,11 @@ func assertNotationPackets(t *testing.T, keys EntityList) {
 	}
 
 	if notations[1].Name != "binary@example.com" {
-		t.Fatalf("got %s, expected test@example.com", notations[1].Name)
+		t.Fatalf("got %s, expected binary@example.com", notations[1].Name)
 	}
 
 	if !bytes.Equal(notations[1].Value, []byte{0, 1, 2, 3}) {
-		t.Fatalf("got %s, expected 3", string(notations[1].Value))
+		t.Fatalf("got %s, expected {0, 1, 2, 3}", string(notations[1].Value))
 	}
 }
 

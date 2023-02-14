@@ -1,8 +1,8 @@
 package openpgp
 
-const testKey1KeyId = 0xA34D7E18C20C31BB
-const testKey3KeyId = 0x338934250CCC0360
-const testKeyP256KeyId = 0xd44a2c495918513e
+const testKey1KeyId uint64 = 0xA34D7E18C20C31BB
+const testKey3KeyId uint64 = 0x338934250CCC0360
+const testKeyP256KeyId uint64 = 0xd44a2c495918513e
 
 const signedInput = "Signed message\nline 2\nline 3\n"
 const signedTextInput = "Signed message\r\nline 2\r\nline 3\r\n"
