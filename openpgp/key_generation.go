@@ -157,6 +157,10 @@ func (e *Entity) AddSigningSubkey(config *packet.Config) error {
 		return err
 	}
 	sub := packet.NewSignerPrivateKey(creationTime, subPrivRaw)
+	sub.IsSubkey = true
+	if config != nil && config.V5Keys {
+		sub.UpgradeToV5()
+	}
 
 	subkey := Subkey{
 		PublicKey:  &sub.PublicKey,
@@ -170,18 +174,13 @@ func (e *Entity) AddSigningSubkey(config *packet.Config) error {
 	subkey.Sig.EmbeddedSignature = createSignaturePacket(subkey.PublicKey, packet.SigTypePrimaryKeyBinding, config)
 	subkey.Sig.EmbeddedSignature.CreationTime = creationTime
 
-	if config != nil && config.V5Keys {
-		subkey.PublicKey.UpgradeToV5()
-	}
-
 	err = subkey.Sig.EmbeddedSignature.CrossSignKey(subkey.PublicKey, e.PrimaryKey, subkey.PrivateKey, config)
 	if err != nil {
 		return err
 	}
 
-	subkey.PublicKey.IsSubkey = true
-	subkey.PrivateKey.IsSubkey = true
-	if err = subkey.Sig.SignKey(subkey.PublicKey, e.PrivateKey, config); err != nil {
+	err = subkey.Sig.SignKey(subkey.PublicKey, e.PrivateKey, config)
+	if err != nil {
 		return err
 	}
 
@@ -203,6 +202,10 @@ func (e *Entity) addEncryptionSubkey(config *packet.Config, creationTime time.Ti
 		return err
 	}
 	sub := packet.NewDecrypterPrivateKey(creationTime, subPrivRaw)
+	sub.IsSubkey = true
+	if config != nil && config.V5Keys {
+		sub.UpgradeToV5()
+	}
 
 	subkey := Subkey{
 		PublicKey:  &sub.PublicKey,
@@ -215,13 +218,8 @@ func (e *Entity) addEncryptionSubkey(config *packet.Config, creationTime time.Ti
 	subkey.Sig.FlagEncryptStorage = true
 	subkey.Sig.FlagEncryptCommunications = true
 
-	if config != nil && config.V5Keys {
-		subkey.PublicKey.UpgradeToV5()
-	}
-
-	subkey.PublicKey.IsSubkey = true
-	subkey.PrivateKey.IsSubkey = true
-	if err = subkey.Sig.SignKey(subkey.PublicKey, e.PrivateKey, config); err != nil {
+	err = subkey.Sig.SignKey(subkey.PublicKey, e.PrivateKey, config)
+	if err != nil {
 		return err
 	}
 
