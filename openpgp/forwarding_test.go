@@ -2,69 +2,165 @@ package openpgp
 
 import (
 	"bytes"
+	"crypto/rand"
+	goerrors "errors"
+	"github.com/ProtonMail/go-crypto/openpgp/packet"
+	"golang.org/x/crypto/openpgp/armor"
+	"io"
 	"io/ioutil"
 	"strings"
 	"testing"
-
-	"golang.org/x/crypto/openpgp/armor"
 )
 
-var (
-	charlieKeyArmored = `-----BEGIN PGP PRIVATE KEY BLOCK-----
-Version: OpenPGP.js v4.10.4
-Comment: https://openpgpjs.org
+const forwardeeKey = `-----BEGIN PGP PRIVATE KEY BLOCK-----
 
-xVgEXqG7KRYJKwYBBAHaRw8BAQdA/q4cs9Pwms3R4trjUd7YyrsRYdQHC9wI
-MqLdefob4KUAAQDfy9e8qleM+a1EnPCjDpm69FIY769mo/dpwYlkuI2T/RQt
-zSlCb2IgKEZvcndhcmRlZCB0byBDaGFybGllKSA8aW5mb0Bib2IuY29tPsJ4
-BBAWCgAgBQJeobspBgsJBwgDAgQVCAoCBBYCAQACGQECGwMCHgEACgkQN2cz
-+W7U/RnS8AEArtRly8vW6uUSng9EJ0iuIwJpwgZfykSLl/t4u3HTBZ4BALzY
-3XsnvKtZZVvaKvFvCUu/2NvC/1yw2wJk9wGbCwEOx3YEXqG7KRIKKwYBBAGX
-VQEFAQEHQCGxSJahhDUdTKnlqT3UIn3rXn5i47I4MsG4kSWfTwcOHAIIBwPe
-7fJ+kOrMea9aIUeYtGpUzABa9gMBCAcAAP95QjbjU7kyugp39vhi60YW5T8p
-Me0kKFCWzmSYzstgGBBbwmEEGBYIAAkFAl6huykCGwwACgkQN2cz+W7U/RkP
-WQD+KcU1HKn6PkVJKxg6RS0Q7RcCZwaQ1DyEyjUoneMCRAgA/jUl9uvPAoCS
-3+4Wqg9Q//zOwXNImimIPIdpWNXYZJID
-=FVvG
+xVgEY/ikABYJKwYBBAHaRw8BAQdAzz/nPfhJnoAYwg43AFYzxX1v6UwGmfN9jPiI
+/MOFxFgAAQDTqvO94jZPb9brhpwayNI9QlqqTlvDP6AH8CpXUfoVmxDczRNib2Ig
+PGJvYkBwcm90b24ubWU+wooEExYIADwFAmP4pAAJkIdp9lyYAlNMFiEEzW5s1IvY
+GXCwcJkZh2n2XJgCU0wCGwMCHgECGQECCwcCFQgCFgACIgEAAPmGAQDxysrSwxQO
+27X/eg7xSE5JVXT7bt8cEZOE+iC2IDS02QEA2CvXnZJK4AOmPsFWKzn3HkFxCybc
+CefzoJe0Pp4QNwPHcQRj+KQAEgorBgEEAZdVAQUBAQdArC6ijiQbE4ddGzqYHuq3
+0rV05YYDP+5GtCecalGVizUX/woJzG7AoQ/hzzDi4rf+is90WDIIeHwAAP9JzVrf
+QzMRicxCz1PbXNRW/OwKHg0X0bH3MA5A/j3mcBCrwngEGBYIACoFAmP4pAAJkIdp
+9lyYAlNMFiEEzW5s1IvYGXCwcJkZh2n2XJgCU0wCG1AAAN0hAP9kJ/CQDBAwrVj5
+92/mkV/4bEWAql/jEEfbBTAGHEb+5wD/ca5jm4FThIaGNO/mLtbkodfR0RTQ5usZ
+Xvoo9PdnBQg=
+=7A/f
 -----END PGP PRIVATE KEY BLOCK-----`
 
-	fwdCiphertextArmored = `-----BEGIN PGP MESSAGE-----
-Version: OpenPGP.js v4.10.4
-Comment: https://openpgpjs.org
+const forwardedMessage = `-----BEGIN PGP MESSAGE-----
 
-wV4Dog8LAQLriGUSAQdA/I6k0IvGxyNG2SdSDHrv3bZQDWH18OhTWkcmSF0M
-Bxcw3w8KMjr2v69ro5cyZztymEXi5RemRx+oPZGKIZ9N5T+26TaOltH7h8eR
-Mu4H03Lp0k4BRsjpFNUBL3HsAuMIemNf4369g+szlpuzjNE1KQhQzZbh87AU
-T7KAKygwz0EpOWpx2RHtshDy/bZ1EC8Ia4qDAebameIqCU929OmY1uI=
-=3iIr
+wV4Dwkk3ytpHrqASAQdAzPWbm24Uj6OYSDaauOuFMRPPLr5zWKXgvC1eHPD78ykw
+YkvxNCwD6hfzjLoASVv9jhHJoXY+Pag6QHvoFuMn+hdG90yFh5HMFyileY/CTrT7
+0kcBAPalcAq/OH/pBtIhGT/TKS88IIkz2aSukjbQRf+JNyh7bF+uXVDGmD8zOGa8
+mM9TmGOf8Vi3sjgVAQ5rZQzh36HrBDloBA==
+=PotS
 -----END PGP MESSAGE-----`
-)
 
-func TestForwardingDecryption(t *testing.T) {
-	charlieKey, err := ReadArmoredKeyRing(bytes.NewBufferString(charlieKeyArmored))
+const forwardedPlaintext = "Hello Bob, hello world"
+
+func TestForwardingStatic(t *testing.T) {
+	charlesKey, err := ReadArmoredKeyRing(bytes.NewBufferString(forwardeeKey))
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	ciphertext, err := armor.Decode(strings.NewReader(string(fwdCiphertextArmored)))
+
+	ciphertext, err := armor.Decode(strings.NewReader(forwardedMessage))
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	// Decrypt message
-	md, err := ReadMessage(ciphertext.Body, charlieKey, nil, nil)
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	body, err := ioutil.ReadAll(md.UnverifiedBody)
+
+	m, err := ReadMessage(ciphertext.Body, charlesKey, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	expectedBody := "Hello Bob, hello world"
-	gotBody := string(body)
-	if gotBody != expectedBody {
-		t.Fatal("Decrypted body did not match expected body")
+	dec, err := ioutil.ReadAll(m.decrypted)
+
+	if bytes.Compare(dec, []byte(forwardedPlaintext)) != 0 {
+		t.Fatal("forwarded decrypted does not match original")
+	}
+}
+
+func TestForwardingFull(t *testing.T) {
+	keyConfig := &packet.Config{
+		Algorithm: packet.PubKeyAlgoEdDSA,
+		Curve:     packet.Curve25519,
+	}
+
+	plaintext := make([]byte, 1024)
+	rand.Read(plaintext)
+
+	bobEntity, err := NewEntity("bob", "", "bob@proton.me", keyConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	charlesEntity, proxyParam, err := bobEntity.NewForwardingEntity(keyConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Encrypt message
+	buf := bytes.NewBuffer(nil)
+	w, err := Encrypt(buf, []*Entity{bobEntity}, nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = w.Write(plaintext)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = w.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	encrypted := buf.Bytes()
+
+	// Decrypt message for Bob
+	m, err := ReadMessage(bytes.NewBuffer(encrypted), EntityList([]*Entity{bobEntity}), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dec, err := ioutil.ReadAll(m.decrypted)
+
+	if bytes.Compare(dec, plaintext) != 0 {
+		t.Fatal("decrypted does not match original")
+	}
+
+	// Forward message
+	bytesReader := bytes.NewReader(encrypted)
+	packets := packet.NewReader(bytesReader)
+	splitPoint := int64(0)
+	transformedEncryptedKey := bytes.NewBuffer(nil)
+
+Loop:
+	for {
+		p, err := packets.Next()
+		if goerrors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			t.Fatalf("error in parsing message: %s", err)
+		}
+		switch p := p.(type) {
+		case *packet.EncryptedKey:
+			err = p.ProxyTransform(
+				proxyParam,
+				charlesEntity.Subkeys[0].PublicKey.KeyId,
+				bobEntity.Subkeys[0].PublicKey.KeyId,
+			)
+			if err != nil {
+				t.Fatalf("error transforming PKESK: %s", err)
+			}
+
+			splitPoint = bytesReader.Size() - int64(bytesReader.Len())
+
+			err = p.Serialize(transformedEncryptedKey)
+			if err != nil {
+				t.Fatalf("error serializing transformed PKESK: %s", err)
+			}
+			break Loop
+		}
+	}
+
+	transformed := transformedEncryptedKey.Bytes()
+	transformed = append(transformed, encrypted[splitPoint:]...)
+
+	// Decrypt forwarded message for Charles
+	m, err = ReadMessage(bytes.NewBuffer(transformed), EntityList([]*Entity{charlesEntity}), nil /* no prompt */, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dec, err = ioutil.ReadAll(m.decrypted)
+
+	if bytes.Compare(dec, plaintext) != 0 {
+		t.Fatal("forwarded decrypted does not match original")
 	}
 }
