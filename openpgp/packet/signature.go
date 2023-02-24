@@ -34,7 +34,7 @@ const (
 	KeyFlagEncryptStorage
 	KeyFlagSplitKey
 	KeyFlagAuthenticate
-	_
+	KeyFlagForward
 	KeyFlagGroupKey
 )
 
@@ -128,8 +128,8 @@ type Signature struct {
 
 	// FlagsValid is set if any flags were given. See RFC 9580, section
 	// 5.2.3.29 for details.
-	FlagsValid                                                                                                         bool
-	FlagCertify, FlagSign, FlagEncryptCommunications, FlagEncryptStorage, FlagSplitKey, FlagAuthenticate, FlagGroupKey bool
+	FlagsValid                                                                                                                      bool
+	FlagCertify, FlagSign, FlagEncryptCommunications, FlagEncryptStorage, FlagSplitKey, FlagAuthenticate, FlagGroupKey, FlagForward bool
 
 	// RevocationReason is set if this signature has been revoked.
 	// See RFC 9580, section 5.2.3.31 for details.
@@ -587,6 +587,9 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		}
 		if subpacket[0]&KeyFlagAuthenticate != 0 {
 			sig.FlagAuthenticate = true
+		}
+		if subpacket[0]&KeyFlagForward != 0 {
+			sig.FlagForward = true
 		}
 		if subpacket[0]&KeyFlagGroupKey != 0 {
 			sig.FlagGroupKey = true
@@ -1366,6 +1369,9 @@ func (sig *Signature) buildSubpackets(issuer PublicKey) (subpackets []outputSubp
 		}
 		if sig.FlagAuthenticate {
 			flags |= KeyFlagAuthenticate
+		}
+		if sig.FlagForward {
+			flags |= KeyFlagForward
 		}
 		if sig.FlagGroupKey {
 			flags |= KeyFlagGroupKey
