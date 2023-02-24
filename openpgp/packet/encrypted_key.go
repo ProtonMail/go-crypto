@@ -14,10 +14,10 @@ import (
 
 	"github.com/ProtonMail/go-crypto/openpgp/ecdh"
 	"github.com/ProtonMail/go-crypto/openpgp/elgamal"
-	"github.com/ProtonMail/go-crypto/openpgp/symmetric"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
-	"github.com/ProtonMail/go-crypto/openpgp/internal/encoding"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
+	"github.com/ProtonMail/go-crypto/openpgp/internal/encoding"
+	"github.com/ProtonMail/go-crypto/openpgp/symmetric"
 )
 
 const encryptedKeyVersion = 3
@@ -336,4 +336,27 @@ func serializeEncryptedKeyAEAD(w io.Writer, rand io.Reader, header [10]byte, pub
 
 	_, err = w.Write(buffer)
 	return err
+}
+
+func (e *EncryptedKey) ProxyTransform(proxyParam []byte, forwardeeKeyId, forwardingKeyId uint64) error {
+	if e.Algo != PubKeyAlgoECDH {
+		return errors.InvalidArgumentError("invalid PKESK")
+	}
+
+	if e.KeyId != 0 && e.KeyId != forwardingKeyId {
+		return errors.InvalidArgumentError("invalid key id in PKESK")
+	}
+
+	ephemeral := e.encryptedMPI1.Bytes()
+	transformed, err := ecdh.ProxyTransform(ephemeral, proxyParam)
+	if err != nil {
+		return err
+	}
+
+	e.encryptedMPI1 = encoding.NewMPI(transformed)
+	if e.KeyId != 0 {
+		e.KeyId = forwardeeKeyId
+	}
+
+	return nil
 }
