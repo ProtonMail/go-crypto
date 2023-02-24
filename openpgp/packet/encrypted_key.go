@@ -458,6 +458,29 @@ func SerializeEncryptedKeyWithHiddenOption(w io.Writer, pub *PublicKey, cipherFu
 	return SerializeEncryptedKeyAEADwithHiddenOption(w, pub, cipherFunc, config.AEAD() != nil, key, hidden, config)
 }
 
+func (e *EncryptedKey) ProxyTransform(proxyParam []byte, forwardeeKeyId, forwardingKeyId uint64) error {
+	if e.Algo != PubKeyAlgoECDH {
+		return errors.InvalidArgumentError("invalid PKESK")
+	}
+
+	if e.KeyId != 0 && e.KeyId != forwardingKeyId {
+		return errors.InvalidArgumentError("invalid key id in PKESK")
+	}
+
+	ephemeral := e.encryptedMPI1.Bytes()
+	transformed, err := ecdh.ProxyTransform(ephemeral, proxyParam)
+	if err != nil {
+		return err
+	}
+
+	e.encryptedMPI1 = encoding.NewMPI(transformed)
+	if e.KeyId != 0 {
+		e.KeyId = forwardeeKeyId
+	}
+
+	return nil
+}
+
 func serializeEncryptedKeyRSA(w io.Writer, rand io.Reader, header []byte, pub *rsa.PublicKey, keyBlock []byte) error {
 	cipherText, err := rsa.EncryptPKCS1v15(rand, pub, keyBlock)
 	if err != nil {
