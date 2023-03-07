@@ -11,7 +11,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 )
 
-func (e *Entity) NewForwardingEntity(config *packet.Config) (forwardeeKey *Entity, proxyParam []byte, err error) {
+func (e *Entity) NewForwardingEntity(name, comment, email string, config *packet.Config) (forwardeeKey *Entity, proxyParam []byte, err error) {
 	encryptionSubKey, ok := e.EncryptionKey(config.Now())
 	if !ok {
 		return nil, nil, errors.InvalidArgumentError("no valid encryption key found")
@@ -32,9 +32,8 @@ func (e *Entity) NewForwardingEntity(config *packet.Config) (forwardeeKey *Entit
 
 	config.Algorithm = packet.PubKeyAlgoEdDSA
 	config.Curve = packet.Curve25519
-	id := e.PrimaryIdentity().UserId
 
-	forwardeeKey, err = NewEntity(id.Name, id.Comment, id.Email, config)
+	forwardeeKey, err = NewEntity(name, comment, email, config)
 	if err != nil {
 		return nil, nil, err
 	}
