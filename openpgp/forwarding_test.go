@@ -14,30 +14,30 @@ import (
 
 const forwardeeKey = `-----BEGIN PGP PRIVATE KEY BLOCK-----
 
-xVgEY/ikABYJKwYBBAHaRw8BAQdAzz/nPfhJnoAYwg43AFYzxX1v6UwGmfN9jPiI
-/MOFxFgAAQDTqvO94jZPb9brhpwayNI9QlqqTlvDP6AH8CpXUfoVmxDczRNib2Ig
-PGJvYkBwcm90b24ubWU+wooEExYIADwFAmP4pAAJkIdp9lyYAlNMFiEEzW5s1IvY
-GXCwcJkZh2n2XJgCU0wCGwMCHgECGQECCwcCFQgCFgACIgEAAPmGAQDxysrSwxQO
-27X/eg7xSE5JVXT7bt8cEZOE+iC2IDS02QEA2CvXnZJK4AOmPsFWKzn3HkFxCybc
-CefzoJe0Pp4QNwPHcQRj+KQAEgorBgEEAZdVAQUBAQdArC6ijiQbE4ddGzqYHuq3
-0rV05YYDP+5GtCecalGVizUX/woJzG7AoQ/hzzDi4rf+is90WDIIeHwAAP9JzVrf
-QzMRicxCz1PbXNRW/OwKHg0X0bH3MA5A/j3mcBCrwngEGBYIACoFAmP4pAAJkIdp
-9lyYAlNMFiEEzW5s1IvYGXCwcJkZh2n2XJgCU0wCG1AAAN0hAP9kJ/CQDBAwrVj5
-92/mkV/4bEWAql/jEEfbBTAGHEb+5wD/ca5jm4FThIaGNO/mLtbkodfR0RTQ5usZ
-Xvoo9PdnBQg=
-=7A/f
+xVgEZAdtGBYJKwYBBAHaRw8BAQdAcNgHyRGEaqGmzEqEwCobfUkyrJnY8faBvsf9
+R2c5ZzYAAP9bFL4nPBdo04ei0C2IAh5RXOpmuejGC3GAIn/UmL5cYQ+XzRtjaGFy
+bGVzIDxjaGFybGVzQHByb3Rvbi5tZT7CigQTFggAPAUCZAdtGAmQFXJtmBzDhdcW
+IQRl2gNflypl1XjRUV8Vcm2YHMOF1wIbAwIeAQIZAQILBwIVCAIWAAIiAQAAJKYA
+/2qY16Ozyo5erNz51UrKViEoWbEpwY3XaFVNzrw+b54YAQC7zXkf/t5ieylvjmA/
+LJz3/qgH5GxZRYAH9NTpWyW1AsdxBGQHbRgSCisGAQQBl1UBBQEBB0CxmxoJsHTW
+TiETWh47ot+kwNA1hCk1IYB9WwKxkXYyIBf/CgmKXzV1ODP/mRmtiBYVV+VQk5MF
+EAAA/1NW8D8nMc2ky140sPhQrwkeR7rVLKP2fe5n4BEtAnVQEB3CeAQYFggAKgUC
+ZAdtGAmQFXJtmBzDhdcWIQRl2gNflypl1XjRUV8Vcm2YHMOF1wIbUAAAl/8A/iIS
+zWBsBR8VnoOVfEE+VQk6YAi7cTSjcMjfsIez9FYtAQDKo9aCMhUohYyqvhZjn8aS
+3t9mIZPc+zRJtCHzQYmhDg==
+=lESj
 -----END PGP PRIVATE KEY BLOCK-----`
 
 const forwardedMessage = `-----BEGIN PGP MESSAGE-----
 
-wV4Dwkk3ytpHrqASAQdAzPWbm24Uj6OYSDaauOuFMRPPLr5zWKXgvC1eHPD78ykw
-YkvxNCwD6hfzjLoASVv9jhHJoXY+Pag6QHvoFuMn+hdG90yFh5HMFyileY/CTrT7
-0kcBAPalcAq/OH/pBtIhGT/TKS88IIkz2aSukjbQRf+JNyh7bF+uXVDGmD8zOGa8
-mM9TmGOf8Vi3sjgVAQ5rZQzh36HrBDloBA==
-=PotS
+wV4DB27Wn97eACkSAQdA62TlMU2QoGmf5iBLnIm4dlFRkLIg+6MbaatghwxK+Ccw
+yGZuVVMAK/ypFfebDf4D/rlEw3cysv213m8aoK8nAUO8xQX3XQq3Sg+EGm0BNV8E
+0kABEPyCWARoo5klT1rHPEhelnz8+RQXiOIX3G685XCWdCmaV+tzW082D0xGXSlC
+7lM8r1DumNnO8srssko2qIja
+=pVRa
 -----END PGP MESSAGE-----`
 
-const forwardedPlaintext = "Hello Bob, hello world"
+const forwardedPlaintext = "Message for Bob"
 
 func TestForwardingStatic(t *testing.T) {
 	charlesKey, err := ReadArmoredKeyRing(bytes.NewBufferString(forwardeeKey))
@@ -78,7 +78,7 @@ func TestForwardingFull(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	charlesEntity, proxyParam, err := bobEntity.NewForwardingEntity(keyConfig)
+	charlesEntity, proxyParam, err := bobEntity.NewForwardingEntity("charles", "", "charles@proton.me", keyConfig)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -29,10 +29,14 @@ func DeriveProxyParam(recipientSecretByte, forwardeeSecretByte []byte) (proxyPar
 		curveGroup,
 	)
 
-	proxyParam = proxyTransform.Bytes()
+	rawProxyParam := proxyTransform.Bytes()
 
-	// convert to small endian
-	reverse(proxyParam)
+	// pad and convert to small endian
+	proxyParam = make([]byte, x25519lib.Size)
+	l := len(rawProxyParam)
+	for i := 0; i < l; i++ {
+		proxyParam[i] = rawProxyParam[l-i-1]
+	}
 
 	return proxyParam, nil
 }
@@ -115,10 +119,4 @@ func scalarMult(dst, scalar, point *[32]byte) {
 	z2.Invert(&z2)
 	x2.Multiply(&x2, &z2)
 	copy(dst[:], x2.Bytes())
-}
-
-func reverse(in []byte) {
-	for i, j := 0, len(in)-1; i < j; i, j = i+1, j-1 {
-		in[i], in[j] = in[j], in[i]
-	}
 }
