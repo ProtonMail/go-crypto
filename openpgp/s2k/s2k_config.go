@@ -44,7 +44,7 @@ type ArgonConfig struct {
 	DegreeOfParallelism uint8
 	// The memory parameter for Argon2 specifies desired memory usage in kibibytes. 
 	// For example memory=64*1024 sets the memory cost to ~64 MB.
-	Memory      		uint32 
+	Memory      	    uint32 
 }
 
 func (c *Config) Mode() Mode {
