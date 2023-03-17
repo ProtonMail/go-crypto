@@ -261,12 +261,9 @@ func Argon2Derive(out []byte, in []byte, salt []byte, passes uint8, paralellism 
 // It will enforce salted + hashed s2k method
 func Generate(rand io.Reader, c *S2KConfig) (*Params, error) {
 	var params *Params
-	// if the mode is Argon2, we require Argon2 parameters
 	if c != nil && c.S2KMode == Argon2S2K {
-		var argonConfig = c.ArgonConf
-		if argonConfig == nil {
-			argonConfig = DefaultArgonConfig()
-		}
+		// handle Argon2 case
+		argonConfig := c.ArgonConfig()
 		params = &Params{
 			mode:        Argon2S2K,
 			salt:        make([]byte, Argon2S2KDefaultNonceSize),
@@ -275,6 +272,7 @@ func Generate(rand io.Reader, c *S2KConfig) (*Params, error) {
 			memoryExp:   argonConfig.MemoryExponent,
 		}
 	} else {
+		// handle IterSaltedS2K case
 		hashId, ok := algorithm.HashToHashId(c.hash())
 		if !ok {
 			return nil, errors.UnsupportedError("no such hash")
