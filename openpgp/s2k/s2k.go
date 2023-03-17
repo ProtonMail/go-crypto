@@ -58,8 +58,8 @@ type Config struct {
 	// Iteration count for Iterated S2K (String to Key). It
 	// determines the strength of the passphrase stretching when
 	// the said passphrase is hashed to produce a key. S2KCount
-	// should be between 1024 and 65011712, inclusive. If Config
-	// is nil or S2KCount is 0, the value 65536 used. Not all
+	// should be between 65536 and 65011712, inclusive. If Config
+	// is nil or S2KCount is 0, the value 16777216 used. Not all
 	// values in the above range can be represented. S2KCount will
 	// be rounded up to the next representable value if it cannot
 	// be encoded exactly. When set, it is strongly encrouraged to
@@ -90,14 +90,14 @@ type Params struct {
 	// be performed in s2k mode 3. See RFC 4880 Section 3.7.1.3.
 	countByte byte
 	// passes is a parameter in Argon2 to determine the number of iterations
-	// See RFC 4880 Section 3.7.1.4.
+	// See RFC the crypto refresh Section 3.7.1.4.
 	passes byte
 	// parallelism is a parameter in Argon2 to determine the degree of paralellism
-	// See RFC 4880 Section 3.7.1.4.
+	// See RFC the crypto refresh Section 3.7.1.4.
 	parallelism byte
 	// memoryExp is a parameter in Argon2 to determine the memory usage
-	// i.e., 2 pow memoryExp kibibytes
-	// See RFC 4880 Section 3.7.1.4.
+	// i.e., 2 ** memoryExp kibibytes
+	// See RFC the crypto refresh Section 3.7.1.4.
 	memoryExp byte
 }
 
@@ -256,7 +256,7 @@ func memoryExpToKibibytes(memoryExp uint8) uint32 {
 }
 
 // Argon2 writes to out the key derived from the password (in) with the Argon2
-// function (RFC 4880, section 3.7.1.4)
+// function (the crypto refresh, section 3.7.1.4)
 func Argon2(out []byte, in []byte, salt []byte, passes uint8, paralellism uint8, memoryExp uint8) {
 	key := argon2.IDKey(in, salt, uint32(passes), memoryExpToKibibytes(memoryExp), paralellism, uint32(len(out)))
 	copy(out[:], key)
