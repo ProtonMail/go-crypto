@@ -51,6 +51,8 @@ type Config struct {
 	// be encoded exactly. When set, it is strongly encrouraged to
 	// use a value that is at least 65536. See RFC 4880 Section
 	// 3.7.1.3.
+	//
+	// Deprecated: SK2Count should be configured in S2KConfig instead.
 	S2KCount int
 	// RSABits is the number of bits in new RSA keys made with NewEntity.
 	// If zero, then 2048 bit keys are created.
@@ -182,6 +184,7 @@ func (c *Config) CurveName() Curve {
 	return c.Curve
 }
 
+// Deprecated: The hash iterations should now be queried via the S2K() method.
 func (c *Config) PasswordHashIterations() int {
 	if c == nil || c.S2KCount == 0 {
 		return 0
