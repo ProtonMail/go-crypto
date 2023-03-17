@@ -40,7 +40,7 @@ type Config struct {
 	// If nil, the default configuration is used
 	S2KConfig *s2k.Config
 	// Iteration count for Iterated S2K (String to Key). 
-	// Only relevant if sk2.Mode is set to s2k.IteratedSaltedS2K.
+	// Only used if sk2.Mode is nil.
 	// This value is duplicated here from s2k.Config for backwards compatibility.
 	// It determines the strength of the passphrase stretching when
 	// the said passphrase is hashed to produce a key. S2KCount
