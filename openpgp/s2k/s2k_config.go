@@ -106,16 +106,16 @@ func (c *ArgonConfig) EncodedMemory() uint8 {
 		return 16 // 64 MiB of RAM
 	}
 
-	temp := c.Memory
+	memory := c.Memory
 	lowerBound := uint32(c.Parallelism())*8
 	upperBound := uint32(2147483648)
 
 	switch {
-	case temp < lowerBound:
-		temp = lowerBound
-	case temp > upperBound:
-		temp = upperBound
+	case memory < lowerBound:
+		memory = lowerBound
+	case memory > upperBound:
+		memory = upperBound
 	}
 
-	return encodeMemory(temp, c.Parallelism())
+	return encodeMemory(memory, c.Parallelism())
 }
