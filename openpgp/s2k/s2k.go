@@ -123,13 +123,6 @@ func (c *Config) Argon2() *ArgonConfig {
 	return c.ArgonConfig
 }
 
-func (c *Config) Count() int {
-	if c == nil || c.S2KCount == 0 {
-		return 65536
-	}
-	return c.S2KCount
-}
-
 // EncodedCount get encoded count
 func (c *Config) EncodedCount() uint8 {
 	if c == nil || c.S2KCount == 0 {
