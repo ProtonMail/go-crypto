@@ -68,6 +68,31 @@ func TestIterated(t *testing.T) {
 	}
 }
 
+var argonTestSalt = "12345678"
+var argon2DeriveTests = []struct {
+	in, out string
+}{
+	{"hello", "bf69293d2961bbbebe4c64c745cf44d4"},
+	{"world", "dc1bb06234b61c9542d8cf73e2e279d3"},
+	{"foo", "7f6baa1c21f0e7eec16cf8fde866775d"},
+	{"bar", "2826332c8e62d0cf97cc08f243c5cc9135654bf3a8e46d6a4b4637e42eda2fa0"},
+	{"x", "89e5b79435132b98bbcad321532ae7e09f87ac96deca272d6012d367e6350b7d"},
+	{"xxxxxxxxxxxxxxxxxxxxxxx", "de0f978013283457e29f0682e0078ad654e7c21bc72886c914c012e56fd5dc91"},
+}
+
+func TestArgon2Derive(t *testing.T) {
+	salt := []byte(argonTestSalt)
+
+	for i, test := range argon2DeriveTests {
+		expected, _ := hex.DecodeString(test.out)
+		out := make([]byte, len(expected))
+		Argon2Derive(out, []byte(test.in), salt[:], 3, 4, 16)
+		if !bytes.Equal(expected, out) {
+			t.Errorf("#%d, got: %x want: %x", i, out, expected)
+		}
+	}
+}
+
 var parseTests = []struct {
 	spec, in, out string
 	dummyKey      bool
@@ -75,16 +100,19 @@ var parseTests = []struct {
 }{
 	/* Simple with SHA1 */
 	{"0002", "hello", "aaf4c61d", false,
-		Params{0, 0x02, nil, 0}},
+		Params{0, 0x02, nil, 0, 0, 0, 0}},
 	/* Salted with SHA1 */
 	{"01020102030405060708", "hello", "f4f7d67e", false,
-		Params{1, 0x02, []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, 0}},
+		Params{1, 0x02, []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, 0, 0, 0, 0}},
 	/* Iterated with SHA1 */
 	{"03020102030405060708f1", "hello", "f2a57b7c", false,
-		Params{3, 0x02, []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, 0xf1}},
+		Params{3, 0x02, []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, 0xf1, 0, 0, 0}},
+	/* Argon2 */
+	{"0401020304050607080102030405060708030416", "hello", "c7745927", false,
+		Params{4, 0x00, []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, 0, 0x03, 0x04, 0x16}},
 	/* GNU dummy S2K */
 	{"6502474e5501", "", "", true,
-		Params{101, 0x02, nil, 0}},
+		Params{101, 0x02, nil, 0, 0, 0, 0}},
 }
 
 func TestParseIntoParams(t *testing.T) {
@@ -142,12 +170,16 @@ func TestSerializeOK(t *testing.T) {
 	testCounts := []int{-1, 0, 1024, 65536, 4063232, 65011712}
 	for _, h := range hashes {
 		for _, c := range testCounts {
-			testSerializeConfigOK(t, &Config{Hash: h, S2KCount: c})
+			testSerializeConfigOK(t, &S2KConfig{Hash: h, S2KCount: c})
 		}
 	}
 }
 
-func testSerializeConfigOK(t *testing.T, c *Config) {
+func TestSerializeOKArgon(t *testing.T) {
+	testSerializeConfigOK(t, &S2KConfig{S2KMode: 4, ArgonConf: &ArgonConfig{NumberOfPasses: 3, DegreeOfParallelism: 4, MemoryExponent: 16}})
+}
+
+func testSerializeConfigOK(t *testing.T, c *S2KConfig) {
 	buf := bytes.NewBuffer(nil)
 	key := make([]byte, 16)
 	passphrase := []byte("testing")
@@ -169,7 +201,7 @@ func testSerializeConfigOK(t *testing.T, c *Config) {
 	}
 }
 
-func testSerializeConfigErr(t *testing.T, c *Config) {
+func testSerializeConfigErr(t *testing.T, c *S2KConfig) {
 	buf := bytes.NewBuffer(nil)
 	key := make([]byte, 16)
 	passphrase := []byte("testing")

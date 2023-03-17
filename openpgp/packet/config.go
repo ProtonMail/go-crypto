@@ -10,6 +10,8 @@ import (
 	"io"
 	"math/big"
 	"time"
+
+	"github.com/ProtonMail/go-crypto/openpgp/s2k"
 )
 
 // Config collects a number of parameters along with sensible defaults.
@@ -33,17 +35,10 @@ type Config struct {
 	DefaultCompressionAlgo CompressionAlgo
 	// CompressionConfig configures the compression settings.
 	CompressionConfig *CompressionConfig
-	// S2KCount is only used for symmetric encryption. It
-	// determines the strength of the passphrase stretching when
-	// the said passphrase is hashed to produce a key. S2KCount
-	// should be between 1024 and 65011712, inclusive. If Config
-	// is nil or S2KCount is 0, the value 65536 used. Not all
-	// values in the above range can be represented. S2KCount will
-	// be rounded up to the next representable value if it cannot
-	// be encoded exactly. When set, it is strongly encrouraged to
-	// use a value that is at least 65536. See RFC 4880 Section
-	// 3.7.1.3.
-	S2KCount int
+	// S2K (String to Key) config, used for key derivation in the context of secret key encryption
+	// and password-encrypted data.
+	// If nil, the default configuration is used
+	S2KConfig *s2k.S2KConfig
 	// RSABits is the number of bits in new RSA keys made with NewEntity.
 	// If zero, then 2048 bit keys are created.
 	RSABits int
@@ -153,13 +148,6 @@ func (c *Config) Compression() CompressionAlgo {
 	return c.DefaultCompressionAlgo
 }
 
-func (c *Config) PasswordHashIterations() int {
-	if c == nil || c.S2KCount == 0 {
-		return 0
-	}
-	return c.S2KCount
-}
-
 func (c *Config) RSAModulusBits() int {
 	if c == nil || c.RSABits == 0 {
 		return 2048
@@ -179,6 +167,13 @@ func (c *Config) CurveName() Curve {
 		return Curve25519
 	}
 	return c.Curve
+}
+
+func (c *Config) S2K() *s2k.S2KConfig {
+	if c == nil {
+		return nil
+	}
+	return c.S2KConfig
 }
 
 func (c *Config) AEAD() *AEADConfig {

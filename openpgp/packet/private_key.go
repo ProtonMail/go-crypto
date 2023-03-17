@@ -49,7 +49,7 @@ type PrivateKey struct {
 	s2kParams *s2k.Params
 }
 
-//S2KType s2k packet type
+// S2KType s2k packet type
 type S2KType uint8
 
 const (
@@ -430,21 +430,14 @@ func (pk *PrivateKey) Decrypt(passphrase []byte) error {
 	return nil
 }
 
-// Encrypt encrypts an unencrypted private key using a passphrase.
-func (pk *PrivateKey) Encrypt(passphrase []byte) error {
+func (pk *PrivateKey) encryptHelper(passphrase []byte, cf CipherFunction, s2kConfig *s2k.S2KConfig) error {
 	priv := bytes.NewBuffer(nil)
 	err := pk.serializePrivateKey(priv)
 	if err != nil {
 		return err
 	}
 
-	//Default config of private key encryption
-	pk.cipher = CipherAES256
-	s2kConfig := &s2k.Config{
-		S2KMode:  3, //Iterated
-		S2KCount: 65536,
-		Hash:     crypto.SHA256,
-	}
+	pk.cipher = cf
 
 	pk.s2kParams, err = s2k.Generate(rand.Reader, s2kConfig)
 	if err != nil {
@@ -487,6 +480,21 @@ func (pk *PrivateKey) Encrypt(passphrase []byte) error {
 	pk.Encrypted = true
 	pk.PrivateKey = nil
 	return err
+}
+
+// encryptWithConfig encrypts an unencrypted private key using a passphrase and with the config.
+func (pk *PrivateKey) encryptWithConfig(passphrase []byte, c *Config) error {
+	return pk.encryptHelper(passphrase, c.Cipher(), c.S2K())
+}
+
+// Encrypt encrypts an unencrypted private key using a passphrase.
+func (pk *PrivateKey) Encrypt(passphrase []byte) error {
+	s2kConfig := &s2k.S2KConfig{
+		S2KMode:  s2k.IterSaltedS2K,
+		S2KCount: 65536,
+		Hash:     crypto.SHA256,
+	}
+	return pk.encryptHelper(passphrase, CipherAES256, s2kConfig)
 }
 
 func (pk *PrivateKey) serializePrivateKey(w io.Writer) (err error) {
