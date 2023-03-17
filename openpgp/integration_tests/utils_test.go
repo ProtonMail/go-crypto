@@ -268,15 +268,15 @@ func randConfig() *packet.Config {
 		v5 = true
 	}
 
-	var s2kConf *s2k.S2KConfig
+	var s2kConf *s2k.Config
 	if mathrand.Int()%2 == 0 {
-		s2kConf = &s2k.S2KConfig{
-			S2KMode:  s2k.IterSaltedS2K,
+		s2kConf = &s2k.Config{
+			S2KMode:  s2k.IteratedSaltedS2K,
 			Hash:     hash,
 			S2KCount: 1024 + mathrand.Intn(65010689),
 		}
 	} else {
-		s2kConf = &s2k.S2KConfig{
+		s2kConf = &s2k.Config{
 			S2KMode: s2k.Argon2S2K,
 		}
 	}

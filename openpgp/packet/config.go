@@ -38,7 +38,7 @@ type Config struct {
 	// S2K (String to Key) config, used for key derivation in the context of secret key encryption
 	// and password-encrypted data.
 	// If nil, the default configuration is used
-	S2KConfig *s2k.S2KConfig
+	S2KConfig *s2k.Config
 	// RSABits is the number of bits in new RSA keys made with NewEntity.
 	// If zero, then 2048 bit keys are created.
 	RSABits int
@@ -169,7 +169,7 @@ func (c *Config) CurveName() Curve {
 	return c.Curve
 }
 
-func (c *Config) S2K() *s2k.S2KConfig {
+func (c *Config) S2K() *s2k.Config {
 	if c == nil {
 		return nil
 	}

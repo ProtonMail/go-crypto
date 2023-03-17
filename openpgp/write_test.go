@@ -307,14 +307,14 @@ func TestEncryptWithCompression(t *testing.T) {
 }
 
 func TestSymmetricEncryption(t *testing.T) {
-	modesS2K := map[string]s2k.S2KType{
-		"Iterated": s2k.IterSaltedS2K,
+	modesS2K := map[string]s2k.Mode{
+		"Iterated": s2k.IteratedSaltedS2K,
 		"Argon2":   s2k.Argon2S2K,
 	}
 	for s2kName, s2ktype := range modesS2K {
 		t.Run(s2kName, func(t *testing.T) {
 			config := &packet.Config{
-				S2KConfig: &s2k.S2KConfig{S2KMode: s2ktype},
+				S2KConfig: &s2k.Config{S2KMode: s2ktype},
 			}
 			buf := new(bytes.Buffer)
 			plaintext, err := SymmetricallyEncrypt(buf, []byte("testing"), nil, config)
@@ -351,14 +351,14 @@ func TestSymmetricEncryption(t *testing.T) {
 }
 
 func TestSymmetricEncryptionV5RandomizeSlow(t *testing.T) {
-	modesS2K := map[int]s2k.S2KType{
-		0: s2k.IterSaltedS2K,
+	modesS2K := map[int]s2k.Mode{
+		0: s2k.IteratedSaltedS2K,
 		1: s2k.Argon2S2K,
 	}
 	aeadConf := packet.AEADConfig{
 		DefaultMode: aeadModes[mathrand.Intn(len(aeadModes))],
 	}
-	config := &packet.Config{AEADConfig: &aeadConf, S2KConfig: &s2k.S2KConfig{S2KMode: modesS2K[mathrand.Intn(2)]}}
+	config := &packet.Config{AEADConfig: &aeadConf, S2KConfig: &s2k.Config{S2KMode: modesS2K[mathrand.Intn(2)]}}
 	buf := new(bytes.Buffer)
 	passphrase := make([]byte, mathrand.Intn(maxPassLen))
 	_, err := rand.Read(passphrase)

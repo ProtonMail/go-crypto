@@ -430,7 +430,7 @@ func (pk *PrivateKey) Decrypt(passphrase []byte) error {
 	return nil
 }
 
-func (pk *PrivateKey) encrypt(passphrase []byte, cf CipherFunction, s2kConfig *s2k.S2KConfig) error {
+func (pk *PrivateKey) encrypt(passphrase []byte, cf CipherFunction, s2kConfig *s2k.Config) error {
 	priv := bytes.NewBuffer(nil)
 	err := pk.serializePrivateKey(priv)
 	if err != nil {
@@ -489,8 +489,8 @@ func (pk *PrivateKey) encryptWithConfig(passphrase []byte, c *Config) error {
 
 // Encrypt encrypts an unencrypted private key using a passphrase.
 func (pk *PrivateKey) Encrypt(passphrase []byte) error {
-	s2kConfig := &s2k.S2KConfig{
-		S2KMode:  s2k.IterSaltedS2K,
+	s2kConfig := &s2k.Config{
+		S2KMode:  s2k.IteratedSaltedS2K,
 		S2KCount: 65536,
 		Hash:     crypto.SHA256,
 	}

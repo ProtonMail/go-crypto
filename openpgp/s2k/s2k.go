@@ -18,33 +18,33 @@ import (
 	"golang.org/x/crypto/argon2"
 )
 
-type S2KType uint8
+type Mode uint8
 
 // Defines the default S2KMode constants
 //
 //	0 (simple), 1(salted), 3(iterated), 4(argon2)
 const (
-	SimpleS2K     S2KType = 0
+	SimpleS2K     Mode 	  = 0
 	SaltedS2K             = 1
-	IterSaltedS2K         = 3
+	IteratedSaltedS2K     = 3
 	Argon2S2K             = 4
 	GnuS2K                = 101
 )
 
 const Argon2S2KDefaultNonceSize int = 16
 
-// S2KConfig collects configuration parameters for s2k key-stretching
-// transformations. A nil *S2KConfig is valid and results in all default
+// Config collects configuration parameters for s2k key-stretching
+// transformations. A nil *Config is valid and results in all default
 // values.
-type S2KConfig struct {
+type Config struct {
 	// S2K (String to Key) mode, used for key derivation in the context of secret key encryption
-	// and password-encrypted data. Either s2k.Argon2S2K or s2k.IterSaltedS2K has to be selected
+	// and password-encrypted data. Either s2k.Argon2S2K or s2k.IteratedSaltedS2K has to be selected
 	// weaker options are not allowed.
 	// Note: Argon2 is the strongest option but not all OpenPGP implementations are compatible with it
 	//(pending standardisation).
 	// 0 (simple), 1(salted), 3(iterated), 4(argon2)
 	// 2(reserved) 100-110(private/experimental).
-	S2KMode S2KType
+	S2KMode Mode
 	// Only relevant if S2KMode is not set to s2k.Argon2S2K.
 	// Hash is the default hash function to be used. If
 	// nil, SHA256 is used.
@@ -53,8 +53,8 @@ type S2KConfig struct {
 	// Only relevant if S2KMode is set to s2k.Argon2S2K.
 	// If nil, default parameters are used.
 	// For more details on the choice of parameters, see https://tools.ietf.org/html/rfc9106#section-4.
-	ArgonConf *ArgonConfig
-	// Only relevant if S2KMode is set to s2k.IterSaltedS2K.
+	ArgonConfig *ArgonConfig
+	// Only relevant if S2KMode is set to s2k.IteratedSaltedS2K.
 	// Iteration count for Iterated S2K (String to Key). It
 	// determines the strength of the passphrase stretching when
 	// the said passphrase is hashed to produce a key. S2KCount
@@ -81,7 +81,7 @@ type Params struct {
 	// mode is the mode of s2k function.
 	// It can be 0 (simple), 1(salted), 3(iterated)
 	// 2(reserved) 100-110(private/experimental).
-	mode S2KType
+	mode Mode
 	// hashId is the ID of the hash function used in any of the modes
 	hashId byte
 	// salt is a byte array to use as a salt in hashing process or argon2
@@ -101,14 +101,14 @@ type Params struct {
 	memoryExp byte
 }
 
-func (c *S2KConfig) Mode() S2KType {
+func (c *Config) Mode() Mode {
 	if c == nil {
-		return IterSaltedS2K
+		return IteratedSaltedS2K
 	}
 	return c.S2KMode
 }
 
-func (c *S2KConfig) hash() crypto.Hash {
+func (c *Config) hash() crypto.Hash {
 	if c == nil || uint(c.Hash) == 0 {
 		return crypto.SHA256
 	}
@@ -116,14 +116,14 @@ func (c *S2KConfig) hash() crypto.Hash {
 	return c.Hash
 }
 
-func (c *S2KConfig) ArgonConfig() *ArgonConfig {
-	if c == nil || c.ArgonConf == nil {
+func (c *Config) Argon2() *ArgonConfig {
+	if c == nil || c.ArgonConfig == nil {
 		return DefaultArgonConfig()
 	}
-	return c.ArgonConf
+	return c.ArgonConfig
 }
 
-func (c *S2KConfig) Count() int {
+func (c *Config) Count() int {
 	if c == nil || c.S2KCount == 0 {
 		return 65536
 	}
@@ -131,7 +131,7 @@ func (c *S2KConfig) Count() int {
 }
 
 // EncodedCount get encoded count
-func (c *S2KConfig) EncodedCount() uint8 {
+func (c *Config) EncodedCount() uint8 {
 	if c == nil || c.S2KCount == 0 {
 		return 224 // The common case. Corresponding to 16777216
 	}
@@ -252,18 +252,18 @@ func memoryExpToKibibytes(memoryExp uint8) uint32 {
 
 // Argon2Derive writes to out the key derived from the password (in) with the Argon2
 // function (RFC 4880, section 3.7.1.4)
-func Argon2Derive(out []byte, in []byte, salt []byte, passes uint8, paralellism uint8, memoryExp uint8) {
+func Argon2(out []byte, in []byte, salt []byte, passes uint8, paralellism uint8, memoryExp uint8) {
 	key := argon2.IDKey(in, salt, uint32(passes), memoryExpToKibibytes(memoryExp), paralellism, uint32(len(out)))
 	copy(out[:], key)
 }
 
 // Generate generates valid parameters from given configuration.
 // It will enforce the Iterated and Salted or Argon2 S2K method.
-func Generate(rand io.Reader, c *S2KConfig) (*Params, error) {
+func Generate(rand io.Reader, c *Config) (*Params, error) {
 	var params *Params
 	if c != nil && c.S2KMode == Argon2S2K {
 		// handle Argon2 case
-		argonConfig := c.ArgonConfig()
+		argonConfig := c.Argon2()
 		params = &Params{
 			mode:        Argon2S2K,
 			salt:        make([]byte, Argon2S2KDefaultNonceSize),
@@ -272,14 +272,14 @@ func Generate(rand io.Reader, c *S2KConfig) (*Params, error) {
 			memoryExp:   argonConfig.MemoryExponent,
 		}
 	} else {
-		// handle IterSaltedS2K case
+		// handle IteratedSaltedS2K case
 		hashId, ok := algorithm.HashToHashId(c.hash())
 		if !ok {
 			return nil, errors.UnsupportedError("no such hash")
 		}
 
 		params = &Params{
-			mode:      IterSaltedS2K, // Enforce iterared + salted method if not Argon 2
+			mode:      IteratedSaltedS2K, // Enforce iterared + salted method if not Argon 2
 			hashId:    hashId,
 			salt:      make([]byte, 8),
 			countByte: c.EncodedCount(),
@@ -315,7 +315,7 @@ func ParseIntoParams(r io.Reader) (params *Params, err error) {
 	}
 
 	params = &Params{
-		mode: S2KType(buf[0]),
+		mode: Mode(buf[0]),
 	}
 
 	switch params.mode {
@@ -334,7 +334,7 @@ func ParseIntoParams(r io.Reader) (params *Params, err error) {
 		params.hashId = buf[0]
 		params.salt = buf[1:9]
 		return params, nil
-	case IterSaltedS2K:
+	case IteratedSaltedS2K:
 		_, err = io.ReadFull(r, buf[:10])
 		if err != nil {
 			return nil, err
@@ -402,7 +402,7 @@ func (params *Params) Function() (f func(out, in []byte), err error) {
 		}
 
 		return f, nil
-	case IterSaltedS2K:
+	case IteratedSaltedS2K:
 		f := func(out, in []byte) {
 			Iterated(out, hashObj.New(), in, params.salt, decodeCount(params.countByte))
 		}
@@ -410,7 +410,7 @@ func (params *Params) Function() (f func(out, in []byte), err error) {
 		return f, nil
 	case Argon2S2K:
 		f := func(out, in []byte) {
-			Argon2Derive(out, in, params.salt, params.passes, params.parallelism, params.memoryExp)
+			Argon2(out, in, params.salt, params.passes, params.parallelism, params.memoryExp)
 		}
 		return f, nil
 	}
@@ -435,7 +435,7 @@ func (params *Params) Serialize(w io.Writer) (err error) {
 		if _, err = w.Write(params.salt); err != nil {
 			return
 		}
-		if params.mode == IterSaltedS2K {
+		if params.mode == IteratedSaltedS2K {
 			_, err = w.Write([]byte{params.countByte})
 		}
 		if params.mode == Argon2S2K {
@@ -449,7 +449,7 @@ func (params *Params) Serialize(w io.Writer) (err error) {
 // resulting key into key. It also serializes an S2K descriptor to
 // w. The key stretching can be configured with c, which may be
 // nil. In that case, sensible defaults will be used.
-func Serialize(w io.Writer, key []byte, rand io.Reader, passphrase []byte, c *S2KConfig) error {
+func Serialize(w io.Writer, key []byte, rand io.Reader, passphrase []byte, c *Config) error {
 	params, err := Generate(rand, c)
 	if err != nil {
 		return err

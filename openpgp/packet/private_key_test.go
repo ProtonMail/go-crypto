@@ -140,7 +140,7 @@ func TestExternalPrivateKeyEncryptDecryptRandomizeSlow(t *testing.T) {
 
 func TestExternalPrivateKeyEncryptDecryptArgon2(t *testing.T) {
 	config := &Config{
-		S2KConfig: &s2k.S2KConfig{S2KMode: s2k.Argon2S2K},
+		S2KConfig: &s2k.Config{S2KMode: s2k.Argon2S2K},
 	}
 	for i, test := range privateKeyTests {
 		packet, err := Read(readerFromHex(test.privateKeyHex))

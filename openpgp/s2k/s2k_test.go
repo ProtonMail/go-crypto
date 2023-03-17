@@ -86,7 +86,7 @@ func TestArgon2Derive(t *testing.T) {
 	for i, test := range argon2DeriveTests {
 		expected, _ := hex.DecodeString(test.out)
 		out := make([]byte, len(expected))
-		Argon2Derive(out, []byte(test.in), salt[:], 3, 4, 16)
+		Argon2(out, []byte(test.in), salt[:], 3, 4, 16)
 		if !bytes.Equal(expected, out) {
 			t.Errorf("#%d, got: %x want: %x", i, out, expected)
 		}
@@ -127,7 +127,7 @@ func TestParseIntoParams(t *testing.T) {
 
 		if test.params.mode != params.mode || test.params.hashId != params.hashId || test.params.countByte != params.countByte ||
 			!bytes.Equal(test.params.salt, params.salt) {
-			t.Errorf("%d: Wrong s2kconfig, got: %+v want: %+v", i, params, test.params)
+			t.Errorf("%d: Wrong config, got: %+v want: %+v", i, params, test.params)
 		}
 
 		if params.Dummy() != test.dummyKey {
@@ -170,16 +170,16 @@ func TestSerializeOK(t *testing.T) {
 	testCounts := []int{-1, 0, 1024, 65536, 4063232, 65011712}
 	for _, h := range hashes {
 		for _, c := range testCounts {
-			testSerializeConfigOK(t, &S2KConfig{Hash: h, S2KCount: c})
+			testSerializeConfigOK(t, &Config{Hash: h, S2KCount: c})
 		}
 	}
 }
 
 func TestSerializeOKArgon(t *testing.T) {
-	testSerializeConfigOK(t, &S2KConfig{S2KMode: 4, ArgonConf: &ArgonConfig{NumberOfPasses: 3, DegreeOfParallelism: 4, MemoryExponent: 16}})
+	testSerializeConfigOK(t, &Config{S2KMode: 4, ArgonConfig: &ArgonConfig{NumberOfPasses: 3, DegreeOfParallelism: 4, MemoryExponent: 16}})
 }
 
-func testSerializeConfigOK(t *testing.T, c *S2KConfig) {
+func testSerializeConfigOK(t *testing.T, c *Config) {
 	buf := bytes.NewBuffer(nil)
 	key := make([]byte, 16)
 	passphrase := []byte("testing")
@@ -201,7 +201,7 @@ func testSerializeConfigOK(t *testing.T, c *S2KConfig) {
 	}
 }
 
-func testSerializeConfigErr(t *testing.T, c *S2KConfig) {
+func testSerializeConfigErr(t *testing.T, c *Config) {
 	buf := bytes.NewBuffer(nil)
 	key := make([]byte, 16)
 	passphrase := []byte("testing")
