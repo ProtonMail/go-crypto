@@ -39,6 +39,19 @@ type Config struct {
 	// and password-encrypted data.
 	// If nil, the default configuration is used
 	S2KConfig *s2k.Config
+	// Iteration count for Iterated S2K (String to Key). 
+	// Only relevant if sk2.Mode is set to s2k.IteratedSaltedS2K.
+	// This value is duplicated here from s2k.Config for backwards compatibility.
+	// It determines the strength of the passphrase stretching when
+	// the said passphrase is hashed to produce a key. S2KCount
+	// should be between 65536 and 65011712, inclusive. If Config
+	// is nil or S2KCount is 0, the value 16777216 used. Not all
+	// values in the above range can be represented. S2KCount will
+	// be rounded up to the next representable value if it cannot
+	// be encoded exactly. When set, it is strongly encrouraged to
+	// use a value that is at least 65536. See RFC 4880 Section
+	// 3.7.1.3.
+	S2KCount int
 	// RSABits is the number of bits in new RSA keys made with NewEntity.
 	// If zero, then 2048 bit keys are created.
 	RSABits int
@@ -169,9 +182,22 @@ func (c *Config) CurveName() Curve {
 	return c.Curve
 }
 
+func (c *Config) PasswordHashIterations() int {
+	if c == nil || c.S2KCount == 0 {
+		return 0
+	}
+	return c.S2KCount
+}
+
 func (c *Config) S2K() *s2k.Config {
 	if c == nil {
 		return nil
+	}
+	// for backwards compatibility
+	if c != nil && c.S2KCount > 0 && c.S2KConfig == nil {
+		return &s2k.Config {
+			S2KCount: c.S2KCount,
+		}
 	}
 	return c.S2KConfig
 }
