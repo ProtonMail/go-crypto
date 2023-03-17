@@ -43,6 +43,32 @@ func TestSalted(t *testing.T) {
 	}
 }
 
+var argon2EncodeTest = []struct {
+	in uint32
+	out uint8
+}{
+	{64*1024, 16},
+	{64*1024+1, 17},
+	{2147483647, 31},
+	{2147483649, 31},
+	{1, 3},
+}
+
+func TestArgon2EncodeTest(t *testing.T) {
+
+	for i, tests := range argon2EncodeTest {
+		conf  := &ArgonConfig {
+			Memory: tests.in,
+			DegreeOfParallelism: 1,
+		}
+		out := conf.EncodedMemory()
+		if out != tests.out {
+			t.Errorf("#%d, got: %x want: %x", i, out, tests.out)
+		}
+	}
+}
+
+
 var iteratedTests = []struct {
 	in, out string
 }{
@@ -176,7 +202,7 @@ func TestSerializeOK(t *testing.T) {
 }
 
 func TestSerializeOKArgon(t *testing.T) {
-	testSerializeConfigOK(t, &Config{S2KMode: 4, ArgonConfig: &ArgonConfig{NumberOfPasses: 3, DegreeOfParallelism: 4, MemoryExponent: 16}})
+	testSerializeConfigOK(t, &Config{S2KMode: 4, ArgonConfig: &ArgonConfig{NumberOfPasses: 3, DegreeOfParallelism: 4, Memory: 64*1024}})
 }
 
 func testSerializeConfigOK(t *testing.T, c *Config) {

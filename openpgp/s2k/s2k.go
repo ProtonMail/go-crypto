@@ -69,6 +69,31 @@ func decodeCount(c uint8) int {
 	return (16 + int(c&15)) << (uint32(c>>4) + 6)
 }
 
+// encodeMemory converts the Argon2 "memory" in the range parallelism*8 to
+// 2**31, inclusive, to an encoded memory. The return value is the
+// octet that is actually stored in the GPG file. encodeMemory panics
+// if is not in the above range 
+// See OpenPGP crypto refresh Section 3.7.1.4.
+func encodeMemory(memory uint32, parallelism uint8) uint8 {
+	if memory < (8 * uint32(parallelism)) || memory > uint32(2147483648) {
+		panic("Memory argument memory is outside the required range")
+	}
+
+	for exp := 3; exp < 31; exp++ {
+		compare := decodeMemory(uint8(exp))
+		if compare >= memory {
+			return uint8(exp)
+		}
+	}
+
+	return 31
+}
+
+// decodeMemory computes the decoded memory in kibibytes as 2**memoryExponent
+func decodeMemory(memoryExponent uint8) uint32 {
+	return (uint32(1) << memoryExponent)
+}
+
 // Simple writes to out the result of computing the Simple S2K function (RFC
 // 4880, section 3.7.1.1) using the given hash and input passphrase.
 func Simple(out []byte, h hash.Hash, in []byte) {
@@ -132,14 +157,10 @@ func Iterated(out []byte, h hash.Hash, in []byte, salt []byte, count int) {
 	}
 }
 
-func memoryExpToKibibytes(memoryExp uint8) uint32 {
-	return (uint32(1) << memoryExp)
-}
-
 // Argon2 writes to out the key derived from the password (in) with the Argon2
 // function (the crypto refresh, section 3.7.1.4)
 func Argon2(out []byte, in []byte, salt []byte, passes uint8, paralellism uint8, memoryExp uint8) {
-	key := argon2.IDKey(in, salt, uint32(passes), memoryExpToKibibytes(memoryExp), paralellism, uint32(len(out)))
+	key := argon2.IDKey(in, salt, uint32(passes), decodeMemory(memoryExp), paralellism, uint32(len(out)))
 	copy(out[:], key)
 }
 
@@ -155,7 +176,7 @@ func Generate(rand io.Reader, c *Config) (*Params, error) {
 			salt:        make([]byte, Argon2SaltSize),
 			passes:      argonConfig.Passes(),
 			parallelism: argonConfig.Parallelism(),
-			memoryExp:   argonConfig.Exponent(),
+			memoryExp:   argonConfig.EncodedMemory(),
 		}
 	} else {
 		// handle IteratedSaltedS2K case
