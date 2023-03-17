@@ -3,8 +3,8 @@
 // license that can be found in the LICENSE file.
 
 // Package s2k implements the various OpenPGP string-to-key transforms as
-// specified in RFC 4800 section 3.7.1.
-// Update: Added Argon2 section 3.7.4.4 OpenPGP crypto refresh v8
+// specified in RFC 4800 section 3.7.1, and Argon2 specified in
+// draft-ietf-openpgp-crypto-refresh-08 section 3.7.1.4.
 package s2k // import "github.com/ProtonMail/go-crypto/openpgp/s2k"
 
 import (
