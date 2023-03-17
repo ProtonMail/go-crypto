@@ -430,7 +430,7 @@ func (pk *PrivateKey) Decrypt(passphrase []byte) error {
 	return nil
 }
 
-func (pk *PrivateKey) encrypt(passphrase []byte, cf CipherFunction, s2kConfig *s2k.Config) error {
+func (pk *PrivateKey) encrypt(passphrase []byte, cipher CipherFunction, s2kConfig *s2k.Config) error {
 	priv := bytes.NewBuffer(nil)
 	err := pk.serializePrivateKey(priv)
 	if err != nil {
