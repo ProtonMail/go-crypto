@@ -2,21 +2,6 @@ package s2k
 
 import "crypto"
 
-type Mode uint8
-
-// Defines the default S2KMode constants
-//
-//	0 (simple), 1(salted), 3(iterated), 4(argon2)
-const (
-	SimpleS2K         Mode = 0
-	SaltedS2K              = 1
-	IteratedSaltedS2K      = 3
-	Argon2S2K              = 4
-	GnuS2K                 = 101
-)
-
-const Argon2SaltSize int = 16
-
 // Config collects configuration parameters for s2k key-stretching
 // transformations. A nil *Config is valid and results in all default
 // values.

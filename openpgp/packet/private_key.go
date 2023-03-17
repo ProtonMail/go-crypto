@@ -430,14 +430,14 @@ func (pk *PrivateKey) Decrypt(passphrase []byte) error {
 	return nil
 }
 
-func (pk *PrivateKey) encrypt(passphrase []byte, cipher CipherFunction, s2kConfig *s2k.Config) error {
+func (pk *PrivateKey) encrypt(passphrase []byte, blockCipher CipherFunction, s2kConfig *s2k.Config) error {
 	priv := bytes.NewBuffer(nil)
 	err := pk.serializePrivateKey(priv)
 	if err != nil {
 		return err
 	}
 
-	pk.cipher = cf
+	pk.cipher = blockCipher
 
 	pk.s2kParams, err = s2k.Generate(rand.Reader, s2kConfig)
 	if err != nil {

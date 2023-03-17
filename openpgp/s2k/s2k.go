@@ -18,6 +18,21 @@ import (
 	"golang.org/x/crypto/argon2"
 )
 
+type Mode uint8
+
+// Defines the default S2KMode constants
+//
+//	0 (simple), 1(salted), 3(iterated), 4(argon2)
+const (
+	SimpleS2K         Mode = 0
+	SaltedS2K              = 1
+	IteratedSaltedS2K      = 3
+	Argon2S2K              = 4
+	GnuS2K                 = 101
+)
+
+const Argon2SaltSize int = 16
+
 // Params contains all the parameters of the s2k packet
 type Params struct {
 	// mode is the mode of s2k function.
