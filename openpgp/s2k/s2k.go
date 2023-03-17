@@ -106,7 +106,7 @@ func encodeMemory(memory uint32, parallelism uint8) uint8 {
 
 // decodeMemory computes the decoded memory in kibibytes as 2**memoryExponent
 func decodeMemory(memoryExponent uint8) uint32 {
-	return (uint32(1) << memoryExponent)
+	return uint32(1) << memoryExponent
 }
 
 // Simple writes to out the result of computing the Simple S2K function (RFC
