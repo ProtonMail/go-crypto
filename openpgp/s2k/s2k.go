@@ -31,7 +31,7 @@ const (
 	GnuS2K                = 101
 )
 
-const Argon2S2KDefaultNonceSize int = 16
+const Argon2SaltSize int = 16
 
 // Config collects configuration parameters for s2k key-stretching
 // transformations. A nil *Config is valid and results in all default
@@ -118,7 +118,7 @@ func (c *Config) hash() crypto.Hash {
 
 func (c *Config) Argon2() *ArgonConfig {
 	if c == nil || c.ArgonConfig == nil {
-		return DefaultArgonConfig()
+		return nil
 	}
 	return c.ArgonConfig
 }
@@ -148,13 +148,25 @@ func (c *Config) EncodedCount() uint8 {
 	return encodeCount(i)
 }
 
-func DefaultArgonConfig() *ArgonConfig {
-	aconf := &ArgonConfig{
-		NumberOfPasses:      3,
-		DegreeOfParallelism: 4,
-		MemoryExponent:      16, // 64 MiB of RAM
+func (c *ArgonConfig) Passes() uint8 {
+	if c == nil || c.NumberOfPasses == 0 {
+		return 3
 	}
-	return aconf
+	return c.NumberOfPasses
+}
+
+func (c *ArgonConfig) Parallelism() uint8 {
+	if c == nil || c.NumberOfPasses == 0 {
+		return 4
+	}
+	return c.DegreeOfParallelism
+}
+
+func (c *ArgonConfig) Exponent() uint8 {
+	if c == nil || c.MemoryExponent == 0 {
+		return 16 // 64 MiB of RAM
+	}
+	return c.MemoryExponent
 }
 
 // encodeCount converts an iterative "count" in the range 1024 to
@@ -250,7 +262,7 @@ func memoryExpToKibibytes(memoryExp uint8) uint32 {
 	return (uint32(1) << memoryExp)
 }
 
-// Argon2Derive writes to out the key derived from the password (in) with the Argon2
+// Argon2 writes to out the key derived from the password (in) with the Argon2
 // function (RFC 4880, section 3.7.1.4)
 func Argon2(out []byte, in []byte, salt []byte, passes uint8, paralellism uint8, memoryExp uint8) {
 	key := argon2.IDKey(in, salt, uint32(passes), memoryExpToKibibytes(memoryExp), paralellism, uint32(len(out)))
@@ -266,10 +278,10 @@ func Generate(rand io.Reader, c *Config) (*Params, error) {
 		argonConfig := c.Argon2()
 		params = &Params{
 			mode:        Argon2S2K,
-			salt:        make([]byte, Argon2S2KDefaultNonceSize),
-			passes:      argonConfig.NumberOfPasses,
-			parallelism: argonConfig.DegreeOfParallelism,
-			memoryExp:   argonConfig.MemoryExponent,
+			salt:        make([]byte, Argon2SaltSize),
+			passes:      argonConfig.Passes(),
+			parallelism: argonConfig.Parallelism(),
+			memoryExp:   argonConfig.Exponent(),
 		}
 	} else {
 		// handle IteratedSaltedS2K case
@@ -307,7 +319,7 @@ func Parse(r io.Reader) (f func(out, in []byte), err error) {
 // ParseIntoParams reads a binary specification for a string-to-key
 // transformation from r and returns a struct describing the s2k parameters.
 func ParseIntoParams(r io.Reader) (params *Params, err error) {
-	var buf [Argon2S2KDefaultNonceSize + 3]byte
+	var buf [Argon2SaltSize + 3]byte
 
 	_, err = io.ReadFull(r, buf[:1])
 	if err != nil {
@@ -344,14 +356,14 @@ func ParseIntoParams(r io.Reader) (params *Params, err error) {
 		params.countByte = buf[9]
 		return params, nil
 	case Argon2S2K:
-		_, err = io.ReadFull(r, buf[:Argon2S2KDefaultNonceSize+3])
+		_, err = io.ReadFull(r, buf[:Argon2SaltSize+3])
 		if err != nil {
 			return nil, err
 		}
-		params.salt = buf[:Argon2S2KDefaultNonceSize]
-		params.passes = buf[Argon2S2KDefaultNonceSize]
-		params.parallelism = buf[Argon2S2KDefaultNonceSize+1]
-		params.memoryExp = buf[Argon2S2KDefaultNonceSize+2]
+		params.salt = buf[:Argon2SaltSize]
+		params.passes = buf[Argon2SaltSize]
+		params.parallelism = buf[Argon2SaltSize+1]
+		params.memoryExp = buf[Argon2SaltSize+2]
 		return params, nil
 	case GnuS2K:
 		// This is a GNU extension. See
