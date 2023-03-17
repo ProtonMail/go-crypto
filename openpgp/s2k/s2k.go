@@ -258,7 +258,7 @@ func Argon2Derive(out []byte, in []byte, salt []byte, passes uint8, paralellism 
 }
 
 // Generate generates valid parameters from given configuration.
-// It will enforce salted + hashed s2k method
+// It will enforce the Iterated and Salted or Argon2 S2K method.
 func Generate(rand io.Reader, c *S2KConfig) (*Params, error) {
 	var params *Params
 	if c != nil && c.S2KMode == Argon2S2K {
