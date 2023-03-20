@@ -150,11 +150,9 @@ func (e *Entity) EncryptionKey(now time.Time) (Key, bool) {
 		return Key{e, subkey.PublicKey, subkey.PrivateKey, subkey.Sig, subkey.Revocations}, true
 	}
 
-	// If we don't have any candidate subkeys for encryption and
-	// the primary key doesn't have any usage metadata then we
-	// assume that the primary key is ok. Or, if the primary key is
-	// marked as ok to encrypt with, then we can obviously use it.
-	if (!i.SelfSignature.FlagsValid || i.SelfSignature.FlagEncryptCommunications) &&
+	// If we don't have any subkeys for encryption and the primary key
+	// is marked as OK to encrypt with, then we can use it.
+	if i.SelfSignature.FlagsValid && i.SelfSignature.FlagEncryptCommunications &&
 		e.PrimaryKey.PubKeyAlgo.CanEncrypt() {
 		return Key{e, e.PrimaryKey, e.PrivateKey, i.SelfSignature, e.Revocations}, true
 	}
@@ -220,12 +218,11 @@ func (e *Entity) signingKeyByIdUsage(now time.Time, id uint64, flags int) (Key, 
 		return Key{e, subkey.PublicKey, subkey.PrivateKey, subkey.Sig, subkey.Revocations}, true
 	}
 
-	// If we have no candidate subkey then we assume that it's ok to sign
-	// with the primary key.  Or, if the primary key is marked as ok to
-	// sign with, then we can use it.
-	if (!i.SelfSignature.FlagsValid ||
+	// If we don't have any subkeys for signing and the primary key
+	// is marked as OK to sign with, then we can use it.
+	if i.SelfSignature.FlagsValid &&
 		(flags&packet.KeyFlagCertify == 0 || i.SelfSignature.FlagCertify) &&
-			(flags&packet.KeyFlagSign == 0 || i.SelfSignature.FlagSign)) &&
+		(flags&packet.KeyFlagSign == 0 || i.SelfSignature.FlagSign) &&
 		e.PrimaryKey.PubKeyAlgo.CanSign() &&
 		(id == 0 || e.PrimaryKey.KeyId == id) {
 		return Key{e, e.PrimaryKey, e.PrivateKey, i.SelfSignature, e.Revocations}, true
@@ -302,7 +299,11 @@ func (el EntityList) KeysById(id uint64) (keys []Key) {
 // the bitwise-OR of packet.KeyFlag* values.
 func (el EntityList) KeysByIdUsage(id uint64, requiredUsage byte) (keys []Key) {
 	for _, key := range el.KeysById(id) {
-		if key.SelfSignature != nil && key.SelfSignature.FlagsValid && requiredUsage != 0 {
+		if requiredUsage != 0 {
+			if key.SelfSignature == nil || !key.SelfSignature.FlagsValid {
+				continue
+			}
+
 			var usage byte
 			if key.SelfSignature.FlagCertify {
 				usage |= packet.KeyFlagCertify
@@ -330,7 +331,7 @@ func (el EntityList) KeysByIdUsage(id uint64, requiredUsage byte) (keys []Key) {
 func (el EntityList) DecryptionKeys() (keys []Key) {
 	for _, e := range el {
 		for _, subKey := range e.Subkeys {
-			if subKey.PrivateKey != nil && (!subKey.Sig.FlagsValid || subKey.Sig.FlagEncryptStorage || subKey.Sig.FlagEncryptCommunications) {
+			if subKey.PrivateKey != nil && subKey.Sig.FlagsValid && (subKey.Sig.FlagEncryptStorage || subKey.Sig.FlagEncryptCommunications) {
 				keys = append(keys, Key{e, subKey.PublicKey, subKey.PrivateKey, subKey.Sig, subKey.Revocations})
 			}
 		}
