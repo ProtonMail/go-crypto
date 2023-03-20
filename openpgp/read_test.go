@@ -630,6 +630,43 @@ func TestSymmetricAeadGcmOpenPGPJsMessage(t *testing.T) {
 	}
 }
 
+func TestSymmetricDecryptionArgon2(t *testing.T) {
+	// Appendix IETF OpenPGP crypto refresh draft v08 A.8.1
+	passphrase := []byte("password")
+	file, err := os.Open("test_data/argon2-sym-message.asc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	armoredEncryptedMessage, err := ioutil.ReadAll(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Unarmor string
+	raw, err := armor.Decode(strings.NewReader(string(armoredEncryptedMessage)))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	// Mock passphrase prompt
+	promptFunc := func(keys []Key, symmetric bool) ([]byte, error) {
+		return passphrase, nil
+	}
+	// Decrypt message
+	md, err := ReadMessage(raw.Body, nil, promptFunc, nil)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	contents, err := ioutil.ReadAll(md.UnverifiedBody)
+	if err != nil {
+		t.Errorf("error reading UnverifiedBody: %s", err)
+	}
+
+	if "Hello, world!" != string(contents) {
+		t.Fatal("Did not decrypt Argon message correctly")
+	}
+}
+
 func TestAsymmestricAeadOcbOpenPGPjsCompressedMessage(t *testing.T) {
 	// Read key from file
 	armored, err := os.Open("test_data/aead-ocb-asym-key.asc")

@@ -15,6 +15,7 @@ import (
 
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
+	"github.com/ProtonMail/go-crypto/openpgp/s2k"
 )
 
 const (
@@ -306,43 +307,58 @@ func TestEncryptWithCompression(t *testing.T) {
 }
 
 func TestSymmetricEncryption(t *testing.T) {
-	buf := new(bytes.Buffer)
-	plaintext, err := SymmetricallyEncrypt(buf, []byte("testing"), nil, nil)
-	if err != nil {
-		t.Errorf("error writing headers: %s", err)
-		return
+	modesS2K := map[string]s2k.Mode{
+		"Iterated": s2k.IteratedSaltedS2K,
+		"Argon2":   s2k.Argon2S2K,
 	}
-	message := []byte("hello world\n")
-	_, err = plaintext.Write(message)
-	if err != nil {
-		t.Errorf("error writing to plaintext writer: %s", err)
-	}
-	err = plaintext.Close()
-	if err != nil {
-		t.Errorf("error closing plaintext writer: %s", err)
-	}
+	for s2kName, s2ktype := range modesS2K {
+		t.Run(s2kName, func(t *testing.T) {
+			config := &packet.Config{
+				S2KConfig: &s2k.Config{S2KMode: s2ktype},
+			}
+			buf := new(bytes.Buffer)
+			plaintext, err := SymmetricallyEncrypt(buf, []byte("testing"), nil, config)
+			if err != nil {
+				t.Errorf("error writing headers: %s", err)
+				return
+			}
+			message := []byte("hello world\n")
+			_, err = plaintext.Write(message)
+			if err != nil {
+				t.Errorf("error writing to plaintext writer: %s", err)
+			}
+			err = plaintext.Close()
+			if err != nil {
+				t.Errorf("error closing plaintext writer: %s", err)
+			}
 
-	md, err := ReadMessage(buf, nil, func(keys []Key, symmetric bool) ([]byte, error) {
-		return []byte("testing"), nil
-	}, nil)
-	if err != nil {
-		t.Errorf("error rereading message: %s", err)
-	}
-	messageBuf := bytes.NewBuffer(nil)
-	_, err = io.Copy(messageBuf, md.UnverifiedBody)
-	if err != nil {
-		t.Errorf("error rereading message: %s", err)
-	}
-	if !bytes.Equal(message, messageBuf.Bytes()) {
-		t.Errorf("recovered message incorrect got '%s', want '%s'", messageBuf.Bytes(), message)
+			md, err := ReadMessage(buf, nil, func(keys []Key, symmetric bool) ([]byte, error) {
+				return []byte("testing"), nil
+			}, nil)
+			if err != nil {
+				t.Errorf("error rereading message: %s", err)
+			}
+			messageBuf := bytes.NewBuffer(nil)
+			_, err = io.Copy(messageBuf, md.UnverifiedBody)
+			if err != nil {
+				t.Errorf("error rereading message: %s", err)
+			}
+			if !bytes.Equal(message, messageBuf.Bytes()) {
+				t.Errorf("recovered message incorrect got '%s', want '%s'", messageBuf.Bytes(), message)
+			}
+		})
 	}
 }
 
 func TestSymmetricEncryptionV5RandomizeSlow(t *testing.T) {
+	modesS2K := map[int]s2k.Mode{
+		0: s2k.IteratedSaltedS2K,
+		1: s2k.Argon2S2K,
+	}
 	aeadConf := packet.AEADConfig{
 		DefaultMode: aeadModes[mathrand.Intn(len(aeadModes))],
 	}
-	config := &packet.Config{AEADConfig: &aeadConf}
+	config := &packet.Config{AEADConfig: &aeadConf, S2KConfig: &s2k.Config{S2KMode: modesS2K[mathrand.Intn(2)]}}
 	buf := new(bytes.Buffer)
 	passphrase := make([]byte, mathrand.Intn(maxPassLen))
 	_, err := rand.Read(passphrase)

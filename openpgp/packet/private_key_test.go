@@ -23,6 +23,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/eddsa"
 	"github.com/ProtonMail/go-crypto/openpgp/elgamal"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
+	"github.com/ProtonMail/go-crypto/openpgp/s2k"
 )
 
 const maxMessageLength = 1 << 10
@@ -101,6 +102,71 @@ func TestExternalPrivateKeyEncryptDecryptRandomizeSlow(t *testing.T) {
 		randomPassword := make([]byte, mathrand.Intn(30))
 		rand.Read(randomPassword)
 		err = privKey.Encrypt(randomPassword)
+		if err != nil {
+			t.Errorf("#%d: failed to encrypt: %s", i, err)
+			continue
+		}
+
+		// Try to decrypt with incorrect password
+		incorrect := make([]byte, 1+mathrand.Intn(30))
+		for rand.Read(incorrect); bytes.Equal(incorrect, randomPassword); {
+			rand.Read(incorrect)
+		}
+		err = privKey.Decrypt(incorrect)
+		if err == nil {
+			t.Errorf("#%d: decrypted with incorrect password\nPassword is:%vDecrypted with:%v", i, randomPassword, incorrect)
+			continue
+		}
+
+		// Try to decrypt with old password
+		err = privKey.Decrypt([]byte("testing"))
+		if err == nil {
+			t.Errorf("#%d: decrypted with old password", i)
+			continue
+		}
+
+		// Decrypt with correct password
+		err = privKey.Decrypt(randomPassword)
+		if err != nil {
+			t.Errorf("#%d: failed to decrypt: %s", i, err)
+			continue
+		}
+
+		if !privKey.CreationTime.Equal(test.creationTime) || privKey.Encrypted {
+			t.Errorf("#%d: bad result, got: %#v", i, privKey)
+		}
+	}
+}
+
+func TestExternalPrivateKeyEncryptDecryptArgon2(t *testing.T) {
+	config := &Config{
+		S2KConfig: &s2k.Config{S2KMode: s2k.Argon2S2K},
+	}
+	for i, test := range privateKeyTests {
+		packet, err := Read(readerFromHex(test.privateKeyHex))
+		if err != nil {
+			t.Errorf("#%d: failed to parse: %s", i, err)
+			continue
+		}
+
+		privKey := packet.(*PrivateKey)
+
+		if !privKey.Encrypted {
+			t.Errorf("#%d: private key isn't encrypted", i)
+			continue
+		}
+
+		// Decrypt with the correct password
+		err = privKey.Decrypt([]byte("testing"))
+		if err != nil {
+			t.Errorf("#%d: failed to decrypt: %s", i, err)
+			continue
+		}
+
+		// Encrypt with another (possibly empty) password
+		randomPassword := make([]byte, mathrand.Intn(30))
+		rand.Read(randomPassword)
+		err = privKey.encryptWithConfig(randomPassword, config)
 		if err != nil {
 			t.Errorf("#%d: failed to encrypt: %s", i, err)
 			continue

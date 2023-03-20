@@ -11,6 +11,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/ProtonMail/go-crypto/openpgp/armor"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
+	"github.com/ProtonMail/go-crypto/openpgp/s2k"
 )
 
 // This function produces random test vectors: generates keys according to the
@@ -267,6 +268,19 @@ func randConfig() *packet.Config {
 		v5 = true
 	}
 
+	var s2kConf *s2k.Config
+	if mathrand.Int()%2 == 0 {
+		s2kConf = &s2k.Config{
+			S2KMode:  s2k.IteratedSaltedS2K,
+			Hash:     hash,
+			S2KCount: 1024 + mathrand.Intn(65010689),
+		}
+	} else {
+		s2kConf = &s2k.Config{
+			S2KMode: s2k.Argon2S2K,
+		}
+	}
+
 	return &packet.Config{
 		V5Keys:                 v5,
 		Rand:                   rand.Reader,
@@ -274,7 +288,7 @@ func randConfig() *packet.Config {
 		DefaultCipher:          ciph,
 		DefaultCompressionAlgo: compAlgo,
 		CompressionConfig:      compConf,
-		S2KCount:               1024 + mathrand.Intn(65010689),
+		S2KConfig:              s2kConf,
 		RSABits:                rsaBits,
 		Algorithm:              pkAlgo,
 		AEADConfig:             &aeadConf,
