@@ -458,12 +458,12 @@ func SerializeEncryptedKeyWithHiddenOption(w io.Writer, pub *PublicKey, cipherFu
 	return SerializeEncryptedKeyAEADwithHiddenOption(w, pub, cipherFunc, config.AEAD() != nil, key, hidden, config)
 }
 
-func (e *EncryptedKey) ProxyTransform(proxyParam []byte, forwardeeKeyId, forwardingKeyId uint64) error {
+func (e *EncryptedKey) ProxyTransform(proxyParam []byte, forwarderKeyId, forwardeeKeyId uint64) error {
 	if e.Algo != PubKeyAlgoECDH {
 		return errors.InvalidArgumentError("invalid PKESK")
 	}
 
-	if e.KeyId != 0 && e.KeyId != forwardingKeyId {
+	if e.KeyId != 0 && e.KeyId != forwarderKeyId {
 		return errors.InvalidArgumentError("invalid key id in PKESK")
 	}
 
