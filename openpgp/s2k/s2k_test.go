@@ -57,7 +57,7 @@ var argon2EncodeTest = []struct {
 func TestArgon2EncodeTest(t *testing.T) {
 
 	for i, tests := range argon2EncodeTest {
-		conf  := &ArgonConfig {
+		conf  := &Argon2Config {
 			Memory: tests.in,
 			DegreeOfParallelism: 1,
 		}
@@ -202,7 +202,7 @@ func TestSerializeOK(t *testing.T) {
 }
 
 func TestSerializeOKArgon(t *testing.T) {
-	testSerializeConfigOK(t, &Config{S2KMode: 4, ArgonConfig: &ArgonConfig{NumberOfPasses: 3, DegreeOfParallelism: 4, Memory: 64*1024}})
+	testSerializeConfigOK(t, &Config{S2KMode: 4, Argon2Config: &Argon2Config{NumberOfPasses: 3, DegreeOfParallelism: 4, Memory: 64*1024}})
 }
 
 func testSerializeConfigOK(t *testing.T, c *Config) {

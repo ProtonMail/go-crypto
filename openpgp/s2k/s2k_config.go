@@ -22,7 +22,7 @@ type Config struct {
 	// Only relevant if S2KMode is set to s2k.Argon2S2K.
 	// If nil, default parameters are used.
 	// For more details on the choice of parameters, see https://tools.ietf.org/html/rfc9106#section-4.
-	ArgonConfig *ArgonConfig
+	Argon2Config *Argon2Config
 	// Only relevant if S2KMode is set to s2k.IteratedSaltedS2K.
 	// Iteration count for Iterated S2K (String to Key). It
 	// determines the strength of the passphrase stretching when
@@ -37,9 +37,9 @@ type Config struct {
 	S2KCount int
 }
 
-// ArgonConfig stores the Argon2 parameters
-// A nil *ArgonConfig is valid and results in all default
-type ArgonConfig struct {
+// Argon2Config stores the Argon2 parameters
+// A nil *Argon2Config is valid and results in all default
+type Argon2Config struct {
 	NumberOfPasses      uint8
 	DegreeOfParallelism uint8
 	// The memory parameter for Argon2 specifies desired memory usage in kibibytes. 
@@ -62,11 +62,11 @@ func (c *Config) hash() crypto.Hash {
 	return c.Hash
 }
 
-func (c *Config) Argon2() *ArgonConfig {
-	if c == nil || c.ArgonConfig == nil {
+func (c *Config) Argon2() *Argon2Config {
+	if c == nil || c.Argon2Config == nil {
 		return nil
 	}
-	return c.ArgonConfig
+	return c.Argon2Config
 }
 
 // EncodedCount get encoded count
@@ -87,21 +87,21 @@ func (c *Config) EncodedCount() uint8 {
 	return encodeCount(i)
 }
 
-func (c *ArgonConfig) Passes() uint8 {
+func (c *Argon2Config) Passes() uint8 {
 	if c == nil || c.NumberOfPasses == 0 {
 		return 3
 	}
 	return c.NumberOfPasses
 }
 
-func (c *ArgonConfig) Parallelism() uint8 {
+func (c *Argon2Config) Parallelism() uint8 {
 	if c == nil || c.DegreeOfParallelism == 0 {
 		return 4
 	}
 	return c.DegreeOfParallelism
 }
 
-func (c *ArgonConfig) EncodedMemory() uint8 {
+func (c *Argon2Config) EncodedMemory() uint8 {
 	if c == nil || c.Memory == 0 {
 		return 16 // 64 MiB of RAM
 	}
