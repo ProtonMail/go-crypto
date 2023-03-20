@@ -11,66 +11,154 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 )
 
-func (e *Entity) NewForwardingEntity(name, comment, email string, config *packet.Config) (forwardeeKey *Entity, proxyParam []byte, err error) {
-	encryptionSubKey, ok := e.EncryptionKey(config.Now())
-	if !ok {
-		return nil, nil, errors.InvalidArgumentError("no valid encryption key found")
+// ForwardingInstance represents a single forwarding instance (mapping IDs to a Proxy Param)
+type ForwardingInstance struct {
+	ForwarderKeyId uint64
+	ForwardeeKeyId uint64
+	ProxyParameter []byte
+}
+
+// NewForwardingEntity generates a new forwardee key and derives the proxy parameters from the entity e.
+// If strict, it will return an error if encryption-capable non-revoked subkeys with a wrong algorithm are found,
+// instead of ignoring them
+func (e *Entity) NewForwardingEntity(
+	name, comment, email string, config *packet.Config, strict bool,
+) (
+	forwardeeKey *Entity, instances []ForwardingInstance, err error,
+) {
+	if e.PrimaryKey.Version != 4 {
+		return nil, nil, errors.InvalidArgumentError("unsupported key version")
 	}
 
-	if encryptionSubKey.PublicKey.Version != 4 {
-		return nil, nil, errors.InvalidArgumentError("unsupported encryption subkey version")
+	now := config.Now()
+	i := e.PrimaryIdentity()
+	if e.PrimaryKey.KeyExpired(i.SelfSignature, now) || // primary key has expired
+		i.SelfSignature == nil || // user ID has no self-signature
+		i.SelfSignature.SigExpired(now) || // user ID self-signature has expired
+		e.Revoked(now) || // primary key has been revoked
+		i.Revoked(now) { // user ID has been revoked
+		return nil, nil, errors.InvalidArgumentError("primary key is expired")
 	}
 
-	if encryptionSubKey.PrivateKey.PubKeyAlgo != packet.PubKeyAlgoECDH {
-		return nil, nil, errors.InvalidArgumentError("encryption subkey is not algorithm 18 (ECDH)")
-	}
-
-	ecdhKey, ok := encryptionSubKey.PrivateKey.PrivateKey.(*ecdh.PrivateKey)
-	if !ok {
-		return nil, nil, errors.InvalidArgumentError("encryption subkey is not type ECDH")
-	}
-
+	// Generate a new Primary key for the forwardee
 	config.Algorithm = packet.PubKeyAlgoEdDSA
 	config.Curve = packet.Curve25519
+	keyLifetimeSecs := config.KeyLifetime()
 
-	forwardeeKey, err = NewEntity(name, comment, email, config)
+	forwardeePrimaryPrivRaw, err := newSigner(config)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	forwardeeEcdhKey, ok := forwardeeKey.Subkeys[0].PrivateKey.PrivateKey.(*ecdh.PrivateKey)
-	if !ok {
-		return nil, nil, goerrors.New("wrong forwarding sub key generation")
+	primary := packet.NewSignerPrivateKey(now, forwardeePrimaryPrivRaw)
+
+	forwardeeKey = &Entity{
+		PrimaryKey: &primary.PublicKey,
+		PrivateKey: primary,
+		Identities: make(map[string]*Identity),
+		Subkeys:    []Subkey{},
 	}
 
-	proxyParam, err = ecdh.DeriveProxyParam(ecdhKey, forwardeeEcdhKey)
+	err = forwardeeKey.addUserId(name, comment, email, config, now, keyLifetimeSecs)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	kdf := ecdh.KDF{
-		Version: ecdh.KDFVersionForwarding,
-		Hash: ecdhKey.KDF.Hash,
-		Cipher: ecdhKey.KDF.Cipher,
-		ReplacementFingerprint: encryptionSubKey.PublicKey.Fingerprint,
+	// Init empty instances
+	instances = []ForwardingInstance{}
+
+	// Handle all forwarder subkeys
+	for _, forwarderSubKey := range e.Subkeys {
+		// Filter flags
+		if !forwarderSubKey.Sig.FlagsValid || forwarderSubKey.Sig.FlagCertify || forwarderSubKey.Sig.FlagSign ||
+			forwarderSubKey.Sig.FlagAuthenticate || forwarderSubKey.Sig.FlagGroupKey {
+			continue
+		}
+
+		// Filter expiration & revokal
+		if forwarderSubKey.PublicKey.KeyExpired(forwarderSubKey.Sig, now) ||
+			forwarderSubKey.Sig.SigExpired(now) ||
+			forwarderSubKey.Revoked(now) {
+			continue
+		}
+
+		if forwarderSubKey.PublicKey.PubKeyAlgo != packet.PubKeyAlgoECDH {
+			if strict {
+				return nil, nil, errors.InvalidArgumentError("encryption subkey is not algorithm 18 (ECDH)")
+			} else {
+				continue
+			}
+		}
+
+		forwarderEcdhKey, ok := forwarderSubKey.PrivateKey.PrivateKey.(*ecdh.PrivateKey)
+		if !ok {
+			return nil, nil, errors.InvalidArgumentError("malformed key")
+		}
+
+		err = forwardeeKey.addEncryptionSubkey(config, now, 0)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		forwardeeSubKey := forwardeeKey.Subkeys[len(forwardeeKey.Subkeys) - 1]
+
+		forwardeeEcdhKey, ok := forwardeeSubKey.PrivateKey.PrivateKey.(*ecdh.PrivateKey)
+		if !ok {
+			return nil, nil, goerrors.New("wrong forwarding sub key generation")
+		}
+
+		instance := ForwardingInstance{
+			ForwarderKeyId: forwarderSubKey.PublicKey.KeyId,
+		}
+
+		instance.ProxyParameter, err = ecdh.DeriveProxyParam(forwarderEcdhKey, forwardeeEcdhKey)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		kdf := ecdh.KDF{
+			Version:                ecdh.KDFVersionForwarding,
+			Hash:                   forwarderEcdhKey.KDF.Hash,
+			Cipher:                 forwarderEcdhKey.KDF.Cipher,
+		}
+
+		// If deriving a forwarding key from a forwarding key
+		if forwarderSubKey.Sig.FlagForward {
+			if forwarderEcdhKey.KDF.Version != ecdh.KDFVersionForwarding {
+				return nil, nil, goerrors.New("malformed forwarder key")
+			}
+			kdf.ReplacementFingerprint = forwarderEcdhKey.KDF.ReplacementFingerprint
+		} else {
+			kdf.ReplacementFingerprint = forwarderSubKey.PublicKey.Fingerprint
+		}
+
+		err = forwardeeSubKey.PublicKey.ReplaceKDF(kdf)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// Set ID after changing the KDF
+		instance.ForwardeeKeyId = forwardeeSubKey.PublicKey.KeyId
+
+		// 0x04 - This key may be used to encrypt communications.
+		forwardeeSubKey.Sig.FlagEncryptCommunications = false
+
+		// 0x08 - This key may be used to encrypt storage.
+		forwardeeSubKey.Sig.FlagEncryptStorage = false
+
+		// 0x10 - The private component of this key may have been split by a secret-sharing mechanism.
+		forwardeeSubKey.Sig.FlagSplitKey = true
+
+		// 0x40 - This key may be used for forwarded communications.
+		forwardeeSubKey.Sig.FlagForward = true
+
+		// Append each valid instance to the list
+		instances = append(instances, instance)
 	}
 
-	err = forwardeeKey.Subkeys[0].PublicKey.ReplaceKDF(kdf)
-	if err != nil {
-		return nil, nil, err
+	if len(instances) == 0 {
+		return nil, nil, errors.InvalidArgumentError("no valid subkey found")
 	}
 
-	// 0x04 - This key may be used to encrypt communications.
-	forwardeeKey.Subkeys[0].Sig.FlagEncryptCommunications = false
-
-	// 0x08 - This key may be used to encrypt storage.
-	forwardeeKey.Subkeys[0].Sig.FlagEncryptStorage = false
-
-	// 0x10 - The private component of this key may have been split by a secret-sharing mechanism.
-	forwardeeKey.Subkeys[0].Sig.FlagSplitKey = true
-
-	// 0x40 - This key may be used for forwarded communications.
-	forwardeeKey.Subkeys[0].Sig.FlagForward = true
-
-	return forwardeeKey, proxyParam, nil
+	return forwardeeKey, instances, nil
 }
