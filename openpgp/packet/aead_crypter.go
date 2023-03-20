@@ -16,9 +16,9 @@ type aeadCrypter struct {
 	aead           cipher.AEAD
 	chunkSize      int
 	initialNonce   []byte
-	associatedData []byte // Chunk-independent associated data
-	chunkIndex     []byte // Chunk counter
-	packetTag      packetType
+	associatedData []byte       // Chunk-independent associated data
+	chunkIndex     []byte       // Chunk counter
+	packetTag      packetType   // SEIP packet (v2) or AEAD Encrypted Data packet
 	bytesProcessed int          // Amount of plaintext bytes encrypted/decrypted
 	buffer         bytes.Buffer // Buffered bytes across chunks
 }
