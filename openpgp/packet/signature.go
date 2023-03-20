@@ -271,6 +271,10 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		packetType signatureSubpacketType
 		isCritical bool
 	)
+	if len(subpacket) == 0 {
+		err = errors.StructuralError("zero length signature subpacket")
+		return
+	}
 	switch {
 	case subpacket[0] < 192:
 		length = uint32(subpacket[0])
@@ -327,10 +331,18 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		sig.SigLifetimeSecs = new(uint32)
 		*sig.SigLifetimeSecs = binary.BigEndian.Uint32(subpacket)
 	case trustSubpacket:
+		if len(subpacket) != 2 {
+			err = errors.StructuralError("trust subpacket with bad length")
+			return
+		}
 		// Trust level and amount, section 5.2.3.13
 		sig.TrustLevel = TrustLevel(subpacket[0])
 		sig.TrustAmount = TrustAmount(subpacket[1])
 	case regularExpressionSubpacket:
+		if len(subpacket) == 0 {
+			err = errors.StructuralError("regexp subpacket with bad length")
+			return
+		}
 		// Trust regular expression, section 5.2.3.14
 		// RFC specifies the string should be null-terminated; remove a null byte from the end
 		if subpacket[len(subpacket)-1] != 0x00 {
@@ -478,6 +490,10 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		// Policy URI, section 5.2.3.20
 		sig.PolicyURI = string(subpacket)
 	case issuerFingerprintSubpacket:
+		if len(subpacket) == 0 {
+			err = errors.StructuralError("empty issuer fingerprint subpacket")
+			return
+		}
 		v, l := subpacket[0], len(subpacket[1:])
 		if v == 5 && l != 32 || v != 5 && l != 20 {
 			return nil, errors.StructuralError("bad fingerprint length")
