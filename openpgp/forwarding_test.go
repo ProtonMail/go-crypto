@@ -78,9 +78,21 @@ func TestForwardingFull(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	charlesEntity, proxyParam, err := bobEntity.NewForwardingEntity("charles", "", "charles@proton.me", keyConfig)
+	charlesEntity, instances, err := bobEntity.NewForwardingEntity("charles", "", "charles@proton.me", keyConfig, true)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	if len(instances) != 1 {
+		t.Fatalf("invalid number of instances, expected 1 got %d", len(instances))
+	}
+
+	if instances[0].ForwarderKeyId != bobEntity.Subkeys[0].PublicKey.KeyId {
+		t.Fatalf("invalid forwarder key ID, expected: %x, got: %x", bobEntity.Subkeys[0].PublicKey.KeyId, instances[0].ForwarderKeyId)
+	}
+
+	if instances[0].ForwardeeKeyId != charlesEntity.Subkeys[0].PublicKey.KeyId {
+		t.Fatalf("invalid forwardee key ID, expected: %x, got: %x", charlesEntity.Subkeys[0].PublicKey.KeyId, instances[0].ForwardeeKeyId)
 	}
 
 	// Encrypt message
@@ -114,6 +126,43 @@ func TestForwardingFull(t *testing.T) {
 	}
 
 	// Forward message
+
+	transformed := transformTestMessage(t, encrypted, instances[0])
+
+	// Decrypt forwarded message for Charles
+	m, err = ReadMessage(bytes.NewBuffer(transformed), EntityList([]*Entity{charlesEntity}), nil /* no prompt */, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dec, err = ioutil.ReadAll(m.decrypted)
+
+	if bytes.Compare(dec, plaintext) != 0 {
+		t.Fatal("forwarded decrypted does not match original")
+	}
+
+	// Setup further forwarding
+	danielEntity, secondForwardInstances, err := charlesEntity.NewForwardingEntity("Daniel", "", "daniel@proton.me", keyConfig, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	secondTransformed := transformTestMessage(t, transformed, secondForwardInstances[0])
+
+	// Decrypt forwarded message for Charles
+	m, err = ReadMessage(bytes.NewBuffer(secondTransformed), EntityList([]*Entity{danielEntity}), nil /* no prompt */, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dec, err = ioutil.ReadAll(m.decrypted)
+
+	if bytes.Compare(dec, plaintext) != 0 {
+		t.Fatal("forwarded decrypted does not match original")
+	}
+}
+
+func transformTestMessage(t *testing.T, encrypted []byte, instance ForwardingInstance) []byte {
 	bytesReader := bytes.NewReader(encrypted)
 	packets := packet.NewReader(bytesReader)
 	splitPoint := int64(0)
@@ -131,9 +180,9 @@ Loop:
 		switch p := p.(type) {
 		case *packet.EncryptedKey:
 			err = p.ProxyTransform(
-				proxyParam,
-				charlesEntity.Subkeys[0].PublicKey.KeyId,
-				bobEntity.Subkeys[0].PublicKey.KeyId,
+				instance.ProxyParameter,
+				instance.ForwarderKeyId,
+				instance.ForwardeeKeyId,
 			)
 			if err != nil {
 				t.Fatalf("error transforming PKESK: %s", err)
@@ -152,15 +201,5 @@ Loop:
 	transformed := transformedEncryptedKey.Bytes()
 	transformed = append(transformed, encrypted[splitPoint:]...)
 
-	// Decrypt forwarded message for Charles
-	m, err = ReadMessage(bytes.NewBuffer(transformed), EntityList([]*Entity{charlesEntity}), nil /* no prompt */, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	dec, err = ioutil.ReadAll(m.decrypted)
-
-	if bytes.Compare(dec, plaintext) != 0 {
-		t.Fatal("forwarded decrypted does not match original")
-	}
+	return transformed
 }
