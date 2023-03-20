@@ -1477,7 +1477,7 @@ func TestKeyValidateOnDecrypt(t *testing.T) {
 		})
 
 		for _, bits := range []int{2048, 3072, 4096} {
-			t.Run("Generated:" + strconv.Itoa(bits) + " bits", func(t *testing.T) {
+			t.Run("Generated:"+strconv.Itoa(bits)+" bits", func(t *testing.T) {
 				key := testGenerateRSA(t, bits)
 				testKeyValidateRsaOnDecrypt(t, key, randomPassword)
 			})
@@ -1502,18 +1502,18 @@ func TestKeyValidateOnDecrypt(t *testing.T) {
 			testKeyValidateEcdsaOnDecrypt(t, keys[0], randomPassword)
 		})
 
-		ecdsaCurves := map[string] packet.Curve {
-			"NIST P-256": packet.CurveNistP256,
-			"NIST P-384": packet.CurveNistP384,
-			"NIST P-521": packet.CurveNistP521,
+		ecdsaCurves := map[string]packet.Curve{
+			"NIST P-256":      packet.CurveNistP256,
+			"NIST P-384":      packet.CurveNistP384,
+			"NIST P-521":      packet.CurveNistP521,
 			"Brainpool P-256": packet.CurveBrainpoolP256,
 			"Brainpool P-384": packet.CurveBrainpoolP384,
 			"Brainpool P-512": packet.CurveBrainpoolP512,
-			"SecP256k1": packet.CurveSecP256k1,
+			"SecP256k1":       packet.CurveSecP256k1,
 		}
 
 		for name, curveType := range ecdsaCurves {
-			t.Run("Generated:" + name, func(t *testing.T) {
+			t.Run("Generated:"+name, func(t *testing.T) {
 				key := testGenerateEC(t, packet.PubKeyAlgoECDSA, curveType)
 				testKeyValidateEcdsaOnDecrypt(t, key, randomPassword)
 			})
@@ -1521,13 +1521,13 @@ func TestKeyValidateOnDecrypt(t *testing.T) {
 	})
 
 	t.Run("EdDSA", func(t *testing.T) {
-		eddsaHardcoded := map[string] string {
+		eddsaHardcoded := map[string]string{
 			"Curve25519": curve25519PrivateKey,
-			"Curve448": curve448PrivateKey,
+			"Curve448":   curve448PrivateKey,
 		}
 
 		for name, skData := range eddsaHardcoded {
-			t.Run("Hardcoded:" + name, func(t *testing.T) {
+			t.Run("Hardcoded:"+name, func(t *testing.T) {
 				keys, err := ReadArmoredKeyRing(bytes.NewBufferString(skData))
 				if err != nil {
 					t.Fatal("Unable to parse hardcoded key: ", err)
@@ -1537,13 +1537,13 @@ func TestKeyValidateOnDecrypt(t *testing.T) {
 			})
 		}
 
-		eddsaCurves := map[string] packet.Curve {
+		eddsaCurves := map[string]packet.Curve{
 			"Curve25519": packet.Curve25519,
-			"Curve448": packet.Curve448,
+			"Curve448":   packet.Curve448,
 		}
 
 		for name, curveType := range eddsaCurves {
-			t.Run("Generated:" + name, func(t *testing.T) {
+			t.Run("Generated:"+name, func(t *testing.T) {
 				key := testGenerateEC(t, packet.PubKeyAlgoEdDSA, curveType)
 				testKeyValidateEddsaOnDecrypt(t, key, randomPassword)
 			})
@@ -1556,7 +1556,7 @@ func TestKeyValidateOnDecrypt(t *testing.T) {
 }
 
 func testGenerateRSA(t *testing.T, bits int) *Entity {
-	config := &packet.Config{Algorithm:packet.PubKeyAlgoRSA, RSABits: bits}
+	config := &packet.Config{Algorithm: packet.PubKeyAlgoRSA, RSABits: bits}
 	rsaEntity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", config)
 	if err != nil {
 		t.Fatal(err)
@@ -1669,7 +1669,7 @@ func testKeyValidateEddsaOnDecrypt(t *testing.T, eddsaEntity *Entity, password [
 	}
 
 	// ECDH
-	ecdhSubkey := eddsaEntity.Subkeys[len(eddsaEntity.Subkeys) - 1].PrivateKey
+	ecdhSubkey := eddsaEntity.Subkeys[len(eddsaEntity.Subkeys)-1].PrivateKey
 	if err = ecdhSubkey.Encrypt(password); err != nil {
 		t.Fatal(err)
 	}

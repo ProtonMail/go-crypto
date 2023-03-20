@@ -16,13 +16,13 @@ import (
 func TestGenerateMaskedPrivateKeyX25519(t *testing.T) {
 	c := NewCurve25519()
 	_, secret, err := c.GenerateECDH(rand.Reader)
-	if err != nil  {
+	if err != nil {
 		t.Fatal(err)
 	}
 
 	encoded := c.MarshalByteSecret(secret)
 	decoded := c.UnmarshalByteSecret(encoded)
-	if decoded == nil  {
+	if decoded == nil {
 		t.Fatal(err)
 	}
 

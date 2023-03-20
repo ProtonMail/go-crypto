@@ -534,19 +534,22 @@ func CheckArmoredDetachedSignature(keyring KeyRing, signed, signature io.Reader,
 }
 
 // checkSignatureDetails returns an error if:
-// - The signature (or one of the binding signatures mentioned below)
-//   has a unknown critical notation data subpacket
-// - The primary key of the signing entity is revoked
+//   - The signature (or one of the binding signatures mentioned below)
+//     has a unknown critical notation data subpacket
+//   - The primary key of the signing entity is revoked
+//
 // The signature was signed by a subkey and:
 //   - The signing subkey is revoked
-// - The primary identity is revoked
-// - The signature is expired
-// - The primary key of the signing entity is expired according to the
-//   primary identity binding signature
+//   - The primary identity is revoked
+//   - The signature is expired
+//   - The primary key of the signing entity is expired according to the
+//     primary identity binding signature
+//
 // The signature was signed by a subkey and:
 //   - The signing subkey is expired according to the subkey binding signature
 //   - The signing subkey binding signature is expired
 //   - The signing subkey cross-signature is expired
+//
 // NOTE: The order of these checks is important, as the caller may choose to
 // ignore ErrSignatureExpired or ErrKeyExpired errors, but should never
 // ignore any other errors.
@@ -557,7 +560,7 @@ func checkSignatureDetails(key *Key, signature *packet.Signature, config *packet
 	now := config.Now()
 	primaryIdentity := key.Entity.PrimaryIdentity()
 	signedBySubKey := key.PublicKey != key.Entity.PrimaryKey
-	sigsToCheck := []*packet.Signature{ signature, primaryIdentity.SelfSignature }
+	sigsToCheck := []*packet.Signature{signature, primaryIdentity.SelfSignature}
 	if signedBySubKey {
 		sigsToCheck = append(sigsToCheck, key.SelfSignature, key.SelfSignature.EmbeddedSignature)
 	}

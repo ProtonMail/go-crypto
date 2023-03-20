@@ -73,7 +73,6 @@ func testEncryptDecrypt(t *testing.T, priv *PrivateKey, oid, fingerprint []byte)
 	}
 }
 
-
 func testValidation(t *testing.T, priv *PrivateKey) {
 	if err := Validate(priv); err != nil {
 		t.Fatalf("valid key marked as invalid: %s", err)
