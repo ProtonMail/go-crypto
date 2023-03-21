@@ -33,7 +33,6 @@ func (e *Entity) NewForwardingEntity(
 	now := config.Now()
 	i := e.PrimaryIdentity()
 	if e.PrimaryKey.KeyExpired(i.SelfSignature, now) || // primary key has expired
-		i.SelfSignature == nil || // user ID has no self-signature
 		i.SelfSignature.SigExpired(now) || // user ID self-signature has expired
 		e.Revoked(now) || // primary key has been revoked
 		i.Revoked(now) { // user ID has been revoked
@@ -70,8 +69,7 @@ func (e *Entity) NewForwardingEntity(
 	// Handle all forwarder subkeys
 	for _, forwarderSubKey := range e.Subkeys {
 		// Filter flags
-		if !forwarderSubKey.Sig.FlagsValid || forwarderSubKey.Sig.FlagCertify || forwarderSubKey.Sig.FlagSign ||
-			forwarderSubKey.Sig.FlagAuthenticate || forwarderSubKey.Sig.FlagGroupKey {
+		if !forwarderSubKey.PublicKey.PubKeyAlgo.CanEncrypt() {
 			continue
 		}
 
@@ -151,6 +149,12 @@ func (e *Entity) NewForwardingEntity(
 
 		// 0x40 - This key may be used for forwarded communications.
 		forwardeeSubKey.Sig.FlagForward = true
+
+		// Re-sign subkey binding signature
+		err = forwardeeSubKey.Sig.SignKey(forwardeeSubKey.PublicKey, forwardeeKey.PrivateKey, config)
+		if err != nil {
+			return nil, nil, err
+		}
 
 		// Append each valid instance to the list
 		instances = append(instances, instance)
