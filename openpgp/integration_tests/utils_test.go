@@ -146,7 +146,7 @@ func randFileHints() *openpgp.FileHints {
 	return &openpgp.FileHints{
 		IsBinary: mathrand.Intn(2) == 0,
 		FileName: string(fileName),
-		ModTime: time.Now(),
+		ModTime:  time.Now(),
 	}
 }
 

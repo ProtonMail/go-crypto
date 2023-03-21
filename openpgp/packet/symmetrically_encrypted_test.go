@@ -89,7 +89,7 @@ func TestSerializeMdc(t *testing.T) {
 
 	cipherSuite := CipherSuite{
 		Cipher: c,
-		Mode: AEADModeOCB,
+		Mode:   AEADModeOCB,
 	}
 
 	w, err := SerializeSymmetricallyEncrypted(buf, c, false, cipherSuite, key, nil)
@@ -215,13 +215,13 @@ func TestAeadRfcVector(t *testing.T) {
 }
 
 func TestAeadEncryptDecrypt(t *testing.T) {
-	ciphers := map[string] CipherFunction {
+	ciphers := map[string]CipherFunction{
 		"AES128": CipherAES128,
 		"AES192": CipherAES192,
 		"AES256": CipherAES256,
 	}
 
-	modes := map[string] AEADMode {
+	modes := map[string]AEADMode{
 		"EAX": AEADModeEAX,
 		"OCB": AEADModeOCB,
 		"GCM": AEADModeGCM,
@@ -277,7 +277,6 @@ func testSerializeAead(t *testing.T, cipherSuite CipherSuite) {
 	if se.mode != cipherSuite.Mode {
 		t.Errorf("found wrong mode, want: %d, got: %d", cipherSuite.Mode, se.mode)
 	}
-
 
 	r, err := se.Decrypt(CipherFunction(0), key)
 	if err != nil {

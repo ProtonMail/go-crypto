@@ -25,7 +25,6 @@ func TestCurves(t *testing.T) {
 				t.Fatal(err)
 			}
 
-
 			priv := testGenerate(t, ECDSACurve)
 			testSignVerify(t, priv)
 			testValidation(t, priv)
@@ -38,7 +37,7 @@ func TestCurves(t *testing.T) {
 }
 
 func testGenerate(t *testing.T, curve ecc.ECDSACurve) *PrivateKey {
-	priv, err := GenerateKey( rand.Reader, curve)
+	priv, err := GenerateKey(rand.Reader, curve)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +89,7 @@ func testMarshalUnmarshal(t *testing.T, priv *PrivateKey) {
 		t.Fatalf("unable to unmarshal integer: %s", err)
 	}
 
-	if priv.X.Cmp(parsed.X) != 0 || priv.Y.Cmp(parsed.Y) != 0 || priv.D.Cmp(parsed.D) != 0{
+	if priv.X.Cmp(parsed.X) != 0 || priv.Y.Cmp(parsed.Y) != 0 || priv.D.Cmp(parsed.D) != 0 {
 		t.Fatal("failed to marshal/unmarshal correctly")
 	}
 }

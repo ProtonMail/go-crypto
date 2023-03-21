@@ -80,8 +80,8 @@ func TestSignDetachedWithNotation(t *testing.T) {
 	config := &packet.Config{
 		SignatureNotations: []*packet.Notation{
 			{
-				Name: "test@example.com",
-				Value: []byte("test"),
+				Name:            "test@example.com",
+				Value:           []byte("test"),
 				IsHumanReadable: true,
 			},
 		},
@@ -130,10 +130,10 @@ func TestSignDetachedWithCriticalNotation(t *testing.T) {
 	config := &packet.Config{
 		SignatureNotations: []*packet.Notation{
 			{
-				Name: "test@example.com",
-				Value: []byte("test"),
+				Name:            "test@example.com",
+				Value:           []byte("test"),
 				IsHumanReadable: true,
-				IsCritical: true,
+				IsCritical:      true,
 			},
 		},
 	}
