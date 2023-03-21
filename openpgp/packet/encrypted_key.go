@@ -458,27 +458,37 @@ func SerializeEncryptedKeyWithHiddenOption(w io.Writer, pub *PublicKey, cipherFu
 	return SerializeEncryptedKeyAEADwithHiddenOption(w, pub, cipherFunc, config.AEAD() != nil, key, hidden, config)
 }
 
-func (e *EncryptedKey) ProxyTransform(proxyParam []byte, forwarderKeyId, forwardeeKeyId uint64) error {
+func (e *EncryptedKey) ProxyTransform(proxyParam []byte, forwarderKeyId, forwardeeKeyId uint64) (transformed *EncryptedKey, err error) {
 	if e.Algo != PubKeyAlgoECDH {
-		return errors.InvalidArgumentError("invalid PKESK")
+		return nil, errors.InvalidArgumentError("invalid PKESK")
 	}
 
 	if e.KeyId != 0 && e.KeyId != forwarderKeyId {
-		return errors.InvalidArgumentError("invalid key id in PKESK")
+		return nil, errors.InvalidArgumentError("invalid key id in PKESK")
 	}
 
 	ephemeral := e.encryptedMPI1.Bytes()
-	transformed, err := ecdh.ProxyTransform(ephemeral, proxyParam)
+	transformedEphemeral, err := ecdh.ProxyTransform(ephemeral, proxyParam)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	e.encryptedMPI1 = encoding.NewMPI(transformed)
-	if e.KeyId != 0 {
-		e.KeyId = forwardeeKeyId
+	wrappedKey := e.encryptedMPI2.Bytes()
+	copiedWrappedKey := make([]byte, len(wrappedKey))
+	copy(copiedWrappedKey, wrappedKey)
+
+	transformed = &EncryptedKey{
+		KeyId:         forwardeeKeyId,
+		Algo:          e.Algo,
+		encryptedMPI1: encoding.NewMPI(transformedEphemeral),
+		encryptedMPI2: encoding.NewOID(copiedWrappedKey),
 	}
 
-	return nil
+	if e.KeyId == 0 {
+		e.KeyId = 0
+	}
+
+	return transformed, nil
 }
 
 func serializeEncryptedKeyRSA(w io.Writer, rand io.Reader, header []byte, pub *rsa.PublicKey, keyBlock []byte) error {
