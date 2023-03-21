@@ -154,7 +154,7 @@ func (e *Entity) EncryptionKey(now time.Time) (Key, bool) {
 	// the primary key doesn't have any usage metadata then we
 	// assume that the primary key is ok. Or, if the primary key is
 	// marked as ok to encrypt with, then we can obviously use it.
-	if !i.SelfSignature.FlagsValid || i.SelfSignature.FlagEncryptCommunications &&
+	if (!i.SelfSignature.FlagsValid || i.SelfSignature.FlagEncryptCommunications) &&
 		e.PrimaryKey.PubKeyAlgo.CanEncrypt() {
 		return Key{e, e.PrimaryKey, e.PrivateKey, i.SelfSignature, e.Revocations}, true
 	}
@@ -223,11 +223,11 @@ func (e *Entity) signingKeyByIdUsage(now time.Time, id uint64, flags int) (Key, 
 	// If we have no candidate subkey then we assume that it's ok to sign
 	// with the primary key.  Or, if the primary key is marked as ok to
 	// sign with, then we can use it.
-	if !i.SelfSignature.FlagsValid ||
+	if (!i.SelfSignature.FlagsValid ||
 		(flags&packet.KeyFlagCertify == 0 || i.SelfSignature.FlagCertify) &&
-			(flags&packet.KeyFlagSign == 0 || i.SelfSignature.FlagSign) &&
-			e.PrimaryKey.PubKeyAlgo.CanSign() &&
-			(id == 0 || e.PrimaryKey.KeyId == id) {
+			(flags&packet.KeyFlagSign == 0 || i.SelfSignature.FlagSign)) &&
+		e.PrimaryKey.PubKeyAlgo.CanSign() &&
+		(id == 0 || e.PrimaryKey.KeyId == id) {
 		return Key{e, e.PrimaryKey, e.PrivateKey, i.SelfSignature, e.Revocations}, true
 	}
 
