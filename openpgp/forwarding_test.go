@@ -83,6 +83,8 @@ func TestForwardingFull(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	charlesEntity = serializeAndParseForwardeeKey(t, charlesEntity)
+
 	if len(instances) != 1 {
 		t.Fatalf("invalid number of instances, expected 1 got %d", len(instances))
 	}
@@ -147,6 +149,8 @@ func TestForwardingFull(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	danielEntity = serializeAndParseForwardeeKey(t, danielEntity)
+
 	secondTransformed := transformTestMessage(t, transformed, secondForwardInstances[0])
 
 	// Decrypt forwarded message for Charles
@@ -202,4 +206,22 @@ Loop:
 	transformed = append(transformed, encrypted[splitPoint:]...)
 
 	return transformed
+}
+
+func serializeAndParseForwardeeKey(t *testing.T, key *Entity) *Entity {
+	serializedEntity := bytes.NewBuffer(nil)
+	err := key.SerializePrivateWithoutSigning(serializedEntity, nil)
+	if err != nil {
+		t.Fatalf("Error in serializing forwardee key: %s", err)
+	}
+	el, err := ReadKeyRing(serializedEntity)
+	if err != nil {
+		t.Fatalf("Error in reading forwardee key: %s", err)
+	}
+
+	if len(el) != 1 {
+		t.Fatalf("Wrong number of entities in parsing, expected 1, got %d", len(el))
+	}
+
+	return el[0]
 }
