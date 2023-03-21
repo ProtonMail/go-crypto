@@ -183,7 +183,7 @@ Loop:
 		}
 		switch p := p.(type) {
 		case *packet.EncryptedKey:
-			err = p.ProxyTransform(
+			tp, err := p.ProxyTransform(
 				instance.ProxyParameter,
 				instance.ForwarderKeyId,
 				instance.ForwardeeKeyId,
@@ -194,7 +194,7 @@ Loop:
 
 			splitPoint = bytesReader.Size() - int64(bytesReader.Len())
 
-			err = p.Serialize(transformedEncryptedKey)
+			err = tp.Serialize(transformedEncryptedKey)
 			if err != nil {
 				t.Fatalf("error serializing transformed PKESK: %s", err)
 			}
