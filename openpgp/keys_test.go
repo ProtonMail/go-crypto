@@ -6,6 +6,7 @@ import (
 	"crypto/dsa"
 	"crypto/rand"
 	"crypto/rsa"
+	"fmt"
 	"math/big"
 	"strconv"
 	"strings"
@@ -20,6 +21,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
+	"github.com/ProtonMail/go-crypto/openpgp/s2k"
 )
 
 var hashes = []crypto.Hash{
@@ -1453,6 +1455,64 @@ func TestRevokeSubkeyWithConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestLockAndUnlockAllKeysEntity(t *testing.T) {
+	s2kModesToTest := []s2k.Mode{s2k.IteratedSaltedS2K, s2k.Argon2S2K}
+
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = entity.AddSigningSubkey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = entity.AddEncryptionSubkey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, mode := range s2kModesToTest {
+		t.Run(fmt.Sprintf("S2KMode %d", mode), func(t *testing.T) {
+			passphrase := []byte("password")
+			config := &packet.Config{
+				S2KConfig: &s2k.Config{
+					S2KMode: mode,
+				},
+			}
+			err = entity.LockAllKeys(passphrase, config)
+			if err != nil {
+				t.Fatal(err)
+			}
+	
+			if !entity.PrivateKey.Encrypted {
+				t.Fatal("Expected encrypted private key")
+			}
+			for _, subkey := range entity.Subkeys {
+				if !subkey.PrivateKey.Encrypted {
+					t.Fatal("Expected encrypted private key")
+				}
+			}
+	
+			err = entity.UnlockAllKeys(passphrase)
+			if err != nil {
+				t.Fatal(err)
+			}
+	
+			if entity.PrivateKey.Encrypted {
+				t.Fatal("Expected plaintext private key")
+			}
+			for _, subkey := range entity.Subkeys {
+				if subkey.PrivateKey.Encrypted {
+					t.Fatal("Expected plaintext private key")
+				}
+			}
+		})
+	}
+	
+
 }
 
 func TestKeyValidateOnDecrypt(t *testing.T) {

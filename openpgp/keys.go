@@ -256,6 +256,44 @@ func (e *Entity) Revoked(now time.Time) bool {
 	return revoked(e.Revocations, now)
 }
 
+// LockAllKeys encrypts all non-encrypted keys in the entity with the same key
+// derived from the provided passphrase.
+func (e *Entity) LockAllKeys(passphrase []byte, configuration *packet.Config) (err error) {
+	var keysToEncrypt []*packet.PrivateKey
+	// Add entity private key to encrypt.
+	if e.PrivateKey != nil && !e.PrivateKey.Dummy() && !e.PrivateKey.Encrypted {
+		keysToEncrypt = append(keysToEncrypt,  e.PrivateKey)
+	}
+
+	// Add subkeys to encrypt.
+	for _, sub := range e.Subkeys {
+		if sub.PrivateKey != nil && !sub.PrivateKey.Dummy() && !sub.PrivateKey.Encrypted {
+			keysToEncrypt = append(keysToEncrypt, sub.PrivateKey)
+		}
+	}
+	err = packet.PrivateKeysEncrypt(keysToEncrypt, passphrase, configuration)
+	return
+}
+
+// UnlockAllKeys decrypts all encrypted keys in the entitiy with the given passphrase.
+// Avoids recomputation of similar s2k key derivations.
+func (e *Entity) UnlockAllKeys(passphrase []byte) (err error) {
+	var keysToDecrypt []*packet.PrivateKey
+	// Add entity private key to decrypt.
+	if e.PrivateKey != nil && !e.PrivateKey.Dummy() && e.PrivateKey.Encrypted {
+		keysToDecrypt = append(keysToDecrypt, e.PrivateKey)
+	}
+
+	// Add subkeys to decrypt.
+	for _, sub := range e.Subkeys {
+		if sub.PrivateKey != nil && !sub.PrivateKey.Dummy() && sub.PrivateKey.Encrypted {
+			keysToDecrypt = append(keysToDecrypt,  sub.PrivateKey)
+		}
+	}
+	err = packet.PrivateKeysDecrypt(keysToDecrypt, passphrase)
+	return
+}
+
 // Revoked returns whether the identity has been revoked by a self-signature.
 // Note that third-party revocation signatures are not supported.
 func (i *Identity) Revoked(now time.Time) bool {

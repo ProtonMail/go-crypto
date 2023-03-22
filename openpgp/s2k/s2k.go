@@ -42,7 +42,7 @@ type Params struct {
 	// hashId is the ID of the hash function used in any of the modes
 	hashId byte
 	// salt is a byte array to use as a salt in hashing process or argon2
-	saltBytes [16]byte
+	saltBytes [Argon2SaltSize]byte
 	// countByte is used to determine how many rounds of hashing are to
 	// be performed in s2k mode 3. See RFC 4880 Section 3.7.1.3.
 	countByte byte

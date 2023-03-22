@@ -370,8 +370,8 @@ func serializeECDHPrivateKey(w io.Writer, priv *ecdh.PrivateKey) error {
 	return err
 }
 
-// Decrypt decrypts an encrypted private key using a passphrase.
-func (pk *PrivateKey) Decrypt(passphrase []byte) error {
+// Decrypt decrypts an encrypted private key using a decryptionKey.
+func (pk *PrivateKey) decrypt(decryptionKey []byte) error {
 	if pk.Dummy() {
 		return errors.ErrDummyPrivateKey("dummy key found")
 	}
@@ -379,9 +379,7 @@ func (pk *PrivateKey) Decrypt(passphrase []byte) error {
 		return nil
 	}
 
-	key := make([]byte, pk.cipher.KeySize())
-	pk.s2k(key, passphrase)
-	block := pk.cipher.new(key)
+	block := pk.cipher.new(decryptionKey)
 	cfb := cipher.NewCFBDecrypter(block, pk.iv)
 
 	data := make([]byte, len(pk.encryptedData))
@@ -428,30 +426,81 @@ func (pk *PrivateKey) Decrypt(passphrase []byte) error {
 	pk.encryptedData = nil
 
 	return nil
+} 
+
+func (pk *PrivateKey) decryptWithCache(passphrase []byte, keyCache *s2k.Cache) error {
+	if pk.Dummy() {
+		return errors.ErrDummyPrivateKey("dummy key found")
+	}
+	if !pk.Encrypted {
+		return nil
+	}
+
+	key, err := keyCache.GetDerivedKeyOrElseCompute(passphrase, pk.s2kParams, pk.cipher.KeySize())
+	if err != nil {
+		return err
+	}
+	return pk.decrypt(key)
 }
 
-func (pk *PrivateKey) encrypt(passphrase []byte, blockCipher CipherFunction, s2kConfig *s2k.Config) error {
+// Decrypt decrypts an encrypted private key using a passphrase.
+func (pk *PrivateKey) Decrypt(passphrase []byte) error {
+	if pk.Dummy() {
+		return errors.ErrDummyPrivateKey("dummy key found")
+	}
+	if !pk.Encrypted {
+		return nil
+	}
+
+	key := make([]byte, pk.cipher.KeySize())
+	pk.s2k(key, passphrase)
+	return pk.decrypt(key)
+}
+
+// PrivateKeysDecrypt decrypts all encrypted keys with the given configuration and passphrase.
+// Avoids recomputation of similar s2k key derivations. 
+func PrivateKeysDecrypt(keys []*PrivateKey, passphrase []byte) error {
+	// Create a cache to avoid recomputation of key derviations for the same passphrase.
+	s2kCache := s2k.NewCache()
+	for _, key := range keys {
+		if key != nil && !key.Dummy() && key.Encrypted {
+			err := key.decryptWithCache(passphrase, s2kCache)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// Encrypt encrypts an unencrypted private key.
+func (pk *PrivateKey) encrypt(key []byte, params *s2k.Params, cipherFunction CipherFunction) error {
+	if pk.Dummy() {
+		return errors.ErrDummyPrivateKey("dummy key found")
+	}
+	if pk.Encrypted {
+		return nil
+	}
+	// check if encryptionKey has the correct size
+	if len(key) != cipherFunction.KeySize() {
+		return errors.InvalidArgumentError("Supplied encryption key has the wrong size")
+	}
+	
 	priv := bytes.NewBuffer(nil)
 	err := pk.serializePrivateKey(priv)
 	if err != nil {
 		return err
 	}
 
-	pk.cipher = blockCipher
-
-	pk.s2kParams, err = s2k.Generate(rand.Reader, s2kConfig)
-	if err != nil {
-		return err
-	}
-	privateKeyBytes := priv.Bytes()
-	key := make([]byte, pk.cipher.KeySize())
-
-	pk.sha1Checksum = true
+	pk.cipher = cipherFunction
+	pk.s2kParams = params
 	pk.s2k, err = pk.s2kParams.Function()
 	if err != nil {
 		return err
-	}
-	pk.s2k(key, passphrase)
+	} 
+
+	privateKeyBytes := priv.Bytes()
+	pk.sha1Checksum = true
 	block := pk.cipher.new(key)
 	pk.iv = make([]byte, pk.cipher.blockSize())
 	_, err = rand.Read(pk.iv)
@@ -482,19 +531,61 @@ func (pk *PrivateKey) encrypt(passphrase []byte, blockCipher CipherFunction, s2k
 	return err
 }
 
-// encryptWithConfig encrypts an unencrypted private key using a passphrase and with the config.
-func (pk *PrivateKey) encryptWithConfig(passphrase []byte, c *Config) error {
-	return pk.encrypt(passphrase, c.Cipher(), c.S2K())
+// EncryptWithConfig encrypts an unencrypted private key using the passphrase and the configuration.
+func (pk *PrivateKey) encryptWithConfig(passphrase []byte, configuration *Config) error {
+	parameters, err := s2k.Generate(configuration.Random(), configuration.S2K())
+	if err != nil {
+		return err
+	}
+	// Derive an encryption key with the configured s2k function.
+	key := make([]byte, configuration.Cipher().KeySize())
+	s2k, err := parameters.Function()
+	if err != nil {
+		return err
+	}
+	s2k(key, passphrase)
+	// Encrypt the private key with the derived encryption key.
+	return pk.encrypt(key, parameters, configuration.Cipher())
+}
+
+// PrivateKeysEncrypt encrypts all unencrypted keys with the given configuration and passphrase.
+// Only derives one key from the passphrase, which is then used to encrypt each key.
+func PrivateKeysEncrypt(keys []*PrivateKey, passphrase []byte, configuration *Config) error {
+	parameters, err := s2k.Generate(configuration.Random(), configuration.S2K())
+	if err != nil {
+		return err
+	}
+	// Derive an encryption key with the configured s2k function.
+	encryptionKey := make([]byte, configuration.Cipher().KeySize())
+	s2k, err := parameters.Function()
+	if err != nil {
+		return err
+	}
+	s2k(encryptionKey, passphrase)
+	for _, key := range keys {
+		if key != nil && !key.Dummy() && !key.Encrypted {
+			err = key.encrypt(encryptionKey, parameters, configuration.Cipher())
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // Encrypt encrypts an unencrypted private key using a passphrase.
 func (pk *PrivateKey) Encrypt(passphrase []byte) error {
+	//Default config of private key encryption
 	s2kConfig := &s2k.Config{
 		S2KMode:  s2k.IteratedSaltedS2K,
 		S2KCount: 65536,
 		Hash:     crypto.SHA256,
+	} 
+	globalConfig := &Config{
+		S2KConfig: s2kConfig,
+		DefaultCipher: CipherAES256,
 	}
-	return pk.encrypt(passphrase, CipherAES256, s2kConfig)
+	return pk.encryptWithConfig(passphrase, globalConfig)
 }
 
 func (pk *PrivateKey) serializePrivateKey(w io.Writer) (err error) {
