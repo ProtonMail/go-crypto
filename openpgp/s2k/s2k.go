@@ -25,10 +25,10 @@ type Mode uint8
 //	0 (simple), 1(salted), 3(iterated), 4(argon2)
 const (
 	SimpleS2K         Mode = 0
-	SaltedS2K              = 1
-	IteratedSaltedS2K      = 3
-	Argon2S2K              = 4
-	GnuS2K                 = 101
+	SaltedS2K         Mode = 1
+	IteratedSaltedS2K Mode = 3
+	Argon2S2K         Mode = 4
+	GnuS2K            Mode = 101
 )
 
 const Argon2SaltSize int = 16
