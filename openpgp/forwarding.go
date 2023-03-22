@@ -11,20 +11,13 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 )
 
-// ForwardingInstance represents a single forwarding instance (mapping IDs to a Proxy Param)
-type ForwardingInstance struct {
-	ForwarderKeyId uint64
-	ForwardeeKeyId uint64
-	ProxyParameter []byte
-}
-
 // NewForwardingEntity generates a new forwardee key and derives the proxy parameters from the entity e.
 // If strict, it will return an error if encryption-capable non-revoked subkeys with a wrong algorithm are found,
 // instead of ignoring them
 func (e *Entity) NewForwardingEntity(
 	name, comment, email string, config *packet.Config, strict bool,
 ) (
-	forwardeeKey *Entity, instances []ForwardingInstance, err error,
+	forwardeeKey *Entity, instances []packet.ForwardingInstance, err error,
 ) {
 	if e.PrimaryKey.Version != 4 {
 		return nil, nil, errors.InvalidArgumentError("unsupported key version")
@@ -64,7 +57,7 @@ func (e *Entity) NewForwardingEntity(
 	}
 
 	// Init empty instances
-	instances = []ForwardingInstance{}
+	instances = []packet.ForwardingInstance{}
 
 	// Handle all forwarder subkeys
 	for _, forwarderSubKey := range e.Subkeys {
@@ -105,8 +98,9 @@ func (e *Entity) NewForwardingEntity(
 			return nil, nil, goerrors.New("wrong forwarding sub key generation")
 		}
 
-		instance := ForwardingInstance{
-			ForwarderKeyId: forwarderSubKey.PublicKey.KeyId,
+		instance := packet.ForwardingInstance{
+			KeyVersion: 4,
+			ForwarderFingerprint: forwarderSubKey.PublicKey.Fingerprint,
 		}
 
 		instance.ProxyParameter, err = ecdh.DeriveProxyParam(forwarderEcdhKey, forwardeeEcdhKey)
@@ -135,8 +129,8 @@ func (e *Entity) NewForwardingEntity(
 			return nil, nil, err
 		}
 
-		// Set ID after changing the KDF
-		instance.ForwardeeKeyId = forwardeeSubKey.PublicKey.KeyId
+		// Extract fingerprint after changing the KDF
+		instance.ForwardeeFingerprint = forwardeeSubKey.PublicKey.Fingerprint
 
 		// 0x04 - This key may be used to encrypt communications.
 		forwardeeSubKey.Sig.FlagEncryptCommunications = false
