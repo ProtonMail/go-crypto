@@ -458,17 +458,17 @@ func SerializeEncryptedKeyWithHiddenOption(w io.Writer, pub *PublicKey, cipherFu
 	return SerializeEncryptedKeyAEADwithHiddenOption(w, pub, cipherFunc, config.AEAD() != nil, key, hidden, config)
 }
 
-func (e *EncryptedKey) ProxyTransform(proxyParam []byte, forwarderKeyId, forwardeeKeyId uint64) (transformed *EncryptedKey, err error) {
+func (e *EncryptedKey) ProxyTransform(instance ForwardingInstance) (transformed *EncryptedKey, err error) {
 	if e.Algo != PubKeyAlgoECDH {
 		return nil, errors.InvalidArgumentError("invalid PKESK")
 	}
 
-	if e.KeyId != 0 && e.KeyId != forwarderKeyId {
+	if e.KeyId != 0 && e.KeyId != instance.GetForwarderKeyId() {
 		return nil, errors.InvalidArgumentError("invalid key id in PKESK")
 	}
 
 	ephemeral := e.encryptedMPI1.Bytes()
-	transformedEphemeral, err := ecdh.ProxyTransform(ephemeral, proxyParam)
+	transformedEphemeral, err := ecdh.ProxyTransform(ephemeral, instance.ProxyParameter)
 	if err != nil {
 		return nil, err
 	}
@@ -478,14 +478,10 @@ func (e *EncryptedKey) ProxyTransform(proxyParam []byte, forwarderKeyId, forward
 	copy(copiedWrappedKey, wrappedKey)
 
 	transformed = &EncryptedKey{
-		KeyId:         forwardeeKeyId,
-		Algo:          e.Algo,
+		KeyId: instance.getForwardeeKeyIdOrZero(e.KeyId),
+		Algo: e.Algo,
 		encryptedMPI1: encoding.NewMPI(transformedEphemeral),
 		encryptedMPI2: encoding.NewOID(copiedWrappedKey),
-	}
-
-	if e.KeyId == 0 {
-		e.KeyId = 0
 	}
 
 	return transformed, nil
@@ -636,27 +632,60 @@ func serializeEncryptedKeyAEAD(w io.Writer, rand io.Reader, header [10]byte, pub
 	return err
 }
 
+<<<<<<< HEAD
 func checksumKeyMaterial(key []byte) uint16 {
 	var checksum uint16
 	for _, v := range key {
 		checksum += uint16(v)
+=======
+func (e *EncryptedKey) ProxyTransform(instance ForwardingInstance) (transformed *EncryptedKey, err error) {
+	if e.Algo != PubKeyAlgoECDH {
+		return nil, errors.InvalidArgumentError("invalid PKESK")
+>>>>>>> edf1961 (Use fingerprints instead of KeyIDs)
 	}
 	return checksum
 }
 
+<<<<<<< HEAD
 func decodeChecksumKey(msg []byte) (key []byte, err error) {
 	key = msg[:len(msg)-2]
 	expectedChecksum := uint16(msg[len(msg)-2])<<8 | uint16(msg[len(msg)-1])
 	checksum := checksumKeyMaterial(key)
 	if checksum != expectedChecksum {
 		err = errors.StructuralError("session key checksum is incorrect")
+=======
+	if e.KeyId != 0 && e.KeyId != instance.GetForwarderKeyId() {
+		return nil, errors.InvalidArgumentError("invalid key id in PKESK")
+>>>>>>> edf1961 (Use fingerprints instead of KeyIDs)
 	}
 	return
 }
 
+<<<<<<< HEAD
 func encodeChecksumKey(buffer []byte, key []byte) {
 	copy(buffer, key)
 	checksum := checksumKeyMaterial(key)
 	buffer[len(key)] = byte(checksum >> 8)
 	buffer[len(key)+1] = byte(checksum)
 }
+=======
+	ephemeral := e.encryptedMPI1.Bytes()
+	transformedEphemeral, err := ecdh.ProxyTransform(ephemeral, instance.ProxyParameter)
+	if err != nil {
+		return nil, err
+	}
+
+	wrappedKey := e.encryptedMPI2.Bytes()
+	copiedWrappedKey := make([]byte, len(wrappedKey))
+	copy(copiedWrappedKey, wrappedKey)
+
+	transformed = &EncryptedKey{
+		KeyId: instance.getForwardeeKeyIdOrZero(e.KeyId),
+		Algo: e.Algo,
+		encryptedMPI1: encoding.NewMPI(transformedEphemeral),
+		encryptedMPI2: encoding.NewOID(copiedWrappedKey),
+	}
+
+	return transformed, nil
+}
+>>>>>>> edf1961 (Use fingerprints instead of KeyIDs)
