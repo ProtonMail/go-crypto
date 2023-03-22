@@ -89,12 +89,12 @@ func TestForwardingFull(t *testing.T) {
 		t.Fatalf("invalid number of instances, expected 1 got %d", len(instances))
 	}
 
-	if instances[0].ForwarderKeyId != bobEntity.Subkeys[0].PublicKey.KeyId {
-		t.Fatalf("invalid forwarder key ID, expected: %x, got: %x", bobEntity.Subkeys[0].PublicKey.KeyId, instances[0].ForwarderKeyId)
+	if bytes.Compare(instances[0].ForwarderFingerprint, bobEntity.Subkeys[0].PublicKey.Fingerprint) != 0 {
+		t.Fatalf("invalid forwarder key ID, expected: %x, got: %x", bobEntity.Subkeys[0].PublicKey.Fingerprint, instances[0].ForwarderFingerprint)
 	}
 
-	if instances[0].ForwardeeKeyId != charlesEntity.Subkeys[0].PublicKey.KeyId {
-		t.Fatalf("invalid forwardee key ID, expected: %x, got: %x", charlesEntity.Subkeys[0].PublicKey.KeyId, instances[0].ForwardeeKeyId)
+	if bytes.Compare(instances[0].ForwardeeFingerprint, charlesEntity.Subkeys[0].PublicKey.Fingerprint) != 0 {
+		t.Fatalf("invalid forwardee key ID, expected: %x, got: %x", charlesEntity.Subkeys[0].PublicKey.Fingerprint, instances[0].ForwardeeFingerprint)
 	}
 
 	// Encrypt message
@@ -166,7 +166,7 @@ func TestForwardingFull(t *testing.T) {
 	}
 }
 
-func transformTestMessage(t *testing.T, encrypted []byte, instance ForwardingInstance) []byte {
+func transformTestMessage(t *testing.T, encrypted []byte, instance packet.ForwardingInstance) []byte {
 	bytesReader := bytes.NewReader(encrypted)
 	packets := packet.NewReader(bytesReader)
 	splitPoint := int64(0)
@@ -183,11 +183,7 @@ Loop:
 		}
 		switch p := p.(type) {
 		case *packet.EncryptedKey:
-			tp, err := p.ProxyTransform(
-				instance.ProxyParameter,
-				instance.ForwarderKeyId,
-				instance.ForwardeeKeyId,
-			)
+			tp, err := p.ProxyTransform(instance)
 			if err != nil {
 				t.Fatalf("error transforming PKESK: %s", err)
 			}
