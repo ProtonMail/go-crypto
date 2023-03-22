@@ -338,17 +338,17 @@ func serializeEncryptedKeyAEAD(w io.Writer, rand io.Reader, header [10]byte, pub
 	return err
 }
 
-func (e *EncryptedKey) ProxyTransform(proxyParam []byte, forwarderKeyId, forwardeeKeyId uint64) (transformed *EncryptedKey, err error) {
+func (e *EncryptedKey) ProxyTransform(instance ForwardingInstance) (transformed *EncryptedKey, err error) {
 	if e.Algo != PubKeyAlgoECDH {
 		return nil, errors.InvalidArgumentError("invalid PKESK")
 	}
 
-	if e.KeyId != 0 && e.KeyId != forwarderKeyId {
+	if e.KeyId != 0 && e.KeyId != instance.GetForwarderKeyId() {
 		return nil, errors.InvalidArgumentError("invalid key id in PKESK")
 	}
 
 	ephemeral := e.encryptedMPI1.Bytes()
-	transformedEphemeral, err := ecdh.ProxyTransform(ephemeral, proxyParam)
+	transformedEphemeral, err := ecdh.ProxyTransform(ephemeral, instance.ProxyParameter)
 	if err != nil {
 		return nil, err
 	}
@@ -358,14 +358,10 @@ func (e *EncryptedKey) ProxyTransform(proxyParam []byte, forwarderKeyId, forward
 	copy(copiedWrappedKey, wrappedKey)
 
 	transformed = &EncryptedKey{
-		KeyId: forwardeeKeyId,
+		KeyId: instance.getForwardeeKeyIdOrZero(e.KeyId),
 		Algo: e.Algo,
 		encryptedMPI1: encoding.NewMPI(transformedEphemeral),
 		encryptedMPI2: encoding.NewOID(copiedWrappedKey),
-	}
-
-	if e.KeyId == 0 {
-		e.KeyId = 0
 	}
 
 	return transformed, nil
