@@ -300,7 +300,7 @@ func (params *Params) salt() []byte {
 	switch params.mode {
 		case SaltedS2K, IteratedSaltedS2K: return params.saltBytes[:8]
 		case Argon2S2K: return params.saltBytes[:Argon2SaltSize]
-		default: return params.saltBytes[:0]
+		default: return nil
 	}
 }
 

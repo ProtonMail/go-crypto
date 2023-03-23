@@ -370,7 +370,7 @@ func serializeECDHPrivateKey(w io.Writer, priv *ecdh.PrivateKey) error {
 	return err
 }
 
-// Decrypt decrypts an encrypted private key using a decryptionKey.
+// decrypt decrypts an encrypted private key using a decryption key.
 func (pk *PrivateKey) decrypt(decryptionKey []byte) error {
 	if pk.Dummy() {
 		return errors.ErrDummyPrivateKey("dummy key found")
@@ -473,7 +473,7 @@ func DecryptPrivateKeys(keys []*PrivateKey, passphrase []byte) error {
 	return nil
 }
 
-// Encrypt encrypts an unencrypted private key.
+// encrypt encrypts an unencrypted private key.
 func (pk *PrivateKey) encrypt(key []byte, params *s2k.Params, cipherFunction CipherFunction) error {
 	if pk.Dummy() {
 		return errors.ErrDummyPrivateKey("dummy key found")
@@ -531,7 +531,7 @@ func (pk *PrivateKey) encrypt(key []byte, params *s2k.Params, cipherFunction Cip
 	return err
 }
 
-// EncryptWithConfig encrypts an unencrypted private key using the passphrase and the config.
+// encryptWithConfig encrypts an unencrypted private key using the passphrase and the config.
 func (pk *PrivateKey) encryptWithConfig(passphrase []byte, config *Config) error {
 	params, err := s2k.Generate(config.Random(), config.S2K())
 	if err != nil {

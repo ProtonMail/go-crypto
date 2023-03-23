@@ -1457,7 +1457,7 @@ func TestRevokeSubkeyWithConfig(t *testing.T) {
 	}
 }
 
-func TestLockAndUnlockAllKeysEntity(t *testing.T) {
+func TestEncryptAndDecryptPrivateKeys(t *testing.T) {
 	s2kModesToTest := []s2k.Mode{s2k.IteratedSaltedS2K, s2k.Argon2S2K}
 
 	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
@@ -1482,7 +1482,7 @@ func TestLockAndUnlockAllKeysEntity(t *testing.T) {
 					S2KMode: mode,
 				},
 			}
-			err = entity.EncryptAllKeys(passphrase, config)
+			err = entity.EncryptPrivateKeys(passphrase, config)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1496,7 +1496,7 @@ func TestLockAndUnlockAllKeysEntity(t *testing.T) {
 				}
 			}
 	
-			err = entity.DecryptAllKeys(passphrase)
+			err = entity.DecryptPrivateKeys(passphrase)
 			if err != nil {
 				t.Fatal(err)
 			}
