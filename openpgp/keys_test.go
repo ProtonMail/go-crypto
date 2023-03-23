@@ -1482,7 +1482,7 @@ func TestLockAndUnlockAllKeysEntity(t *testing.T) {
 					S2KMode: mode,
 				},
 			}
-			err = entity.LockAllKeys(passphrase, config)
+			err = entity.EncryptAllKeys(passphrase, config)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1496,7 +1496,7 @@ func TestLockAndUnlockAllKeysEntity(t *testing.T) {
 				}
 			}
 	
-			err = entity.UnlockAllKeys(passphrase)
+			err = entity.DecryptAllKeys(passphrase)
 			if err != nil {
 				t.Fatal(err)
 			}

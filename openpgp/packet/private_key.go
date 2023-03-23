@@ -426,7 +426,7 @@ func (pk *PrivateKey) decrypt(decryptionKey []byte) error {
 	pk.encryptedData = nil
 
 	return nil
-} 
+}
 
 func (pk *PrivateKey) decryptWithCache(passphrase []byte, keyCache *s2k.Cache) error {
 	if pk.Dummy() {
@@ -436,7 +436,7 @@ func (pk *PrivateKey) decryptWithCache(passphrase []byte, keyCache *s2k.Cache) e
 		return nil
 	}
 
-	key, err := keyCache.GetDerivedKeyOrElseCompute(passphrase, pk.s2kParams, pk.cipher.KeySize())
+	key, err := keyCache.GetOrComputeDerivedKey(passphrase, pk.s2kParams, pk.cipher.KeySize())
 	if err != nil {
 		return err
 	}
@@ -457,11 +457,11 @@ func (pk *PrivateKey) Decrypt(passphrase []byte) error {
 	return pk.decrypt(key)
 }
 
-// PrivateKeysDecrypt decrypts all encrypted keys with the given configuration and passphrase.
+// DecryptPrivateKeys decrypts all encrypted keys with the given config and passphrase.
 // Avoids recomputation of similar s2k key derivations. 
-func PrivateKeysDecrypt(keys []*PrivateKey, passphrase []byte) error {
+func DecryptPrivateKeys(keys []*PrivateKey, passphrase []byte) error {
 	// Create a cache to avoid recomputation of key derviations for the same passphrase.
-	s2kCache := s2k.NewCache()
+	s2kCache := &s2k.Cache{}
 	for _, key := range keys {
 		if key != nil && !key.Dummy() && key.Encrypted {
 			err := key.decryptWithCache(passphrase, s2kCache)
@@ -483,7 +483,7 @@ func (pk *PrivateKey) encrypt(key []byte, params *s2k.Params, cipherFunction Cip
 	}
 	// check if encryptionKey has the correct size
 	if len(key) != cipherFunction.KeySize() {
-		return errors.InvalidArgumentError("Supplied encryption key has the wrong size")
+		return errors.InvalidArgumentError("supplied encryption key has the wrong size")
 	}
 	
 	priv := bytes.NewBuffer(nil)
@@ -531,40 +531,40 @@ func (pk *PrivateKey) encrypt(key []byte, params *s2k.Params, cipherFunction Cip
 	return err
 }
 
-// EncryptWithConfig encrypts an unencrypted private key using the passphrase and the configuration.
-func (pk *PrivateKey) encryptWithConfig(passphrase []byte, configuration *Config) error {
-	parameters, err := s2k.Generate(configuration.Random(), configuration.S2K())
+// EncryptWithConfig encrypts an unencrypted private key using the passphrase and the config.
+func (pk *PrivateKey) encryptWithConfig(passphrase []byte, config *Config) error {
+	params, err := s2k.Generate(config.Random(), config.S2K())
 	if err != nil {
 		return err
 	}
 	// Derive an encryption key with the configured s2k function.
-	key := make([]byte, configuration.Cipher().KeySize())
-	s2k, err := parameters.Function()
+	key := make([]byte, config.Cipher().KeySize())
+	s2k, err := params.Function()
 	if err != nil {
 		return err
 	}
 	s2k(key, passphrase)
 	// Encrypt the private key with the derived encryption key.
-	return pk.encrypt(key, parameters, configuration.Cipher())
+	return pk.encrypt(key, params, config.Cipher())
 }
 
-// PrivateKeysEncrypt encrypts all unencrypted keys with the given configuration and passphrase.
+// EncryptPrivateKeys encrypts all unencrypted keys with the given config and passphrase.
 // Only derives one key from the passphrase, which is then used to encrypt each key.
-func PrivateKeysEncrypt(keys []*PrivateKey, passphrase []byte, configuration *Config) error {
-	parameters, err := s2k.Generate(configuration.Random(), configuration.S2K())
+func EncryptPrivateKeys(keys []*PrivateKey, passphrase []byte, config *Config) error {
+	params, err := s2k.Generate(config.Random(), config.S2K())
 	if err != nil {
 		return err
 	}
 	// Derive an encryption key with the configured s2k function.
-	encryptionKey := make([]byte, configuration.Cipher().KeySize())
-	s2k, err := parameters.Function()
+	encryptionKey := make([]byte, config.Cipher().KeySize())
+	s2k, err := params.Function()
 	if err != nil {
 		return err
 	}
 	s2k(encryptionKey, passphrase)
 	for _, key := range keys {
 		if key != nil && !key.Dummy() && !key.Encrypted {
-			err = key.encrypt(encryptionKey, parameters, configuration.Cipher())
+			err = key.encrypt(encryptionKey, params, config.Cipher())
 			if err != nil {
 				return err
 			}

@@ -297,12 +297,11 @@ func (params *Params) Dummy() bool {
 }
 
 func (params *Params) salt() []byte {
-	if params.mode == SaltedS2K || params.mode == IteratedSaltedS2K {
-		return params.saltBytes[:8]
-	} else if (params.mode == Argon2S2K) {
-		return params.saltBytes[:Argon2SaltSize]
+	switch params.mode {
+		case SaltedS2K, IteratedSaltedS2K: return params.saltBytes[:8]
+		case Argon2S2K: return params.saltBytes[:Argon2SaltSize]
+		default: return params.saltBytes[:0]
 	}
-	return params.saltBytes[:0]
 }
 
 func (params *Params) Function() (f func(out, in []byte), err error) {

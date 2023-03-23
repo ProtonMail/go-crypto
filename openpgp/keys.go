@@ -257,8 +257,9 @@ func (e *Entity) Revoked(now time.Time) bool {
 }
 
 // LockAllKeys encrypts all non-encrypted keys in the entity with the same key
-// derived from the provided passphrase.
-func (e *Entity) LockAllKeys(passphrase []byte, configuration *packet.Config) (err error) {
+// derived from the provided passphrase.  Public keys and dummy keys are ignored,
+// and don't cause an error to be returned.
+func (e *Entity) EncryptAllKeys(passphrase []byte, config *packet.Config) (err error) {
 	var keysToEncrypt []*packet.PrivateKey
 	// Add entity private key to encrypt.
 	if e.PrivateKey != nil && !e.PrivateKey.Dummy() && !e.PrivateKey.Encrypted {
@@ -271,13 +272,14 @@ func (e *Entity) LockAllKeys(passphrase []byte, configuration *packet.Config) (e
 			keysToEncrypt = append(keysToEncrypt, sub.PrivateKey)
 		}
 	}
-	err = packet.PrivateKeysEncrypt(keysToEncrypt, passphrase, configuration)
+	err = packet.EncryptPrivateKeys(keysToEncrypt, passphrase, config)
 	return
 }
 
 // UnlockAllKeys decrypts all encrypted keys in the entitiy with the given passphrase.
-// Avoids recomputation of similar s2k key derivations.
-func (e *Entity) UnlockAllKeys(passphrase []byte) (err error) {
+// Avoids recomputation of similar s2k key derivations. Public keys and dummy keys are ignored,
+// and don't cause an error to be returned.
+func (e *Entity) DecryptAllKeys(passphrase []byte) (err error) {
 	var keysToDecrypt []*packet.PrivateKey
 	// Add entity private key to decrypt.
 	if e.PrivateKey != nil && !e.PrivateKey.Dummy() && e.PrivateKey.Encrypted {
@@ -290,7 +292,7 @@ func (e *Entity) UnlockAllKeys(passphrase []byte) (err error) {
 			keysToDecrypt = append(keysToDecrypt,  sub.PrivateKey)
 		}
 	}
-	err = packet.PrivateKeysDecrypt(keysToDecrypt, passphrase)
+	err = packet.DecryptPrivateKeys(keysToDecrypt, passphrase)
 	return
 }
 
