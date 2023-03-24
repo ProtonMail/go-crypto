@@ -575,17 +575,16 @@ func EncryptPrivateKeys(keys []*PrivateKey, passphrase []byte, config *Config) e
 
 // Encrypt encrypts an unencrypted private key using a passphrase.
 func (pk *PrivateKey) Encrypt(passphrase []byte) error {
-	//Default config of private key encryption
-	s2kConfig := &s2k.Config{
-		S2KMode:  s2k.IteratedSaltedS2K,
-		S2KCount: 65536,
-		Hash:     crypto.SHA256,
-	} 
-	globalConfig := &Config{
-		S2KConfig: s2kConfig,
+	// Default config of private key encryption
+	config := &Config{
+		S2KConfig: &s2k.Config{
+			S2KMode:  s2k.IteratedSaltedS2K,
+			S2KCount: 65536,
+			Hash:     crypto.SHA256,
+		} ,
 		DefaultCipher: CipherAES256,
 	}
-	return pk.encryptWithConfig(passphrase, globalConfig)
+	return pk.encryptWithConfig(passphrase, config)
 }
 
 func (pk *PrivateKey) serializePrivateKey(w io.Writer) (err error) {
