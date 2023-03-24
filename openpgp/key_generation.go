@@ -36,8 +36,8 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 		return nil, err
 	}
 	primary := packet.NewSignerPrivateKey(creationTime, primaryPrivRaw)
-	if config != nil && config.V5Keys {
-		primary.UpgradeToV5()
+	if config != nil && config.V6Keys {
+		primary.UpgradeToV6()
 	}
 
 	e := &Entity{
@@ -158,8 +158,8 @@ func (e *Entity) AddSigningSubkey(config *packet.Config) error {
 	}
 	sub := packet.NewSignerPrivateKey(creationTime, subPrivRaw)
 	sub.IsSubkey = true
-	if config != nil && config.V5Keys {
-		sub.UpgradeToV5()
+	if config != nil && config.V6Keys {
+		sub.UpgradeToV6()
 	}
 
 	subkey := Subkey{
@@ -203,8 +203,8 @@ func (e *Entity) addEncryptionSubkey(config *packet.Config, creationTime time.Ti
 	}
 	sub := packet.NewDecrypterPrivateKey(creationTime, subPrivRaw)
 	sub.IsSubkey = true
-	if config != nil && config.V5Keys {
-		sub.UpgradeToV5()
+	if config != nil && config.V6Keys {
+		sub.UpgradeToV6()
 	}
 
 	subkey := Subkey{

@@ -60,7 +60,7 @@ func testV5ForeignSignedMessage(t *testing.T) {
 }
 
 func TestReadPrivateEncryptedV5Key(t *testing.T) {
-	c := &packet.Config{V5Keys: true}
+	c := &packet.Config{V6Keys: true}
 	e, err := NewEntity("V5 Key Owner", "V5 Key", "v5@pm.me", c)
 	if err != nil {
 		t.Fatal(err)
@@ -116,7 +116,7 @@ func TestReadPrivateSerializeForeignV5Key(t *testing.T) {
 }
 
 func TestNewEntitySerializeV5Key(t *testing.T) {
-	c := &packet.Config{V5Keys: true}
+	c := &packet.Config{V6Keys: true}
 	e, err := NewEntity("V5 Key Owner", "V5 Key", "v5@pm.me", c)
 	if err != nil {
 		t.Fatal(err)
@@ -126,7 +126,7 @@ func TestNewEntitySerializeV5Key(t *testing.T) {
 
 func TestNewEntityV5Key(t *testing.T) {
 	c := &packet.Config{
-		V5Keys: true,
+		V6Keys: true,
 	}
 	e, err := NewEntity("V5 Key Owner", "V5 Key", "v5@pm.me", c)
 	if err != nil {

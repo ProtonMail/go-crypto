@@ -26,8 +26,8 @@ func generateFreshTestVectors() (vectors []testVector, err error) {
 
 		// Only for verbose display
 		v := "v4"
-		if config.V5Keys {
-			v = "v5"
+		if config.V6Keys {
+			v = "v6"
 		}
 		pkAlgoNames := map[packet.PublicKeyAlgorithm]string{
 			packet.PubKeyAlgoRSA:   "rsa_" + v,
@@ -263,9 +263,9 @@ func randConfig() *packet.Config {
 	level := mathrand.Intn(11) - 1
 	compConf := &packet.CompressionConfig{level}
 
-	var v5 bool
+	var v6 bool
 	if mathrand.Int()%2 == 0 {
-		v5 = true
+		v6 = true
 	}
 
 	var s2kConf *s2k.Config
@@ -282,7 +282,7 @@ func randConfig() *packet.Config {
 	}
 
 	return &packet.Config{
-		V5Keys:                 v5,
+		V6Keys:                 v6,
 		Rand:                   rand.Reader,
 		DefaultHash:            hash,
 		DefaultCipher:          ciph,
