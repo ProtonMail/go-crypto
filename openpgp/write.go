@@ -380,15 +380,19 @@ func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *En
 			return nil, errors.InvalidArgumentError("cannot encrypt a message to key id " + strconv.FormatUint(to[i].PrimaryKey.KeyId, 16) + " because it has no valid encryption keys")
 		}
 
-		sig := to[i].PrimaryIdentity().SelfSignature
-		if sig.SEIPDv2 == false {
+		primarySelfSignature, _ := to[i].primarySelfSignature()
+		if primarySelfSignature == nil {
+			return nil, errors.InvalidArgumentError("entity without a self-signature") 
+		}
+
+		if primarySelfSignature.SEIPDv2 == false {
 			aeadSupported = false
 		}
 
-		candidateCiphers = intersectPreferences(candidateCiphers, sig.PreferredSymmetric)
-		candidateHashes = intersectPreferences(candidateHashes, sig.PreferredHash)
-		candidateCipherSuites = intersectCipherSuites(candidateCipherSuites, sig.PreferredCipherSuites)
-		candidateCompression = intersectPreferences(candidateCompression, sig.PreferredCompression)
+		candidateCiphers = intersectPreferences(candidateCiphers, primarySelfSignature.PreferredSymmetric)
+		candidateHashes = intersectPreferences(candidateHashes, primarySelfSignature.PreferredHash)
+		candidateCipherSuites = intersectCipherSuites(candidateCipherSuites, primarySelfSignature.PreferredCipherSuites)
+		candidateCompression = intersectPreferences(candidateCompression, primarySelfSignature.PreferredCompression)
 	}
 
 	// In the event that the intersection of supported algorithms is empty we use the ones
@@ -465,7 +469,11 @@ func Sign(output io.Writer, signed *Entity, hints *FileHints, config *packet.Con
 		hashToHashId(crypto.SHA3_512),
 	}
 	defaultHashes := candidateHashes[0:1]
-	preferredHashes := signed.PrimaryIdentity().SelfSignature.PreferredHash
+	primarySelfSignature, _ := signed.primarySelfSignature()
+	if primarySelfSignature == nil {
+		return nil, errors.InvalidArgumentError("signed entity has no self-signature")
+	}
+	preferredHashes := primarySelfSignature.PreferredHash
 	if len(preferredHashes) == 0 {
 		preferredHashes = defaultHashes
 	}

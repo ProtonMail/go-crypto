@@ -29,6 +29,7 @@ import (
 func NewEntity(name, comment, email string, config *packet.Config) (*Entity, error) {
 	creationTime := config.Now()
 	keyLifetimeSecs := config.KeyLifetime()
+	useV6Keys := config != nil && config.V6Keys
 
 	// Generate a primary signing key
 	primaryPrivRaw, err := newSigner(config)
@@ -36,7 +37,7 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 		return nil, err
 	}
 	primary := packet.NewSignerPrivateKey(creationTime, primaryPrivRaw)
-	if config != nil && config.V6Keys {
+	if useV6Keys {
 		primary.UpgradeToV6()
 	}
 
@@ -45,9 +46,24 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 		PrivateKey: primary,
 		Identities: make(map[string]*Identity),
 		Subkeys:    []Subkey{},
+		DirectSignatures: []*packet.Signature{},
 	}
 
-	err = e.addUserId(name, comment, email, config, creationTime, keyLifetimeSecs)
+	if useV6Keys {
+		// In v6 keys algorithm preferences should be stored in direct key signatures
+		selfSignature := createSignaturePacket(&primary.PublicKey, packet.SigTypeDirectSignature, config)
+		err = writeKeyProperties(selfSignature, creationTime, keyLifetimeSecs, config)
+		if err != nil {
+			return nil, err
+		}
+		err = selfSignature.SignDirectKeyBinding(&primary.PublicKey, primary, config)
+		if err != nil {
+			return nil, err
+		}
+		e.DirectSignatures = append(e.DirectSignatures, selfSignature)
+	}
+
+	err = e.addUserId(name, comment, email, config, creationTime, keyLifetimeSecs, !useV6Keys)
 	if err != nil {
 		return nil, err
 	}
@@ -65,27 +81,12 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 func (t *Entity) AddUserId(name, comment, email string, config *packet.Config) error {
 	creationTime := config.Now()
 	keyLifetimeSecs := config.KeyLifetime()
-	return t.addUserId(name, comment, email, config, creationTime, keyLifetimeSecs)
+	return t.addUserId(name, comment, email, config, creationTime, keyLifetimeSecs, !(config != nil && config.V6Keys))
 }
 
-func (t *Entity) addUserId(name, comment, email string, config *packet.Config, creationTime time.Time, keyLifetimeSecs uint32) error {
-	uid := packet.NewUserId(name, comment, email)
-	if uid == nil {
-		return errors.InvalidArgumentError("user id field contained invalid characters")
-	}
-
-	if _, ok := t.Identities[uid.Id]; ok {
-		return errors.InvalidArgumentError("user id exist")
-	}
-
-	primary := t.PrivateKey
-
-	isPrimaryId := len(t.Identities) == 0
-
-	selfSignature := createSignaturePacket(&primary.PublicKey, packet.SigTypePositiveCert, config)
+func writeKeyProperties(selfSignature *packet.Signature, creationTime time.Time, keyLifetimeSecs uint32, config *packet.Config) error {
 	selfSignature.CreationTime = creationTime
 	selfSignature.KeyLifetimeSecs = &keyLifetimeSecs
-	selfSignature.IsPrimaryId = &isPrimaryId
 	selfSignature.FlagsValid = true
 	selfSignature.FlagSign = true
 	selfSignature.FlagCertify = true
@@ -131,6 +132,29 @@ func (t *Entity) addUserId(name, comment, email string, config *packet.Config, c
 			selfSignature.PreferredCipherSuites = append(selfSignature.PreferredCipherSuites, [2]uint8{cipher, mode})
 		}
 	}
+	return nil
+}
+
+func (t *Entity) addUserId(name, comment, email string, config *packet.Config, creationTime time.Time, keyLifetimeSecs uint32, writeProperties bool) error {
+	uid := packet.NewUserId(name, comment, email)
+	if uid == nil {
+		return errors.InvalidArgumentError("user id field contained invalid characters")
+	}
+
+	if _, ok := t.Identities[uid.Id]; ok {
+		return errors.InvalidArgumentError("user id exist")
+	}
+
+	primary := t.PrivateKey
+	isPrimaryId := len(t.Identities) == 0
+	selfSignature := createSignaturePacket(&primary.PublicKey, packet.SigTypePositiveCert, config)
+	if writeProperties {
+		err := writeKeyProperties(selfSignature, creationTime, keyLifetimeSecs, config)
+		if err != nil {
+			return err
+		}
+	}
+	selfSignature.IsPrimaryId = &isPrimaryId
 
 	// User ID binding signature
 	err := selfSignature.SignUserId(uid.Id, &primary.PublicKey, primary, config)

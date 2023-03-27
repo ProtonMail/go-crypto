@@ -845,6 +845,25 @@ func (sig *Signature) SignUserId(id string, pub *PublicKey, priv *PrivateKey, co
 	return sig.Sign(h, priv, config)
 }
 
+// SignUserId computes a signature from priv
+// On success, the signature is stored in sig. 
+// Call Serialize to write it out.
+// If config is nil, sensible defaults will be used.
+func (sig *Signature) SignDirectKeyBinding(pub *PublicKey, priv *PrivateKey, config *Config) error {
+	if priv.Dummy() {
+		return errors.ErrDummyPrivateKey("dummy key found")
+	}
+	prepareHash, err := sig.PrepareSignature(sig.Hash, config)
+	if err != nil {
+		return err
+	}
+	h, err := directKeySignatureHash(pub, prepareHash)
+	if err != nil {
+		return err
+	}
+	return sig.Sign(h, priv, config)
+}
+
 // CrossSignKey computes a signature from signingKey on pub hashed using hashKey. On success,
 // the signature is stored in sig. Call Serialize to write it out.
 // If config is nil, sensible defaults will be used.
