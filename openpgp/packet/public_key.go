@@ -218,6 +218,7 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 		err = pk.parseECDH(r)
 	case PubKeyAlgoEdDSA:
 		err = pk.parseEdDSA(r)
+		
 	default:
 		err = errors.UnsupportedError("public key type: " + strconv.Itoa(int(pk.PubKeyAlgo)))
 	}
@@ -766,6 +767,17 @@ func userIdSignatureHash(id string, pk *PublicKey, hash hash.Hash) (h hash.Hash,
 	return
 }
 
+// directSignatureHash returns a Hash of the message that needs to be signed
+func directKeySignatureHash(pk *PublicKey, hash hash.Hash) (h hash.Hash, err error) {
+	h = hash
+
+	// RFC 4880, section 5.2.4
+	pk.SerializeSignaturePrefix(h)
+	pk.serializeWithoutHeaders(h)
+
+	return
+}
+
 // VerifyUserIdSignature returns nil iff sig is a valid signature, made by this
 // public key, that id is the identity of pub.
 func (pk *PublicKey) VerifyUserIdSignature(id string, pub *PublicKey, sig *Signature) (err error) {
@@ -774,6 +786,20 @@ func (pk *PublicKey) VerifyUserIdSignature(id string, pub *PublicKey, sig *Signa
 		return err
 	}
 	h, err := userIdSignatureHash(id, pub, preparedHash)
+	if err != nil {
+		return err
+	}
+	return pk.VerifySignature(h, sig)
+}
+
+// VerifyUserIdSignature returns nil iff sig is a valid signature, made by this
+// public key
+func (pk *PublicKey) VerifyDirectKeySignature(sig *Signature) (err error) {
+	preparedHash, err := sig.PrepareSignature(sig.Hash, nil)
+	if err != nil {
+		return err
+	}
+	h, err := directKeySignatureHash(pk, preparedHash)
 	if err != nil {
 		return err
 	}

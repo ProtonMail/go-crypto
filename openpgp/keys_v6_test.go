@@ -2,10 +2,25 @@ package openpgp
 
 import (
 	"bytes"
+	"crypto"
 	"testing"
 
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 )
+
+var foreignKeysV6 = []string{
+	v6PrivKey,
+}
+
+/*func TestReadPrivateForeignV6Key(t *testing.T) {
+	for _, str := range foreignKeysV6 {
+		kring, err := ReadArmoredKeyRing(strings.NewReader(str))
+		if err != nil {
+			t.Fatal(err)
+		}
+		checkV6Key(t, kring[0])
+	}
+}*/ // TODO: need x25519 support
 
 func TestReadPrivateEncryptedV6Key(t *testing.T) {
 	c := &packet.Config{V6Keys: true}
@@ -136,4 +151,28 @@ func checkSerializeReadv6(t *testing.T, e *Entity) {
 		t.Fatal(err)
 	}
 	checkV6Key(t, el[0])
+}
+
+func TestNewEntityWithDefaultHashv6(t *testing.T) {
+	for _, hash := range hashes[:5] {
+		c := &packet.Config{
+			V6Keys: true,
+			DefaultHash: hash,
+		}
+		entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", c)
+		if hash == crypto.SHA1 {
+			if err == nil {
+				t.Fatal("should fail on SHA1 key creation")
+			}
+			continue
+		}
+
+		for _, signature := range entity.DirectSignatures {
+			prefs := signature.PreferredHash
+			if prefs == nil {
+				t.Fatal(err)
+			}
+		}
+
+	}
 }

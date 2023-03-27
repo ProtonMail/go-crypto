@@ -1796,6 +1796,47 @@ func testKeyValidateDsaElGamalOnDecrypt(t *testing.T, randomPassword []byte) {
 	}
 }
 
+var foreignKeysv4 = []string{
+	v4Key25519,
+}
+
+func TestReadPrivateForeignV4Key(t *testing.T) {
+	for _, str := range foreignKeysv4 {
+		kring, err := ReadArmoredKeyRing(strings.NewReader(str))
+		if err != nil {
+			t.Fatal(err)
+		}
+		checkV4Key(t, kring[0])
+	}
+}
+
+func checkV4Key(t *testing.T, ent *Entity) {
+		key := ent.PrimaryKey
+		if key.Version != 4 {
+			t.Errorf("wrong key version %d", key.Version)
+		}
+		if len(key.Fingerprint) != 20 {
+			t.Errorf("Wrong fingerprint length: %d", len(key.Fingerprint))
+		}
+	signatures := ent.Revocations
+	for _, id := range ent.Identities {
+		signatures = append(signatures, id.SelfSignature)
+		signatures = append(signatures, id.Signatures...)
+	}
+	for _, sig := range signatures {
+		if sig == nil {
+			continue
+		}
+		if sig.Version != 4 {
+			t.Errorf("wrong signature version %d", sig.Version)
+		}
+		fgptLen := len(sig.IssuerFingerprint)
+		if fgptLen!= 20 {
+			t.Errorf("Wrong fingerprint length in signature: %d", fgptLen)
+		}
+	}
+}
+
 // Should not panic (generated with go-fuzz)
 func TestCorruptKeys(t *testing.T) {
 	data := `-----BEGIN PGP PUBLIC KEY BLOCK00000
