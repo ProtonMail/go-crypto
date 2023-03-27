@@ -7,12 +7,12 @@ import (
 	"testing"
 
 	"github.com/ProtonMail/go-crypto/openpgp/armor"
-	"github.com/ProtonMail/go-crypto/openpgp/packet"
 )
 
 var foreignKeys = []string{
 	v5PrivKey,
 }
+
 
 func TestReadPrivateForeignV5Key(t *testing.T) {
 	for _, str := range foreignKeys {
@@ -59,8 +59,10 @@ func testV5ForeignSignedMessage(t *testing.T) {
 	}
 }
 
+// Depricated
+/*
 func TestReadPrivateEncryptedV5Key(t *testing.T) {
-	c := &packet.Config{V6Keys: true}
+	c := &packet.Config{V5Keys: true}
 	e, err := NewEntity("V5 Key Owner", "V5 Key", "v5@pm.me", c)
 	if err != nil {
 		t.Fatal(err)
@@ -103,7 +105,7 @@ func TestReadPrivateEncryptedV5Key(t *testing.T) {
 	}
 
 	checkV5Key(t, el[0])
-}
+}*/
 
 func TestReadPrivateSerializeForeignV5Key(t *testing.T) {
 	for _, str := range foreignKeys {
@@ -115,8 +117,10 @@ func TestReadPrivateSerializeForeignV5Key(t *testing.T) {
 	}
 }
 
+// Depricated
+/*
 func TestNewEntitySerializeV5Key(t *testing.T) {
-	c := &packet.Config{V6Keys: true}
+	c := &packet.Config{V5Keys: true}
 	e, err := NewEntity("V5 Key Owner", "V5 Key", "v5@pm.me", c)
 	if err != nil {
 		t.Fatal(err)
@@ -126,14 +130,14 @@ func TestNewEntitySerializeV5Key(t *testing.T) {
 
 func TestNewEntityV5Key(t *testing.T) {
 	c := &packet.Config{
-		V6Keys: true,
+		V5Keys: true,
 	}
 	e, err := NewEntity("V5 Key Owner", "V5 Key", "v5@pm.me", c)
 	if err != nil {
 		t.Fatal(err)
 	}
 	checkV5Key(t, e)
-}
+}*/
 
 func checkV5Key(t *testing.T, ent *Entity) {
 	key := ent.PrimaryKey

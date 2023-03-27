@@ -5,7 +5,6 @@
 package packet
 
 import (
-	"crypto"
 	"crypto/dsa"
 	"crypto/rsa"
 	"crypto/sha1"
@@ -653,11 +652,8 @@ func (pk *PublicKey) VerifySignature(signed hash.Hash, sig *Signature) (err erro
 
 // keySignatureHash returns a Hash of the message that needs to be signed for
 // pk to assert a subkey relationship to signed.
-func keySignatureHash(pk, signed signingKey, hashFunc crypto.Hash) (h hash.Hash, err error) {
-	if !hashFunc.Available() {
-		return nil, errors.UnsupportedError("hash function")
-	}
-	h = hashFunc.New()
+func keySignatureHash(pk, signed signingKey, hashFunc hash.Hash) (h hash.Hash, err error) {
+	h = hashFunc
 
 	// RFC 4880, section 5.2.4
 	err = pk.SerializeForHash(h)
@@ -672,7 +668,11 @@ func keySignatureHash(pk, signed signingKey, hashFunc crypto.Hash) (h hash.Hash,
 // VerifyKeySignature returns nil iff sig is a valid signature, made by this
 // public key, of signed.
 func (pk *PublicKey) VerifyKeySignature(signed *PublicKey, sig *Signature) error {
-	h, err := keySignatureHash(pk, signed, sig.Hash)
+	preparedHash, err := sig.PrepareSignature(sig.Hash, nil)
+	if err != nil {
+		return err
+	}
+	h, err := keySignatureHash(pk, signed, preparedHash)
 	if err != nil {
 		return err
 	}
@@ -686,10 +686,14 @@ func (pk *PublicKey) VerifyKeySignature(signed *PublicKey, sig *Signature) error
 		if sig.EmbeddedSignature == nil {
 			return errors.StructuralError("signing subkey is missing cross-signature")
 		}
+		preparedHashEmbedded, err := sig.PrepareSignature(sig.EmbeddedSignature.Hash, nil)
+		if err != nil {
+			return err
+		}
 		// Verify the cross-signature. This is calculated over the same
 		// data as the main signature, so we cannot just recursively
 		// call signed.VerifyKeySignature(...)
-		if h, err = keySignatureHash(pk, signed, sig.EmbeddedSignature.Hash); err != nil {
+		if h, err = keySignatureHash(pk, signed, preparedHashEmbedded); err != nil {
 			return errors.StructuralError("error while hashing for cross-signature: " + err.Error())
 		}
 		if err := signed.VerifySignature(h, sig.EmbeddedSignature); err != nil {
@@ -700,11 +704,8 @@ func (pk *PublicKey) VerifyKeySignature(signed *PublicKey, sig *Signature) error
 	return nil
 }
 
-func keyRevocationHash(pk signingKey, hashFunc crypto.Hash) (h hash.Hash, err error) {
-	if !hashFunc.Available() {
-		return nil, errors.UnsupportedError("hash function")
-	}
-	h = hashFunc.New()
+func keyRevocationHash(pk signingKey, hashFunc hash.Hash) (h hash.Hash, err error) {
+	h = hashFunc
 
 	// RFC 4880, section 5.2.4
 	err = pk.SerializeForHash(h)
@@ -715,7 +716,11 @@ func keyRevocationHash(pk signingKey, hashFunc crypto.Hash) (h hash.Hash, err er
 // VerifyRevocationSignature returns nil iff sig is a valid signature, made by this
 // public key.
 func (pk *PublicKey) VerifyRevocationSignature(sig *Signature) (err error) {
-	h, err := keyRevocationHash(pk, sig.Hash)
+	preparedHash, err := sig.PrepareSignature(sig.Hash, nil)
+	if err != nil {
+		return err
+	}
+	h, err := keyRevocationHash(pk, preparedHash)
 	if err != nil {
 		return err
 	}
@@ -725,7 +730,11 @@ func (pk *PublicKey) VerifyRevocationSignature(sig *Signature) (err error) {
 // VerifySubkeyRevocationSignature returns nil iff sig is a valid subkey revocation signature,
 // made by this public key, of signed.
 func (pk *PublicKey) VerifySubkeyRevocationSignature(sig *Signature, signed *PublicKey) (err error) {
-	h, err := keySignatureHash(pk, signed, sig.Hash)
+	preparedHash, err := sig.PrepareSignature(sig.Hash, nil)
+	if err != nil {
+		return err
+	}
+	h, err := keySignatureHash(pk, signed, preparedHash)
 	if err != nil {
 		return err
 	}
@@ -734,11 +743,8 @@ func (pk *PublicKey) VerifySubkeyRevocationSignature(sig *Signature, signed *Pub
 
 // userIdSignatureHash returns a Hash of the message that needs to be signed
 // to assert that pk is a valid key for id.
-func userIdSignatureHash(id string, pk *PublicKey, hashFunc crypto.Hash) (h hash.Hash, err error) {
-	if !hashFunc.Available() {
-		return nil, errors.UnsupportedError("hash function")
-	}
-	h = hashFunc.New()
+func userIdSignatureHash(id string, pk *PublicKey, hash hash.Hash) (h hash.Hash, err error) {
+	h = hash
 
 	// RFC 4880, section 5.2.4
 	pk.SerializeSignaturePrefix(h)
@@ -759,7 +765,11 @@ func userIdSignatureHash(id string, pk *PublicKey, hashFunc crypto.Hash) (h hash
 // VerifyUserIdSignature returns nil iff sig is a valid signature, made by this
 // public key, that id is the identity of pub.
 func (pk *PublicKey) VerifyUserIdSignature(id string, pub *PublicKey, sig *Signature) (err error) {
-	h, err := userIdSignatureHash(id, pub, sig.Hash)
+	preparedHash, err := sig.PrepareSignature(sig.Hash, nil)
+	if err != nil {
+		return err
+	}
+	h, err := userIdSignatureHash(id, pub, preparedHash)
 	if err != nil {
 		return err
 	}
