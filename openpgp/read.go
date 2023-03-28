@@ -46,6 +46,7 @@ type MessageDetails struct {
 	DecryptedWith            Key                 // the private key used to decrypt the message, if any.
 	IsSigned                 bool                // true if the message is signed.
 	SignedByKeyId            uint64              // the key id of the signer, if any.
+	SignedByFingerprint		 []byte				 // the key fingerprint of the signer, if any. (only v6)
 	SignedBy                 *Key                // the key of the signer, if available.
 	LiteralData              *packet.LiteralData // the metadata of the contents
 	UnverifiedBody           io.Reader           // the contents of the message.
@@ -270,13 +271,17 @@ FindLiteralData:
 				prevLast = true
 			}
 
-			h, wrappedHash, err = hashForSignature(p.Hash, p.SigType)
+			h, wrappedHash, err = hashForSignature(p.Hash, p.SigType, p.Salt)
 			if err != nil {
 				md.SignatureError = err
 			}
 
 			md.IsSigned = true
+			if p.Version == 6 {
+				md.SignedByFingerprint = p.KeyFingerprint
+			} 
 			md.SignedByKeyId = p.KeyId
+			
 			if keyring != nil {
 				keys := keyring.KeysByIdUsage(p.KeyId, packet.KeyFlagSign)
 				if len(keys) > 0 {
@@ -300,12 +305,22 @@ FindLiteralData:
 	return md, nil
 }
 
+func wrapHashForSignature(hashFunc hash.Hash, sigType packet.SignatureType) (hash.Hash, error) {
+	switch sigType {
+	case packet.SigTypeBinary:
+		return hashFunc, nil
+	case packet.SigTypeText:
+		return NewCanonicalTextHash(hashFunc), nil
+	}
+	return nil, errors.UnsupportedError("unsupported signature type: " + strconv.Itoa(int(sigType)))
+}
+
 // hashForSignature returns a pair of hashes that can be used to verify a
 // signature. The signature may specify that the contents of the signed message
 // should be preprocessed (i.e. to normalize line endings). Thus this function
 // returns two hashes. The second should be used to hash the message itself and
 // performs any needed preprocessing.
-func hashForSignature(hashFunc crypto.Hash, sigType packet.SignatureType) (hash.Hash, hash.Hash, error) {
+func hashForSignature(hashFunc crypto.Hash, sigType packet.SignatureType, sigSalt []byte) (hash.Hash, hash.Hash, error) {
 	if _, ok := algorithm.HashToHashIdWithSha1(hashFunc); !ok {
 		return nil, nil, errors.UnsupportedError("unsupported hash function")
 	}
@@ -313,14 +328,19 @@ func hashForSignature(hashFunc crypto.Hash, sigType packet.SignatureType) (hash.
 		return nil, nil, errors.UnsupportedError("hash not available: " + strconv.Itoa(int(hashFunc)))
 	}
 	h := hashFunc.New()
-
+	if sigSalt != nil {
+		h.Write(sigSalt)
+	}
+	wrappedHash, err := wrapHashForSignature(h, sigType)
+	if err != nil {
+		return nil, nil, err
+	}
 	switch sigType {
 	case packet.SigTypeBinary:
-		return h, h, nil
+		return h, wrappedHash, nil
 	case packet.SigTypeText:
-		return h, NewCanonicalTextHash(h), nil
+		return h, wrappedHash, nil
 	}
-
 	return nil, nil, errors.UnsupportedError("unsupported signature type: " + strconv.Itoa(int(sigType)))
 }
 
@@ -503,7 +523,11 @@ func verifyDetachedSignature(keyring KeyRing, signed, signature io.Reader, expec
 		panic("unreachable")
 	}
 
-	h, wrappedHash, err := hashForSignature(hashFunc, sigType)
+	h, err := sig.PrepareVerify()
+	if err != nil {
+		return nil, nil, err
+	}
+	wrappedHash, err := wrapHashForSignature(h, sigType)
 	if err != nil {
 		return nil, nil, err
 	}

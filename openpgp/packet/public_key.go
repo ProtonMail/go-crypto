@@ -673,7 +673,7 @@ func keySignatureHash(pk, signed signingKey, hashFunc hash.Hash) (h hash.Hash, e
 // VerifyKeySignature returns nil iff sig is a valid signature, made by this
 // public key, of signed.
 func (pk *PublicKey) VerifyKeySignature(signed *PublicKey, sig *Signature) error {
-	preparedHash, err := sig.PrepareSignature(sig.Hash, nil)
+	preparedHash, err := sig.PrepareVerify()
 	if err != nil {
 		return err
 	}
@@ -691,7 +691,7 @@ func (pk *PublicKey) VerifyKeySignature(signed *PublicKey, sig *Signature) error
 		if sig.EmbeddedSignature == nil {
 			return errors.StructuralError("signing subkey is missing cross-signature")
 		}
-		preparedHashEmbedded, err := sig.PrepareSignature(sig.EmbeddedSignature.Hash, nil)
+		preparedHashEmbedded, err := sig.EmbeddedSignature.PrepareVerify()
 		if err != nil {
 			return err
 		}
@@ -721,7 +721,7 @@ func keyRevocationHash(pk signingKey, hashFunc hash.Hash) (h hash.Hash, err erro
 // VerifyRevocationSignature returns nil iff sig is a valid signature, made by this
 // public key.
 func (pk *PublicKey) VerifyRevocationSignature(sig *Signature) (err error) {
-	preparedHash, err := sig.PrepareSignature(sig.Hash, nil)
+	preparedHash, err := sig.PrepareVerify()
 	if err != nil {
 		return err
 	}
@@ -735,7 +735,7 @@ func (pk *PublicKey) VerifyRevocationSignature(sig *Signature) (err error) {
 // VerifySubkeyRevocationSignature returns nil iff sig is a valid subkey revocation signature,
 // made by this public key, of signed.
 func (pk *PublicKey) VerifySubkeyRevocationSignature(sig *Signature, signed *PublicKey) (err error) {
-	preparedHash, err := sig.PrepareSignature(sig.Hash, nil)
+	preparedHash, err := sig.PrepareVerify()
 	if err != nil {
 		return err
 	}
@@ -781,7 +781,7 @@ func directKeySignatureHash(pk *PublicKey, hash hash.Hash) (h hash.Hash, err err
 // VerifyUserIdSignature returns nil iff sig is a valid signature, made by this
 // public key, that id is the identity of pub.
 func (pk *PublicKey) VerifyUserIdSignature(id string, pub *PublicKey, sig *Signature) (err error) {
-	preparedHash, err := sig.PrepareSignature(sig.Hash, nil)
+	preparedHash, err := sig.PrepareVerify()
 	if err != nil {
 		return err
 	}
@@ -795,7 +795,7 @@ func (pk *PublicKey) VerifyUserIdSignature(id string, pub *PublicKey, sig *Signa
 // VerifyUserIdSignature returns nil iff sig is a valid signature, made by this
 // public key
 func (pk *PublicKey) VerifyDirectKeySignature(sig *Signature) (err error) {
-	preparedHash, err := sig.PrepareSignature(sig.Hash, nil)
+	preparedHash, err := sig.PrepareVerify()
 	if err != nil {
 		return err
 	}
