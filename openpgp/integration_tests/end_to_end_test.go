@@ -5,15 +5,16 @@ package integrationtests
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/ProtonMail/go-crypto/openpgp"
-	"github.com/ProtonMail/go-crypto/openpgp/armor"
-	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	"io"
 	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/ProtonMail/go-crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp/armor"
+	"github.com/ProtonMail/go-crypto/openpgp/packet"
 )
 
 /////////////////////////////////////////////////////////////////////////////
@@ -202,10 +203,16 @@ func encDecTest(t *testing.T, from testVector, testVectors []testVector) {
 			}
 			signKey, _ := signer.SigningKey(time.Now())
 			expectedKeyID := signKey.PublicKey.KeyId
-			if md.SignedByKeyId != expectedKeyID {
+			expectedFingerprint := signKey.PublicKey.Fingerprint
+			if signKey.PublicKey.Version != 6 &&  md.SignedByKeyId != expectedKeyID {
 				t.Fatalf(
 					"Message signed by wrong key id, got: %v, want: %v",
 					*md.SignedBy, expectedKeyID)
+			}
+			if signKey.PublicKey.Version == 6 && bytes.Compare(md.SignedByFingerprint, expectedFingerprint) != 0 {
+				t.Fatalf(
+					"Message signed by wrong key id, got: %x, want: %x",
+					md.SignedByFingerprint, expectedFingerprint)
 			}
 			if md.SignedBy == nil {
 				t.Fatalf("Failed to find the signing Entity")

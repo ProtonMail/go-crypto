@@ -76,7 +76,11 @@ func detachSign(w io.Writer, signer *Entity, message io.Reader, sigType packet.S
 
 	sig := createSignaturePacket(signingKey.PublicKey, sigType, config)
 
-	h, wrappedHash, err := hashForSignature(sig.Hash, sig.SigType)
+	h, err := sig.PrepareSign(config)
+	if err != nil {
+		return
+	}
+	wrappedHash, err := wrapHashForSignature(h, sig.SigType)
 	if err != nil {
 		return
 	}
@@ -275,14 +279,29 @@ func writeAndSign(payload io.WriteCloser, candidateHashes []uint8, signed *Entit
 		return nil, errors.InvalidArgumentError("cannot encrypt because no candidate hash functions are compiled in. (Wanted " + name + " in this case.)")
 	}
 
+	var salt []byte
+	var sigVersion = 3
+	if config != nil && config.V6Keys {
+		// use v6 signatures and one pass signatures
+		sigVersion = 6
+	}
 	if signer != nil {
 		ops := &packet.OnePassSignature{
+			Version: 	sigVersion,
 			SigType:    sigType,
 			Hash:       hash,
 			PubKeyAlgo: signer.PubKeyAlgo,
 			KeyId:      signer.KeyId,
 			IsLast:     true,
 		}
+		if sigVersion == 6 {
+			ops.KeyFingerprint = signer.Fingerprint
+			salt, err  = packet.SignatureSaltForHash(hash, config.Random())
+			if err != nil {
+				return nil, err
+			}
+			ops.Salt = salt
+		} 
 		if err := ops.Serialize(payload); err != nil {
 			return nil, err
 		}
@@ -310,7 +329,7 @@ func writeAndSign(payload io.WriteCloser, candidateHashes []uint8, signed *Entit
 	}
 
 	if signer != nil {
-		h, wrappedHash, err := hashForSignature(hash, sigType)
+		h, wrappedHash, err := hashForSignature(hash, sigType, salt)
 		if err != nil {
 			return nil, err
 		}
@@ -322,7 +341,7 @@ func writeAndSign(payload io.WriteCloser, candidateHashes []uint8, signed *Entit
 		if hints.IsBinary {
 			metadata.Format = 'b'
 		}
-		return signatureWriter{payload, literalData, hash, wrappedHash, h, signer, sigType, config, metadata}, nil
+		return signatureWriter{payload, literalData, hash, wrappedHash, h, salt, signer, sigType, config, metadata}, nil
 	}
 	return literalData, nil
 }
@@ -494,6 +513,7 @@ type signatureWriter struct {
 	hashType      crypto.Hash
 	wrappedHash   hash.Hash
 	h             hash.Hash
+	salt		  []byte // v6 only
 	signer        *packet.PrivateKey
 	sigType       packet.SignatureType
 	config        *packet.Config
@@ -516,6 +536,10 @@ func (s signatureWriter) Close() error {
 	sig := createSignaturePacket(&s.signer.PublicKey, s.sigType, s.config)
 	sig.Hash = s.hashType
 	sig.Metadata = s.metadata
+
+	if err := sig.PrepareSignWithSalt(s.salt); err != nil {
+		return err
+	}
 
 	if err := sig.Sign(s.h, s.signer, s.config); err != nil {
 		return err

@@ -116,6 +116,13 @@ type Signature struct {
 	outSubpackets []outputSubpacket
 }
 
+func (sig *Signature) Salt() []byte {
+	if sig == nil {
+		return nil
+	}
+	return sig.salt
+}
+
 func (sig *Signature) parse(r io.Reader) (err error) {
 	// RFC 4880, section 5.2.3
 	var buf [7]byte
@@ -220,7 +227,7 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 		}
 		saltLength := int(buf[0])
 		var expectedSaltLength int
-		expectedSaltLength, err = saltLengthForHash(sig.Hash)
+		expectedSaltLength, err = SaltLengthForHash(sig.Hash)
 		if err != nil {
 			return
 		}
@@ -742,24 +749,60 @@ func (sig *Signature) signPrepareHash(h hash.Hash) (digest []byte, err error) {
 	return
 }
 
-// PrepareSignature must be called to create a hash object before Sign or Verify for v6 signatures.
+// PrepareSign must be called to create a hash object before Sign for v6 signatures.
 // The created hash object initially hashes a randomly generated salt
-// as required by v6 signatures. If the signature is not v6, 
-// the method returns an empty hash object
+// as required by v6 signatures. The generated salt is stored in sig. If the signature is not v6, 
+// the method returns an empty hash object.
 // See RFC the crypto refresh Section 3.2.4.
-func (sig *Signature) PrepareSignature(hash crypto.Hash, config *Config) (hash.Hash, error) {
-	if !hash.Available() {
+func (sig *Signature) PrepareSign(config *Config) (hash.Hash, error) {
+	if !sig.Hash.Available() {
 		return nil, errors.UnsupportedError("hash function")
 	}
-	hasher := hash.New()
+	hasher := sig.Hash.New()
 	if sig.Version == 6 {
 		if sig.salt == nil {
-			saltLength, err := saltLengthForHash(hash)
+			var err error
+			sig.salt, err = SignatureSaltForHash(sig.Hash, config.Random())
 			if err != nil {
 				return nil, err
 			}
-			sig.salt = make([]byte, saltLength)
-			config.Random().Read(sig.salt)
+		}
+		hasher.Write(sig.salt)
+	}
+	return hasher, nil
+}
+
+// PrepareSignWithSalt stores a signature salt within sig for v6 signatrues.
+// Assumes salt is generated correctly and checks if length matches.
+// If the signature is not v6, the method ignores the salt.
+// Use PrepareSign whenever possible instead of this method.
+// See RFC the crypto refresh Section 3.2.4.
+func (sig *Signature) PrepareSignWithSalt(salt []byte) (error) {
+	if sig.Version == 6 {
+		expectedSaltLength, err := SaltLengthForHash(sig.Hash)
+		if err != nil {
+			return err
+		}
+		if salt == nil || len(salt) != expectedSaltLength {
+			return errors.InvalidArgumentError("unexpected salt size for the given hash algorithm")
+		}
+		sig.salt = salt
+	}
+	return nil
+}
+
+// PrepareVerify must be called to create a hash object before verifying v6 signatures.
+// The created hash object initially hashes the inernally stored salt.
+// If the signature is not v6, the method returns an empty hash object.
+// See RFC the crypto refresh Section 3.2.4.
+func (sig *Signature) PrepareVerify() (hash.Hash, error) {
+	if !sig.Hash.Available() {
+		return nil, errors.UnsupportedError("hash function")
+	}
+	hasher := sig.Hash.New()
+	if sig.Version == 6 {
+		if sig.salt == nil {
+			return nil, errors.StructuralError("v6 requires a salt for the hash to be signed")
 		}
 		hasher.Write(sig.salt)
 	}
@@ -834,7 +877,7 @@ func (sig *Signature) SignUserId(id string, pub *PublicKey, priv *PrivateKey, co
 	if priv.Dummy() {
 		return errors.ErrDummyPrivateKey("dummy key found")
 	}
-	prepareHash, err := sig.PrepareSignature(sig.Hash, config)
+	prepareHash, err := sig.PrepareSign(config)
 	if err != nil {
 		return err
 	}
@@ -853,7 +896,7 @@ func (sig *Signature) SignDirectKeyBinding(pub *PublicKey, priv *PrivateKey, con
 	if priv.Dummy() {
 		return errors.ErrDummyPrivateKey("dummy key found")
 	}
-	prepareHash, err := sig.PrepareSignature(sig.Hash, config)
+	prepareHash, err := sig.PrepareSign(config)
 	if err != nil {
 		return err
 	}
@@ -869,7 +912,7 @@ func (sig *Signature) SignDirectKeyBinding(pub *PublicKey, priv *PrivateKey, con
 // If config is nil, sensible defaults will be used.
 func (sig *Signature) CrossSignKey(pub *PublicKey, hashKey *PublicKey, signingKey *PrivateKey,
 	config *Config) error {
-	prepareHash, err := sig.PrepareSignature(sig.Hash, config)
+	prepareHash, err := sig.PrepareSign(config)
 	if err != nil {
 		return err
 	}
@@ -887,7 +930,7 @@ func (sig *Signature) SignKey(pub *PublicKey, priv *PrivateKey, config *Config) 
 	if priv.Dummy() {
 		return errors.ErrDummyPrivateKey("dummy key found")
 	}
-	prepareHash, err := sig.PrepareSignature(sig.Hash, config)
+	prepareHash, err := sig.PrepareSign(config)
 	if err != nil {
 		return err
 	}
@@ -902,7 +945,7 @@ func (sig *Signature) SignKey(pub *PublicKey, priv *PrivateKey, config *Config) 
 // stored in sig. Call Serialize to write it out.
 // If config is nil, sensible defaults will be used.
 func (sig *Signature) RevokeKey(pub *PublicKey, priv *PrivateKey, config *Config) error {
-	prepareHash, err := sig.PrepareSignature(sig.Hash, config)
+	prepareHash, err := sig.PrepareSign(config)
 	if err != nil {
 		return err
 	}
@@ -1024,7 +1067,7 @@ func (sig *Signature) serializeBody(w io.Writer) (err error) {
 		if err != nil {
 			return
 		}
-		w.Write(sig.salt)
+		_, err = w.Write(sig.salt)
 		if err != nil {
 			return
 		}
@@ -1249,10 +1292,10 @@ func (sig *Signature) AddMetadataToHashSuffix() {
 	sig.HashSuffix = suffix.Bytes()
 }
 
-// Select the required salt length for the given hash algorithm, 
+// SaltLengthForHash selects the required salt length for the given hash algorithm, 
 // as per Table 23 (Hash algorithm registry) of the crypto refresh.
 // See https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh#section-9.5|Crypto Refresh Section 9.5
-func saltLengthForHash(hash crypto.Hash) (int, error) {
+func SaltLengthForHash(hash crypto.Hash) (int, error) {
 	switch (hash) {
 		case crypto.SHA256: return 16, nil
 		case crypto.SHA384: return 24, nil
@@ -1260,4 +1303,17 @@ func saltLengthForHash(hash crypto.Hash) (int, error) {
 		case crypto.SHA224: return 16, nil
 		default: return 0, errors.UnsupportedError("hash function not supported for V6 signatures")
 	}
+}
+
+// SignatureSaltForHash generates a random signature salt 
+// with the length for the given hash algorithm.
+// See https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh#section-9.5|Crypto Refresh Section 9.5
+func SignatureSaltForHash(hash crypto.Hash, randReader io.Reader) ([]byte, error) {
+	saltLength, err := SaltLengthForHash(hash)
+	if err != nil {
+		return nil, err
+	}
+	salt := make([]byte, saltLength)
+	randReader.Read(salt)
+	return salt, nil
 }
