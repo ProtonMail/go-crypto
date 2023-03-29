@@ -67,7 +67,7 @@ func TestDecryptSymmetricKeyAndEncryptedDataPacket(t *testing.T) {
 	}
 }
 
-func TestSerializeSymmetricKeyEncryptedV5RandomizeSlow(t *testing.T) {
+func TestSerializeSymmetricKeyEncryptedV6RandomizeSlow(t *testing.T) {
 	ciphers := map[string]CipherFunction{
 		"AES128": CipherAES128,
 		"AES192": CipherAES192,

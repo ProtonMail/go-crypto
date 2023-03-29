@@ -9,7 +9,7 @@ type packetSequence struct {
 	contents string
 }
 
-var keyAndIpePackets = []*packetSequence{symEncTest, aeadEaxRFC, aeadOcbRFC, aeadGcmRFC}
+var keyAndIpePackets = []*packetSequence{symEncTestv6, symEncTest, aeadEaxRFC, aeadOcbRFC, aeadGcmRFC}
 
 var aeadEaxRFC = &packetSequence{
 	password: "password",
@@ -34,3 +34,11 @@ var symEncTest = &packetSequence{
 	packets:  "c32e04090308f9f479ee0862ee8700a86d5cce4c166b5a7d664dcbe0f0eb2696a3e8a815fe8913251605ad79cc865f15d24301c3da8f5003383b9bd62c673589e2292d990902227311905ff4a7f694727578468e15d9f1aadb41572c4b2a789d7f93896661249200b64af9fbf6abf001f5498d036a",
 	contents: "cb1875076d73672e7478745cafc23e636f6e74656e74732e0d0a",
 }
+
+// OpenPGP crypto refresh A.7.1.
+var symEncTestv6 = &packetSequence{
+	password: "password",
+	packets: "c33c061a07030b0308e9d39785b2070008ffb42e7c483ef4884457cb3726b9b3db9ff776e5f4d9a40952e2447298851abfff7526df2dd554417579a7799fd26902070306fcb94490bcb98bbdc9d106c6090266940f72e89edc21b5596b1576b101ed0f9ffc6fc6d65bbfd24dcd0790966e6d1e85a30053784cb1d8b6a0699ef12155a7b2ad6258531b57651fd7777912fa95e35d9b40216f69a4c248db28ff4331f1632907399e6ff9",
+	contents: "cb1362000000000048656c6c6f2c20776f726c6421d50e1ce2269a9eddef81032172b7ed7c",
+}
+
