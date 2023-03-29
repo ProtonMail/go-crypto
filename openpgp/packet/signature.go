@@ -1314,6 +1314,10 @@ func SignatureSaltForHash(hash crypto.Hash, randReader io.Reader) ([]byte, error
 		return nil, err
 	}
 	salt := make([]byte, saltLength)
+	_, err = io.ReadFull(randReader, salt)
+	if err != nil {
+		return nil, err
+	}
 	randReader.Read(salt)
 	return salt, nil
 }

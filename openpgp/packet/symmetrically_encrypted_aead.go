@@ -7,9 +7,10 @@ package packet
 import (
 	"crypto/cipher"
 	"crypto/sha256"
+	"io"
+
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"golang.org/x/crypto/hkdf"
-	"io"
 )
 
 // parseAead parses a V2 SEIPD packet (AEAD) as specified in
@@ -114,7 +115,7 @@ func serializeSymmetricallyEncryptedAead(ciphertext io.WriteCloser, cipherSuite 
 
 	// Random salt
 	salt := make([]byte, aeadSaltSize)
-	if _, err := rand.Read(salt); err != nil {
+	if _, err := io.ReadFull(rand, salt); err != nil {
 		return nil, err
 	}
 
