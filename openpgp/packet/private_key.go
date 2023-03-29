@@ -264,6 +264,11 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 		if len(privateKeyData) < 2 {
 			return errors.StructuralError("truncated private key data")
 		}
+
+		if pk.Version == 6 {
+			// No checksum
+			return pk.parsePrivateKey(privateKeyData)
+		} 
 		var sum uint16
 		for i := 0; i < len(privateKeyData)-2; i++ {
 			sum += uint16(privateKeyData[i])
@@ -343,8 +348,10 @@ func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 				return err
 			}
 			l = buf.Len()
-			checksum := mod64kHash(buf.Bytes())
-			buf.Write([]byte{byte(checksum >> 8), byte(checksum)})
+			if pk.Version != 6 {
+				checksum := mod64kHash(buf.Bytes())
+				buf.Write([]byte{byte(checksum >> 8), byte(checksum)})
+			}
 			priv = buf.Bytes()
 		} else {
 			priv, l = pk.encryptedData, len(pk.encryptedData)

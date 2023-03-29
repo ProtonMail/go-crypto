@@ -451,7 +451,7 @@ func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *En
 	}
 
 	for _, key := range encryptKeys {
-		if err := packet.SerializeEncryptedKey(keyWriter, key.PublicKey, cipher, symKey, config); err != nil {
+		if err := packet.SerializeEncryptedKey(keyWriter, key.PublicKey, cipher, aeadSupported, symKey, config); err != nil {
 			return nil, err
 		}
 	}
