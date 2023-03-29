@@ -11,6 +11,7 @@ import (
 	"io"
 	"math/big"
 	"testing"
+	"time"
 
 	"crypto"
 	"crypto/rsa"
@@ -164,7 +165,7 @@ func TestEncryptingEncryptedKey(t *testing.T) {
 	}
 
 	buf := new(bytes.Buffer)
-	err := SerializeEncryptedKey(buf, pub, CipherAES128, key, nil)
+	err := SerializeEncryptedKey(buf, pub, CipherAES128, false, key, nil)
 	if err != nil {
 		t.Errorf("error writing encrypted key packet: %s", err)
 	}
@@ -197,6 +198,55 @@ func TestEncryptingEncryptedKey(t *testing.T) {
 	}
 
 	keyHex := fmt.Sprintf("%x", ek.Key)
+	if keyHex != expectedKeyHex {
+		t.Errorf("bad key, got %s want %s", keyHex, expectedKeyHex)
+	}
+}
+
+func TestEncryptingEncryptedKeyV6(t *testing.T) {
+	key := []byte{1, 2, 3, 4}
+	config := &Config{
+		AEADConfig: &AEADConfig{
+		},
+	}
+	rsaKey, _ := rsa.GenerateKey(config.Random(), 2048)
+	rsaWrappedKey := NewRSAPrivateKey(time.Now(), rsaKey)
+	rsaWrappedKey.UpgradeToV6()
+	rsaWrappedKeyPub := &rsaWrappedKey.PublicKey
+
+	buf := new(bytes.Buffer)
+	err := SerializeEncryptedKey(buf, rsaWrappedKeyPub, CipherAES128, true, key, config) 
+
+	if err != nil {
+		t.Errorf("error writing encrypted key packet: %s", err)
+	}
+
+	p, err := Read(buf)
+	if err != nil {
+		t.Errorf("error from Read: %s", err)
+		return
+	}
+	ek, ok := p.(*EncryptedKey)
+	if !ok {
+		t.Errorf("didn't parse an EncryptedKey, got %#v", p)
+		return
+	}
+
+	if !bytes.Equal(ek.KeyFingerprint, rsaWrappedKey.Fingerprint) || 
+		ek.Algo != PubKeyAlgoRSA ||
+		ek.KeyVersion != rsaWrappedKey.Version {
+		t.Errorf("unexpected EncryptedKey contents: %#v", ek)
+		return
+	}
+
+	err = ek.Decrypt(rsaWrappedKey, nil)
+	if err != nil {
+		t.Errorf("error from Decrypt: %s", err)
+		return
+	}
+	
+	keyHex := fmt.Sprintf("%x", ek.Key)
+	expectedKeyHex := fmt.Sprintf("%x", key)
 	if keyHex != expectedKeyHex {
 		t.Errorf("bad key, got %s want %s", keyHex, expectedKeyHex)
 	}

@@ -5,9 +5,11 @@
 package packet
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/rsa"
 	"encoding/binary"
+	"encoding/hex"
 	"io"
 	"math/big"
 	"strconv"
@@ -18,30 +20,68 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/internal/encoding"
 )
 
-const encryptedKeyVersion = 3
-
 // EncryptedKey represents a public-key encrypted session key. See RFC 4880,
 // section 5.1.
 type EncryptedKey struct {
-	KeyId      uint64
-	Algo       PublicKeyAlgorithm
-	CipherFunc CipherFunction // only valid after a successful Decrypt for a v3 packet
-	Key        []byte         // only valid after a successful Decrypt
+	Version     int
+	KeyId       uint64
+	KeyVersion	int // v6
+	KeyFingerprint []byte // v6
+	Algo        PublicKeyAlgorithm
+	CipherFunc  CipherFunction // only valid after a successful Decrypt for a v3 packet
+	Key         []byte         // only valid after a successful Decrypt
 
 	encryptedMPI1, encryptedMPI2 encoding.Field
 }
 
 func (e *EncryptedKey) parse(r io.Reader) (err error) {
-	var buf [10]byte
-	_, err = readFull(r, buf[:])
+	var buf [8]byte
+	_, err = readFull(r, buf[:1])
 	if err != nil {
 		return
 	}
-	if buf[0] != encryptedKeyVersion {
+	e.Version =  int(buf[0])
+	if e.Version != 3 && e.Version != 6 {
 		return errors.UnsupportedError("unknown EncryptedKey version " + strconv.Itoa(int(buf[0])))
 	}
-	e.KeyId = binary.BigEndian.Uint64(buf[1:9])
-	e.Algo = PublicKeyAlgorithm(buf[9])
+	if e.Version == 6 {
+		_, err = readFull(r, buf[:1])
+		if err != nil {
+			return
+		}
+		e.KeyVersion =  int(buf[0])
+		if e.KeyVersion != 0 && e.KeyVersion != 4 && e.KeyVersion != 6 {
+			return errors.UnsupportedError("unknown public key version " + strconv.Itoa(e.KeyVersion))
+		}
+		var fingerprint []byte
+		if e.KeyVersion == 6 {
+			fingerprint = make([]byte, 32)
+		} else if e.KeyVersion == 4 {
+			fingerprint = make([]byte, 20)
+		}
+		_, err = readFull(r, fingerprint)
+		if err != nil {
+			return
+		}
+		e.KeyFingerprint = fingerprint
+		if e.KeyVersion == 6 {
+			e.KeyId = binary.BigEndian.Uint64(e.KeyFingerprint[:8])
+		} else if e.KeyVersion == 4 {
+			e.KeyId = binary.BigEndian.Uint64(e.KeyFingerprint[12:20])
+		}
+	} else {
+		_, err = readFull(r, buf[:8])
+		if err != nil {
+			return
+		}
+		e.KeyId = binary.BigEndian.Uint64(buf[:8])
+	}
+
+	_, err = readFull(r, buf[:1])
+	if err != nil {
+		return
+	}
+	e.Algo = PublicKeyAlgorithm(buf[0])
 	switch e.Algo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly:
 		e.encryptedMPI1 = new(encoding.MPI)
@@ -85,8 +125,11 @@ func checksumKeyMaterial(key []byte) uint16 {
 // private key must have been decrypted first.
 // If config is nil, sensible defaults will be used.
 func (e *EncryptedKey) Decrypt(priv *PrivateKey, config *Config) error {
-	if e.KeyId != 0 && e.KeyId != priv.KeyId {
+	if e.Version < 6 && e.KeyId != 0 && e.KeyId != priv.KeyId {
 		return errors.InvalidArgumentError("cannot decrypt encrypted session key for key id " + strconv.FormatUint(e.KeyId, 16) + " with private key id " + strconv.FormatUint(priv.KeyId, 16))
+	}
+	if e.Version == 6 && e.KeyVersion != 0 && !bytes.Equal(e.KeyFingerprint, priv.Fingerprint) {
+		return errors.InvalidArgumentError("cannot decrypt encrypted session key for key fingerprint " + hex.EncodeToString(e.KeyFingerprint) + " with private key fingerprint " + hex.EncodeToString(priv.Fingerprint) )
 	}
 	if e.Algo != priv.PubKeyAlgo {
 		return errors.InvalidArgumentError("cannot decrypt encrypted session key of type " + strconv.Itoa(int(e.Algo)) + " with private key of type " + strconv.Itoa(int(priv.PubKeyAlgo)))
@@ -121,13 +164,17 @@ func (e *EncryptedKey) Decrypt(priv *PrivateKey, config *Config) error {
 	if err != nil {
 		return err
 	}
-
-	e.CipherFunc = CipherFunction(b[0])
-	if !e.CipherFunc.IsSupported() {
-		return errors.UnsupportedError("unsupported encryption function")
+	
+	keyOffset := 0
+	if e.Version < 6 {
+		keyOffset = 1
+		e.CipherFunc = CipherFunction(b[0])
+		if !e.CipherFunc.IsSupported() {
+			return errors.UnsupportedError("unsupported encryption function")
+		}
 	}
-
-	e.Key = b[1 : len(b)-2]
+	
+	e.Key = b[keyOffset : len(b)-2]
 	expectedChecksum := uint16(b[len(b)-2])<<8 | uint16(b[len(b)-1])
 	checksum := checksumKeyMaterial(e.Key)
 	if checksum != expectedChecksum {
@@ -151,15 +198,50 @@ func (e *EncryptedKey) Serialize(w io.Writer) error {
 		return errors.InvalidArgumentError("don't know how to serialize encrypted key type " + strconv.Itoa(int(e.Algo)))
 	}
 
-	err := serializeHeader(w, packetTypeEncryptedKey, 1 /* version */ +8 /* key id */ +1 /* algo */ +mpiLen)
+	packetLen := 1 /* version */ +8 /* key id */ +1 /* algo */ + mpiLen
+	if e.Version == 6 {
+		packetLen = 1 /* version */ +1 /* algo */ + mpiLen + 1 /* key version */ 
+		if e.KeyVersion == 6 {
+			packetLen += 32
+		} else if e.KeyVersion == 4 {
+			packetLen += 20
+		}
+	}
+
+	err := serializeHeader(w, packetTypeEncryptedKey, packetLen)
 	if err != nil {
 		return err
 	}
 
-	w.Write([]byte{encryptedKeyVersion})
-	binary.Write(w, binary.BigEndian, e.KeyId)
-	w.Write([]byte{byte(e.Algo)})
-
+	_, err = w.Write([]byte{byte(e.Version)})
+	if err != nil {
+		return err
+	}
+	if e.Version == 6 {
+		_, err = w.Write([]byte{byte(e.KeyVersion)})
+		if err != nil {
+			return err
+		}
+		// The key version number may also be zero, 
+		// and the fingerprint omitted
+		if e.KeyVersion != 0 {
+			_, err = w.Write(e.KeyFingerprint)
+			if err != nil {
+				return err
+			}
+		}
+	} else {
+		// Write KeyID
+		err = binary.Write(w, binary.BigEndian, e.KeyId)
+		if err != nil {
+			return err
+		}
+	}
+	_, err = w.Write([]byte{byte(e.Algo)})
+	if err != nil {
+		return err
+	}
+	
 	switch e.Algo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly:
 		_, err := w.Write(e.encryptedMPI1.EncodedBytes())
@@ -184,26 +266,60 @@ func (e *EncryptedKey) Serialize(w io.Writer) error {
 // SerializeEncryptedKey serializes an encrypted key packet to w that contains
 // key, encrypted to pub.
 // If config is nil, sensible defaults will be used.
-func SerializeEncryptedKey(w io.Writer, pub *PublicKey, cipherFunc CipherFunction, key []byte, config *Config) error {
-	var buf [10]byte
-	buf[0] = encryptedKeyVersion
-	binary.BigEndian.PutUint64(buf[1:9], pub.KeyId)
-	buf[9] = byte(pub.PubKeyAlgo)
+func SerializeEncryptedKey(w io.Writer, pub *PublicKey, cipherFunc CipherFunction, aeadSupported bool, key []byte, config *Config) error {
+	var buf [35]byte // max possible header size is v6
+	lenHeaderWritten := 1
+	version := 3
 
-	keyBlock := make([]byte, 1 /* cipher type */ +len(key)+2 /* checksum */)
-	keyBlock[0] = byte(cipherFunc)
-	copy(keyBlock[1:], key)
+	if aeadSupported {
+		version = 6
+	}
+	// An implementation MUST NOT generate ElGamal v6 PKESKs.
+	if version == 6 && pub.PubKeyAlgo == PubKeyAlgoElGamal {
+		return errors.InvalidArgumentError("ElGamal v6 PKESK are not allowed")
+	}
+	buf[0] = byte(version)
+
+	if version == 6 {
+		if pub != nil {
+			buf[1] = byte(pub.Version)
+			copy(buf[2: len(pub.Fingerprint)+2], pub.Fingerprint)
+			lenHeaderWritten += len(pub.Fingerprint) + 1
+		} else {
+			// anonymous case
+			buf[1] = 0
+			lenHeaderWritten += 1
+		}
+	} else {
+		binary.BigEndian.PutUint64(buf[1:9], pub.KeyId)
+		lenHeaderWritten += 8
+	}
+	buf[lenHeaderWritten] = byte(pub.PubKeyAlgo)
+	lenHeaderWritten += 1
+
+	lenKeyBlock := 1 /* cipher type */ +len(key)+2 /* checksum */
+	if version == 6 {
+		lenKeyBlock = len(key) + 2 // no cipher type 
+	}
+	keyBlock := make([]byte, lenKeyBlock)
+	keyOffset := 0
+	if version < 6 {
+		keyBlock[0] = byte(cipherFunc)
+		keyOffset = 1
+	} 
+	
+	copy(keyBlock[keyOffset:], key)
 	checksum := checksumKeyMaterial(key)
-	keyBlock[1+len(key)] = byte(checksum >> 8)
-	keyBlock[1+len(key)+1] = byte(checksum)
+	keyBlock[keyOffset+len(key)] = byte(checksum >> 8)
+	keyBlock[keyOffset+len(key)+1] = byte(checksum)
 
 	switch pub.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly:
-		return serializeEncryptedKeyRSA(w, config.Random(), buf, pub.PublicKey.(*rsa.PublicKey), keyBlock)
+		return serializeEncryptedKeyRSA(w, config.Random(), buf[:lenHeaderWritten], pub.PublicKey.(*rsa.PublicKey), keyBlock)
 	case PubKeyAlgoElGamal:
-		return serializeEncryptedKeyElGamal(w, config.Random(), buf, pub.PublicKey.(*elgamal.PublicKey), keyBlock)
+		return serializeEncryptedKeyElGamal(w, config.Random(), buf[:lenHeaderWritten], pub.PublicKey.(*elgamal.PublicKey), keyBlock)
 	case PubKeyAlgoECDH:
-		return serializeEncryptedKeyECDH(w, config.Random(), buf, pub.PublicKey.(*ecdh.PublicKey), keyBlock, pub.oid, pub.Fingerprint)
+		return serializeEncryptedKeyECDH(w, config.Random(), buf[:lenHeaderWritten], pub.PublicKey.(*ecdh.PublicKey), keyBlock, pub.oid, pub.Fingerprint)
 	case PubKeyAlgoDSA, PubKeyAlgoRSASignOnly:
 		return errors.InvalidArgumentError("cannot encrypt to public key of type " + strconv.Itoa(int(pub.PubKeyAlgo)))
 	}
@@ -211,14 +327,14 @@ func SerializeEncryptedKey(w io.Writer, pub *PublicKey, cipherFunc CipherFunctio
 	return errors.UnsupportedError("encrypting a key to public key of type " + strconv.Itoa(int(pub.PubKeyAlgo)))
 }
 
-func serializeEncryptedKeyRSA(w io.Writer, rand io.Reader, header [10]byte, pub *rsa.PublicKey, keyBlock []byte) error {
+func serializeEncryptedKeyRSA(w io.Writer, rand io.Reader, header []byte, pub *rsa.PublicKey, keyBlock []byte) error {
 	cipherText, err := rsa.EncryptPKCS1v15(rand, pub, keyBlock)
 	if err != nil {
 		return errors.InvalidArgumentError("RSA encryption failed: " + err.Error())
 	}
 
 	cipherMPI := encoding.NewMPI(cipherText)
-	packetLen := 10 /* header length */ + int(cipherMPI.EncodedLength())
+	packetLen := len(header) /* header length */ + int(cipherMPI.EncodedLength())
 
 	err = serializeHeader(w, packetTypeEncryptedKey, packetLen)
 	if err != nil {
@@ -232,13 +348,13 @@ func serializeEncryptedKeyRSA(w io.Writer, rand io.Reader, header [10]byte, pub 
 	return err
 }
 
-func serializeEncryptedKeyElGamal(w io.Writer, rand io.Reader, header [10]byte, pub *elgamal.PublicKey, keyBlock []byte) error {
+func serializeEncryptedKeyElGamal(w io.Writer, rand io.Reader, header []byte, pub *elgamal.PublicKey, keyBlock []byte) error {
 	c1, c2, err := elgamal.Encrypt(rand, pub, keyBlock)
 	if err != nil {
 		return errors.InvalidArgumentError("ElGamal encryption failed: " + err.Error())
 	}
 
-	packetLen := 10 /* header length */
+	packetLen := len(header) /* header length */
 	packetLen += 2 /* mpi size */ + (c1.BitLen()+7)/8
 	packetLen += 2 /* mpi size */ + (c2.BitLen()+7)/8
 
@@ -257,7 +373,7 @@ func serializeEncryptedKeyElGamal(w io.Writer, rand io.Reader, header [10]byte, 
 	return err
 }
 
-func serializeEncryptedKeyECDH(w io.Writer, rand io.Reader, header [10]byte, pub *ecdh.PublicKey, keyBlock []byte, oid encoding.Field, fingerprint []byte) error {
+func serializeEncryptedKeyECDH(w io.Writer, rand io.Reader, header []byte, pub *ecdh.PublicKey, keyBlock []byte, oid encoding.Field, fingerprint []byte) error {
 	vsG, c, err := ecdh.Encrypt(rand, pub, keyBlock, oid.EncodedBytes(), fingerprint)
 	if err != nil {
 		return errors.InvalidArgumentError("ECDH encryption failed: " + err.Error())
@@ -266,7 +382,7 @@ func serializeEncryptedKeyECDH(w io.Writer, rand io.Reader, header [10]byte, pub
 	g := encoding.NewMPI(vsG)
 	m := encoding.NewOID(c)
 
-	packetLen := 10 /* header length */
+	packetLen := len(header) /* header length */
 	packetLen += int(g.EncodedLength()) + int(m.EncodedLength())
 
 	err = serializeHeader(w, packetTypeEncryptedKey, packetLen)

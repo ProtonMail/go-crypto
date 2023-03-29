@@ -428,22 +428,27 @@ func TestSymmetricEncryptionV5RandomizeSlow(t *testing.T) {
 var testEncryptionTests = []struct {
 	keyRingHex string
 	isSigned   bool
+	okV6 	   bool
 }{
 	{
 		testKeys1And2PrivateHex,
 		false,
+		true,
 	},
 	{
 		testKeys1And2PrivateHex,
+		true,
 		true,
 	},
 	{
 		dsaElGamalTestKeysHex,
 		false,
+		false,
 	},
 	{
 		dsaElGamalTestKeysHex,
 		true,
+		false,
 	},
 }
 
@@ -497,7 +502,13 @@ func TestEncryption(t *testing.T) {
 			config.AEADConfig = &aeadConf
 		}
 
+
 		w, err := Encrypt(buf, kring[:1], signed, nil /* no hints */, config)
+		if err != nil && config.AEAD() != nil && !test.okV6 {
+			// ElGamal is not allowed with v6
+			continue
+		}
+		
 		if err != nil {
 			t.Errorf("#%d: error in Encrypt: %s", i, err)
 			continue
