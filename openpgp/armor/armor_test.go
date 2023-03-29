@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"hash/adler32"
 	"io/ioutil"
+	"strings"
 	"testing"
 )
 
@@ -49,8 +50,9 @@ func TestDecodeEncode(t *testing.T) {
 	}
 	w.Close()
 
-	if !bytes.Equal(buf.Bytes(), []byte(armorExample1)) {
-		t.Errorf("got: %s\nwant: %s", buf.String(), armorExample1)
+	expected := strings.Replace(armorExample1, "=/teI\n", "", 1) // CRC should not be present
+	if !bytes.Equal(buf.Bytes(), []byte(expected)) {
+		t.Errorf("got: %s\nwant: %s", buf.String(), expected)
 	}
 }
 

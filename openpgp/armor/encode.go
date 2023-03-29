@@ -10,7 +10,6 @@ import (
 )
 
 var armorHeaderSep = []byte(": ")
-var blockEnd = []byte("\n=")
 var newline = []byte("\n")
 var armorEndOfLineOut = []byte("-----\n")
 
@@ -102,12 +101,10 @@ type encoding struct {
 	out       io.Writer
 	breaker   *lineBreaker
 	b64       io.WriteCloser
-	crc       uint32
 	blockType []byte
 }
 
 func (e *encoding) Write(data []byte) (n int, err error) {
-	e.crc = crc24(e.crc, data)
 	return e.b64.Write(data)
 }
 
@@ -118,15 +115,7 @@ func (e *encoding) Close() (err error) {
 	}
 	e.breaker.Close()
 
-	var checksumBytes [3]byte
-	checksumBytes[0] = byte(e.crc >> 16)
-	checksumBytes[1] = byte(e.crc >> 8)
-	checksumBytes[2] = byte(e.crc)
-
-	var b64ChecksumBytes [4]byte
-	base64.StdEncoding.Encode(b64ChecksumBytes[:], checksumBytes[:])
-
-	return writeSlices(e.out, blockEnd, b64ChecksumBytes[:], newline, armorEnd, e.blockType, armorEndOfLine)
+	return writeSlices(e.out, newline, armorEnd, e.blockType, armorEndOfLine)
 }
 
 // Encode returns a WriteCloser which will encode the data written to it in
@@ -153,7 +142,6 @@ func Encode(out io.Writer, blockType string, headers map[string]string) (w io.Wr
 	e := &encoding{
 		out:       out,
 		breaker:   newLineBreaker(out, 64),
-		crc:       crc24Init,
 		blockType: bType,
 	}
 	e.b64 = base64.NewEncoder(base64.StdEncoding, e.breaker)
