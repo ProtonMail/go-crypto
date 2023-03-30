@@ -515,6 +515,11 @@ func (mode AEADMode) TagLength() int {
 	return algorithm.AEADMode(mode).TagLength()
 }
 
+// IsSupported returns true if the aead mode is supported from the library
+func (mode AEADMode) IsSupported() bool {
+	return algorithm.AEADMode(mode).TagLength() > 0
+}
+
 // new returns a fresh instance of the given mode.
 func (mode AEADMode) new(block cipher.Block) cipher.AEAD {
 	return algorithm.AEADMode(mode).New(block)
