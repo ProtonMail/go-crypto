@@ -54,6 +54,12 @@ type Config struct {
 	//
 	// Deprecated: SK2Count should be configured in S2KConfig instead.
 	S2KCount int
+	// An S2K specifier can be stored in the secret keyring to specify 
+	// how to convert the passphrase to a key that unlocks the secret data. 
+	// This config allows to set this key encryption parameters.
+	// If nil, the default parameters are used.
+	// See OpenPGP crypto refresh 3.7.2.1.
+	S2KSecretKey *S2KType
 	// RSABits is the number of bits in new RSA keys made with NewEntity.
 	// If zero, then 2048 bit keys are created.
 	RSABits int
@@ -245,4 +251,11 @@ func (c *Config) Notations() []*Notation {
 		return nil
 	}
 	return c.SignatureNotations
+}
+
+func (c *Config) S2KKey() S2KType {
+	if c == nil || c.S2KSecretKey == nil {
+		return S2KSHA1
+	}
+	return *c.S2KSecretKey
 }

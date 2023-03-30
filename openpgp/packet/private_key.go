@@ -9,9 +9,9 @@ import (
 	"crypto"
 	"crypto/cipher"
 	"crypto/dsa"
-	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha1"
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -26,6 +26,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/encoding"
 	"github.com/ProtonMail/go-crypto/openpgp/s2k"
+	"golang.org/x/crypto/hkdf"
 )
 
 // PrivateKey represents a possibly encrypted private key. See RFC 4880,
@@ -36,10 +37,10 @@ type PrivateKey struct {
 	encryptedData []byte
 	cipher        CipherFunction
 	s2k           func(out, in []byte)
+	aead          AEADMode // only relevant if S2KAEAD is enabled
 	// An *{rsa|dsa|elgamal|ecdh|ecdsa|ed25519}.PrivateKey or
 	// crypto.Signer/crypto.Decrypter (Decryptor RSA only).
 	PrivateKey   interface{}
-	sha1Checksum bool
 	iv           []byte
 
 	// Type of encryption of the S2K packet
@@ -193,7 +194,10 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 			if err != nil {
 				return
 			}
-			// TODO: Set aead fields accordingly
+			pk.aead = AEADMode(buf[0])
+			if !pk.aead.IsSupported() {
+				return errors.UnsupportedError("unsupported aead mode in private key")
+			}
 		}
 
 		// [Optional] Only for a version 6 packet, 
@@ -218,23 +222,31 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 			return
 		}
 		pk.Encrypted = true
-		if pk.s2kType == S2KSHA1 {
-			pk.sha1Checksum = true
-		}
 	default:
 		return errors.UnsupportedError("deprecated s2k function in private key")
 	}
 
 	if pk.Encrypted {
-		blockSize := pk.cipher.blockSize()
-		// TODO: if pk.s2kType == S2KAEAD use aead nonce size here 
-		if blockSize == 0 {
+		var ivSize int
+		// special case for version 5: 
+		// an Initial Vector (IV) of the same length as the cipher's block size.
+		// If string-to-key usage octet was 253 the IV is used as the nonce 
+		if !v5 &&  pk.s2kType == S2KAEAD {
+			ivSize = pk.aead.IvLength()
+		} else {
+			ivSize = pk.cipher.blockSize()
+		}
+
+		if ivSize == 0 {
 			return errors.UnsupportedError("unsupported cipher in private key: " + strconv.Itoa(int(pk.cipher)))
 		}
-		pk.iv = make([]byte, blockSize)
+		pk.iv = make([]byte, ivSize)
 		_, err = readFull(r, pk.iv)
 		if err != nil {
 			return
+		}
+		if v5 &&  pk.s2kType == S2KAEAD {
+			pk.iv = pk.iv[:pk.aead.IvLength()]
 		}
 	}
 
@@ -312,24 +324,50 @@ func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 
 	optional := bytes.NewBuffer(nil)
 	if pk.Encrypted || pk.Dummy() {
-		optional.Write([]byte{uint8(pk.cipher)})
-
+		// [Optional] If string-to-key usage octet was 255, 254, or 253,
+		// a one-octet symmetric encryption algorithm.
+		if _, err = optional.Write([]byte{uint8(pk.cipher)}); err != nil {
+			return
+		}
+		// [Optional] If string-to-key usage octet was 253, 
+		// a one-octet AEAD algorithm.
 		if pk.s2kType == S2KAEAD {
-			// Write a one-octet AEAD algorithm.
+			if _, err = optional.Write([]byte{uint8(pk.aead)}); err != nil {
+				return
+			}
 		}
 
 		s2kBuffer := bytes.NewBuffer(nil)
 		if err := pk.s2kParams.Serialize(s2kBuffer); err != nil {
 			return err
 		}
+		// [Optional] Only for a version 6 packet, and if string-to-key 
+		// usage octet was 255, 254, or 253, an one-octet 
+		// count of the following field.
 		if pk.Version == 6 {
-			optional.Write([]byte{uint8(s2kBuffer.Len())})
+			if _, err = optional.Write([]byte{uint8(s2kBuffer.Len())}); err != nil {
+				return
+			}
 		} 
-		io.Copy(optional, s2kBuffer)
+		// [Optional] If string-to-key usage octet was 255, 254, or 253, 
+		// a string-to-key (S2K) specifier. The length of the string-to-key specifier 
+		// depends on its type 
+		if _, err = io.Copy(optional, s2kBuffer); err != nil {
+			return
+		}
 
+		// IV
 		if pk.Encrypted {
-			// TODO: different field for AEAD?
-			optional.Write(pk.iv)
+			if _, err = optional.Write(pk.iv); err != nil {
+				return
+			}
+			if pk.Version == 5 && len(pk.iv) > 0 {
+				// Add padding for version 5
+				padding := make([]byte, pk.cipher.blockSize() - len(pk.iv))
+				if _, err = optional.Write(padding); err != nil {
+					return
+				}
+			} 
 		}
 	}
 	if pk.Version == 5 || (pk.Version == 6 && pk.s2kType != S2KNON) {
@@ -425,37 +463,51 @@ func (pk *PrivateKey) decrypt(decryptionKey []byte) error {
 	if !pk.Encrypted {
 		return nil
 	}
-
 	block := pk.cipher.new(decryptionKey)
-	cfb := cipher.NewCFBDecrypter(block, pk.iv)
-
-	data := make([]byte, len(pk.encryptedData))
-	cfb.XORKeyStream(data, pk.encryptedData)
-
-	if pk.sha1Checksum {
-		if len(data) < sha1.Size {
-			return errors.StructuralError("truncated private key data")
+	var data []byte
+	switch pk.s2kType {
+	case S2KAEAD:
+		aead := pk.aead.new(block)
+		additionalData, err := pk.additionalData()
+		if err != nil {
+			return err
 		}
-		h := sha1.New()
-		h.Write(data[:len(data)-sha1.Size])
-		sum := h.Sum(nil)
-		if !bytes.Equal(sum, data[len(data)-sha1.Size:]) {
-			return errors.StructuralError("private key checksum failure")
+		// Decrypt the encrypted key material with aead
+		data, err = aead.Open(nil, pk.iv, pk.encryptedData, additionalData)
+		if err != nil {
+			return err
 		}
-		data = data[:len(data)-sha1.Size]
-	} else {
-		if len(data) < 2 {
-			return errors.StructuralError("truncated private key data")
+	case S2KSHA1, S2KCHECKSUM:
+		cfb := cipher.NewCFBDecrypter(block, pk.iv)
+		data = make([]byte, len(pk.encryptedData))
+		cfb.XORKeyStream(data, pk.encryptedData)
+		if pk.s2kType == S2KSHA1 {
+			if len(data) < sha1.Size {
+				return errors.StructuralError("truncated private key data")
+			}
+			h := sha1.New()
+			h.Write(data[:len(data)-sha1.Size])
+			sum := h.Sum(nil)
+			if !bytes.Equal(sum, data[len(data)-sha1.Size:]) {
+				return errors.StructuralError("private key checksum failure")
+			}
+			data = data[:len(data)-sha1.Size]
+		} else {
+			if len(data) < 2 {
+				return errors.StructuralError("truncated private key data")
+			}
+			var sum uint16
+			for i := 0; i < len(data)-2; i++ {
+				sum += uint16(data[i])
+			}
+			if data[len(data)-2] != uint8(sum>>8) ||
+				data[len(data)-1] != uint8(sum) {
+				return errors.StructuralError("private key checksum failure")
+			}
+			data = data[:len(data)-2]
 		}
-		var sum uint16
-		for i := 0; i < len(data)-2; i++ {
-			sum += uint16(data[i])
-		}
-		if data[len(data)-2] != uint8(sum>>8) ||
-			data[len(data)-1] != uint8(sum) {
-			return errors.StructuralError("private key checksum failure")
-		}
-		data = data[:len(data)-2]
+	default:
+		return errors.InvalidArgumentError("invalid s2k type")
 	}
 
 	err := pk.parsePrivateKey(data)
@@ -471,7 +523,6 @@ func (pk *PrivateKey) decrypt(decryptionKey []byte) error {
 	pk.s2k = nil
 	pk.Encrypted = false
 	pk.encryptedData = nil
-
 	return nil
 }
 
@@ -487,6 +538,9 @@ func (pk *PrivateKey) decryptWithCache(passphrase []byte, keyCache *s2k.Cache) e
 	if err != nil {
 		return err
 	}
+	if pk.s2kType == S2KAEAD {
+		key = pk.applyHKDF(key)
+	}
 	return pk.decrypt(key)
 }
 
@@ -501,6 +555,9 @@ func (pk *PrivateKey) Decrypt(passphrase []byte) error {
 
 	key := make([]byte, pk.cipher.KeySize())
 	pk.s2k(key, passphrase)
+	if pk.s2kType == S2KAEAD {
+		key = pk.applyHKDF(key)
+	}
 	return pk.decrypt(key)
 }
 
@@ -521,7 +578,7 @@ func DecryptPrivateKeys(keys []*PrivateKey, passphrase []byte) error {
 }
 
 // encrypt encrypts an unencrypted private key.
-func (pk *PrivateKey) encrypt(key []byte, params *s2k.Params, cipherFunction CipherFunction) error {
+func (pk *PrivateKey) encrypt(key []byte, params *s2k.Params, s2kType S2KType, cipherFunction CipherFunction, rand io.Reader) error {
 	if pk.Dummy() {
 		return errors.ErrDummyPrivateKey("dummy key found")
 	}
@@ -547,32 +604,50 @@ func (pk *PrivateKey) encrypt(key []byte, params *s2k.Params, cipherFunction Cip
 	} 
 
 	privateKeyBytes := priv.Bytes()
-	pk.sha1Checksum = true
+	pk.s2kType = s2kType
 	block := pk.cipher.new(key)
-	pk.iv = make([]byte, pk.cipher.blockSize())
-	_, err = rand.Read(pk.iv)
-	if err != nil {
-		return err
-	}
-	cfb := cipher.NewCFBEncrypter(block, pk.iv)
-
-	if pk.sha1Checksum {
-		pk.s2kType = S2KSHA1
-		h := sha1.New()
-		h.Write(privateKeyBytes)
-		sum := h.Sum(nil)
-		privateKeyBytes = append(privateKeyBytes, sum...)
-	} else {
-		pk.s2kType = S2KCHECKSUM
-		var sum uint16
-		for _, b := range privateKeyBytes {
-			sum += uint16(b)
+	switch s2kType {
+	case S2KAEAD:
+		if pk.aead == 0 {
+			return errors.StructuralError("aead mode is not set on key")
 		}
-		priv.Write([]byte{uint8(sum >> 8), uint8(sum)})
+		aead := pk.aead.new(block)
+		additionalData, err := pk.additionalData()
+		if err != nil {
+			return err
+		}
+		pk.iv = make([]byte, aead.NonceSize())
+		_, err = io.ReadFull(rand, pk.iv)
+		if err != nil {
+			return err
+		}
+		// Decrypt the encrypted key material with aead
+		pk.encryptedData = aead.Seal(nil, pk.iv, privateKeyBytes, additionalData)
+	case S2KSHA1, S2KCHECKSUM:
+		pk.iv = make([]byte, pk.cipher.blockSize())
+		_, err = io.ReadFull(rand, pk.iv)
+		if err != nil {
+			return err
+		}
+		cfb := cipher.NewCFBEncrypter(block, pk.iv)
+		if s2kType == S2KSHA1 {
+			h := sha1.New()
+			h.Write(privateKeyBytes)
+			sum := h.Sum(nil)
+			privateKeyBytes = append(privateKeyBytes, sum...)
+		} else {
+			var sum uint16
+			for _, b := range privateKeyBytes {
+				sum += uint16(b)
+			}
+			privateKeyBytes = append(privateKeyBytes, []byte{uint8(sum >> 8), uint8(sum)}...)
+		}
+		pk.encryptedData = make([]byte, len(privateKeyBytes))
+		cfb.XORKeyStream(pk.encryptedData, privateKeyBytes)
+	default:
+		return errors.InvalidArgumentError("invalid s2k type for encryption")
 	}
 
-	pk.encryptedData = make([]byte, len(privateKeyBytes))
-	cfb.XORKeyStream(pk.encryptedData, privateKeyBytes)
 	pk.Encrypted = true
 	pk.PrivateKey = nil
 	return err
@@ -591,8 +666,13 @@ func (pk *PrivateKey) EncryptWithConfig(passphrase []byte, config *Config) error
 		return err
 	}
 	s2k(key, passphrase)
+	if config.S2KKey() == S2KAEAD {
+		pk.aead = config.AEAD().Mode()
+		pk.cipher = config.Cipher()
+		key = pk.applyHKDF(key)
+	}
 	// Encrypt the private key with the derived encryption key.
-	return pk.encrypt(key, params, config.Cipher())
+	return pk.encrypt(key, params, config.S2KKey(), config.Cipher(), config.Random())
 }
 
 // EncryptPrivateKeys encrypts all unencrypted keys with the given config and passphrase.
@@ -611,7 +691,12 @@ func EncryptPrivateKeys(keys []*PrivateKey, passphrase []byte, config *Config) e
 	s2k(encryptionKey, passphrase)
 	for _, key := range keys {
 		if key != nil && !key.Dummy() && !key.Encrypted {
-			err = key.encrypt(encryptionKey, params, config.Cipher())
+			if config.S2KKey() == S2KAEAD {
+				key.aead = config.AEAD().Mode()
+				key.cipher = config.Cipher()
+				encryptionKey = key.applyHKDF(encryptionKey)
+			}
+			err = key.encrypt(encryptionKey, params, config.S2KKey(), config.Cipher(), config.Random())
 			if err != nil {
 				return err
 			}
@@ -812,6 +897,41 @@ func (pk *PrivateKey) parseEdDSAPrivateKey(data []byte) (err error) {
 	pk.PrivateKey = eddsaPriv
 
 	return nil
+}
+
+func (pk *PrivateKey) additionalData() ([]byte, error) {
+	additionalData := bytes.NewBuffer(nil)
+	// Write additional data prefix based on packet type
+	var packetByte byte
+	if pk.PublicKey.IsSubkey {
+		packetByte = 0xc7
+	} else {
+		packetByte = 0xc5
+	}
+	// Write public key to additional data 
+	_, err := additionalData.Write([]byte{packetByte})
+	if err != nil {
+		return nil, err
+	}
+	err = pk.PublicKey.serializeWithoutHeaders(additionalData)
+	if err != nil {
+		return nil, err
+	}
+	return additionalData.Bytes(), nil
+}
+
+func (pk *PrivateKey) applyHKDF(inputKey []byte) []byte {
+	var packetByte byte
+	if pk.PublicKey.IsSubkey {
+		packetByte = 0xc7
+	} else {
+		packetByte = 0xc5
+	}
+	associatedData := []byte{packetByte, byte(pk.Version), byte(pk.cipher), byte(pk.aead)}
+	hkdfReader := hkdf.New(sha256.New, inputKey, []byte{}, associatedData)
+	encryptionKey := make([]byte, pk.cipher.KeySize())
+	_, _ = readFull(hkdfReader, encryptionKey)
+	return encryptionKey
 }
 
 func validateDSAParameters(priv *dsa.PrivateKey) error {
