@@ -14,7 +14,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/armor"
 )
 
-func TestSignatureRead(t *testing.T) {
+func TestSignatureReadAndReserialize(t *testing.T) {
 	packet, err := Read(readerFromHex(signatureDataHex))
 	if err != nil {
 		t.Error(err)
@@ -23,6 +23,40 @@ func TestSignatureRead(t *testing.T) {
 	sig, ok := packet.(*Signature)
 	if !ok || sig.SigType != SigTypeBinary || sig.PubKeyAlgo != PubKeyAlgoRSA || sig.Hash != crypto.SHA1 {
 		t.Errorf("failed to parse, got: %#v", packet)
+	}
+
+	serializedSig := new(bytes.Buffer)
+	err = sig.Serialize(serializedSig)
+	if err != nil {
+		t.Fatalf("Unable to reserialize signature, got %s", err)
+	}
+
+	hexSig := hex.EncodeToString(serializedSig.Bytes())
+	if hexSig != signatureDataHex {
+		t.Fatalf("Wrong signature serialized: expected %s, got %s", signatureDataHex, hexSig)
+	}
+}
+
+func TestOnePassSignatureReadAndReserialize(t *testing.T) {
+	packet, err := Read(readerFromHex(onePassSignatureDataHex))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	sig, ok := packet.(*OnePassSignature)
+	if !ok || sig.SigType != SigTypeBinary || sig.PubKeyAlgo != PubKeyAlgoRSA || sig.Hash != crypto.SHA1 {
+		t.Errorf("failed to parse, got: %#v", packet)
+	}
+
+	serializedSig := new(bytes.Buffer)
+	err = sig.Serialize(serializedSig)
+	if err != nil {
+		t.Fatalf("Unable to reserialize one-pass signature, got %s", err)
+	}
+
+	hexSig := hex.EncodeToString(serializedSig.Bytes())
+	if hexSig != onePassSignatureDataHex {
+		t.Fatalf("Wrong one-pass signature serialized: expected %s, got %s", onePassSignatureDataHex, hexSig)
 	}
 }
 
@@ -289,6 +323,8 @@ func TestSignatureWithTrustAndRegex(t *testing.T) {
 		t.Errorf("unexpected error while parsing: %v", err)
 	}
 }
+
+const onePassSignatureDataHex = `c40d03000201ab105c91af38fb1501`
 
 const signatureDataHex = "c2c05c04000102000605024cb45112000a0910ab105c91af38fb158f8d07ff5596ea368c5efe015bed6e78348c0f033c931d5f2ce5db54ce7f2a7e4b4ad64db758d65a7a71773edeab7ba2a9e0908e6a94a1175edd86c1d843279f045b021a6971a72702fcbd650efc393c5474d5b59a15f96d2eaad4c4c426797e0dcca2803ef41c6ff234d403eec38f31d610c344c06f2401c262f0993b2e66cad8a81ebc4322c723e0d4ba09fe917e8777658307ad8329adacba821420741009dfe87f007759f0982275d028a392c6ed983a0d846f890b36148c7358bdb8a516007fac760261ecd06076813831a36d0459075d1befa245ae7f7fb103d92ca759e9498fe60ef8078a39a3beda510deea251ea9f0a7f0df6ef42060f20780360686f3e400e"
 
