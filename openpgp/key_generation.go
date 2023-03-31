@@ -20,6 +20,8 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
+	"github.com/ProtonMail/go-crypto/openpgp/x25519"
+	"github.com/ProtonMail/go-crypto/openpgp/x448"
 )
 
 // NewEntity returns an Entity that contains a fresh RSA/RSA keypair with a
@@ -318,6 +320,10 @@ func newDecrypter(config *packet.Config) (decrypter interface{}, err error) {
 			return nil, errors.InvalidArgumentError("unsupported curve")
 		}
 		return ecdh.GenerateKey(config.Random(), curve, kdf)
+	case packet.PubKeyAlgoX25519:
+		return x25519.GenerateKey(config.Random())
+	case packet.PubKeyAlgoX448:
+		return x448.GenerateKey(config.Random())
 	default:
 		return nil, errors.InvalidArgumentError("unsupported public key algorithm")
 	}

@@ -18,6 +18,8 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/elgamal"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/encoding"
+	"github.com/ProtonMail/go-crypto/openpgp/x25519"
+	"github.com/ProtonMail/go-crypto/openpgp/x448"
 )
 
 // EncryptedKey represents a public-key encrypted session key. See RFC 4880,
@@ -32,6 +34,9 @@ type EncryptedKey struct {
 	Key         []byte         // only valid after a successful Decrypt
 
 	encryptedMPI1, encryptedMPI2 encoding.Field
+	ephemeralPublicX25519 *x25519.PublicKey // used for x25519
+	ephemeralPublicX448 *x448.PublicKey // used for x448
+	encryptedSession []byte // used for x25519 and Ed448
 }
 
 func (e *EncryptedKey) parse(r io.Reader) (err error) {
@@ -108,6 +113,16 @@ func (e *EncryptedKey) parse(r io.Reader) (err error) {
 		if _, err = e.encryptedMPI2.ReadFrom(r); err != nil {
 			return
 		}
+	case PubKeyAlgoX25519: 
+		e.ephemeralPublicX25519, e.encryptedSession, err = x25519.DecodeFields(r)	
+		if err != nil {
+			return
+		}
+	case PubKeyAlgoX448:
+		e.ephemeralPublicX448, e.encryptedSession, err = x448.DecodeFields(r)	
+		if err != nil {
+			return
+		}
 	}
 	_, err = consumeAll(r)
 	return
@@ -157,14 +172,32 @@ func (e *EncryptedKey) Decrypt(priv *PrivateKey, config *Config) error {
 		m := e.encryptedMPI2.Bytes()
 		oid := priv.PublicKey.oid.EncodedBytes()
 		b, err = ecdh.Decrypt(priv.PrivateKey.(*ecdh.PrivateKey), vsG, m, oid, priv.PublicKey.Fingerprint[:])
+	case PubKeyAlgoX25519:
+		b, err = x25519.Decrypt(priv.PrivateKey.(*x25519.PrivateKey), e.ephemeralPublicX25519, e.encryptedSession)
+	case PubKeyAlgoX448:
+		b, err = x448.Decrypt(priv.PrivateKey.(*x448.PrivateKey), e.ephemeralPublicX448, e.encryptedSession)
 	default:
 		err = errors.InvalidArgumentError("cannot decrypt encrypted session key with private key of type " + strconv.Itoa(int(priv.PubKeyAlgo)))
 	}
-
 	if err != nil {
 		return err
 	}
-	
+
+	// Handle the no checksum cases
+	if priv.PubKeyAlgo == PubKeyAlgoX25519 || priv.PubKeyAlgo == PubKeyAlgoX448 {
+		if e.Version < 6 {
+			e.Key = b[8:]
+			e.CipherFunc = CipherFunction(b[0])
+			if !e.CipherFunc.IsSupported() {
+				return errors.UnsupportedError("unsupported encryption function")
+			}
+		} else {
+			e.Key = b
+		}
+		return nil
+	}
+
+	// Handle the checksum cases
 	keyOffset := 0
 	if e.Version < 6 {
 		keyOffset = 1
@@ -186,21 +219,25 @@ func (e *EncryptedKey) Decrypt(priv *PrivateKey, config *Config) error {
 
 // Serialize writes the encrypted key packet, e, to w.
 func (e *EncryptedKey) Serialize(w io.Writer) error {
-	var mpiLen int
+	var encodedLength int
 	switch e.Algo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly:
-		mpiLen = int(e.encryptedMPI1.EncodedLength())
+		encodedLength = int(e.encryptedMPI1.EncodedLength())
 	case PubKeyAlgoElGamal:
-		mpiLen = int(e.encryptedMPI1.EncodedLength()) + int(e.encryptedMPI2.EncodedLength())
+		encodedLength = int(e.encryptedMPI1.EncodedLength()) + int(e.encryptedMPI2.EncodedLength())
 	case PubKeyAlgoECDH:
-		mpiLen = int(e.encryptedMPI1.EncodedLength()) + int(e.encryptedMPI2.EncodedLength())
+		encodedLength = int(e.encryptedMPI1.EncodedLength()) + int(e.encryptedMPI2.EncodedLength())
+	case PubKeyAlgoX25519:
+		encodedLength = x25519.EncodedFieldsLength(e.encryptedSession)
+	case PubKeyAlgoX448:
+		encodedLength = x448.EncodedFieldsLength(e.encryptedSession)
 	default:
 		return errors.InvalidArgumentError("don't know how to serialize encrypted key type " + strconv.Itoa(int(e.Algo)))
 	}
 
-	packetLen := 1 /* version */ +8 /* key id */ +1 /* algo */ + mpiLen
+	packetLen := 1 /* version */ +8 /* key id */ +1 /* algo */ + encodedLength
 	if e.Version == 6 {
-		packetLen = 1 /* version */ +1 /* algo */ + mpiLen + 1 /* key version */ 
+		packetLen = 1 /* version */ +1 /* algo */ + encodedLength + 1 /* key version */ 
 		if e.KeyVersion == 6 {
 			packetLen += 32
 		} else if e.KeyVersion == 4 {
@@ -258,6 +295,12 @@ func (e *EncryptedKey) Serialize(w io.Writer) error {
 		}
 		_, err := w.Write(e.encryptedMPI2.EncodedBytes())
 		return err
+	case PubKeyAlgoX25519:
+		err := x25519.EncodeFields(w, e.ephemeralPublicX25519, e.encryptedSession)
+		return err
+	case PubKeyAlgoX448:
+		err := x448.EncodeFields(w, e.ephemeralPublicX448, e.encryptedSession)
+		return err
 	default:
 		panic("internal error")
 	}
@@ -297,21 +340,38 @@ func SerializeEncryptedKey(w io.Writer, pub *PublicKey, cipherFunc CipherFunctio
 	buf[lenHeaderWritten] = byte(pub.PubKeyAlgo)
 	lenHeaderWritten += 1
 
-	lenKeyBlock := 1 /* cipher type */ +len(key)+2 /* checksum */
-	if version == 6 {
-		lenKeyBlock = len(key) + 2 // no cipher type 
+	var keyBlock []byte
+	// for X25519 there is no checksum and a special encoding
+	if pub.PubKeyAlgo == PubKeyAlgoX25519 || pub.PubKeyAlgo == PubKeyAlgoX448 {
+		// no checksum is added
+		if version < 6 {
+			// For v3 PKESK packets, seven zero-octets are 
+			// added as padding after the algorithm identifier
+			keyBlock = make([]byte, len(key) + 8)
+			keyBlock[0] = byte(cipherFunc)
+			copy(keyBlock[8:], key)
+		} else {
+			// For v6 PKESK packets, no checksum or padding 
+			// are added to the session key before keywrapping
+			keyBlock = key
+		}
+	} else {
+		lenKeyBlock := 1 /* cipher type */ +len(key)+2 /* checksum */
+		if version == 6 {
+			lenKeyBlock -= 1 // no cipher type 
+		}
+		keyBlock = make([]byte, lenKeyBlock)
+		keyOffset := 0
+		if version < 6 {
+			keyBlock[0] = byte(cipherFunc)
+			keyOffset = 1
+		} 
+		
+		copy(keyBlock[keyOffset:], key)
+		checksum := checksumKeyMaterial(key)
+		keyBlock[keyOffset+len(key)] = byte(checksum >> 8)
+		keyBlock[keyOffset+len(key)+1] = byte(checksum)
 	}
-	keyBlock := make([]byte, lenKeyBlock)
-	keyOffset := 0
-	if version < 6 {
-		keyBlock[0] = byte(cipherFunc)
-		keyOffset = 1
-	} 
-	
-	copy(keyBlock[keyOffset:], key)
-	checksum := checksumKeyMaterial(key)
-	keyBlock[keyOffset+len(key)] = byte(checksum >> 8)
-	keyBlock[keyOffset+len(key)+1] = byte(checksum)
 
 	switch pub.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly:
@@ -320,6 +380,10 @@ func SerializeEncryptedKey(w io.Writer, pub *PublicKey, cipherFunc CipherFunctio
 		return serializeEncryptedKeyElGamal(w, config.Random(), buf[:lenHeaderWritten], pub.PublicKey.(*elgamal.PublicKey), keyBlock)
 	case PubKeyAlgoECDH:
 		return serializeEncryptedKeyECDH(w, config.Random(), buf[:lenHeaderWritten], pub.PublicKey.(*ecdh.PublicKey), keyBlock, pub.oid, pub.Fingerprint)
+	case PubKeyAlgoX25519:
+		return serializeEncryptedKeyX25519(w, config.Random(), buf[:lenHeaderWritten], pub.PublicKey.(*x25519.PublicKey), keyBlock)
+	case PubKeyAlgoX448:
+		return serializeEncryptedKeyX448(w, config.Random(), buf[:lenHeaderWritten], pub.PublicKey.(*x448.PublicKey), keyBlock)
 	case PubKeyAlgoDSA, PubKeyAlgoRSASignOnly:
 		return errors.InvalidArgumentError("cannot encrypt to public key of type " + strconv.Itoa(int(pub.PubKeyAlgo)))
 	}
@@ -398,5 +462,49 @@ func serializeEncryptedKeyECDH(w io.Writer, rand io.Reader, header []byte, pub *
 		return err
 	}
 	_, err = w.Write(m.EncodedBytes())
+	return err
+}
+
+func serializeEncryptedKeyX25519(w io.Writer, rand io.Reader, header []byte, pub *x25519.PublicKey, keyBlock []byte) error {
+	ephemeralPublicX25519, ciphertext, err := x25519.Encrypt(rand, pub, keyBlock)
+	if err != nil {
+		return errors.InvalidArgumentError("X25519 encryption failed: " + err.Error())
+	}
+
+	packetLen := len(header) /* header length */
+	packetLen += x25519.EncodedFieldsLength(ciphertext)
+
+	err = serializeHeader(w, packetTypeEncryptedKey, packetLen)
+	if err != nil {
+		return err
+	}
+
+	_, err = w.Write(header[:])
+	if err != nil {
+		return err
+	}
+	err = x25519.EncodeFields(w, ephemeralPublicX25519, ciphertext)
+	return err
+}
+
+func serializeEncryptedKeyX448(w io.Writer, rand io.Reader, header []byte, pub *x448.PublicKey, keyBlock []byte) error {
+	ephemeralPublicX448, ciphertext, err := x448.Encrypt(rand, pub, keyBlock)
+	if err != nil {
+		return errors.InvalidArgumentError("x448 encryption failed: " + err.Error())
+	}
+
+	packetLen := len(header) /* header length */
+	packetLen += x448.EncodedFieldsLength(ciphertext)
+
+	err = serializeHeader(w, packetTypeEncryptedKey, packetLen)
+	if err != nil {
+		return err
+	}
+
+	_, err = w.Write(header[:])
+	if err != nil {
+		return err
+	}
+	err = x448.EncodeFields(w, ephemeralPublicX448, ciphertext)
 	return err
 }
