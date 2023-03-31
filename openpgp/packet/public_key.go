@@ -26,6 +26,8 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/encoding"
+	"github.com/ProtonMail/go-crypto/openpgp/x25519"
+	"github.com/ProtonMail/go-crypto/openpgp/x448"
 )
 
 type kdfHashFunction byte
@@ -36,7 +38,7 @@ type PublicKey struct {
 	Version      int
 	CreationTime time.Time
 	PubKeyAlgo   PublicKeyAlgorithm
-	PublicKey    interface{} // *rsa.PublicKey, *dsa.PublicKey, *ecdsa.PublicKey or *eddsa.PublicKey
+	PublicKey    interface{} // *rsa.PublicKey, *dsa.PublicKey, *ecdsa.PublicKey or *eddsa.PublicKey, *x25519.PublicKey, *x448.PublicKey
 	Fingerprint  []byte
 	KeyId        uint64
 	IsSubkey     bool
@@ -181,6 +183,30 @@ func NewEdDSAPublicKey(creationTime time.Time, pub *eddsa.PublicKey) *PublicKey 
 	return pk
 }
 
+func NewX25519PublicKey(creationTime time.Time, pub *x25519.PublicKey) *PublicKey {
+	pk := &PublicKey{
+		Version:      4,
+		CreationTime: creationTime,
+		PubKeyAlgo:   PubKeyAlgoX25519,
+		PublicKey:    pub,
+	}
+
+	pk.setFingerprintAndKeyId()
+	return pk
+}
+
+func NewX448PublicKey(creationTime time.Time, pub *x448.PublicKey) *PublicKey {
+	pk := &PublicKey{
+		Version:      4,
+		CreationTime: creationTime,
+		PubKeyAlgo:   PubKeyAlgoX448,
+		PublicKey:    pub,
+	}
+
+	pk.setFingerprintAndKeyId()
+	return pk
+}
+
 func (pk *PublicKey) parse(r io.Reader) (err error) {
 	// RFC 4880, section 5.5.2
 	var buf [6]byte
@@ -218,7 +244,10 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 		err = pk.parseECDH(r)
 	case PubKeyAlgoEdDSA:
 		err = pk.parseEdDSA(r)
-		
+	case PubKeyAlgoX25519:
+		err = pk.parseX25519(r)
+	case PubKeyAlgoX448:
+		err = pk.parseX448(r)
 	default:
 		err = errors.UnsupportedError("public key type: " + strconv.Itoa(int(pk.PubKeyAlgo)))
 	}
@@ -446,6 +475,32 @@ func (pk *PublicKey) parseEdDSA(r io.Reader) (err error) {
 	return
 }
 
+func (pk *PublicKey) parseX25519(r io.Reader) (err error) {
+	point := make([]byte, x25519.PointSize)
+	_, err = io.ReadFull(r, point)
+	if err != nil {
+		return
+	}
+	pub := x25519.PublicKey {
+		Point: point,
+	}
+	pk.PublicKey = pub
+	return
+}
+
+func (pk *PublicKey) parseX448(r io.Reader) (err error) {
+	point := make([]byte, x448.PointSize)
+	_, err = io.ReadFull(r, point)
+	if err != nil {
+		return
+	}
+	pub := x448.PublicKey {
+		Point: point,
+	}
+	pk.PublicKey = pub
+	return
+}
+
 // SerializeForHash serializes the PublicKey to w with the special packet
 // header format needed for hashing.
 func (pk *PublicKey) SerializeForHash(w io.Writer) error {
@@ -515,6 +570,10 @@ func (pk *PublicKey) algorithmSpecificByteCount() int {
 	case PubKeyAlgoEdDSA:
 		length += int(pk.oid.EncodedLength())
 		length += int(pk.p.EncodedLength())
+	case PubKeyAlgoX25519:
+		length += x25519.PointSize
+	case PubKeyAlgoX448:
+		length += x448.PointSize
 	default:
 		panic("unknown public key algorithm")
 	}
