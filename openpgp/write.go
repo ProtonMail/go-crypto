@@ -280,12 +280,11 @@ func writeAndSign(payload io.WriteCloser, candidateHashes []uint8, signed *Entit
 	}
 
 	var salt []byte
-	var sigVersion = 3
-	if config != nil && config.V6Keys {
-		// use v6 signatures and one pass signatures
-		sigVersion = 6
-	}
 	if signer != nil {
+		var sigVersion = 3
+		if signer.Version == 6 {
+			sigVersion = signer.Version
+		}
 		ops := &packet.OnePassSignature{
 			Version: 	sigVersion,
 			SigType:    sigType,
