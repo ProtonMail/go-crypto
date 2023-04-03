@@ -580,6 +580,9 @@ var testSigningTests = []struct {
 	{
 		dsaElGamalTestKeysHex,
 	},
+	{
+		ed25519wX25519Key,
+	},
 }
 
 func TestSigning(t *testing.T) {
@@ -631,7 +634,7 @@ func TestSigning(t *testing.T) {
 			continue
 		}
 
-		testTime, _ := time.Parse("2006-01-02", "2013-07-01")
+		testTime, _ := time.Parse("2006-01-02", "2022-12-01")
 		signKey, _ := kring[0].SigningKey(testTime)
 		expectedKeyId := signKey.PublicKey.KeyId
 		if md.SignedByKeyId != expectedKeyId {

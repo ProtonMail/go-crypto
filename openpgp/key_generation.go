@@ -15,6 +15,8 @@ import (
 
 	"github.com/ProtonMail/go-crypto/openpgp/ecdh"
 	"github.com/ProtonMail/go-crypto/openpgp/ecdsa"
+	"github.com/ProtonMail/go-crypto/openpgp/ed25519"
+	"github.com/ProtonMail/go-crypto/openpgp/ed448"
 	"github.com/ProtonMail/go-crypto/openpgp/eddsa"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
@@ -289,6 +291,18 @@ func newSigner(config *packet.Config) (signer interface{}, err error) {
 			return nil, err
 		}
 		return priv, nil
+	case packet.PubKeyAlgoEd25519:
+		priv, err := ed25519.GenerateKey(config.Random())
+		if err != nil {
+			return nil, err
+		}
+		return priv, nil
+	case packet.PubKeyAlgoEd448:
+		priv, err := ed448.GenerateKey(config.Random())
+		if err != nil {
+			return nil, err
+		}
+		return priv, nil
 	default:
 		return nil, errors.InvalidArgumentError("unsupported public key algorithm")
 	}
@@ -320,9 +334,9 @@ func newDecrypter(config *packet.Config) (decrypter interface{}, err error) {
 			return nil, errors.InvalidArgumentError("unsupported curve")
 		}
 		return ecdh.GenerateKey(config.Random(), curve, kdf)
-	case packet.PubKeyAlgoX25519:
+	case packet.PubKeyAlgoEd25519, packet.PubKeyAlgoX25519: // When passing Ed25519, we generate an X25519 subkey
 		return x25519.GenerateKey(config.Random())
-	case packet.PubKeyAlgoX448:
+	case packet.PubKeyAlgoEd448, packet.PubKeyAlgoX448: // When passing Ed448, we generate an X448 subkey
 		return x448.GenerateKey(config.Random())
 	default:
 		return nil, errors.InvalidArgumentError("unsupported public key algorithm")

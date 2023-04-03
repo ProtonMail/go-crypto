@@ -20,6 +20,8 @@ import (
 
 	"github.com/ProtonMail/go-crypto/openpgp/ecdh"
 	"github.com/ProtonMail/go-crypto/openpgp/ecdsa"
+	"github.com/ProtonMail/go-crypto/openpgp/ed25519"
+	"github.com/ProtonMail/go-crypto/openpgp/ed448"
 	"github.com/ProtonMail/go-crypto/openpgp/eddsa"
 	"github.com/ProtonMail/go-crypto/openpgp/elgamal"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
@@ -38,7 +40,7 @@ type PublicKey struct {
 	Version      int
 	CreationTime time.Time
 	PubKeyAlgo   PublicKeyAlgorithm
-	PublicKey    interface{} // *rsa.PublicKey, *dsa.PublicKey, *ecdsa.PublicKey or *eddsa.PublicKey, *x25519.PublicKey, *x448.PublicKey
+	PublicKey    interface{} // *rsa.PublicKey, *dsa.PublicKey, *ecdsa.PublicKey or *eddsa.PublicKey, *x25519.PublicKey, *x448.PublicKey, *ed25519.PublicKey, *ed448.PublicKey
 	Fingerprint  []byte
 	KeyId        uint64
 	IsSubkey     bool
@@ -207,6 +209,30 @@ func NewX448PublicKey(creationTime time.Time, pub *x448.PublicKey) *PublicKey {
 	return pk
 }
 
+func NewEd25519PublicKey(creationTime time.Time, pub *ed25519.PublicKey) *PublicKey {
+	pk := &PublicKey{
+		Version:      4,
+		CreationTime: creationTime,
+		PubKeyAlgo:   PubKeyAlgoEd25519,
+		PublicKey:    pub,
+	}
+
+	pk.setFingerprintAndKeyId()
+	return pk
+}
+
+func NewEd448PublicKey(creationTime time.Time, pub *ed448.PublicKey) *PublicKey {
+	pk := &PublicKey{
+		Version:      4,
+		CreationTime: creationTime,
+		PubKeyAlgo:   PubKeyAlgoEd448,
+		PublicKey:    pub,
+	}
+
+	pk.setFingerprintAndKeyId()
+	return pk
+}
+
 func (pk *PublicKey) parse(r io.Reader) (err error) {
 	// RFC 4880, section 5.5.2
 	var buf [6]byte
@@ -248,6 +274,10 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 		err = pk.parseX25519(r)
 	case PubKeyAlgoX448:
 		err = pk.parseX448(r)
+	case PubKeyAlgoEd25519:
+		err = pk.parseEd25519(r)
+	case PubKeyAlgoEd448:
+		err = pk.parseEd448(r)
 	default:
 		err = errors.UnsupportedError("public key type: " + strconv.Itoa(int(pk.PubKeyAlgo)))
 	}
@@ -477,7 +507,7 @@ func (pk *PublicKey) parseX25519(r io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	pub := x25519.PublicKey {
+	pub := &x25519.PublicKey {
 		Point: point,
 	}
 	pk.PublicKey = pub
@@ -490,7 +520,33 @@ func (pk *PublicKey) parseX448(r io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	pub := x448.PublicKey {
+	pub := &x448.PublicKey {
+		Point: point,
+	}
+	pk.PublicKey = pub
+	return
+}
+
+func (pk *PublicKey) parseEd25519(r io.Reader) (err error) {
+	point := make([]byte, ed25519.PointSize)
+	_, err = io.ReadFull(r, point)
+	if err != nil {
+		return
+	}
+	pub := &ed25519.PublicKey {
+		Point: point,
+	}
+	pk.PublicKey = pub
+	return
+}
+
+func (pk *PublicKey) parseEd448(r io.Reader) (err error) {
+	point := make([]byte, ed448.PointSize)
+	_, err = io.ReadFull(r, point)
+	if err != nil {
+		return
+	}
+	pub := &ed448.PublicKey {
 		Point: point,
 	}
 	pk.PublicKey = pub
@@ -570,6 +626,10 @@ func (pk *PublicKey) algorithmSpecificByteCount() int {
 		length += x25519.PointSize
 	case PubKeyAlgoX448:
 		length += x448.PointSize
+	case PubKeyAlgoEd25519:
+		length += ed25519.PointSize
+	case PubKeyAlgoEd448:
+		length += ed448.PointSize
 	default:
 		panic("unknown public key algorithm")
 	}
@@ -646,6 +706,22 @@ func (pk *PublicKey) serializeWithoutHeaders(w io.Writer) (err error) {
 		}
 		_, err = w.Write(pk.p.EncodedBytes())
 		return
+	case PubKeyAlgoX25519:
+		publicKey := pk.PublicKey.(*x25519.PublicKey)
+		_, err = w.Write(publicKey.Point)
+		return
+	case PubKeyAlgoX448:
+		publicKey := pk.PublicKey.(*x448.PublicKey)
+		_, err = w.Write(publicKey.Point)
+		return
+	case PubKeyAlgoEd25519:
+		publicKey := pk.PublicKey.(*ed25519.PublicKey)
+		_, err = w.Write(publicKey.Point)
+		return
+	case PubKeyAlgoEd448:
+		publicKey := pk.PublicKey.(*ed448.PublicKey)
+		_, err = w.Write(publicKey.Point)
+		return
 	}
 	return errors.InvalidArgumentError("bad public-key algorithm")
 }
@@ -703,6 +779,18 @@ func (pk *PublicKey) VerifySignature(signed hash.Hash, sig *Signature) (err erro
 		eddsaPublicKey := pk.PublicKey.(*eddsa.PublicKey)
 		if !eddsa.Verify(eddsaPublicKey, hashBytes, sig.EdDSASigR.Bytes(), sig.EdDSASigS.Bytes()) {
 			return errors.SignatureError("EdDSA verification failure")
+		}
+		return nil
+	case PubKeyAlgoEd25519:
+		ed25519PublicKey := pk.PublicKey.(*ed25519.PublicKey)
+		if !ed25519.Verify(ed25519PublicKey, hashBytes, sig.EdSig) {
+			return errors.SignatureError("Ed25519 verification failure")
+		}
+		return nil
+	case PubKeyAlgoEd448:
+		ed448PublicKey := pk.PublicKey.(*ed448.PublicKey)
+		if !ed448.Verify(ed448PublicKey, hashBytes, sig.EdSig) {
+			return errors.SignatureError("ed448 verification failure")
 		}
 		return nil
 	default:
@@ -888,6 +976,14 @@ func (pk *PublicKey) BitLength() (bitLength uint16, err error) {
 		bitLength = pk.p.BitLength()
 	case PubKeyAlgoEdDSA:
 		bitLength = pk.p.BitLength()
+	case PubKeyAlgoX25519:
+		bitLength = x25519.PointSize * 8
+	case PubKeyAlgoX448:
+		bitLength = x448.PointSize * 8
+	case PubKeyAlgoEd25519:
+		bitLength = ed25519.PointSize * 8
+	case PubKeyAlgoEd448:
+		bitLength = ed448.PointSize * 8
 	default:
 		err = errors.InvalidArgumentError("bad public-key algorithm")
 	}

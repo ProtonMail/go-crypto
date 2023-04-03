@@ -411,14 +411,15 @@ const (
 	PubKeyAlgoElGamal PublicKeyAlgorithm = 16
 	PubKeyAlgoDSA     PublicKeyAlgorithm = 17
 	// RFC 6637, Section 5.
-	PubKeyAlgoECDH  PublicKeyAlgorithm = 18
-	PubKeyAlgoECDSA PublicKeyAlgorithm = 19
+	PubKeyAlgoECDH    PublicKeyAlgorithm = 18
+	PubKeyAlgoECDSA   PublicKeyAlgorithm = 19
 	// https://www.ietf.org/archive/id/draft-koch-eddsa-for-openpgp-04.txt
-	PubKeyAlgoEdDSA PublicKeyAlgorithm = 22
+	PubKeyAlgoEdDSA   PublicKeyAlgorithm = 22
 	// https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh
-	PubKeyAlgoX25519 PublicKeyAlgorithm = 25
-	// https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh
-	PubKeyAlgoX448 PublicKeyAlgorithm = 26
+	PubKeyAlgoX25519  PublicKeyAlgorithm = 25
+	PubKeyAlgoX448    PublicKeyAlgorithm = 26
+	PubKeyAlgoEd25519 PublicKeyAlgorithm = 27
+	PubKeyAlgoEd448   PublicKeyAlgorithm = 28
 
 	// Deprecated in RFC 4880, Section 13.5. Use key flags instead.
 	PubKeyAlgoRSAEncryptOnly PublicKeyAlgorithm = 2
@@ -429,7 +430,7 @@ const (
 // key of the given type.
 func (pka PublicKeyAlgorithm) CanEncrypt() bool {
 	switch pka {
-	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoElGamal, PubKeyAlgoECDH:
+	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoElGamal, PubKeyAlgoECDH, PubKeyAlgoX25519, PubKeyAlgoX448:
 		return true
 	}
 	return false
@@ -439,7 +440,7 @@ func (pka PublicKeyAlgorithm) CanEncrypt() bool {
 // sign a message.
 func (pka PublicKeyAlgorithm) CanSign() bool {
 	switch pka {
-	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA:
+	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA, PubKeyAlgoEd25519, PubKeyAlgoEd448:
 		return true
 	}
 	return false

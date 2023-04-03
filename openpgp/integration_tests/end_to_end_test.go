@@ -57,7 +57,7 @@ func TestEndToEnd(t *testing.T) {
 	}
 
 	// Generate random test vectors
-	freshTestVectors, err := generateFreshTestVectors()
+	freshTestVectors, err := generateFreshTestVectors(20)
 	if err != nil {
 		t.Fatal("Cannot proceed without generated keys: " + err.Error())
 	}
