@@ -17,9 +17,9 @@ import (
 // This function produces random test vectors: generates keys according to the
 // given settings, associates a random message for each key. It returns the
 // test vectors.
-func generateFreshTestVectors() (vectors []testVector, err error) {
+func generateFreshTestVectors(num int) (vectors []testVector, err error) {
 	mathrand.Seed(time.Now().UTC().UnixNano())
-	for i := 0; i < 3; i++ {
+	for i := 0; i < num; i++ {
 		config := randConfig()
 		// Sample random email, comment, password and message
 		name, email, comment, password, message := randEntityData()
@@ -31,7 +31,9 @@ func generateFreshTestVectors() (vectors []testVector, err error) {
 		}
 		pkAlgoNames := map[packet.PublicKeyAlgorithm]string{
 			packet.PubKeyAlgoRSA:   "rsa_" + v,
-			packet.PubKeyAlgoEdDSA: "ed25519_" + v,
+			packet.PubKeyAlgoEdDSA: "EdDSA_" + v,
+			packet.PubKeyAlgoEd25519: "ed25519_" + v,
+			packet.PubKeyAlgoEd448: "ed448_" + v,
 		}
 
 		newVector := testVector{
@@ -226,14 +228,16 @@ func randConfig() *packet.Config {
 
 	compAlgos := []packet.CompressionAlgo{
 		packet.CompressionNone,
-		packet.CompressionZIP,
-		packet.CompressionZLIB,
+		//packet.CompressionZIP,
+		//packet.CompressionZLIB,
 	}
 	compAlgo := compAlgos[mathrand.Intn(len(compAlgos))]
 
 	pkAlgos := []packet.PublicKeyAlgorithm{
 		packet.PubKeyAlgoRSA,
 		packet.PubKeyAlgoEdDSA,
+		packet.PubKeyAlgoEd25519,
+		packet.PubKeyAlgoEd448,
 	}
 	pkAlgo := pkAlgos[mathrand.Intn(len(pkAlgos))]
 

@@ -3,6 +3,7 @@ package openpgp
 import (
 	"bytes"
 	"crypto"
+	"strings"
 	"testing"
 
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
@@ -12,7 +13,7 @@ var foreignKeysV6 = []string{
 	v6PrivKey,
 }
 
-/*func TestReadPrivateForeignV6Key(t *testing.T) {
+func TestReadPrivateForeignV6Key(t *testing.T) {
 	for _, str := range foreignKeysV6 {
 		kring, err := ReadArmoredKeyRing(strings.NewReader(str))
 		if err != nil {
@@ -20,7 +21,7 @@ var foreignKeysV6 = []string{
 		}
 		checkV6Key(t, kring[0])
 	}
-}*/ // TODO: need x25519 support
+}
 
 func TestReadPrivateEncryptedV6Key(t *testing.T) {
 	c := &packet.Config{V6Keys: true}

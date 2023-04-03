@@ -21,6 +21,8 @@ import (
 
 	"github.com/ProtonMail/go-crypto/openpgp/ecdh"
 	"github.com/ProtonMail/go-crypto/openpgp/ecdsa"
+	"github.com/ProtonMail/go-crypto/openpgp/ed25519"
+	"github.com/ProtonMail/go-crypto/openpgp/ed448"
 	"github.com/ProtonMail/go-crypto/openpgp/eddsa"
 	"github.com/ProtonMail/go-crypto/openpgp/elgamal"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
@@ -40,7 +42,7 @@ type PrivateKey struct {
 	cipher        CipherFunction
 	s2k           func(out, in []byte)
 	aead          AEADMode // only relevant if S2KAEAD is enabled
-	// An *{rsa|dsa|elgamal|ecdh|ecdsa|ed25519}.PrivateKey or
+	// An *{rsa|dsa|elgamal|ecdh|ecdsa|ed25519|ed448}.PrivateKey or
 	// crypto.Signer/crypto.Decrypter (Decryptor RSA only).
 	PrivateKey   interface{}
 	iv           []byte
@@ -123,6 +125,20 @@ func NewX448PrivateKey(creationTime time.Time, priv *x448.PrivateKey) *PrivateKe
 	return pk
 }
 
+func NewEd25519PrivateKey(creationTime time.Time, priv *ed25519.PrivateKey) *PrivateKey {
+	pk := new(PrivateKey)
+	pk.PublicKey = *NewEd25519PublicKey(creationTime, &priv.PublicKey)
+	pk.PrivateKey = priv
+	return pk
+}
+
+func NewEd448PrivateKey(creationTime time.Time, priv *ed448.PrivateKey) *PrivateKey {
+	pk := new(PrivateKey)
+	pk.PublicKey = *NewEd448PublicKey(creationTime, &priv.PublicKey)
+	pk.PrivateKey = priv
+	return pk
+}
+
 // NewSignerPrivateKey creates a PrivateKey from a crypto.Signer that
 // implements RSA, ECDSA or EdDSA.
 func NewSignerPrivateKey(creationTime time.Time, signer interface{}) *PrivateKey {
@@ -142,6 +158,14 @@ func NewSignerPrivateKey(creationTime time.Time, signer interface{}) *PrivateKey
 		pk.PublicKey = *NewEdDSAPublicKey(creationTime, &pubkey.PublicKey)
 	case eddsa.PrivateKey:
 		pk.PublicKey = *NewEdDSAPublicKey(creationTime, &pubkey.PublicKey)
+	case *ed25519.PrivateKey:
+		pk.PublicKey = *NewEd25519PublicKey(creationTime, &pubkey.PublicKey)
+	case ed25519.PrivateKey:
+		pk.PublicKey = *NewEd25519PublicKey(creationTime, &pubkey.PublicKey)
+	case *ed448.PrivateKey:
+		pk.PublicKey = *NewEd448PublicKey(creationTime, &pubkey.PublicKey)
+	case ed448.PrivateKey:
+		pk.PublicKey = *NewEd448PublicKey(creationTime, &pubkey.PublicKey)
 	default:
 		panic("openpgp: unknown signer type in NewSignerPrivateKey")
 	}
@@ -149,7 +173,7 @@ func NewSignerPrivateKey(creationTime time.Time, signer interface{}) *PrivateKey
 	return pk
 }
 
-// NewDecrypterPrivateKey creates a PrivateKey from a *{rsa|elgamal|ecdh|x25519}.PrivateKey.
+// NewDecrypterPrivateKey creates a PrivateKey from a *{rsa|elgamal|ecdh|x25519|x448}.PrivateKey.
 func NewDecrypterPrivateKey(creationTime time.Time, decrypter interface{}) *PrivateKey {
 	pk := new(PrivateKey)
 	switch priv := decrypter.(type) {
@@ -485,6 +509,16 @@ func serializeX448PrivateKey(w io.Writer, priv *x448.PrivateKey) error {
 	return err
 }
 
+func serializeEd25519PrivateKey(w io.Writer, priv *ed25519.PrivateKey) error {
+	_, err := w.Write(priv.MarshalByteSecret())
+	return err
+}
+
+func serializeEd448PrivateKey(w io.Writer, priv *ed448.PrivateKey) error {
+	_, err := w.Write(priv.MarshalByteSecret())
+	return err
+}
+
 // decrypt decrypts an encrypted private key using a decryption key.
 func (pk *PrivateKey) decrypt(decryptionKey []byte) error {
 	if pk.Dummy() {
@@ -767,6 +801,10 @@ func (pk *PrivateKey) serializePrivateKey(w io.Writer) (err error) {
 		err = serializeX25519PrivateKey(w, priv)
 	case *x448.PrivateKey:
 		err = serializeX448PrivateKey(w, priv)
+	case *ed25519.PrivateKey:
+		err = serializeEd25519PrivateKey(w, priv)
+	case *ed448.PrivateKey:
+		err = serializeEd448PrivateKey(w, priv)
 	default:
 		err = errors.InvalidArgumentError("unknown private key type")
 	}
@@ -791,6 +829,10 @@ func (pk *PrivateKey) parsePrivateKey(data []byte) (err error) {
 		return pk.parseX25519PrivateKey(data)
 	case PubKeyAlgoX448:
 		return pk.parseX448PrivateKey(data)
+	case PubKeyAlgoEd25519:
+		return pk.parseEd25519PrivateKey(data)
+	case PubKeyAlgoEd448:
+		return pk.parseEd448PrivateKey(data)
 	default:
 		err = errors.InvalidArgumentError("unknown private key type")
 		return
@@ -946,6 +988,46 @@ func (pk *PrivateKey) parseX448PrivateKey(data []byte) (err error) {
 	}
 	copy(privateKey.Secret, data)
 	err = x448.Validate(privateKey)
+	if err != nil {
+		return err
+	}
+	pk.PrivateKey = privateKey
+	return nil
+}
+
+func (pk *PrivateKey) parseEd25519PrivateKey(data []byte) (err error) {
+	publicKey := pk.PublicKey.PublicKey.(*ed25519.PublicKey)
+	privateKey := ed25519.NewPrivateKey(*publicKey)
+	privateKey.PublicKey = *publicKey
+
+	if len(data) != ed25519.PointSize {
+		err = errors.StructuralError("wrong ed25519 key size")
+	}
+	err = privateKey.UnmarshalByteSecret(data)
+	if err != nil {
+		return err
+	}
+	err = ed25519.Validate(privateKey)
+	if err != nil {
+		return err
+	}
+	pk.PrivateKey = privateKey
+	return nil
+}
+
+func (pk *PrivateKey) parseEd448PrivateKey(data []byte) (err error) {
+	publicKey := pk.PublicKey.PublicKey.(*ed448.PublicKey)
+	privateKey := ed448.NewPrivateKey(*publicKey)
+	privateKey.PublicKey = *publicKey
+
+	if len(data) != ed448.PointSize {
+		err = errors.StructuralError("wrong ed448 key size")
+	}
+	err = privateKey.UnmarshalByteSecret(data)
+	if err != nil {
+		return err
+	}
+	err = ed448.Validate(privateKey)
 	if err != nil {
 		return err
 	}
