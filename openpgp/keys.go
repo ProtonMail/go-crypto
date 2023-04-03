@@ -321,8 +321,7 @@ type EntityList []*Entity
 func (el EntityList) KeysById(id uint64) (keys []Key) {
 	for _, e := range el {
 		if e.PrimaryKey.KeyId == id {
-			ident := e.PrimaryIdentity()
-			selfSig := ident.SelfSignature
+			selfSig, _ := e.primarySelfSignature()
 			keys = append(keys, Key{e, e.PrimaryKey, e.PrivateKey, selfSig, e.Revocations})
 		}
 
