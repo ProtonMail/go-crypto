@@ -173,7 +173,7 @@ func TestExternalPrivateKeyEncryptDecryptS2KModes(t *testing.T) {
 					// Encrypt with another (possibly empty) password
 					randomPassword := make([]byte, mathrand.Intn(30))
 					rand.Read(randomPassword)
-					err = privKey.encryptWithConfig(randomPassword, config)
+					err = privKey.EncryptWithConfig(randomPassword, config)
 					if err != nil {
 						t.Errorf("#%d: failed to encrypt: %s", i, err)
 						continue
