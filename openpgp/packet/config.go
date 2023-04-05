@@ -59,9 +59,6 @@ type Config struct {
 	// This config allows to set this key encryption parameters.
 	// If nil, the default parameters are used.
 	// See OpenPGP crypto refresh 3.7.2.1.
-	S2KSecretKey *S2KType
-	// RSABits is the number of bits in new RSA keys made with NewEntity.
-	// If zero, then 2048 bit keys are created.
 	RSABits int
 	// The public key algorithm to use - will always create a signing primary
 	// key and encryption subkey.
@@ -251,11 +248,4 @@ func (c *Config) Notations() []*Notation {
 		return nil
 	}
 	return c.SignatureNotations
-}
-
-func (c *Config) S2KKey() S2KType {
-	if c == nil || c.S2KSecretKey == nil {
-		return S2KSHA1
-	}
-	return *c.S2KSecretKey
 }
