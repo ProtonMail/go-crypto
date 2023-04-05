@@ -730,13 +730,15 @@ func (pk *PrivateKey) EncryptWithConfig(passphrase []byte, config *Config) error
 		return err
 	}
 	s2k(key, passphrase)
-	if config.S2KKey() == S2KAEAD {
+	s2kType := S2KSHA1
+	if config.AEAD() != nil {
+		s2kType = S2KAEAD
 		pk.aead = config.AEAD().Mode()
 		pk.cipher = config.Cipher()
 		key = pk.applyHKDF(key)
 	}
 	// Encrypt the private key with the derived encryption key.
-	return pk.encrypt(key, params, config.S2KKey(), config.Cipher(), config.Random())
+	return pk.encrypt(key, params, s2kType, config.Cipher(), config.Random())
 }
 
 // EncryptPrivateKeys encrypts all unencrypted keys with the given config and passphrase.
@@ -755,12 +757,14 @@ func EncryptPrivateKeys(keys []*PrivateKey, passphrase []byte, config *Config) e
 	s2k(encryptionKey, passphrase)
 	for _, key := range keys {
 		if key != nil && !key.Dummy() && !key.Encrypted {
-			if config.S2KKey() == S2KAEAD {
+			s2kType := S2KSHA1
+			if config.AEAD() != nil {
+				s2kType = S2KAEAD
 				key.aead = config.AEAD().Mode()
 				key.cipher = config.Cipher()
 				encryptionKey = key.applyHKDF(encryptionKey)
 			}
-			err = key.encrypt(encryptionKey, params, config.S2KKey(), config.Cipher(), config.Random())
+			err = key.encrypt(encryptionKey, params, s2kType, config.Cipher(), config.Random())
 			if err != nil {
 				return err
 			}
