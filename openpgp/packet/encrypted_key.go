@@ -321,6 +321,16 @@ func SerializeEncryptedKey(w io.Writer, pub *PublicKey, cipherFunc CipherFunctio
 	if version == 6 && pub.PubKeyAlgo == PubKeyAlgoElGamal {
 		return errors.InvalidArgumentError("ElGamal v6 PKESK are not allowed")
 	}
+	// In v3 PKESKs, for X25519 and X448, mandate using AES
+	if version == 3 && (pub.PubKeyAlgo == PubKeyAlgoX25519 || pub.PubKeyAlgo == PubKeyAlgoX448) {
+		switch cipherFunc {
+		case CipherAES128, CipherAES192, CipherAES256:
+			break
+		default:
+			return errors.InvalidArgumentError("v3 PKESK mandates AES for x25519 and x448")
+		}
+	}
+
 	buf[0] = byte(version)
 
 	if version == 6 {
