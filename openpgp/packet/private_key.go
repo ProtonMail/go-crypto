@@ -12,6 +12,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha1"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"math/big"
@@ -42,7 +43,7 @@ type PrivateKey struct {
 	iv           []byte
 
 	// Type of encryption of the S2K packet
-	// Allowed values are 0 (Not encrypted), 254 (SHA1), or
+	// Allowed values are 0 (Not encrypted), 253 AEAD, 254 (SHA1), or
 	// 255 (2-byte checksum)
 	s2kType S2KType
 	// Full parameters of the S2K packet
@@ -55,6 +56,8 @@ type S2KType uint8
 const (
 	// S2KNON unencrypt
 	S2KNON S2KType = 0
+	// S2KAEAD use authenticated encryption
+	S2KAEAD S2KType = 253
 	// S2KSHA1 sha1 sum check
 	S2KSHA1 S2KType = 254
 	// S2KCHECKSUM sum check
@@ -152,6 +155,7 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 		return
 	}
 	v5 := pk.PublicKey.Version == 5
+	v6 := pk.PublicKey.Version == 6
 
 	var buf [1]byte
 	_, err = readFull(r, buf[:])
@@ -160,7 +164,7 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 	}
 	pk.s2kType = S2KType(buf[0])
 	var optCount [1]byte
-	if v5 {
+	if v5 || (v6 && pk.s2kType != S2KNON) {
 		if _, err = readFull(r, optCount[:]); err != nil {
 			return
 		}
@@ -170,9 +174,9 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 	case S2KNON:
 		pk.s2k = nil
 		pk.Encrypted = false
-	case S2KSHA1, S2KCHECKSUM:
-		if v5 && pk.s2kType == S2KCHECKSUM {
-			return errors.StructuralError("wrong s2k identifier for version 5")
+	case S2KSHA1, S2KCHECKSUM, S2KAEAD:
+		if (v5 || v6) && pk.s2kType == S2KCHECKSUM {
+			return errors.StructuralError(fmt.Sprintf("wrong s2k identifier for version %d", pk.Version))
 		}
 		_, err = readFull(r, buf[:])
 		if err != nil {
@@ -182,6 +186,26 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 		if pk.cipher != 0 && !pk.cipher.IsSupported() {
 			return errors.UnsupportedError("unsupported cipher function in private key")
 		}
+		// [Optional] If string-to-key usage octet was 253, 
+		// a one-octet AEAD algorithm.
+		if pk.s2kType == S2KAEAD {
+			_, err = readFull(r, buf[:])
+			if err != nil {
+				return
+			}
+			// TODO: Set aead fields accordingly
+		}
+
+		// [Optional] Only for a version 6 packet, 
+		// and if string-to-key usage octet was 255, 254, or 253,
+		// an one-octet count of the following field.
+		if v6 {
+			_, err = readFull(r, buf[:])
+			if err != nil {
+				return
+			}
+		}
+
 		pk.s2kParams, err = s2k.ParseIntoParams(r)
 		if err != nil {
 			return
@@ -203,6 +227,7 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 
 	if pk.Encrypted {
 		blockSize := pk.cipher.blockSize()
+		// TODO: if pk.s2kType == S2KAEAD use aead nonce size here 
 		if blockSize == 0 {
 			return errors.UnsupportedError("unsupported cipher in private key: " + strconv.Itoa(int(pk.cipher)))
 		}
@@ -278,19 +303,34 @@ func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 		return
 	}
 
+	
+
 	optional := bytes.NewBuffer(nil)
 	if pk.Encrypted || pk.Dummy() {
 		optional.Write([]byte{uint8(pk.cipher)})
-		if err := pk.s2kParams.Serialize(optional); err != nil {
+
+		if pk.s2kType == S2KAEAD {
+			// Write a one-octet AEAD algorithm.
+		}
+
+		s2kBuffer := bytes.NewBuffer(nil)
+		if err := pk.s2kParams.Serialize(s2kBuffer); err != nil {
 			return err
 		}
+		if pk.Version == 6 {
+			optional.Write([]byte{uint8(s2kBuffer.Len())})
+		} 
+		io.Copy(optional, s2kBuffer)
+
 		if pk.Encrypted {
+			// TODO: different field for AEAD?
 			optional.Write(pk.iv)
 		}
 	}
-	if pk.Version == 5 {
+	if pk.Version == 5 || (pk.Version == 6 && pk.s2kType != S2KNON) {
 		contents.Write([]byte{uint8(optional.Len())})
 	}
+
 	io.Copy(contents, optional)
 
 	if !pk.Dummy() {
