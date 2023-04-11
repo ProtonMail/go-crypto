@@ -61,6 +61,14 @@ func (pk *PublicKey) UpgradeToV5() {
 	pk.setFingerprintAndKeyId()
 }
 
+// UpgradeToV6 updates the version of the key to v6, and updates all necessary
+// fields.
+func (pk *PublicKey) UpgradeToV6() {
+	pk.Version = 6
+	pk.setFingerprintAndKeyId()
+}
+
+
 // signingKey provides a convenient abstraction over signature verification
 // for v3 and v4 public keys.
 type signingKey interface {
@@ -181,12 +189,14 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	if buf[0] != 4 && buf[0] != 5 {
+	if buf[0] != 4 && buf[0] != 5 && buf[0] != 6 {
 		return errors.UnsupportedError("public key version " + strconv.Itoa(int(buf[0])))
 	}
 
 	pk.Version = int(buf[0])
-	if pk.Version == 5 {
+	if pk.Version >= 5 {
+		// Read the four-octet scalar octet count
+		// The count is not used in this implementation
 		var n [4]byte
 		_, err = readFull(r, n[:])
 		if err != nil {
@@ -195,6 +205,7 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 	}
 	pk.CreationTime = time.Unix(int64(uint32(buf[1])<<24|uint32(buf[2])<<16|uint32(buf[3])<<8|uint32(buf[4])), 0)
 	pk.PubKeyAlgo = PublicKeyAlgorithm(buf[5])
+	// Ignore four-ocet 
 	switch pk.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoRSASignOnly:
 		err = pk.parseRSA(r)
@@ -221,7 +232,7 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 
 func (pk *PublicKey) setFingerprintAndKeyId() {
 	// RFC 4880, section 12.2
-	if pk.Version == 5 {
+	if pk.Version >= 5 {
 		fingerprint := sha256.New()
 		pk.SerializeForHash(fingerprint)
 		pk.Fingerprint = make([]byte, 32)
@@ -443,10 +454,10 @@ func (pk *PublicKey) SerializeForHash(w io.Writer) error {
 // RFC 4880, section 5.2.4.
 func (pk *PublicKey) SerializeSignaturePrefix(w io.Writer) {
 	var pLength = pk.algorithmSpecificByteCount()
-	if pk.Version == 5 {
+	if pk.Version >= 5 {
 		pLength += 10 // version, timestamp (4), algorithm, key octet count (4).
 		w.Write([]byte{
-			0x9A,
+			0x95 + byte(pk.Version),
 			byte(pLength >> 24),
 			byte(pLength >> 16),
 			byte(pLength >> 8),
@@ -461,7 +472,7 @@ func (pk *PublicKey) SerializeSignaturePrefix(w io.Writer) {
 func (pk *PublicKey) Serialize(w io.Writer) (err error) {
 	length := 6 // 6 byte header
 	length += pk.algorithmSpecificByteCount()
-	if pk.Version == 5 {
+	if pk.Version >= 5 {
 		length += 4 // octet key count
 	}
 	packetType := packetTypePublicKey
@@ -518,7 +529,7 @@ func (pk *PublicKey) serializeWithoutHeaders(w io.Writer) (err error) {
 		return
 	}
 
-	if pk.Version == 5 {
+	if pk.Version >= 5 {
 		n := pk.algorithmSpecificByteCount()
 		if _, err = w.Write([]byte{
 			byte(n >> 24), byte(n >> 16), byte(n >> 8), byte(n),
