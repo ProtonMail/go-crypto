@@ -577,7 +577,7 @@ func CheckArmoredDetachedSignature(keyring KeyRing, signed, signature io.Reader,
 // ignore any other errors.
 func checkSignatureDetails(key *Key, signature *packet.Signature, config *packet.Config) error {
 	now := config.Now()
-	primarySelfSignature, primaryIdentity := key.Entity.primarySelfSignature()
+	primarySelfSignature, primaryIdentity := key.Entity.PrimarySelfSignature()
 	signedBySubKey := key.PublicKey != key.Entity.PrimaryKey
 	sigsToCheck := []*packet.Signature{ signature, primarySelfSignature }
 	if signedBySubKey {

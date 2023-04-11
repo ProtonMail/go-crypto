@@ -125,7 +125,7 @@ func shouldPreferSelfSignature(existingSignature, potentialSignature *packet.Sig
 // given Entity.
 func (e *Entity) EncryptionKey(now time.Time) (Key, bool) {
 	// Fail to find any encryption key if the...
-	primarySelfSignature, primaryIdentity := e.primarySelfSignature()
+	primarySelfSignature, primaryIdentity := e.PrimarySelfSignature()
 	if primarySelfSignature == nil || // no self-signature found
 		e.PrimaryKey.KeyExpired(primarySelfSignature, now) || // primary key has expired
 		e.Revoked(now) || // primary key has been revoked
@@ -190,7 +190,7 @@ func (e *Entity) SigningKeyById(now time.Time, id uint64) (Key, bool) {
 
 func (e *Entity) signingKeyByIdUsage(now time.Time, id uint64, flags int) (Key, bool) {
 	// Fail to find any signing key if the...
-	primarySelfSignature, primaryIdentity := e.primarySelfSignature()
+	primarySelfSignature, primaryIdentity := e.PrimarySelfSignature()
 	if  primarySelfSignature == nil || // no self-signature found
 		e.PrimaryKey.KeyExpired(primarySelfSignature, now) || // primary key has expired
 		e.Revoked(now) || // primary key has been revoked 
@@ -321,7 +321,7 @@ type EntityList []*Entity
 func (el EntityList) KeysById(id uint64) (keys []Key) {
 	for _, e := range el {
 		if e.PrimaryKey.KeyId == id {
-			selfSig, _ := e.primarySelfSignature()
+			selfSig, _ := e.PrimarySelfSignature()
 			keys = append(keys, Key{e, e.PrimaryKey, e.PrivateKey, selfSig, e.Revocations})
 		}
 
@@ -883,7 +883,7 @@ func (e *Entity) primaryDirectSignature() *packet.Signature {
 // For V6 keys, returns the latest valid direct-key self-signature, and no identity (nil).
 // This self-signature is to be used to check the key expiration,
 // algorithm preferences, and so on.
-func (e *Entity) primarySelfSignature() (*packet.Signature, *Identity) {
+func (e *Entity) PrimarySelfSignature() (*packet.Signature, *Identity) {
 	if e.PrimaryKey.Version == 6 {
 		return e.primaryDirectSignature(), nil
 	}
