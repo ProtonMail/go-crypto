@@ -398,7 +398,7 @@ func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *En
 			return nil, errors.InvalidArgumentError("cannot encrypt a message to key id " + strconv.FormatUint(to[i].PrimaryKey.KeyId, 16) + " because it has no valid encryption keys")
 		}
 
-		primarySelfSignature, _ := to[i].primarySelfSignature()
+		primarySelfSignature, _ := to[i].PrimarySelfSignature()
 		if primarySelfSignature == nil {
 			return nil, errors.InvalidArgumentError("entity without a self-signature")
 		}
@@ -487,7 +487,7 @@ func Sign(output io.Writer, signed *Entity, hints *FileHints, config *packet.Con
 		hashToHashId(crypto.SHA3_512),
 	}
 	defaultHashes := candidateHashes[0:1]
-	primarySelfSignature, _ := signed.primarySelfSignature()
+	primarySelfSignature, _ := signed.PrimarySelfSignature()
 	if primarySelfSignature == nil {
 		return nil, errors.InvalidArgumentError("signed entity has no self-signature")
 	}
