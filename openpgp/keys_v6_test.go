@@ -11,6 +11,7 @@ import (
 
 var foreignKeysV6 = []string{
 	v6PrivKey,
+	v6ArgonSealedPrivKey,
 }
 
 func TestReadPrivateForeignV6Key(t *testing.T) {
@@ -21,6 +22,28 @@ func TestReadPrivateForeignV6Key(t *testing.T) {
 		}
 		checkV6Key(t, kring[0])
 	}
+}
+
+func TestReadPrivateForeignV6KeyAndDecrypt(t *testing.T) {
+	password := []byte("correct horse battery staple")
+	kring, err := ReadArmoredKeyRing(strings.NewReader(v6ArgonSealedPrivKey))
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := kring[0]
+	if key.PrivateKey != nil && key.PrivateKey.Encrypted {
+		if err := key.PrivateKey.Decrypt(password); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, sub := range key.Subkeys {
+		if sub.PrivateKey != nil && sub.PrivateKey.Encrypted {
+			if err := key.PrivateKey.Decrypt(password); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	checkV6Key(t, kring[0])
 }
 
 func TestReadPrivateEncryptedV6Key(t *testing.T) {
