@@ -13,6 +13,7 @@ import (
 	"bufio"
 	"bytes"
 	"crypto"
+	"encoding/base64"
 	"fmt"
 	"hash"
 	"io"
@@ -29,6 +30,7 @@ import (
 // A Block represents a clearsigned message. A signature on a Block can
 // be checked by calling Block.VerifySignature.
 type Block struct {
+	V6				 bool                 // Indicates if a v6 header is present
 	Headers          textproto.MIMEHeader // Optional unverified Hash headers
 	Plaintext        []byte               // The original message text
 	Bytes            []byte               // The signed message
@@ -127,10 +129,22 @@ func Decode(data []byte) (b *Block, rest []byte) {
 
 		key, val := string(line[0:i]), string(line[i+1:])
 		key = strings.TrimSpace(key)
-		if key != "Hash" {
+		if key != "Hash" && key != "SaltedHash" {
 			return nil, data
 		}
-		for _, val := range strings.Split(val, ",") {
+		if key == "Hash" {
+			if b.V6 {
+				return nil, data
+			}
+			for _, val := range strings.Split(val, ",") {
+				val = strings.TrimSpace(val)
+				b.Headers.Add(key, val)
+			}
+		} else if key == "SaltedHash" {
+			if !b.V6 && len(b.Headers) > 0 {
+				return nil, data
+			}
+			b.V6 = true
 			val = strings.TrimSpace(val)
 			b.Headers.Add(key, val)
 		}
@@ -203,6 +217,7 @@ type dashEscaper struct {
 	hashers  []hash.Hash // one per key in privateKeys
 	hashType crypto.Hash
 	toHash   io.Writer // writes to all the hashes in hashers
+	salts    [][]byte  // salts for the signatures if v6 
 
 	atBeginningOfLine bool
 	isFirstLine       bool
@@ -288,6 +303,7 @@ func (d *dashEscaper) Write(data []byte) (n int, err error) {
 }
 
 func (d *dashEscaper) Close() (err error) {
+	v6 := len(d.salts) != 0
 	if !d.atBeginningOfLine {
 		if err = d.buffered.WriteByte(lf); err != nil {
 			return
@@ -300,8 +316,13 @@ func (d *dashEscaper) Close() (err error) {
 	}
 
 	t := d.config.Now()
+	sigVersion := 4
+	if v6 {
+		sigVersion = 6
+	}
 	for i, k := range d.privateKeys {
 		sig := new(packet.Signature)
+		sig.Version = sigVersion
 		sig.SigType = packet.SigTypeText
 		sig.PubKeyAlgo = k.PubKeyAlgo
 		sig.Hash = d.hashType
@@ -311,7 +332,11 @@ func (d *dashEscaper) Close() (err error) {
 		sig.Notations = d.config.Notations()
 		sigLifetimeSecs := d.config.SigLifetime()
 		sig.SigLifetimeSecs = &sigLifetimeSecs
-
+		if v6 {
+			if err = sig.PrepareSignWithSalt(d.salts[i]); err != nil {
+				return
+			}
+		}
 		if err = sig.Sign(d.hashers[i], k, d.config); err != nil {
 			return
 		}
@@ -339,11 +364,19 @@ func Encode(w io.Writer, privateKey *packet.PrivateKey, config *packet.Config) (
 // private keys indicated and write it to w. If config is nil, sensible defaults
 // are used.
 func EncodeMulti(w io.Writer, privateKeys []*packet.PrivateKey, config *packet.Config) (plaintext io.WriteCloser, err error) {
+	keyVersion := -1
 	for _, k := range privateKeys {
 		if k.Encrypted {
 			return nil, errors.InvalidArgumentError(fmt.Sprintf("signing key %s is encrypted", k.KeyIdString()))
 		}
+		if keyVersion == -1 {
+			keyVersion = k.Version
+		}
+		if keyVersion != k.Version {
+			return nil, errors.InvalidArgumentError("the signing keys must have the same version")
+		}
 	}
+	v6 := keyVersion == 6
 
 	hashType := config.Hash()
 	name := nameOfHash(hashType)
@@ -356,8 +389,21 @@ func EncodeMulti(w io.Writer, privateKeys []*packet.PrivateKey, config *packet.C
 	}
 	var hashers []hash.Hash
 	var ws []io.Writer
+	var salts [][]byte
 	for range privateKeys {
 		h := hashType.New()
+		if v6 {
+			// generate salts
+			var salt []byte
+			salt, err = packet.SignatureSaltForHash(hashType, config.Random())
+			if err != nil {
+				return 
+			}
+			if _, err = h.Write(salt); err != nil {
+				return 
+			}
+			salts = append(salts, salt)
+		}
 		hashers = append(hashers, h)
 		ws = append(ws, h)
 	}
@@ -371,11 +417,30 @@ func EncodeMulti(w io.Writer, privateKeys []*packet.PrivateKey, config *packet.C
 	if err = buffered.WriteByte(lf); err != nil {
 		return
 	}
-	if _, err = buffered.WriteString("Hash: "); err != nil {
-		return
-	}
-	if _, err = buffered.WriteString(name); err != nil {
-		return
+	if v6 {
+		for index, salt := range salts {
+			if _, err = buffered.WriteString("SaltedHash: "); err != nil {
+				return
+			}
+			if _, err = buffered.WriteString(fmt.Sprintf("%s:", name)); err != nil {
+				return
+			}
+			if _, err = buffered.WriteString(base64.RawStdEncoding.EncodeToString(salt)); err != nil {
+				return
+			}
+			if index != len(salts) - 1 {
+				if err = buffered.WriteByte(lf); err != nil {
+					return
+				}
+			}
+		}
+	} else {
+		if _, err = buffered.WriteString("Hash: "); err != nil {
+			return
+		}
+		if _, err = buffered.WriteString(name); err != nil {
+			return
+		}
 	}
 	if err = buffered.WriteByte(lf); err != nil {
 		return
@@ -389,6 +454,7 @@ func EncodeMulti(w io.Writer, privateKeys []*packet.PrivateKey, config *packet.C
 		hashers:  hashers,
 		hashType: hashType,
 		toHash:   toHash,
+		salts:    salts,
 
 		atBeginningOfLine: true,
 		isFirstLine:       true,
@@ -406,19 +472,35 @@ func EncodeMulti(w io.Writer, privateKeys []*packet.PrivateKey, config *packet.C
 // hash algorithm in the header matches the hash algorithm in the signature.
 func (b *Block) VerifySignature(keyring openpgp.KeyRing, config *packet.Config) (signer *openpgp.Entity, err error) {
 	var expectedHashes []crypto.Hash
-	for _, v := range b.Headers {
-		for _, name := range v {
-			expectedHash := nameToHash(name)
+	expectedSalts := [][]byte{}
+	if b.V6 {
+		for _, value := range b.Headers["Saltedhash"] {
+			expectedHash, expectedSalt := getAlgorithmAndSalt(value)
 			if uint8(expectedHash) == 0 {
 				return nil, errors.StructuralError("unknown hash algorithm in cleartext message headers")
-			}
+			} 
 			expectedHashes = append(expectedHashes, expectedHash)
+			expectedSalts = append(expectedSalts, expectedSalt)
+		}
+	} else {
+		expectedSalts = nil
+		for _, v := range b.Headers {
+			for _, name := range v {
+				expectedHash := nameToHash(name)
+				if uint8(expectedHash) == 0 {
+					return nil, errors.StructuralError("unknown hash algorithm in cleartext message headers")
+				}
+				expectedHashes = append(expectedHashes, expectedHash)
+			}
 		}
 	}
+	// If neither a "Hash" nor a "SaltedHash" Armor Header is given, or the message 
+	// digest algorithms (and salts) used in the signatures do not match the information in the headers, 
+	// the signature MUST be considered invalid.
 	if len(expectedHashes) == 0 {
-		expectedHashes = append(expectedHashes, crypto.MD5)
+		return nil, errors.StructuralError("no Hash or SaltedHash header present in message")
 	}
-	return openpgp.CheckDetachedSignatureAndHash(keyring, bytes.NewBuffer(b.Bytes), b.ArmoredSignature.Body, expectedHashes, config)
+	return openpgp.CheckDetachedSignatureAndHash(keyring, bytes.NewBuffer(b.Bytes), b.ArmoredSignature.Body, expectedHashes, expectedSalts, config)
 }
 
 // nameOfHash returns the OpenPGP name for the given hash, or the empty string
@@ -461,4 +543,17 @@ func nameToHash(h string) crypto.Hash {
 		return crypto.SHA3_512
 	}
 	return crypto.Hash(0)
+}
+
+func getAlgorithmAndSalt(value string) (crypto.Hash, []byte) {
+	params := strings.Split(value, ":")
+	if len(params) != 2 {
+		return crypto.Hash(0), nil
+	}
+	algo := nameToHash(strings.TrimSpace(params[0]))
+	salt, err := base64.RawStdEncoding.DecodeString(strings.TrimSpace(params[1]))
+	if err != nil {
+		return crypto.Hash(0), nil
+	}
+	return algo, salt
 }
