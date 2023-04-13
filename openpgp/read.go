@@ -6,6 +6,7 @@
 package openpgp // import "github.com/ProtonMail/go-crypto/openpgp"
 
 import (
+	"bytes"
 	"crypto"
 	_ "crypto/sha256"
 	_ "crypto/sha512"
@@ -449,13 +450,13 @@ func (scr *signatureCheckReader) Read(buf []byte) (int, error) {
 // If the signer isn't known, ErrUnknownIssuer is returned.
 func VerifyDetachedSignature(keyring KeyRing, signed, signature io.Reader, config *packet.Config) (sig *packet.Signature, signer *Entity, err error) {
 	var expectedHashes []crypto.Hash
-	return verifyDetachedSignature(keyring, signed, signature, expectedHashes, config)
+	return verifyDetachedSignature(keyring, signed, signature, expectedHashes, nil, config)
 }
 
 // VerifyDetachedSignatureAndHash performs the same actions as
 // VerifyDetachedSignature and checks that the expected hash functions were used.
 func VerifyDetachedSignatureAndHash(keyring KeyRing, signed, signature io.Reader, expectedHashes []crypto.Hash, config *packet.Config) (sig *packet.Signature, signer *Entity, err error) {
-	return verifyDetachedSignature(keyring, signed, signature, expectedHashes, config)
+	return verifyDetachedSignature(keyring, signed, signature, expectedHashes, nil,  config)
 }
 
 // CheckDetachedSignature takes a signed file and a detached signature and
@@ -464,17 +465,19 @@ func VerifyDetachedSignatureAndHash(keyring KeyRing, signed, signature io.Reader
 // ErrUnknownIssuer is returned.
 func CheckDetachedSignature(keyring KeyRing, signed, signature io.Reader, config *packet.Config) (signer *Entity, err error) {
 	var expectedHashes []crypto.Hash
-	return CheckDetachedSignatureAndHash(keyring, signed, signature, expectedHashes, config)
+	return CheckDetachedSignatureAndHash(keyring, signed, signature, expectedHashes, nil, config)
 }
 
 // CheckDetachedSignatureAndHash performs the same actions as
 // CheckDetachedSignature and checks that the expected hash functions were used.
-func CheckDetachedSignatureAndHash(keyring KeyRing, signed, signature io.Reader, expectedHashes []crypto.Hash, config *packet.Config) (signer *Entity, err error) {
-	_, signer, err = verifyDetachedSignature(keyring, signed, signature, expectedHashes, config)
+// If expectedSalts is not nil, it additionally checks that the signature is version 6 and contains 
+// the expected salt for the given hash.
+func CheckDetachedSignatureAndHash(keyring KeyRing, signed, signature io.Reader, expectedHashes []crypto.Hash, expectedSalts [][]byte, config *packet.Config) (signer *Entity, err error) {
+	_, signer, err = verifyDetachedSignature(keyring, signed, signature, expectedHashes, expectedSalts, config)
 	return
 }
 
-func verifyDetachedSignature(keyring KeyRing, signed, signature io.Reader, expectedHashes []crypto.Hash, config *packet.Config) (sig *packet.Signature, signer *Entity, err error) {
+func verifyDetachedSignature(keyring KeyRing, signed, signature io.Reader, expectedHashes []crypto.Hash, expectedSalts [][]byte, config *packet.Config) (sig *packet.Signature, signer *Entity, err error) {
 	var issuerKeyId uint64
 	var hashFunc crypto.Hash
 	var sigType packet.SignatureType
@@ -503,13 +506,28 @@ func verifyDetachedSignature(keyring KeyRing, signed, signature io.Reader, expec
 		issuerKeyId = *sig.IssuerKeyId
 		hashFunc = sig.Hash
 		sigType = sig.SigType
-
-		for i, expectedHash := range expectedHashes {
-			if hashFunc == expectedHash {
-				break
+		if expectedSalts != nil {
+			// signature should be v6
+			if sig.Version != 6 {
+				return nil, nil, errors.StructuralError("expected version 6 signature")
 			}
-			if i+1 == expectedHashesLen {
-				return nil, nil, errors.StructuralError("hash algorithm mismatch with cleartext message headers")
+			for i, expectedHash := range expectedHashes {
+				expectedSalt := expectedSalts[i]
+				if hashFunc == expectedHash && bytes.Equal(sig.Salt(), expectedSalt){
+					break
+				}
+				if i+1 == expectedHashesLen {
+					return nil, nil, errors.StructuralError("hash algorithm and salt mismatch with cleartext message headers")
+				}
+			}
+		} else {
+			for i, expectedHash := range expectedHashes {
+				if hashFunc == expectedHash {
+					break
+				}
+				if i+1 == expectedHashesLen {
+					return nil, nil, errors.StructuralError("hash algorithm mismatch with cleartext message headers")
+				}
 			}
 		}
 
