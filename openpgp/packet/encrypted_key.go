@@ -308,8 +308,9 @@ func (e *EncryptedKey) Serialize(w io.Writer) error {
 
 // SerializeEncryptedKey serializes an encrypted key packet to w that contains
 // key, encrypted to pub.
+// If aeadSupported is set, PKESK v6 is used else v4.
 // If config is nil, sensible defaults will be used.
-func SerializeEncryptedKey(w io.Writer, pub *PublicKey, cipherFunc CipherFunction, aeadSupported bool, key []byte, config *Config) error {
+func SerializeEncryptedKeyAEAD(w io.Writer, pub *PublicKey, cipherFunc CipherFunction, aeadSupported bool, key []byte, config *Config) error {
 	var buf [35]byte // max possible header size is v6
 	lenHeaderWritten := 1
 	version := 3
@@ -399,6 +400,14 @@ func SerializeEncryptedKey(w io.Writer, pub *PublicKey, cipherFunc CipherFunctio
 	}
 
 	return errors.UnsupportedError("encrypting a key to public key of type " + strconv.Itoa(int(pub.PubKeyAlgo)))
+}
+
+// SerializeEncryptedKey serializes an encrypted key packet to w that contains
+// key, encrypted to pub.
+// PKESKv6 is used if config.AEAD() is not nil. 
+// If config is nil, sensible defaults will be used.
+func SerializeEncryptedKey(w io.Writer, pub *PublicKey, cipherFunc CipherFunction, key []byte, config *Config) error {
+	return SerializeEncryptedKeyAEAD(w, pub, cipherFunc, config.AEAD()!=nil, key, config)
 }
 
 func serializeEncryptedKeyRSA(w io.Writer, rand io.Reader, header []byte, pub *rsa.PublicKey, keyBlock []byte) error {
