@@ -126,7 +126,7 @@ func (ske *SymmetricKeyEncrypted) Decrypt(passphrase []byte) ([]byte, CipherFunc
 		plaintextKey, cipherFunc, err := ske.decryptV4(key)
 		return plaintextKey, cipherFunc, err
 	case 5, 6:
-		plaintextKey, err := ske.decryptWithV5orV6(ske.Version, key)
+		plaintextKey, err := ske.aeadDecrypt(ske.Version, key)
 		return plaintextKey, CipherFunction(0), err
 	}
 	err := errors.UnsupportedError("unknown SymmetricKeyEncrypted version")
@@ -152,7 +152,7 @@ func (ske *SymmetricKeyEncrypted) decryptV4(key []byte) ([]byte, CipherFunction,
 	return plaintextKey, cipherFunc, nil
 }
 
-func (ske *SymmetricKeyEncrypted) decryptWithV5orV6(version int, key []byte) ([]byte, error) {
+func (ske *SymmetricKeyEncrypted) aeadDecrypt(version int, key []byte) ([]byte, error) {
 	adata := []byte{0xc3, byte(version), byte(ske.CipherFunc), byte(ske.Mode)}
 	aead := getEncryptedKeyAeadInstance(ske.CipherFunc, ske.Mode, key, adata, version)
 
