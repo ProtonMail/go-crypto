@@ -96,6 +96,11 @@ func TestVerifyV6(t *testing.T) {
 	if err != nil {
 		t.Errorf("failed to verify signature: %s", err)
 	}
+	b, _ = Decode([]byte(clearSignV6Error))
+	_, err = b.VerifySignature(keyring, nil)
+	if err == nil {
+		t.Error("signature with no salted header should be invalid")
+	}
 }
 
 func TestSigning(t *testing.T) {
@@ -153,7 +158,6 @@ func (qr *quickRand) Read(p []byte) (int, error) {
 	return len(p), nil
 }
 
-
 func testMultiSign(t *testing.T, v6 bool) {
 	if testing.Short() {
 		t.Skip("skipping long test in -short mode")
@@ -161,7 +165,6 @@ func testMultiSign(t *testing.T, v6 bool) {
 
 	zero := quickRand(0)
 	config := packet.Config{Rand: &zero, V6Keys: v6}
-	
 
 	for nKeys := 0; nKeys < 4; nKeys++ {
 	nextTest:
@@ -439,7 +442,7 @@ QsiPlR4zxP/TP7mhfVEe7XWPxtnMUMtf15OyA51YBM4qBmOHf+MZAAAAIIaTJINn
 BssYbE8GCaaX5NUt+mxyKwwfHifBilZwj2Ul7Ce62azJAAAAAAQBIKbpGG2dWTX8
 j+VjFM21J0hqWlEg+bdiojWnKfA5AQpWUWtnNwDEM0g12vYxoWM8Y81W+bHBw805
 I8kWVkXU6vFOi+HWvv/ira7ofJu16NnoUkhclkUrk0mXubZvyl4GBg==
------END PGP PUBLIC KEY BLOCK-----` 
+-----END PGP PUBLIC KEY BLOCK-----`
 
 // https://gitlab.com/openpgp-wg/rfc4880bis/-/merge_requests/275
 const clearSignV6 = `-----BEGIN PGP SIGNED MESSAGE-----
@@ -457,4 +460,22 @@ wpgGARsKAAAAKQWCY5ijYyIhBssYbE8GCaaX5NUt+mxyKwwfHifBilZwj2Ul7Ce6
 2azJAAAAAGk2IHZJX1AhiJD39eLuPBgiUU9wUA9VHYblySHkBONKU/usJ9BvuAqo
 /FvLFuGWMbKAdA+epq7V4HOtAPlBWmU8QOd6aud+aSunHQaaEJ+iTFjP2OMW0KBr
 NK2ay45cX1IVAQ==
------END PGP SIGNATURE-----` 
+-----END PGP SIGNATURE-----`
+
+// https://gitlab.com/openpgp-wg/rfc4880bis/-/merge_requests/275
+const clearSignV6Error = `-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+What we need from the grocery store:
+
+- - tofu
+- - vegetables
+- - noodles
+
+-----BEGIN PGP SIGNATURE-----
+
+wpgGARsKAAAAKQWCY5ijYyIhBssYbE8GCaaX5NUt+mxyKwwfHifBilZwj2Ul7Ce6
+2azJAAAAAGk2IHZJX1AhiJD39eLuPBgiUU9wUA9VHYblySHkBONKU/usJ9BvuAqo
+/FvLFuGWMbKAdA+epq7V4HOtAPlBWmU8QOd6aud+aSunHQaaEJ+iTFjP2OMW0KBr
+NK2ay45cX1IVAQ==
+-----END PGP SIGNATURE-----`

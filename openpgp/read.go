@@ -449,14 +449,19 @@ func (scr *signatureCheckReader) Read(buf []byte) (int, error) {
 // if any, and a possible signature verification error.
 // If the signer isn't known, ErrUnknownIssuer is returned.
 func VerifyDetachedSignature(keyring KeyRing, signed, signature io.Reader, config *packet.Config) (sig *packet.Signature, signer *Entity, err error) {
-	var expectedHashes []crypto.Hash
-	return verifyDetachedSignature(keyring, signed, signature, expectedHashes, nil, config)
+	return verifyDetachedSignature(keyring, signed, signature, nil, nil, false, config)
 }
 
 // VerifyDetachedSignatureAndHash performs the same actions as
 // VerifyDetachedSignature and checks that the expected hash functions were used.
 func VerifyDetachedSignatureAndHash(keyring KeyRing, signed, signature io.Reader, expectedHashes []crypto.Hash, config *packet.Config) (sig *packet.Signature, signer *Entity, err error) {
-	return verifyDetachedSignature(keyring, signed, signature, expectedHashes, nil,  config)
+	return verifyDetachedSignature(keyring, signed, signature, expectedHashes, nil, true, config)
+}
+
+// VerifyDetachedSignatureAndSaltedHash performs the same actions as
+// VerifyDetachedSignature and checks that the expected hash functions and salts were used.
+func VerifyDetachedSignatureAndSaltedHash(keyring KeyRing, signed, signature io.Reader, expectedHashes []crypto.Hash, expectedSaltedHashes []*packet.SaltedHashSpecifier, config *packet.Config) (sig *packet.Signature, signer *Entity, err error) {
+	return verifyDetachedSignature(keyring, signed, signature, expectedHashes, expectedSaltedHashes, true, config)
 }
 
 // CheckDetachedSignature takes a signed file and a detached signature and
@@ -464,27 +469,31 @@ func VerifyDetachedSignatureAndHash(keyring KeyRing, signed, signature io.Reader
 // signature verification error. If the signer isn't known,
 // ErrUnknownIssuer is returned.
 func CheckDetachedSignature(keyring KeyRing, signed, signature io.Reader, config *packet.Config) (signer *Entity, err error) {
-	var expectedHashes []crypto.Hash
-	return CheckDetachedSignatureAndHash(keyring, signed, signature, expectedHashes, nil, config)
+	_, signer, err = verifyDetachedSignature(keyring, signed, signature, nil, nil, false, config)
+	return 
+}
+
+// CheckDetachedSignatureAndSaltedHash performs the same actions as
+// CheckDetachedSignature and checks that the expected hash functions or salted hash functions were used.
+func CheckDetachedSignatureAndSaltedHash(keyring KeyRing, signed, signature io.Reader, expectedHashes []crypto.Hash, expectedSaltedHashes []*packet.SaltedHashSpecifier, config *packet.Config) (signer *Entity, err error) {
+	_, signer, err = verifyDetachedSignature(keyring, signed, signature, expectedHashes, expectedSaltedHashes, true, config)
+	return
 }
 
 // CheckDetachedSignatureAndHash performs the same actions as
 // CheckDetachedSignature and checks that the expected hash functions were used.
-// If expectedSalts is not nil, it additionally checks that the signature is version 6 and contains 
-// the expected salt for the given hash.
-func CheckDetachedSignatureAndHash(keyring KeyRing, signed, signature io.Reader, expectedHashes []crypto.Hash, expectedSalts [][]byte, config *packet.Config) (signer *Entity, err error) {
-	_, signer, err = verifyDetachedSignature(keyring, signed, signature, expectedHashes, expectedSalts, config)
+func CheckDetachedSignatureAndHash(keyring KeyRing, signed, signature io.Reader, expectedHashes []crypto.Hash, config *packet.Config) (signer *Entity, err error) {
+	_, signer, err = verifyDetachedSignature(keyring, signed, signature, expectedHashes, nil, true, config)
 	return
 }
 
-func verifyDetachedSignature(keyring KeyRing, signed, signature io.Reader, expectedHashes []crypto.Hash, expectedSalts [][]byte, config *packet.Config) (sig *packet.Signature, signer *Entity, err error) {
+func verifyDetachedSignature(keyring KeyRing, signed, signature io.Reader, expectedHashes []crypto.Hash, expectedSaltedHashes []*packet.SaltedHashSpecifier, checkHashes bool, config *packet.Config) (sig *packet.Signature, signer *Entity, err error) {
 	var issuerKeyId uint64
 	var hashFunc crypto.Hash
 	var sigType packet.SignatureType
 	var keys []Key
 	var p packet.Packet
 
-	expectedHashesLen := len(expectedHashes)
 	packets := packet.NewReader(signature)
 	for {
 		p, err = packets.Next()
@@ -506,31 +515,30 @@ func verifyDetachedSignature(keyring KeyRing, signed, signature io.Reader, expec
 		issuerKeyId = *sig.IssuerKeyId
 		hashFunc = sig.Hash
 		sigType = sig.SigType
-		if expectedSalts != nil {
-			// signature should be v6
-			if sig.Version != 6 {
-				return nil, nil, errors.StructuralError("expected version 6 signature")
+		if checkHashes {
+			matchFound := false
+			if sig.Version == 6 {
+				// check for salted hashes
+				for _, expectedSaltedHash := range expectedSaltedHashes {
+					if hashFunc == expectedSaltedHash.Hash && bytes.Equal(sig.Salt(), expectedSaltedHash.Salt){
+						matchFound = true
+						break
+					}
+				}
+				
+			} else {
+				// check for hashes
+				for _, expectedHash := range expectedHashes {
+					if hashFunc == expectedHash {
+						matchFound = true
+						break
+					}
+				}
 			}
-			for i, expectedHash := range expectedHashes {
-				expectedSalt := expectedSalts[i]
-				if hashFunc == expectedHash && bytes.Equal(sig.Salt(), expectedSalt){
-					break
-				}
-				if i+1 == expectedHashesLen {
-					return nil, nil, errors.StructuralError("hash algorithm and salt mismatch with cleartext message headers")
-				}
-			}
-		} else {
-			for i, expectedHash := range expectedHashes {
-				if hashFunc == expectedHash {
-					break
-				}
-				if i+1 == expectedHashesLen {
-					return nil, nil, errors.StructuralError("hash algorithm mismatch with cleartext message headers")
-				}
+			if !matchFound {
+				return nil, nil, errors.StructuralError("hash algorithm or salt mismatch with cleartext message headers")
 			}
 		}
-
 		keys = keyring.KeysByIdUsage(issuerKeyId, packet.KeyFlagSign)
 		if len(keys) > 0 {
 			break
