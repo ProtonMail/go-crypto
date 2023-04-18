@@ -249,3 +249,10 @@ func (c *Config) Notations() []*Notation {
 	}
 	return c.SignatureNotations
 }
+
+func (c *Config) V6() bool {
+	if c == nil {
+		return false
+	}
+	return c.V6Keys
+}

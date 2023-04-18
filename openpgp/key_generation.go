@@ -33,7 +33,6 @@ import (
 func NewEntity(name, comment, email string, config *packet.Config) (*Entity, error) {
 	creationTime := config.Now()
 	keyLifetimeSecs := config.KeyLifetime()
-	useV6Keys := config != nil && config.V6Keys
 
 	// Generate a primary signing key
 	primaryPrivRaw, err := newSigner(config)
@@ -41,7 +40,7 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 		return nil, err
 	}
 	primary := packet.NewSignerPrivateKey(creationTime, primaryPrivRaw)
-	if useV6Keys {
+	if config.V6() {
 		primary.UpgradeToV6()
 	}
 
@@ -53,7 +52,7 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 		DirectSignatures: []*packet.Signature{},
 	}
 
-	if useV6Keys {
+	if config.V6() {
 		// In v6 keys algorithm preferences should be stored in direct key signatures
 		selfSignature := createSignaturePacket(&primary.PublicKey, packet.SigTypeDirectSignature, config)
 		err = writeKeyProperties(selfSignature, creationTime, keyLifetimeSecs, config)
@@ -67,7 +66,7 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 		e.DirectSignatures = append(e.DirectSignatures, selfSignature)
 	}
 
-	err = e.addUserId(name, comment, email, config, creationTime, keyLifetimeSecs, !useV6Keys)
+	err = e.addUserId(name, comment, email, config, creationTime, keyLifetimeSecs, !config.V6())
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +84,7 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 func (t *Entity) AddUserId(name, comment, email string, config *packet.Config) error {
 	creationTime := config.Now()
 	keyLifetimeSecs := config.KeyLifetime()
-	return t.addUserId(name, comment, email, config, creationTime, keyLifetimeSecs, !(config != nil && config.V6Keys))
+	return t.addUserId(name, comment, email, config, creationTime, keyLifetimeSecs, !config.V6())
 }
 
 func writeKeyProperties(selfSignature *packet.Signature, creationTime time.Time, keyLifetimeSecs uint32, config *packet.Config) error {
@@ -186,7 +185,7 @@ func (e *Entity) AddSigningSubkey(config *packet.Config) error {
 	}
 	sub := packet.NewSignerPrivateKey(creationTime, subPrivRaw)
 	sub.IsSubkey = true
-	if config != nil && config.V6Keys {
+	if config.V6() {
 		sub.UpgradeToV6()
 	}
 
@@ -231,7 +230,7 @@ func (e *Entity) addEncryptionSubkey(config *packet.Config, creationTime time.Ti
 	}
 	sub := packet.NewDecrypterPrivateKey(creationTime, subPrivRaw)
 	sub.IsSubkey = true
-	if config != nil && config.V6Keys {
+	if config.V6() {
 		sub.UpgradeToV6()
 	}
 

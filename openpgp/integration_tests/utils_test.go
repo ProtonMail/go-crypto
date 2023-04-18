@@ -26,7 +26,7 @@ func generateFreshTestVectors(num int) (vectors []testVector, err error) {
 
 		// Only for verbose display
 		v := "v4"
-		if config.V6Keys {
+		if config.V6() {
 			v = "v6"
 		}
 		pkAlgoNames := map[packet.PublicKeyAlgorithm]string{
