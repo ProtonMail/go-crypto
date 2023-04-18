@@ -281,19 +281,19 @@ func writeAndSign(payload io.WriteCloser, candidateHashes []uint8, signed *Entit
 
 	var salt []byte
 	if signer != nil {
-		var sigVersion = 3
+		var opsVersion = 3
 		if signer.Version == 6 {
-			sigVersion = signer.Version
+			opsVersion = signer.Version
 		}
 		ops := &packet.OnePassSignature{
-			Version:   sigVersion,
+			Version:   opsVersion,
 			SigType:    sigType,
 			Hash:       hash,
 			PubKeyAlgo: signer.PubKeyAlgo,
 			KeyId:      signer.KeyId,
 			IsLast:     true,
 		}
-		if sigVersion == 6 {
+		if opsVersion == 6 {
 			ops.KeyFingerprint = signer.Fingerprint
 			salt, err = packet.SignatureSaltForHash(hash, config.Random())
 			if err != nil {
