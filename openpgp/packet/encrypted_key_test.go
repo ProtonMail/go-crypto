@@ -168,7 +168,7 @@ func TestEncryptingEncryptedKey(t *testing.T) {
 	}
 
 	buf := new(bytes.Buffer)
-	err := SerializeEncryptedKey(buf, pub, CipherAES128, false, key, nil)
+	err := SerializeEncryptedKey(buf, pub, CipherAES128, key, nil)
 	if err != nil {
 		t.Errorf("error writing encrypted key packet: %s", err)
 	}
@@ -218,7 +218,7 @@ func TestEncryptingEncryptedKeyV6(t *testing.T) {
 	rsaWrappedKeyPub := &rsaWrappedKey.PublicKey
 
 	buf := new(bytes.Buffer)
-	err := SerializeEncryptedKey(buf, rsaWrappedKeyPub, CipherAES128, true, key, config) 
+	err := SerializeEncryptedKey(buf, rsaWrappedKeyPub, CipherAES128, key, config) 
 
 	if err != nil {
 		t.Errorf("error writing encrypted key packet: %s", err)
@@ -281,7 +281,7 @@ func TestEncryptingEncryptedKeyXAlgorithms(t *testing.T) {
 		
 
 		buf := new(bytes.Buffer)
-		err := SerializeEncryptedKey(buf, wrappedKeyPub, CipherAES128, true, key, config) 
+		err := SerializeEncryptedKey(buf, wrappedKeyPub, CipherAES128, key, config) 
 
 		if err != nil {
 			t.Errorf("error writing encrypted key packet: %s", err)
