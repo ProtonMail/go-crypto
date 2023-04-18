@@ -48,7 +48,7 @@ type PrivateKey struct {
 	iv           []byte
 
 	// Type of encryption of the S2K packet
-	// Allowed values are 0 (Not encrypted), 253 AEAD, 254 (SHA1), or
+	// Allowed values are 0 (Not encrypted), 253 (AEAD), 254 (SHA1), or
 	// 255 (2-byte checksum)
 	s2kType S2KType
 	// Full parameters of the S2K packet
@@ -272,10 +272,10 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 
 	if pk.Encrypted {
 		var ivSize int
-		// special case for version 5: 
-		// an Initial Vector (IV) of the same length as the cipher's block size.
-		// If string-to-key usage octet was 253 the IV is used as the nonce 
-		if !v5 &&  pk.s2kType == S2KAEAD {
+		// If the S2K usage octet was 253, the IV is of the size expected by the AEAD mode,
+		// unless it's a version 5 key, in which case it's the size of the symmetric cipher's block size.
+		// For all other S2K modes, it's always the block size.
+		if !v5 && pk.s2kType == S2KAEAD {
 			ivSize = pk.aead.IvLength()
 		} else {
 			ivSize = pk.cipher.blockSize()
@@ -289,7 +289,7 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 		if err != nil {
 			return
 		}
-		if v5 &&  pk.s2kType == S2KAEAD {
+		if v5 && pk.s2kType == S2KAEAD {
 			pk.iv = pk.iv[:pk.aead.IvLength()]
 		}
 	}

@@ -30,7 +30,7 @@ import (
 // A Block represents a clearsigned message. A signature on a Block can
 // be checked by calling Block.VerifySignature.
 type Block struct {
-	V6				 bool                 // Indicates if a v6 header is present
+	V6               bool                 // Indicates if a v6 header is present
 	Headers          textproto.MIMEHeader // Optional unverified Hash headers
 	Plaintext        []byte               // The original message text
 	Bytes            []byte               // The signed message
@@ -478,7 +478,7 @@ func (b *Block) VerifySignature(keyring openpgp.KeyRing, config *packet.Config) 
 			expectedHash, expectedSalt := getAlgorithmAndSalt(value)
 			if uint8(expectedHash) == 0 {
 				return nil, errors.StructuralError("unknown hash algorithm in cleartext message headers")
-			} 
+			}
 			expectedHashes = append(expectedHashes, expectedHash)
 			expectedSalts = append(expectedSalts, expectedSalt)
 		}

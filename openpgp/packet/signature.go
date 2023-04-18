@@ -169,11 +169,12 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 
 	var hashedSubpacketsLength int
 	if sig.Version == 6 {
-		// For a v6 signature, a four-octet are required for the length.
-		hashedSubpacketsLength = int(buf[3])<<24 | 
-								 int(buf[4])<<16 | 
-								 int(buf[5])<<8  | 
-								 int(buf[6])
+		// For a v6 signature, a four-octet length is used.
+		hashedSubpacketsLength =
+			int(buf[3])<<24 | 
+			int(buf[4])<<16 | 
+			int(buf[5])<<8  | 
+			int(buf[6])
 	} else {
 		hashedSubpacketsLength = int(buf[3])<<8 | int(buf[4])
 	}
@@ -1048,10 +1049,11 @@ func (sig *Signature) serializeBody(w io.Writer) (err error) {
 	var fields []byte
 	if sig.Version == 6 {
 		// v6 signatures use 4 ocets for length
-		hashedSubpacketsLen := uint32(uint32(sig.HashSuffix[4])<<24) | 
-							   uint32(uint32(sig.HashSuffix[5])<<16) | 
-							   uint32(uint32(sig.HashSuffix[6])<<8)  | 
-							   uint32(sig.HashSuffix[7])
+		hashedSubpacketsLen :=
+			uint32(uint32(sig.HashSuffix[4])<<24) | 
+			uint32(uint32(sig.HashSuffix[5])<<16) | 
+			uint32(uint32(sig.HashSuffix[6])<<8)  | 
+			uint32(sig.HashSuffix[7])
 		fields = sig.HashSuffix[:8+hashedSubpacketsLen]
 	} else {
 		hashedSubpacketsLen := uint16(uint16(sig.HashSuffix[4])<<8) | 
