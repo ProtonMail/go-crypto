@@ -30,7 +30,6 @@ import (
 // A Block represents a clearsigned message. A signature on a Block can
 // be checked by calling Block.VerifySignature.
 type Block struct {
-	V6               bool                 // Indicates if a v6 header is present
 	Headers          textproto.MIMEHeader // Optional unverified Hash headers
 	Plaintext        []byte               // The original message text
 	Bytes            []byte               // The signed message
@@ -53,6 +52,10 @@ var end = []byte("\n-----END PGP SIGNATURE-----")
 
 var crlf = []byte("\r\n")
 var lf = byte('\n')
+
+const saltedHashHeader string = "SaltedHash"
+const saltedHashKey string = "Saltedhash"
+const hashHeader string = "Hash"
 
 // getLine returns the first \r\n or \n delineated line from the given byte
 // array. The line does not include the \r\n or \n. The remainder of the byte
@@ -129,24 +132,16 @@ func Decode(data []byte) (b *Block, rest []byte) {
 
 		key, val := string(line[0:i]), string(line[i+1:])
 		key = strings.TrimSpace(key)
-		if key != "Hash" && key != "SaltedHash" {
-			return nil, data
-		}
-		if key == "Hash" {
-			if b.V6 {
-				return nil, data
-			}
+		if key == hashHeader {
 			for _, val := range strings.Split(val, ",") {
 				val = strings.TrimSpace(val)
 				b.Headers.Add(key, val)
 			}
-		} else if key == "SaltedHash" {
-			if !b.V6 && len(b.Headers) > 0 {
-				return nil, data
-			}
-			b.V6 = true
+		} else if key == saltedHashHeader {
 			val = strings.TrimSpace(val)
-			b.Headers.Add(key, val)
+			b.Headers.Add(saltedHashKey, val)
+		} else {
+			return nil, data
 		}
 	}
 
@@ -217,7 +212,7 @@ type dashEscaper struct {
 	hashers  []hash.Hash // one per key in privateKeys
 	hashType crypto.Hash
 	toHash   io.Writer // writes to all the hashes in hashers
-	salts    [][]byte  // salts for the signatures if v6 
+	salts    [][]byte  // salts for the signatures if v6
 
 	atBeginningOfLine bool
 	isFirstLine       bool
@@ -397,10 +392,10 @@ func EncodeMulti(w io.Writer, privateKeys []*packet.PrivateKey, config *packet.C
 			var salt []byte
 			salt, err = packet.SignatureSaltForHash(hashType, config.Random())
 			if err != nil {
-				return 
+				return
 			}
 			if _, err = h.Write(salt); err != nil {
-				return 
+				return
 			}
 			salts = append(salts, salt)
 		}
@@ -419,26 +414,18 @@ func EncodeMulti(w io.Writer, privateKeys []*packet.PrivateKey, config *packet.C
 	}
 	if v6 {
 		for index, salt := range salts {
-			if _, err = buffered.WriteString("SaltedHash: "); err != nil {
+			encodedSalt := base64.RawStdEncoding.EncodeToString(salt)
+			if _, err = buffered.WriteString(fmt.Sprintf("%s: %s:%s", saltedHashHeader, name, encodedSalt)); err != nil {
 				return
 			}
-			if _, err = buffered.WriteString(fmt.Sprintf("%s:", name)); err != nil {
-				return
-			}
-			if _, err = buffered.WriteString(base64.RawStdEncoding.EncodeToString(salt)); err != nil {
-				return
-			}
-			if index != len(salts) - 1 {
+			if index != len(salts)-1 {
 				if err = buffered.WriteByte(lf); err != nil {
 					return
 				}
 			}
 		}
 	} else {
-		if _, err = buffered.WriteString("Hash: "); err != nil {
-			return
-		}
-		if _, err = buffered.WriteString(name); err != nil {
+		if _, err = buffered.WriteString(fmt.Sprintf("%s: %s", hashHeader, name)); err != nil {
 			return
 		}
 	}
@@ -472,35 +459,33 @@ func EncodeMulti(w io.Writer, privateKeys []*packet.PrivateKey, config *packet.C
 // hash algorithm in the header matches the hash algorithm in the signature.
 func (b *Block) VerifySignature(keyring openpgp.KeyRing, config *packet.Config) (signer *openpgp.Entity, err error) {
 	var expectedHashes []crypto.Hash
-	expectedSalts := [][]byte{}
-	if b.V6 {
-		for _, value := range b.Headers["Saltedhash"] {
-			expectedHash, expectedSalt := getAlgorithmAndSalt(value)
-			if uint8(expectedHash) == 0 {
-				return nil, errors.StructuralError("unknown hash algorithm in cleartext message headers")
-			}
-			expectedHashes = append(expectedHashes, expectedHash)
-			expectedSalts = append(expectedSalts, expectedSalt)
+	var expectedSaltedHashes []*packet.SaltedHashSpecifier
+
+	// Process salted hash headers (v6)
+	for _, value := range b.Headers[saltedHashKey] {
+		var expectedSaltedHash *packet.SaltedHashSpecifier
+		expectedSaltedHash, err = getAlgorithmAndSalt(value)
+		if err != nil {
+			return
 		}
-	} else {
-		expectedSalts = nil
-		for _, v := range b.Headers {
-			for _, name := range v {
-				expectedHash := nameToHash(name)
-				if uint8(expectedHash) == 0 {
-					return nil, errors.StructuralError("unknown hash algorithm in cleartext message headers")
-				}
-				expectedHashes = append(expectedHashes, expectedHash)
-			}
-		}
+		expectedSaltedHashes = append(expectedSaltedHashes, expectedSaltedHash)
 	}
-	// If neither a "Hash" nor a "SaltedHash" Armor Header is given, or the message 
-	// digest algorithms (and salts) used in the signatures do not match the information in the headers, 
+	// Process hash headers
+	for _, name := range b.Headers[hashHeader] {
+		expectedHash := nameToHash(name)
+		if uint8(expectedHash) == 0 {
+			return nil, errors.StructuralError("unknown hash algorithm in cleartext message headers")
+		}
+		expectedHashes = append(expectedHashes, expectedHash)
+	}
+
+	// If neither a "Hash" nor a "SaltedHash" Armor Header is given, or the message
+	// digest algorithms (and salts) used in the signatures do not match the information in the headers,
 	// the signature MUST be considered invalid.
-	if len(expectedHashes) == 0 {
-		return nil, errors.StructuralError("no Hash or SaltedHash header present in message")
+	if len(expectedHashes) == 0 && len(expectedSaltedHashes) == 0 {
+		return nil, errors.StructuralError("signature is invalid: no hash or salted hash header present in message")
 	}
-	return openpgp.CheckDetachedSignatureAndHash(keyring, bytes.NewBuffer(b.Bytes), b.ArmoredSignature.Body, expectedHashes, expectedSalts, config)
+	return openpgp.CheckDetachedSignatureAndSaltedHash(keyring, bytes.NewBuffer(b.Bytes), b.ArmoredSignature.Body, expectedHashes, expectedSaltedHashes, config)
 }
 
 // nameOfHash returns the OpenPGP name for the given hash, or the empty string
@@ -545,15 +530,21 @@ func nameToHash(h string) crypto.Hash {
 	return crypto.Hash(0)
 }
 
-func getAlgorithmAndSalt(value string) (crypto.Hash, []byte) {
+func getAlgorithmAndSalt(value string) (*packet.SaltedHashSpecifier, error) {
 	params := strings.Split(value, ":")
 	if len(params) != 2 {
-		return crypto.Hash(0), nil
+		return nil, errors.StructuralError(fmt.Sprintf("salted hash cleartext message header value has the wrong format: %s", value))
 	}
 	algo := nameToHash(strings.TrimSpace(params[0]))
+	if uint8(algo) == 0 {
+		return nil, errors.StructuralError("unknown hash algorithm in cleartext message headers")
+	}
 	salt, err := base64.RawStdEncoding.DecodeString(strings.TrimSpace(params[1]))
 	if err != nil {
-		return crypto.Hash(0), nil
+		return nil, errors.StructuralError(fmt.Sprintf("salted hash cleartext message header value has the wrong format: %s", value))
 	}
-	return algo, salt
+	return &packet.SaltedHashSpecifier{
+		Hash: algo,
+		Salt: salt,
+	}, nil
 }

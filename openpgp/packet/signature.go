@@ -119,6 +119,13 @@ type Signature struct {
 	outSubpackets []outputSubpacket
 }
 
+// SaltedHashSpecifier specifies that the given salt and hash are 
+// used by a v6 signature. 
+type SaltedHashSpecifier struct {
+	Hash crypto.Hash
+	Salt []byte
+}
+
 func (sig *Signature) Salt() []byte {
 	if sig == nil {
 		return nil
