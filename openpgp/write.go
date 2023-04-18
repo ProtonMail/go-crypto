@@ -286,7 +286,7 @@ func writeAndSign(payload io.WriteCloser, candidateHashes []uint8, signed *Entit
 			sigVersion = signer.Version
 		}
 		ops := &packet.OnePassSignature{
-			Version: 	sigVersion,
+			Version:   sigVersion,
 			SigType:    sigType,
 			Hash:       hash,
 			PubKeyAlgo: signer.PubKeyAlgo,
@@ -295,7 +295,7 @@ func writeAndSign(payload io.WriteCloser, candidateHashes []uint8, signed *Entit
 		}
 		if sigVersion == 6 {
 			ops.KeyFingerprint = signer.Fingerprint
-			salt, err  = packet.SignatureSaltForHash(hash, config.Random())
+			salt, err = packet.SignatureSaltForHash(hash, config.Random())
 			if err != nil {
 				return nil, err
 			}
@@ -512,7 +512,7 @@ type signatureWriter struct {
 	hashType      crypto.Hash
 	wrappedHash   hash.Hash
 	h             hash.Hash
-	salt		  []byte // v6 only
+	salt          []byte // v6 only
 	signer        *packet.PrivateKey
 	sigType       packet.SignatureType
 	config        *packet.Config
