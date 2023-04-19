@@ -286,7 +286,7 @@ func writeAndSign(payload io.WriteCloser, candidateHashes []uint8, signed *Entit
 			opsVersion = signer.Version
 		}
 		ops := &packet.OnePassSignature{
-			Version:   opsVersion,
+			Version:    opsVersion,
 			SigType:    sigType,
 			Hash:       hash,
 			PubKeyAlgo: signer.PubKeyAlgo,
@@ -300,7 +300,7 @@ func writeAndSign(payload io.WriteCloser, candidateHashes []uint8, signed *Entit
 				return nil, err
 			}
 			ops.Salt = salt
-		} 
+		}
 		if err := ops.Serialize(payload); err != nil {
 			return nil, err
 		}
@@ -400,7 +400,7 @@ func encrypt(keyWriter io.Writer, dataWriter io.Writer, to []*Entity, signed *En
 
 		primarySelfSignature, _ := to[i].PrimarySelfSignature()
 		if primarySelfSignature == nil {
-			return nil, errors.InvalidArgumentError("entity without a self-signature") 
+			return nil, errors.InvalidArgumentError("entity without a self-signature")
 		}
 
 		if primarySelfSignature.SEIPDv2 == false {

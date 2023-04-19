@@ -1486,7 +1486,7 @@ func TestEncryptAndDecryptPrivateKeys(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-	
+
 			if !entity.PrivateKey.Encrypted {
 				t.Fatal("Expected encrypted private key")
 			}
@@ -1495,12 +1495,12 @@ func TestEncryptAndDecryptPrivateKeys(t *testing.T) {
 					t.Fatal("Expected encrypted private key")
 				}
 			}
-	
+
 			err = entity.DecryptPrivateKeys(passphrase)
 			if err != nil {
 				t.Fatal(err)
 			}
-	
+
 			if entity.PrivateKey.Encrypted {
 				t.Fatal("Expected plaintext private key")
 			}
@@ -1511,7 +1511,6 @@ func TestEncryptAndDecryptPrivateKeys(t *testing.T) {
 			}
 		})
 	}
-	
 
 }
 
@@ -1808,13 +1807,13 @@ func TestReadPrivateForeignV4Key(t *testing.T) {
 }
 
 func checkV4Key(t *testing.T, ent *Entity) {
-		key := ent.PrimaryKey
-		if key.Version != 4 {
-			t.Errorf("wrong key version %d", key.Version)
-		}
-		if len(key.Fingerprint) != 20 {
-			t.Errorf("Wrong fingerprint length: %d", len(key.Fingerprint))
-		}
+	key := ent.PrimaryKey
+	if key.Version != 4 {
+		t.Errorf("wrong key version %d", key.Version)
+	}
+	if len(key.Fingerprint) != 20 {
+		t.Errorf("Wrong fingerprint length: %d", len(key.Fingerprint))
+	}
 	signatures := ent.Revocations
 	for _, id := range ent.Identities {
 		signatures = append(signatures, id.SelfSignature)
@@ -1828,7 +1827,7 @@ func checkV4Key(t *testing.T, ent *Entity) {
 			t.Errorf("wrong signature version %d", sig.Version)
 		}
 		fgptLen := len(sig.IssuerFingerprint)
-		if fgptLen!= 20 {
+		if fgptLen != 20 {
 			t.Errorf("Wrong fingerprint length in signature: %d", fgptLen)
 		}
 	}

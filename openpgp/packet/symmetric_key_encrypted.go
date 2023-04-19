@@ -41,7 +41,7 @@ func (ske *SymmetricKeyEncrypted) parse(r io.Reader) error {
 		return err
 	}
 	ske.Version = int(buf[0])
-	if ske.Version != 4 && ske.Version != 5  && ske.Version != 6 {
+	if ske.Version != 4 && ske.Version != 5 && ske.Version != 6 {
 		return errors.UnsupportedError("unknown SymmetricKeyEncrypted version")
 	}
 

@@ -140,8 +140,8 @@ func TestExternalPrivateKeyEncryptDecryptRandomizeSlow(t *testing.T) {
 }
 
 func TestExternalPrivateKeyEncryptDecryptS2KModes(t *testing.T) {
-	sk2Modes := []s2k.Mode {s2k.IteratedSaltedS2K, s2k.Argon2S2K}
-	sk2KeyTypes := []S2KType {S2KAEAD, S2KSHA1}
+	sk2Modes := []s2k.Mode{s2k.IteratedSaltedS2K, s2k.Argon2S2K}
+	sk2KeyTypes := []S2KType{S2KAEAD, S2KSHA1}
 	for _, s2kMode := range sk2Modes {
 		for _, sk2KeyType := range sk2KeyTypes {
 			t.Run(fmt.Sprintf("s2kMode:%d-s2kType:%d", s2kMode, sk2KeyType), func(t *testing.T) {
@@ -150,7 +150,7 @@ func TestExternalPrivateKeyEncryptDecryptS2KModes(t *testing.T) {
 					configAEAD = &AEADConfig{}
 				}
 				config := &Config{
-					S2KConfig: &s2k.Config{S2KMode: s2kMode},
+					S2KConfig:  &s2k.Config{S2KMode: s2kMode},
 					AEADConfig: configAEAD,
 				}
 				for i, test := range privateKeyTests {

@@ -39,7 +39,7 @@ type Config struct {
 	// and password-encrypted data.
 	// If nil, the default configuration is used
 	S2KConfig *s2k.Config
-	// Iteration count for Iterated S2K (String to Key). 
+	// Iteration count for Iterated S2K (String to Key).
 	// Only used if sk2.Mode is nil.
 	// This value is duplicated here from s2k.Config for backwards compatibility.
 	// It determines the strength of the passphrase stretching when
@@ -54,8 +54,8 @@ type Config struct {
 	//
 	// Deprecated: SK2Count should be configured in S2KConfig instead.
 	S2KCount int
-	// An S2K specifier can be stored in the secret keyring to specify 
-	// how to convert the passphrase to a key that unlocks the secret data. 
+	// An S2K specifier can be stored in the secret keyring to specify
+	// how to convert the passphrase to a key that unlocks the secret data.
 	// This config allows to set this key encryption parameters.
 	// If nil, the default parameters are used.
 	// See OpenPGP crypto refresh 3.7.2.1.
@@ -201,7 +201,7 @@ func (c *Config) S2K() *s2k.Config {
 	}
 	// for backwards compatibility
 	if c != nil && c.S2KCount > 0 && c.S2KConfig == nil {
-		return &s2k.Config {
+		return &s2k.Config{
 			S2KCount: c.S2KCount,
 		}
 	}

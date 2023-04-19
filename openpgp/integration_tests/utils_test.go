@@ -30,10 +30,10 @@ func generateFreshTestVectors(num int) (vectors []testVector, err error) {
 			v = "v6"
 		}
 		pkAlgoNames := map[packet.PublicKeyAlgorithm]string{
-			packet.PubKeyAlgoRSA:   "rsa_" + v,
-			packet.PubKeyAlgoEdDSA: "EdDSA_" + v,
+			packet.PubKeyAlgoRSA:     "rsa_" + v,
+			packet.PubKeyAlgoEdDSA:   "EdDSA_" + v,
 			packet.PubKeyAlgoEd25519: "ed25519_" + v,
-			packet.PubKeyAlgoEd448: "ed448_" + v,
+			packet.PubKeyAlgoEd448:   "ed448_" + v,
 		}
 
 		newVector := testVector{

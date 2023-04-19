@@ -44,8 +44,8 @@ type PrivateKey struct {
 	aead          AEADMode // only relevant if S2KAEAD is enabled
 	// An *{rsa|dsa|elgamal|ecdh|ecdsa|ed25519|ed448}.PrivateKey or
 	// crypto.Signer/crypto.Decrypter (Decryptor RSA only).
-	PrivateKey   interface{}
-	iv           []byte
+	PrivateKey interface{}
+	iv         []byte
 
 	// Type of encryption of the S2K packet
 	// Allowed values are 0 (Not encrypted), 253 (AEAD), 254 (SHA1), or
@@ -231,7 +231,7 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 		if pk.cipher != 0 && !pk.cipher.IsSupported() {
 			return errors.UnsupportedError("unsupported cipher function in private key")
 		}
-		// [Optional] If string-to-key usage octet was 253, 
+		// [Optional] If string-to-key usage octet was 253,
 		// a one-octet AEAD algorithm.
 		if pk.s2kType == S2KAEAD {
 			_, err = readFull(r, buf[:])
@@ -244,7 +244,7 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 			}
 		}
 
-		// [Optional] Only for a version 6 packet, 
+		// [Optional] Only for a version 6 packet,
 		// and if string-to-key usage octet was 255, 254, or 253,
 		// an one-octet count of the following field.
 		if v6 {
@@ -365,8 +365,6 @@ func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 		return
 	}
 
-	
-
 	optional := bytes.NewBuffer(nil)
 	if pk.Encrypted || pk.Dummy() {
 		// [Optional] If string-to-key usage octet was 255, 254, or 253,
@@ -374,7 +372,7 @@ func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 		if _, err = optional.Write([]byte{uint8(pk.cipher)}); err != nil {
 			return
 		}
-		// [Optional] If string-to-key usage octet was 253, 
+		// [Optional] If string-to-key usage octet was 253,
 		// a one-octet AEAD algorithm.
 		if pk.s2kType == S2KAEAD {
 			if _, err = optional.Write([]byte{uint8(pk.aead)}); err != nil {
@@ -386,17 +384,17 @@ func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 		if err := pk.s2kParams.Serialize(s2kBuffer); err != nil {
 			return err
 		}
-		// [Optional] Only for a version 6 packet, and if string-to-key 
-		// usage octet was 255, 254, or 253, an one-octet 
+		// [Optional] Only for a version 6 packet, and if string-to-key
+		// usage octet was 255, 254, or 253, an one-octet
 		// count of the following field.
 		if pk.Version == 6 {
 			if _, err = optional.Write([]byte{uint8(s2kBuffer.Len())}); err != nil {
 				return
 			}
-		} 
-		// [Optional] If string-to-key usage octet was 255, 254, or 253, 
-		// a string-to-key (S2K) specifier. The length of the string-to-key specifier 
-		// depends on its type 
+		}
+		// [Optional] If string-to-key usage octet was 255, 254, or 253,
+		// a string-to-key (S2K) specifier. The length of the string-to-key specifier
+		// depends on its type
 		if _, err = io.Copy(optional, s2kBuffer); err != nil {
 			return
 		}
@@ -408,11 +406,11 @@ func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 			}
 			if pk.Version == 5 && pk.s2kType == S2KAEAD {
 				// Add padding for version 5
-				padding := make([]byte, pk.cipher.blockSize() - len(pk.iv))
+				padding := make([]byte, pk.cipher.blockSize()-len(pk.iv))
 				if _, err = optional.Write(padding); err != nil {
 					return
 				}
-			} 
+			}
 		}
 	}
 	if pk.Version == 5 || (pk.Version == 6 && pk.s2kType != S2KNON) {
@@ -627,7 +625,7 @@ func (pk *PrivateKey) Decrypt(passphrase []byte) error {
 }
 
 // DecryptPrivateKeys decrypts all encrypted keys with the given config and passphrase.
-// Avoids recomputation of similar s2k key derivations. 
+// Avoids recomputation of similar s2k key derivations.
 func DecryptPrivateKeys(keys []*PrivateKey, passphrase []byte) error {
 	// Create a cache to avoid recomputation of key derviations for the same passphrase.
 	s2kCache := &s2k.Cache{}
@@ -654,7 +652,7 @@ func (pk *PrivateKey) encrypt(key []byte, params *s2k.Params, s2kType S2KType, c
 	if len(key) != cipherFunction.KeySize() {
 		return errors.InvalidArgumentError("supplied encryption key has the wrong size")
 	}
-	
+
 	priv := bytes.NewBuffer(nil)
 	err := pk.serializePrivateKey(priv)
 	if err != nil {
@@ -666,7 +664,7 @@ func (pk *PrivateKey) encrypt(key []byte, params *s2k.Params, s2kType S2KType, c
 	pk.s2k, err = pk.s2kParams.Function()
 	if err != nil {
 		return err
-	} 
+	}
 
 	privateKeyBytes := priv.Bytes()
 	pk.s2kType = s2kType
@@ -782,7 +780,7 @@ func (pk *PrivateKey) Encrypt(passphrase []byte) error {
 			S2KMode:  s2k.IteratedSaltedS2K,
 			S2KCount: 65536,
 			Hash:     crypto.SHA256,
-		} ,
+		},
 		DefaultCipher: CipherAES256,
 	}
 	return pk.EncryptWithConfig(passphrase, config)
@@ -1073,7 +1071,7 @@ func (pk *PrivateKey) additionalData() ([]byte, error) {
 	} else {
 		packetByte = 0xc5
 	}
-	// Write public key to additional data 
+	// Write public key to additional data
 	_, err := additionalData.Write([]byte{packetByte})
 	if err != nil {
 		return nil, err

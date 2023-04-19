@@ -71,7 +71,6 @@ func (pk *PublicKey) UpgradeToV6() {
 	pk.setFingerprintAndKeyId()
 }
 
-
 // signingKey provides a convenient abstraction over signature verification
 // for v3 and v4 public keys.
 type signingKey interface {
@@ -507,7 +506,7 @@ func (pk *PublicKey) parseX25519(r io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	pub := &x25519.PublicKey {
+	pub := &x25519.PublicKey{
 		Point: point,
 	}
 	pk.PublicKey = pub
@@ -520,7 +519,7 @@ func (pk *PublicKey) parseX448(r io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	pub := &x448.PublicKey {
+	pub := &x448.PublicKey{
 		Point: point,
 	}
 	pk.PublicKey = pub
@@ -533,7 +532,7 @@ func (pk *PublicKey) parseEd25519(r io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	pub := &ed25519.PublicKey {
+	pub := &ed25519.PublicKey{
 		Point: point,
 	}
 	pk.PublicKey = pub
@@ -546,7 +545,7 @@ func (pk *PublicKey) parseEd448(r io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	pub := &ed448.PublicKey {
+	pub := &ed448.PublicKey{
 		Point: point,
 	}
 	pk.PublicKey = pub

@@ -25,18 +25,18 @@ import (
 // EncryptedKey represents a public-key encrypted session key. See RFC 4880,
 // section 5.1.
 type EncryptedKey struct {
-	Version     int
-	KeyId       uint64
-	KeyVersion	int // v6
+	Version        int
+	KeyId          uint64
+	KeyVersion     int    // v6
 	KeyFingerprint []byte // v6
-	Algo        PublicKeyAlgorithm
-	CipherFunc  CipherFunction // only valid after a successful Decrypt for a v3 packet
-	Key         []byte         // only valid after a successful Decrypt
+	Algo           PublicKeyAlgorithm
+	CipherFunc     CipherFunction // only valid after a successful Decrypt for a v3 packet
+	Key            []byte         // only valid after a successful Decrypt
 
 	encryptedMPI1, encryptedMPI2 encoding.Field
-	ephemeralPublicX25519 *x25519.PublicKey // used for x25519
-	ephemeralPublicX448 *x448.PublicKey // used for x448
-	encryptedSession []byte // used for x25519 and Ed448
+	ephemeralPublicX25519        *x25519.PublicKey // used for x25519
+	ephemeralPublicX448          *x448.PublicKey   // used for x448
+	encryptedSession             []byte            // used for x25519 and Ed448
 }
 
 func (e *EncryptedKey) parse(r io.Reader) (err error) {
@@ -45,7 +45,7 @@ func (e *EncryptedKey) parse(r io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	e.Version =  int(buf[0])
+	e.Version = int(buf[0])
 	if e.Version != 3 && e.Version != 6 {
 		return errors.UnsupportedError("unknown EncryptedKey version " + strconv.Itoa(int(buf[0])))
 	}
@@ -54,7 +54,7 @@ func (e *EncryptedKey) parse(r io.Reader) (err error) {
 		if err != nil {
 			return
 		}
-		e.KeyVersion =  int(buf[0])
+		e.KeyVersion = int(buf[0])
 		if e.KeyVersion != 0 && e.KeyVersion != 4 && e.KeyVersion != 6 {
 			return errors.UnsupportedError("unknown public key version " + strconv.Itoa(e.KeyVersion))
 		}
@@ -114,20 +114,20 @@ func (e *EncryptedKey) parse(r io.Reader) (err error) {
 		if _, err = e.encryptedMPI2.ReadFrom(r); err != nil {
 			return
 		}
-	case PubKeyAlgoX25519: 
-		e.ephemeralPublicX25519, e.encryptedSession, cipherFunction, err = x25519.DecodeFields(r, e.Version == 6)	
+	case PubKeyAlgoX25519:
+		e.ephemeralPublicX25519, e.encryptedSession, cipherFunction, err = x25519.DecodeFields(r, e.Version == 6)
 		if err != nil {
 			return
 		}
 	case PubKeyAlgoX448:
-		e.ephemeralPublicX448, e.encryptedSession, cipherFunction, err = x448.DecodeFields(r, e.Version == 6)	
+		e.ephemeralPublicX448, e.encryptedSession, cipherFunction, err = x448.DecodeFields(r, e.Version == 6)
 		if err != nil {
 			return
 		}
 	}
 	if e.Version < 6 {
 		switch e.Algo {
-		case PubKeyAlgoX25519, PubKeyAlgoX448: 
+		case PubKeyAlgoX25519, PubKeyAlgoX448:
 			e.CipherFunc = CipherFunction(cipherFunction)
 			// Check for validiy is in the Decrypt method
 		}
@@ -145,7 +145,7 @@ func (e *EncryptedKey) Decrypt(priv *PrivateKey, config *Config) error {
 		return errors.InvalidArgumentError("cannot decrypt encrypted session key for key id " + strconv.FormatUint(e.KeyId, 16) + " with private key id " + strconv.FormatUint(priv.KeyId, 16))
 	}
 	if e.Version == 6 && e.KeyVersion != 0 && !bytes.Equal(e.KeyFingerprint, priv.Fingerprint) {
-		return errors.InvalidArgumentError("cannot decrypt encrypted session key for key fingerprint " + hex.EncodeToString(e.KeyFingerprint) + " with private key fingerprint " + hex.EncodeToString(priv.Fingerprint) )
+		return errors.InvalidArgumentError("cannot decrypt encrypted session key for key fingerprint " + hex.EncodeToString(e.KeyFingerprint) + " with private key fingerprint " + hex.EncodeToString(priv.Fingerprint))
 	}
 	if e.Algo != priv.PubKeyAlgo {
 		return errors.InvalidArgumentError("cannot decrypt encrypted session key of type " + strconv.Itoa(int(e.Algo)) + " with private key of type " + strconv.Itoa(int(priv.PubKeyAlgo)))
@@ -232,9 +232,9 @@ func (e *EncryptedKey) Serialize(w io.Writer) error {
 		return errors.InvalidArgumentError("don't know how to serialize encrypted key type " + strconv.Itoa(int(e.Algo)))
 	}
 
-	packetLen := 1 /* version */ +8 /* key id */ +1 /* algo */ + encodedLength
+	packetLen := 1 /* version */ + 8 /* key id */ + 1 /* algo */ + encodedLength
 	if e.Version == 6 {
-		packetLen = 1 /* version */ +1 /* algo */ + encodedLength + 1 /* key version */ 
+		packetLen = 1 /* version */ + 1 /* algo */ + encodedLength + 1 /* key version */
 		if e.KeyVersion == 6 {
 			packetLen += 32
 		} else if e.KeyVersion == 4 {
@@ -256,7 +256,7 @@ func (e *EncryptedKey) Serialize(w io.Writer) error {
 		if err != nil {
 			return err
 		}
-		// The key version number may also be zero, 
+		// The key version number may also be zero,
 		// and the fingerprint omitted
 		if e.KeyVersion != 0 {
 			_, err = w.Write(e.KeyFingerprint)
@@ -275,7 +275,7 @@ func (e *EncryptedKey) Serialize(w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	
+
 	switch e.Algo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly:
 		_, err := w.Write(e.encryptedMPI1.EncodedBytes())
@@ -334,7 +334,7 @@ func SerializeEncryptedKeyAEAD(w io.Writer, pub *PublicKey, cipherFunc CipherFun
 	if version == 6 {
 		if pub != nil {
 			buf[1] = byte(pub.Version)
-			copy(buf[2: len(pub.Fingerprint)+2], pub.Fingerprint)
+			copy(buf[2:len(pub.Fingerprint)+2], pub.Fingerprint)
 			lenHeaderWritten += len(pub.Fingerprint) + 1
 		} else {
 			// anonymous case
@@ -351,7 +351,7 @@ func SerializeEncryptedKeyAEAD(w io.Writer, pub *PublicKey, cipherFunc CipherFun
 	var keyBlock []byte
 	switch pub.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoElGamal, PubKeyAlgoECDH:
-		lenKeyBlock := len(key)+2
+		lenKeyBlock := len(key) + 2
 		if version < 6 {
 			lenKeyBlock += 1 // cipher type included
 		}
@@ -360,7 +360,7 @@ func SerializeEncryptedKeyAEAD(w io.Writer, pub *PublicKey, cipherFunc CipherFun
 		if version < 6 {
 			keyBlock[0] = byte(cipherFunc)
 			keyOffset = 1
-		} 
+		}
 		encodeChecksumKey(keyBlock[keyOffset:], key)
 	case PubKeyAlgoX25519, PubKeyAlgoX448:
 		// algorithm is added in plaintext below
@@ -387,10 +387,10 @@ func SerializeEncryptedKeyAEAD(w io.Writer, pub *PublicKey, cipherFunc CipherFun
 
 // SerializeEncryptedKey serializes an encrypted key packet to w that contains
 // key, encrypted to pub.
-// PKESKv6 is used if config.AEAD() is not nil. 
+// PKESKv6 is used if config.AEAD() is not nil.
 // If config is nil, sensible defaults will be used.
 func SerializeEncryptedKey(w io.Writer, pub *PublicKey, cipherFunc CipherFunction, key []byte, config *Config) error {
-	return SerializeEncryptedKeyAEAD(w, pub, cipherFunc, config.AEAD()!=nil, key, config)
+	return SerializeEncryptedKeyAEAD(w, pub, cipherFunc, config.AEAD() != nil, key, config)
 }
 
 func serializeEncryptedKeyRSA(w io.Writer, rand io.Reader, header []byte, pub *rsa.PublicKey, keyBlock []byte) error {
@@ -524,7 +524,7 @@ func decodeChecksumKey(msg []byte) (key []byte, err error) {
 	expectedChecksum := uint16(msg[len(msg)-2])<<8 | uint16(msg[len(msg)-1])
 	checksum := checksumKeyMaterial(key)
 	if checksum != expectedChecksum {
-		err = errors.StructuralError("session key checksum is incorrect") 
+		err = errors.StructuralError("session key checksum is incorrect")
 	}
 	return
 }

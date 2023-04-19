@@ -58,7 +58,7 @@ func GenerateKey(rand io.Reader) (*PrivateKey, error) {
 func generateKey(rand io.Reader, privateKey *x448lib.Key, publicKey *x448lib.Key) error {
 	maxRounds := 10
 	isZero := true
-	for round := 0; isZero; round++  {
+	for round := 0; isZero; round++ {
 		if round == maxRounds {
 			return errors.InvalidArgumentError("x448: zero keys only, randomness source might be corrupt")
 		}
@@ -72,10 +72,10 @@ func generateKey(rand io.Reader, privateKey *x448lib.Key, publicKey *x448lib.Key
 	return nil
 }
 
-// Encrypt encrpyts a sessionKey with x448 according to 
+// Encrypt encrpyts a sessionKey with x448 according to
 // the OpenPGP crypto refresh specification section 5.1.6. The function assumes that the
 // sessionKey has the correct format and padding according to the specification.
-func Encrypt(rand io.Reader, publicKey *PublicKey, sessionKey []byte) (ephemeralPublicKey *PublicKey, encryptedSessionKey []byte,  err error) {
+func Encrypt(rand io.Reader, publicKey *PublicKey, sessionKey []byte) (ephemeralPublicKey *PublicKey, encryptedSessionKey []byte, err error) {
 	var ephemeralPrivate, ephemeralPublic, staticPublic, shared x448lib.Key
 	// Check that the input static public key has 32 bytes
 	if len(publicKey.Point) != PointSize {
@@ -175,7 +175,7 @@ func EncodeFields(writer io.Writer, ephemeralPublicKey *PublicKey, encryptedSess
 		}
 	}
 	_, err = writer.Write(encryptedSessionKey)
-	return 
+	return
 }
 
 // DecodeField decodes a x448 session key encryption as

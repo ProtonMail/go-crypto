@@ -24,8 +24,7 @@ type PrivateKey struct {
 }
 
 func NewPublicKey() *PublicKey {
-	return &PublicKey{
-	}
+	return &PublicKey{}
 }
 
 func NewPrivateKey(key PublicKey) *PrivateKey {
