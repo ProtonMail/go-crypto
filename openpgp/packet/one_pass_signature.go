@@ -17,20 +17,20 @@ import (
 // OnePassSignature represents a one-pass signature packet. See RFC 4880,
 // section 5.4.
 type OnePassSignature struct {
-	Version    		int
-	SigType    		SignatureType
-	Hash       		crypto.Hash
-	PubKeyAlgo 		PublicKeyAlgorithm
-	KeyId      		uint64
-	IsLast     		bool
-	Salt 	   		[]byte // v6 only
-	KeyFingerprint 	[]byte // v6 only
+	Version        int
+	SigType        SignatureType
+	Hash           crypto.Hash
+	PubKeyAlgo     PublicKeyAlgorithm
+	KeyId          uint64
+	IsLast         bool
+	Salt           []byte // v6 only
+	KeyFingerprint []byte // v6 only
 }
 
 func (ops *OnePassSignature) parse(r io.Reader) (err error) {
 	var buf [8]byte
 	// Read: version | signature type | hash algorithm | public-key algorithm
-	_, err = readFull(r, buf[:4]) 
+	_, err = readFull(r, buf[:4])
 	if err != nil {
 		return
 	}
@@ -110,7 +110,7 @@ func (ops *OnePassSignature) Serialize(w io.Writer) error {
 	if ops.Version == 6 {
 		// v6 length
 		packetLength = 39 + len(ops.Salt)
-	} 
+	}
 
 	if err := serializeHeader(w, packetTypeOnePassSignature, packetLength); err != nil {
 		return err

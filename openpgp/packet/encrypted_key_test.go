@@ -209,8 +209,7 @@ func TestEncryptingEncryptedKey(t *testing.T) {
 func TestEncryptingEncryptedKeyV6(t *testing.T) {
 	key := []byte{1, 2, 3, 4}
 	config := &Config{
-		AEADConfig: &AEADConfig{
-		},
+		AEADConfig: &AEADConfig{},
 	}
 	rsaKey, _ := rsa.GenerateKey(config.Random(), 2048)
 	rsaWrappedKey := NewRSAPrivateKey(time.Now(), rsaKey)
@@ -218,7 +217,7 @@ func TestEncryptingEncryptedKeyV6(t *testing.T) {
 	rsaWrappedKeyPub := &rsaWrappedKey.PublicKey
 
 	buf := new(bytes.Buffer)
-	err := SerializeEncryptedKey(buf, rsaWrappedKeyPub, CipherAES128, key, config) 
+	err := SerializeEncryptedKey(buf, rsaWrappedKeyPub, CipherAES128, key, config)
 
 	if err != nil {
 		t.Errorf("error writing encrypted key packet: %s", err)
@@ -235,7 +234,7 @@ func TestEncryptingEncryptedKeyV6(t *testing.T) {
 		return
 	}
 
-	if !bytes.Equal(ek.KeyFingerprint, rsaWrappedKey.Fingerprint) || 
+	if !bytes.Equal(ek.KeyFingerprint, rsaWrappedKey.Fingerprint) ||
 		ek.Algo != PubKeyAlgoRSA ||
 		ek.KeyVersion != rsaWrappedKey.Version {
 		t.Errorf("unexpected EncryptedKey contents: %#v", ek)
@@ -247,7 +246,7 @@ func TestEncryptingEncryptedKeyV6(t *testing.T) {
 		t.Errorf("error from Decrypt: %s", err)
 		return
 	}
-	
+
 	keyHex := fmt.Sprintf("%x", ek.Key)
 	expectedKeyHex := fmt.Sprintf("%x", key)
 	if keyHex != expectedKeyHex {
@@ -258,30 +257,28 @@ func TestEncryptingEncryptedKeyV6(t *testing.T) {
 func TestEncryptingEncryptedKeyXAlgorithms(t *testing.T) {
 	key := []byte{1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4}
 	config := &Config{
-		AEADConfig: &AEADConfig{
-		},
+		AEADConfig: &AEADConfig{},
 	}
-	x25519Gen := func () (*PrivateKey, PublicKeyAlgorithm) {
+	x25519Gen := func() (*PrivateKey, PublicKeyAlgorithm) {
 		x25519Key, _ := x25519.GenerateKey(config.Random())
 		x25519WrappedKey := NewX25519PrivateKey(time.Now(), x25519Key)
 		x25519WrappedKey.UpgradeToV6()
 		return x25519WrappedKey, PubKeyAlgoX25519
 	}
-	x448Gen := func () (*PrivateKey, PublicKeyAlgorithm) {
+	x448Gen := func() (*PrivateKey, PublicKeyAlgorithm) {
 		x448Key, _ := x448.GenerateKey(config.Random())
 		x448WrappedKey := NewX448PrivateKey(time.Now(), x448Key)
 		x448WrappedKey.UpgradeToV6()
 		return x448WrappedKey, PubKeyAlgoX448
 	}
-	testCaseFunc := []func()(*PrivateKey, PublicKeyAlgorithm) {x25519Gen, x448Gen}
+	testCaseFunc := []func() (*PrivateKey, PublicKeyAlgorithm){x25519Gen, x448Gen}
 
 	for _, genFunc := range testCaseFunc {
-		wrappedKey, pubType:= genFunc()
+		wrappedKey, pubType := genFunc()
 		wrappedKeyPub := &wrappedKey.PublicKey
-		
 
 		buf := new(bytes.Buffer)
-		err := SerializeEncryptedKey(buf, wrappedKeyPub, CipherAES128, key, config) 
+		err := SerializeEncryptedKey(buf, wrappedKeyPub, CipherAES128, key, config)
 
 		if err != nil {
 			t.Errorf("error writing encrypted key packet: %s", err)
@@ -298,7 +295,7 @@ func TestEncryptingEncryptedKeyXAlgorithms(t *testing.T) {
 			return
 		}
 
-		if !bytes.Equal(ek.KeyFingerprint, wrappedKey.Fingerprint) || 
+		if !bytes.Equal(ek.KeyFingerprint, wrappedKey.Fingerprint) ||
 			ek.Algo != pubType ||
 			ek.KeyVersion != wrappedKey.Version {
 			t.Errorf("unexpected EncryptedKey contents: %#v", ek)
@@ -310,7 +307,7 @@ func TestEncryptingEncryptedKeyXAlgorithms(t *testing.T) {
 			t.Errorf("error from Decrypt: %s", err)
 			return
 		}
-		
+
 		keyHex := fmt.Sprintf("%x", ek.Key)
 		expectedKeyHex := fmt.Sprintf("%x", key)
 		if keyHex != expectedKeyHex {

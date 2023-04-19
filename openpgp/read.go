@@ -47,7 +47,7 @@ type MessageDetails struct {
 	DecryptedWith            Key                 // the private key used to decrypt the message, if any.
 	IsSigned                 bool                // true if the message is signed.
 	SignedByKeyId            uint64              // the key id of the signer, if any.
-	SignedByFingerprint		 []byte				 // the key fingerprint of the signer, if any. (only v6)
+	SignedByFingerprint      []byte              // the key fingerprint of the signer, if any. (only v6)
 	SignedBy                 *Key                // the key of the signer, if available.
 	LiteralData              *packet.LiteralData // the metadata of the contents
 	UnverifiedBody           io.Reader           // the contents of the message.
@@ -280,9 +280,9 @@ FindLiteralData:
 			md.IsSigned = true
 			if p.Version == 6 {
 				md.SignedByFingerprint = p.KeyFingerprint
-			} 
+			}
 			md.SignedByKeyId = p.KeyId
-			
+
 			if keyring != nil {
 				keys := keyring.KeysByIdUsage(p.KeyId, packet.KeyFlagSign)
 				if len(keys) > 0 {
@@ -470,7 +470,7 @@ func VerifyDetachedSignatureAndSaltedHash(keyring KeyRing, signed, signature io.
 // ErrUnknownIssuer is returned.
 func CheckDetachedSignature(keyring KeyRing, signed, signature io.Reader, config *packet.Config) (signer *Entity, err error) {
 	_, signer, err = verifyDetachedSignature(keyring, signed, signature, nil, nil, false, config)
-	return 
+	return
 }
 
 // CheckDetachedSignatureAndSaltedHash performs the same actions as
@@ -520,12 +520,12 @@ func verifyDetachedSignature(keyring KeyRing, signed, signature io.Reader, expec
 			if sig.Version == 6 {
 				// check for salted hashes
 				for _, expectedSaltedHash := range expectedSaltedHashes {
-					if hashFunc == expectedSaltedHash.Hash && bytes.Equal(sig.Salt(), expectedSaltedHash.Salt){
+					if hashFunc == expectedSaltedHash.Hash && bytes.Equal(sig.Salt(), expectedSaltedHash.Salt) {
 						matchFound = true
 						break
 					}
 				}
-				
+
 			} else {
 				// check for hashes
 				for _, expectedHash := range expectedHashes {
@@ -605,7 +605,7 @@ func checkSignatureDetails(key *Key, signature *packet.Signature, config *packet
 	now := config.Now()
 	primarySelfSignature, primaryIdentity := key.Entity.PrimarySelfSignature()
 	signedBySubKey := key.PublicKey != key.Entity.PrimaryKey
-	sigsToCheck := []*packet.Signature{ signature, primarySelfSignature }
+	sigsToCheck := []*packet.Signature{signature, primarySelfSignature}
 	if signedBySubKey {
 		sigsToCheck = append(sigsToCheck, key.SelfSignature, key.SelfSignature.EmbeddedSignature)
 	}

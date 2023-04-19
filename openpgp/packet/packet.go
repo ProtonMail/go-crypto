@@ -411,10 +411,10 @@ const (
 	PubKeyAlgoElGamal PublicKeyAlgorithm = 16
 	PubKeyAlgoDSA     PublicKeyAlgorithm = 17
 	// RFC 6637, Section 5.
-	PubKeyAlgoECDH    PublicKeyAlgorithm = 18
-	PubKeyAlgoECDSA   PublicKeyAlgorithm = 19
+	PubKeyAlgoECDH  PublicKeyAlgorithm = 18
+	PubKeyAlgoECDSA PublicKeyAlgorithm = 19
 	// https://www.ietf.org/archive/id/draft-koch-eddsa-for-openpgp-04.txt
-	PubKeyAlgoEdDSA   PublicKeyAlgorithm = 22
+	PubKeyAlgoEdDSA PublicKeyAlgorithm = 22
 	// https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh
 	PubKeyAlgoX25519  PublicKeyAlgorithm = 25
 	PubKeyAlgoX448    PublicKeyAlgorithm = 26

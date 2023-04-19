@@ -46,9 +46,9 @@ var armorEndOfLine = []byte("-----")
 
 // lineReader wraps a line based reader. It watches for the end of an armor block
 type lineReader struct {
-	in     *bufio.Reader
-	buf    []byte
-	eof    bool
+	in  *bufio.Reader
+	buf []byte
+	eof bool
 }
 
 func (l *lineReader) Read(p []byte) (n int, err error) {
@@ -104,8 +104,8 @@ func (l *lineReader) Read(p []byte) (n int, err error) {
 // a running CRC of the resulting data and checks the CRC against the value
 // found by the lineReader at EOF.
 type openpgpReader struct {
-	lReader    *lineReader
-	b64Reader  io.Reader
+	lReader   *lineReader
+	b64Reader io.Reader
 }
 
 func (r *openpgpReader) Read(p []byte) (n int, err error) {

@@ -412,7 +412,7 @@ func EncodeMulti(w io.Writer, privateKeys []*packet.PrivateKey, config *packet.C
 				return
 			}
 		}
-	} 
+	}
 	if len(salts) < len(hashers) {
 		if _, err = buffered.WriteString(fmt.Sprintf("%s: %s", hashHeader, name)); err != nil {
 			return

@@ -114,12 +114,12 @@ func TestNewEntityV6Key(t *testing.T) {
 
 func checkV6Key(t *testing.T, ent *Entity) {
 	key := ent.PrimaryKey
-		if key.Version != 6 {
-			t.Errorf("wrong key version %d", key.Version)
-		}
-		if len(key.Fingerprint) != 32 {
-			t.Errorf("Wrong fingerprint length: %d", len(key.Fingerprint))
-		}
+	if key.Version != 6 {
+		t.Errorf("wrong key version %d", key.Version)
+	}
+	if len(key.Fingerprint) != 32 {
+		t.Errorf("Wrong fingerprint length: %d", len(key.Fingerprint))
+	}
 	signatures := ent.Revocations
 	for _, id := range ent.Identities {
 		signatures = append(signatures, id.SelfSignature)
@@ -133,7 +133,7 @@ func checkV6Key(t *testing.T, ent *Entity) {
 			t.Errorf("wrong signature version %d", sig.Version)
 		}
 		fgptLen := len(sig.IssuerFingerprint)
-		if fgptLen!= 32 {
+		if fgptLen != 32 {
 			t.Errorf("Wrong fingerprint length in signature: %d", fgptLen)
 		}
 	}
@@ -180,7 +180,7 @@ func checkSerializeReadv6(t *testing.T, e *Entity) {
 func TestNewEntityWithDefaultHashv6(t *testing.T) {
 	for _, hash := range hashes[:5] {
 		c := &packet.Config{
-			V6Keys: true,
+			V6Keys:      true,
 			DefaultHash: hash,
 		}
 		entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", c)

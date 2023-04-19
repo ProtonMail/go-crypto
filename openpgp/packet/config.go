@@ -54,8 +54,8 @@ type Config struct {
 	//
 	// Deprecated: SK2Count should be configured in S2KConfig instead.
 	S2KCount int
-	// An S2K specifier can be stored in the secret keyring to specify 
-	// how to convert the passphrase to a key that unlocks the secret data. 
+	// An S2K specifier can be stored in the secret keyring to specify
+	// how to convert the passphrase to a key that unlocks the secret data.
 	// This config allows to set this key encryption parameters.
 	// If nil, the default parameters are used.
 	// See OpenPGP crypto refresh 3.7.2.1.

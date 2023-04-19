@@ -13,7 +13,6 @@ var foreignKeys = []string{
 	v5PrivKey,
 }
 
-
 func TestReadPrivateForeignV5Key(t *testing.T) {
 	for _, str := range foreignKeys {
 		kring, err := ReadArmoredKeyRing(strings.NewReader(str))

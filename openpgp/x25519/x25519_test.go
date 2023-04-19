@@ -6,7 +6,6 @@ import (
 	"testing"
 )
 
-
 func TestGenerate(t *testing.T) {
 	privateKey, err := GenerateKey(rand.Reader)
 	if err != nil {

@@ -204,7 +204,7 @@ func encDecTest(t *testing.T, from testVector, testVectors []testVector) {
 			signKey, _ := signer.SigningKey(time.Now())
 			expectedKeyID := signKey.PublicKey.KeyId
 			expectedFingerprint := signKey.PublicKey.Fingerprint
-			if signKey.PublicKey.Version != 6 &&  md.SignedByKeyId != expectedKeyID {
+			if signKey.PublicKey.Version != 6 && md.SignedByKeyId != expectedKeyID {
 				t.Fatalf(
 					"Message signed by wrong key id, got: %v, want: %v",
 					*md.SignedBy, expectedKeyID)

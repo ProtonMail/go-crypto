@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestGenerate(t *testing.T){
+func TestGenerate(t *testing.T) {
 	priv, err := GenerateKey(rand.Reader)
 	if err != nil {
 		t.Fatal(err)

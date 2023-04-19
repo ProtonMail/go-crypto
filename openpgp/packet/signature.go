@@ -62,7 +62,7 @@ type Signature struct {
 	DSASigR, DSASigS     encoding.Field
 	ECDSASigR, ECDSASigS encoding.Field
 	EdDSASigR, EdDSASigS encoding.Field
-	EdSig			     []byte
+	EdSig                []byte
 
 	// rawSubpackets contains the unparsed subpackets, in order.
 	rawSubpackets []outputSubpacket
@@ -119,8 +119,8 @@ type Signature struct {
 	outSubpackets []outputSubpacket
 }
 
-// SaltedHashSpecifier specifies that the given salt and hash are 
-// used by a v6 signature. 
+// SaltedHashSpecifier specifies that the given salt and hash are
+// used by a v6 signature.
 type SaltedHashSpecifier struct {
 	Hash crypto.Hash
 	Salt []byte
@@ -178,10 +178,10 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 	if sig.Version == 6 {
 		// For a v6 signature, a four-octet length is used.
 		hashedSubpacketsLength =
-			int(buf[3])<<24 | 
-			int(buf[4])<<16 | 
-			int(buf[5])<<8  | 
-			int(buf[6])
+			int(buf[3])<<24 |
+				int(buf[4])<<16 |
+				int(buf[5])<<8 |
+				int(buf[6])
 	} else {
 		hashedSubpacketsLength = int(buf[3])<<8 | int(buf[4])
 	}
@@ -772,7 +772,7 @@ func (sig *Signature) signPrepareHash(h hash.Hash) (digest []byte, err error) {
 
 // PrepareSign must be called to create a hash object before Sign for v6 signatures.
 // The created hash object initially hashes a randomly generated salt
-// as required by v6 signatures. The generated salt is stored in sig. If the signature is not v6, 
+// as required by v6 signatures. The generated salt is stored in sig. If the signature is not v6,
 // the method returns an empty hash object.
 // See RFC the crypto refresh Section 3.2.4.
 func (sig *Signature) PrepareSign(config *Config) (hash.Hash, error) {
@@ -796,10 +796,10 @@ func (sig *Signature) PrepareSign(config *Config) (hash.Hash, error) {
 // SetSalt sets the signature salt for v6 signatures.
 // Assumes salt is generated correctly and checks if length matches.
 // If the signature is not v6, the method ignores the salt.
-// Use PrepareSign whenever possible instead of generating and 
+// Use PrepareSign whenever possible instead of generating and
 // hashing the salt externally.
 // See RFC the crypto refresh Section 3.2.4.
-func (sig *Signature) SetSalt(salt []byte) (error) {
+func (sig *Signature) SetSalt(salt []byte) error {
 	if sig.Version == 6 {
 		expectedSaltLength, err := SaltLengthForHash(sig.Hash)
 		if err != nil {
@@ -923,7 +923,7 @@ func (sig *Signature) SignUserId(id string, pub *PublicKey, priv *PrivateKey, co
 }
 
 // SignUserId computes a signature from priv
-// On success, the signature is stored in sig. 
+// On success, the signature is stored in sig.
 // Call Serialize to write it out.
 // If config is nil, sensible defaults will be used.
 func (sig *Signature) SignDirectKeyBinding(pub *PublicKey, priv *PrivateKey, config *Config) error {
@@ -1024,7 +1024,7 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 	case PubKeyAlgoEd25519:
 		sigLength = ed25519.SignatureSize
 	case PubKeyAlgoEd448:
-		sigLength = ed448.SignatureSize 
+		sigLength = ed448.SignatureSize
 	default:
 		panic("impossible")
 	}
@@ -1040,7 +1040,7 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 		// unhashed length is four-octet instead
 		// salt len 1 ocet
 		// len(salt) ocets
-		length += 3 + len(sig.salt) 
+		length += 3 + len(sig.salt)
 	}
 	err = serializeHeader(w, packetTypeSignature, length)
 	if err != nil {
@@ -1058,16 +1058,16 @@ func (sig *Signature) serializeBody(w io.Writer) (err error) {
 	if sig.Version == 6 {
 		// v6 signatures use 4 ocets for length
 		hashedSubpacketsLen :=
-			uint32(uint32(sig.HashSuffix[4])<<24) | 
-			uint32(uint32(sig.HashSuffix[5])<<16) | 
-			uint32(uint32(sig.HashSuffix[6])<<8)  | 
-			uint32(sig.HashSuffix[7])
+			uint32(uint32(sig.HashSuffix[4])<<24) |
+				uint32(uint32(sig.HashSuffix[5])<<16) |
+				uint32(uint32(sig.HashSuffix[6])<<8) |
+				uint32(sig.HashSuffix[7])
 		fields = sig.HashSuffix[:8+hashedSubpacketsLen]
 	} else {
-		hashedSubpacketsLen := uint16(uint16(sig.HashSuffix[4])<<8) | 
-							   uint16(sig.HashSuffix[5])
+		hashedSubpacketsLen := uint16(uint16(sig.HashSuffix[4])<<8) |
+			uint16(sig.HashSuffix[5])
 		fields = sig.HashSuffix[:6+hashedSubpacketsLen]
-		
+
 	}
 	_, err = w.Write(fields)
 	if err != nil {
@@ -1089,7 +1089,6 @@ func (sig *Signature) serializeBody(w io.Writer) (err error) {
 		unhashedSubpackets[1] = byte(unhashedSubpacketsLen)
 		serializeSubpackets(unhashedSubpackets[2:], sig.outSubpackets, false)
 	}
-
 
 	_, err = w.Write(unhashedSubpackets)
 	if err != nil {
@@ -1335,22 +1334,29 @@ func (sig *Signature) AddMetadataToHashSuffix() {
 	sig.HashSuffix = suffix.Bytes()
 }
 
-// SaltLengthForHash selects the required salt length for the given hash algorithm, 
+// SaltLengthForHash selects the required salt length for the given hash algorithm,
 // as per Table 23 (Hash algorithm registry) of the crypto refresh.
 // See https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh#section-9.5|Crypto Refresh Section 9.5
 func SaltLengthForHash(hash crypto.Hash) (int, error) {
-	switch (hash) {
-		case crypto.SHA256: return 16, nil
-		case crypto.SHA384: return 24, nil
-		case crypto.SHA512: return 32, nil
-		case crypto.SHA224: return 16, nil
-		case crypto.SHA3_256: return 16, nil
-		case crypto.SHA3_512: return 32, nil
-		default: return 0, errors.UnsupportedError("hash function not supported for V6 signatures")
+	switch hash {
+	case crypto.SHA256:
+		return 16, nil
+	case crypto.SHA384:
+		return 24, nil
+	case crypto.SHA512:
+		return 32, nil
+	case crypto.SHA224:
+		return 16, nil
+	case crypto.SHA3_256:
+		return 16, nil
+	case crypto.SHA3_512:
+		return 32, nil
+	default:
+		return 0, errors.UnsupportedError("hash function not supported for V6 signatures")
 	}
 }
 
-// SignatureSaltForHash generates a random signature salt 
+// SignatureSaltForHash generates a random signature salt
 // with the length for the given hash algorithm.
 // See https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh#section-9.5|Crypto Refresh Section 9.5
 func SignatureSaltForHash(hash crypto.Hash, randReader io.Reader) ([]byte, error) {
