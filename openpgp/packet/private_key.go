@@ -320,21 +320,22 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 		if len(privateKeyData) < 2 {
 			return errors.StructuralError("truncated private key data")
 		}
-
-		if pk.Version == 6 {
+		if pk.Version != 6 {
+			// checksum
+			var sum uint16
+			for i := 0; i < len(privateKeyData)-2; i++ {
+				sum += uint16(privateKeyData[i])
+			}
+			if privateKeyData[len(privateKeyData)-2] != uint8(sum>>8) ||
+				privateKeyData[len(privateKeyData)-1] != uint8(sum) {
+				return errors.StructuralError("private key checksum failure")
+			}
+			privateKeyData = privateKeyData[:len(privateKeyData)-2]
+			return pk.parsePrivateKey(privateKeyData)
+		} else {
 			// No checksum
 			return pk.parsePrivateKey(privateKeyData)
-		} 
-		var sum uint16
-		for i := 0; i < len(privateKeyData)-2; i++ {
-			sum += uint16(privateKeyData[i])
 		}
-		if privateKeyData[len(privateKeyData)-2] != uint8(sum>>8) ||
-			privateKeyData[len(privateKeyData)-1] != uint8(sum) {
-			return errors.StructuralError("private key checksum failure")
-		}
-		privateKeyData = privateKeyData[:len(privateKeyData)-2]
-		return pk.parsePrivateKey(privateKeyData)
 	}
 
 	pk.encryptedData = privateKeyData
@@ -405,7 +406,7 @@ func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 			if _, err = optional.Write(pk.iv); err != nil {
 				return
 			}
-			if pk.Version == 5 && len(pk.iv) > 0 {
+			if pk.Version == 5 && pk.s2kType == S2KAEAD {
 				// Add padding for version 5
 				padding := make([]byte, pk.cipher.blockSize() - len(pk.iv))
 				if _, err = optional.Write(padding); err != nil {
