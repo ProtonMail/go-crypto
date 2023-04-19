@@ -793,12 +793,13 @@ func (sig *Signature) PrepareSign(config *Config) (hash.Hash, error) {
 	return hasher, nil
 }
 
-// PrepareSignWithSalt stores a signature salt within sig for v6 signatrues.
+// SetSalt sets the signature salt for v6 signatures.
 // Assumes salt is generated correctly and checks if length matches.
 // If the signature is not v6, the method ignores the salt.
-// Use PrepareSign whenever possible instead of this method.
+// Use PrepareSign whenever possible instead of generating and 
+// hashing the salt externally.
 // See RFC the crypto refresh Section 3.2.4.
-func (sig *Signature) PrepareSignWithSalt(salt []byte) (error) {
+func (sig *Signature) SetSalt(salt []byte) (error) {
 	if sig.Version == 6 {
 		expectedSaltLength, err := SaltLengthForHash(sig.Hash)
 		if err != nil {
@@ -813,9 +814,9 @@ func (sig *Signature) PrepareSignWithSalt(salt []byte) (error) {
 }
 
 // PrepareVerify must be called to create a hash object before verifying v6 signatures.
-// The created hash object initially hashes the inernally stored salt.
+// The created hash object initially hashes the internally stored salt.
 // If the signature is not v6, the method returns an empty hash object.
-// See RFC the crypto refresh Section 3.2.4.
+// See crypto refresh Section 3.2.4.
 func (sig *Signature) PrepareVerify() (hash.Hash, error) {
 	if !sig.Hash.Available() {
 		return nil, errors.UnsupportedError("hash function")

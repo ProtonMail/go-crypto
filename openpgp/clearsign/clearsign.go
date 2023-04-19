@@ -328,7 +328,7 @@ func (d *dashEscaper) Close() (err error) {
 		sigLifetimeSecs := d.config.SigLifetime()
 		sig.SigLifetimeSecs = &sigLifetimeSecs
 		if v6 {
-			if err = sig.PrepareSignWithSalt(d.salts[i]); err != nil {
+			if err = sig.SetSalt(d.salts[i]); err != nil {
 				return
 			}
 		}

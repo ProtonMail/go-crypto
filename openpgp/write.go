@@ -536,7 +536,7 @@ func (s signatureWriter) Close() error {
 	sig.Hash = s.hashType
 	sig.Metadata = s.metadata
 
-	if err := sig.PrepareSignWithSalt(s.salt); err != nil {
+	if err := sig.SetSalt(s.salt); err != nil {
 		return err
 	}
 
