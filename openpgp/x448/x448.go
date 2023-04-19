@@ -147,40 +147,66 @@ func constantTimeIsZero(bytes []byte) bool {
 
 // EncodeFieldsLength returns the length of the ciphertext encoding
 // given the encrpyted session key.
-func EncodedFieldsLength(encryptedSessionKey []byte) int {
-	return PointSize + 1 + len(encryptedSessionKey)
+func EncodedFieldsLength(encryptedSessionKey []byte, v6 bool) int {
+	lenCipherFunction := 0
+	if !v6 {
+		lenCipherFunction = 1
+	}
+	return PointSize + 1 + len(encryptedSessionKey) + lenCipherFunction
 }
 
 // EncodeField encodes x448 session key encryption as
-// ephemeral x448 public key | encryptedSessionKey length | encryptedSessionKey
+// ephemeral x448 public key | follow byte length | cipherFunction (v3 only) | encryptedSessionKey
 // and writes it to writer
-func EncodeFields(writer io.Writer, ephemeralPublicKey *PublicKey, encryptedSessionKey []byte) (err error) {
+func EncodeFields(writer io.Writer, ephemeralPublicKey *PublicKey, encryptedSessionKey []byte, cipherFunction byte, v6 bool) (err error) {
+	lenAlgorithm := 0
+	if !v6 {
+		lenAlgorithm = 1
+	}
 	if _, err = writer.Write(ephemeralPublicKey.Point); err != nil {
 		return
 	}
-	if _, err = writer.Write([]byte{byte(len(encryptedSessionKey))}); err != nil {
+	if _, err = writer.Write([]byte{byte(len(encryptedSessionKey) + lenAlgorithm)}); err != nil {
 		return
+	}
+	if !v6 {
+		if _, err = writer.Write([]byte{cipherFunction}); err != nil {
+			return
+		}
 	}
 	_, err = writer.Write(encryptedSessionKey)
 	return 
 }
 
 // DecodeField decodes a x448 session key encryption as
-// ephemeral x448 public key | encryptedSessionKey length | encryptedSessionKey
-func DecodeFields(reader io.Reader) (ephemeralPublicKey *PublicKey, encryptedSessionKey []byte, err error) {
+// ephemeral x448 public key | follow byte length | cipherFunction (v3 only) | encryptedSessionKey
+func DecodeFields(reader io.Reader, v6 bool) (ephemeralPublicKey *PublicKey, encryptedSessionKey []byte, cipherFunction byte, err error) {
 	var buf [1]byte
 	ephemeralPublicKey = &PublicKey{
 		Point: make([]byte, PointSize),
 	}
+	// 56 octets representing an ephemeral X448 public key.
 	_, err = io.ReadFull(reader, ephemeralPublicKey.Point)
 	if err != nil {
 		return
 	}
+	// A one-octet size of the following fields.
 	_, err = io.ReadFull(reader, buf[:])
 	if err != nil {
 		return
 	}
-	encryptedSessionKey = make([]byte, buf[0])
+	followingLen := buf[0]
+	// The one-octet algorithm identifier, if it was passed (in the case of a v3 PKESK packet).
+	if !v6 {
+		_, err = io.ReadFull(reader, buf[:])
+		if err != nil {
+			return
+		}
+		cipherFunction = buf[0]
+		followingLen -= 1
+	}
+	// The encrypted session key.
+	encryptedSessionKey = make([]byte, followingLen)
 	_, err = io.ReadFull(reader, encryptedSessionKey)
 	return
 }
