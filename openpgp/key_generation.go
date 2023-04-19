@@ -49,7 +49,7 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 		PrivateKey: primary,
 		Identities: make(map[string]*Identity),
 		Subkeys:    []Subkey{},
-		DirectSignatures: []*packet.Signature{},
+		Signatures: []*packet.Signature{},
 	}
 
 	if config.V6() {
@@ -63,7 +63,8 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 		if err != nil {
 			return nil, err
 		}
-		e.DirectSignatures = append(e.DirectSignatures, selfSignature)
+		e.Signatures = append(e.Signatures, selfSignature)
+		e.SelfSignature = selfSignature
 	}
 
 	err = e.addUserId(name, comment, email, config, creationTime, keyLifetimeSecs, !config.V6())

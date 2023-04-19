@@ -190,13 +190,9 @@ func TestNewEntityWithDefaultHashv6(t *testing.T) {
 			}
 			continue
 		}
-
-		for _, signature := range entity.DirectSignatures {
-			prefs := signature.PreferredHash
-			if prefs == nil {
-				t.Fatal(err)
-			}
+		prefs := entity.SelfSignature.PreferredHash
+		if prefs == nil {
+			t.Fatal(err)
 		}
-
 	}
 }
