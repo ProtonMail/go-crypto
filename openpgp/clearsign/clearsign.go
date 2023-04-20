@@ -298,7 +298,6 @@ func (d *dashEscaper) Write(data []byte) (n int, err error) {
 }
 
 func (d *dashEscaper) Close() (err error) {
-	v6 := len(d.salts) != 0
 	if !d.atBeginningOfLine {
 		if err = d.buffered.WriteByte(lf); err != nil {
 			return
@@ -311,13 +310,10 @@ func (d *dashEscaper) Close() (err error) {
 	}
 
 	t := d.config.Now()
-	sigVersion := 4
-	if v6 {
-		sigVersion = 6
-	}
+	indexSalt := 0
 	for i, k := range d.privateKeys {
 		sig := new(packet.Signature)
-		sig.Version = sigVersion
+		sig.Version = k.Version
 		sig.SigType = packet.SigTypeText
 		sig.PubKeyAlgo = k.PubKeyAlgo
 		sig.Hash = d.hashType
@@ -327,10 +323,11 @@ func (d *dashEscaper) Close() (err error) {
 		sig.Notations = d.config.Notations()
 		sigLifetimeSecs := d.config.SigLifetime()
 		sig.SigLifetimeSecs = &sigLifetimeSecs
-		if v6 {
-			if err = sig.SetSalt(d.salts[i]); err != nil {
+		if k.Version == 6 {
+			if err = sig.SetSalt(d.salts[indexSalt]); err != nil {
 				return
 			}
+			indexSalt++
 		}
 		if err = sig.Sign(d.hashers[i], k, d.config); err != nil {
 			return
@@ -359,19 +356,11 @@ func Encode(w io.Writer, privateKey *packet.PrivateKey, config *packet.Config) (
 // private keys indicated and write it to w. If config is nil, sensible defaults
 // are used.
 func EncodeMulti(w io.Writer, privateKeys []*packet.PrivateKey, config *packet.Config) (plaintext io.WriteCloser, err error) {
-	keyVersion := -1
 	for _, k := range privateKeys {
 		if k.Encrypted {
 			return nil, errors.InvalidArgumentError(fmt.Sprintf("signing key %s is encrypted", k.KeyIdString()))
 		}
-		if keyVersion == -1 {
-			keyVersion = k.Version
-		}
-		if keyVersion != k.Version {
-			return nil, errors.InvalidArgumentError("the signing keys must have the same version")
-		}
 	}
-	v6 := keyVersion == 6
 
 	hashType := config.Hash()
 	name := nameOfHash(hashType)
@@ -385,10 +374,10 @@ func EncodeMulti(w io.Writer, privateKeys []*packet.PrivateKey, config *packet.C
 	var hashers []hash.Hash
 	var ws []io.Writer
 	var salts [][]byte
-	for range privateKeys {
+	for _, sk := range privateKeys {
 		h := hashType.New()
-		if v6 {
-			// generate salts
+		if sk.Version == 6 {
+			// generate salt
 			var salt []byte
 			salt, err = packet.SignatureSaltForHash(hashType, config.Random())
 			if err != nil {
@@ -412,25 +401,25 @@ func EncodeMulti(w io.Writer, privateKeys []*packet.PrivateKey, config *packet.C
 	if err = buffered.WriteByte(lf); err != nil {
 		return
 	}
-	if v6 {
-		for index, salt := range salts {
+	// write headers
+	if len(salts) > 0 {
+		for _, salt := range salts {
 			encodedSalt := base64.RawStdEncoding.EncodeToString(salt)
 			if _, err = buffered.WriteString(fmt.Sprintf("%s: %s:%s", saltedHashHeader, name, encodedSalt)); err != nil {
 				return
 			}
-			if index != len(salts)-1 {
-				if err = buffered.WriteByte(lf); err != nil {
-					return
-				}
+			if err = buffered.WriteByte(lf); err != nil {
+				return
 			}
 		}
-	} else {
+	} 
+	if len(salts) < len(hashers) {
 		if _, err = buffered.WriteString(fmt.Sprintf("%s: %s", hashHeader, name)); err != nil {
 			return
 		}
-	}
-	if err = buffered.WriteByte(lf); err != nil {
-		return
+		if err = buffered.WriteByte(lf); err != nil {
+			return
+		}
 	}
 	if err = buffered.WriteByte(lf); err != nil {
 		return
