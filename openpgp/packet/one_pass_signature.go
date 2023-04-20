@@ -35,7 +35,7 @@ func (ops *OnePassSignature) parse(r io.Reader) (err error) {
 		return
 	}
 	if buf[0] != 3 && buf[0] != 6 {
-		err = errors.UnsupportedError("one-pass-signature packet version " + strconv.Itoa(int(buf[0])))
+		return errors.UnsupportedError("one-pass-signature packet version " + strconv.Itoa(int(buf[0])))
 	}
 	ops.Version = int(buf[0])
 
