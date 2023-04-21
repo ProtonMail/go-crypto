@@ -745,7 +745,8 @@ func (pk *PublicKey) VerifySignature(signed hash.Hash, sig *Signature) (err erro
 	}
 	signed.Write(sig.HashSuffix)
 	hashBytes := signed.Sum(nil)
-	if sig.Version == 5 && (hashBytes[0] != sig.HashTag[0] || hashBytes[1] != sig.HashTag[1]) {
+	// see discussion https://github.com/ProtonMail/go-crypto/issues/107
+	if sig.Version >= 5 && hashBytes[0] != sig.HashTag[0] || hashBytes[1] != sig.HashTag[1] {
 		return errors.SignatureError("hash tag doesn't match")
 	}
 
