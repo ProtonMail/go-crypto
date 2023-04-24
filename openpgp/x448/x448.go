@@ -95,7 +95,7 @@ func Encrypt(rand io.Reader, publicKey *PublicKey, sessionKey []byte) (ephemeral
 		return
 	}
 	// Derive the encryption key from the shared secret
-	encryptionKey := applyHKDF(shared[:])
+	encryptionKey := applyHKDF(ephemeralPublic[:], publicKey.Point[:], shared[:])
 	ephemeralPublicKey = &PublicKey{
 		Point: ephemeralPublic[:],
 	}
@@ -122,13 +122,18 @@ func Decrypt(privateKey *PrivateKey, ephemeralPublicKey *PublicKey, ciphertext [
 		return
 	}
 	// Derive the encryption key from the shared secret
-	encryptionKey := applyHKDF(shared[:])
+	encryptionKey := applyHKDF(ephemeralPublicKey.Point[:], privateKey.PublicKey.Point[:], shared[:])
 	// Decrypt the session key with aes key wrapping
 	encodedSessionKey, err = keywrap.Unwrap(encryptionKey, ciphertext)
 	return
 }
 
-func applyHKDF(inputKey []byte) []byte {
+func applyHKDF(ephemeralPublicKey []byte, publicKey []byte, sharedSecret []byte) []byte {
+	inputKey := make([]byte, 3*PointSize)
+	// ephemeral public key | recipient public key | shared secret
+	subtle.ConstantTimeCopy(1, inputKey[:PointSize], ephemeralPublicKey)
+	subtle.ConstantTimeCopy(1, inputKey[PointSize:2*PointSize], publicKey)
+	subtle.ConstantTimeCopy(1, inputKey[2*PointSize:], sharedSecret)
 	hkdfReader := hkdf.New(sha512.New, inputKey, []byte{}, []byte(hkdfInfo))
 	encryptionKey := make([]byte, aesKeySize)
 	_, _ = io.ReadFull(hkdfReader, encryptionKey)
