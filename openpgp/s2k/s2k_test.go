@@ -190,50 +190,90 @@ func TestParseIntoParams(t *testing.T) {
 	}
 }
 
-func TestSerializeOK(t *testing.T) {
+func TestSerializeSaltedOK(t *testing.T) {
 	hashes := []crypto.Hash{crypto.SHA256, crypto.SHA384, crypto.SHA512, crypto.SHA224, crypto.SHA3_256,
 		crypto.SHA3_512}
-	testCounts := []int{-1, 0, 1024, 65536, 4063232, 65011712}
+	for _, h := range hashes {
+		params := testSerializeConfigOK(t, &Config{S2KMode: SaltedS2K, Hash: h, PassphraseIsHighEntropy: true})
+
+		if params.mode != SaltedS2K {
+			t.Fatalf("Wrong mode, expected %d got %d", SaltedS2K, params.mode)
+		}
+	}
+}
+
+func TestSerializeSaltedLowEntropy(t *testing.T) {
+	hashes := []crypto.Hash{crypto.SHA256, crypto.SHA384, crypto.SHA512, crypto.SHA224, crypto.SHA3_256,
+		crypto.SHA3_512}
+	for _, h := range hashes {
+		params := testSerializeConfigOK(t, &Config{S2KMode: SaltedS2K, Hash: h})
+
+		if params.mode != IteratedSaltedS2K {
+			t.Fatalf("Wrong mode, expected %d got %d", IteratedSaltedS2K, params.mode)
+		}
+
+		if params.countByte != 224 { // The default case. Corresponding to 16777216
+			t.Fatalf("Wrong count byte, expected %d got %d", 224, params.countByte)
+		}
+	}
+}
+
+func TestSerializeSaltedIteratedOK(t *testing.T) {
+	hashes := []crypto.Hash{crypto.SHA256, crypto.SHA384, crypto.SHA512, crypto.SHA224, crypto.SHA3_256,
+		crypto.SHA3_512}
+	// {input, expected}
+	testCounts := [][]int{{-1, 96}, {0, 224}, {1024, 96}, {65536, 96}, {4063232, 191}, {65011712, 255}}
 	for _, h := range hashes {
 		for _, c := range testCounts {
-			testSerializeConfigOK(t, &Config{Hash: h, S2KCount: c})
+			params := testSerializeConfigOK(t, &Config{Hash: h, S2KCount: c[0]})
+
+			if params.mode != IteratedSaltedS2K {
+				t.Fatalf("Wrong mode, expected %d got %d", IteratedSaltedS2K, params.mode)
+			}
+
+			if int(params.countByte) != c[1] {
+				t.Fatalf("Wrong count byte, expected %d got %d", c[1], params.countByte)
+			}
 		}
 	}
 }
 
 func TestSerializeOKArgon(t *testing.T) {
-	testSerializeConfigOK(t, &Config{S2KMode: 4, Argon2Config: &Argon2Config{NumberOfPasses: 3, DegreeOfParallelism: 4, Memory: 64*1024}})
+	config := &Config{
+		S2KMode: Argon2S2K,
+		Argon2Config: &Argon2Config{NumberOfPasses: 3, DegreeOfParallelism: 4, Memory: 64*1024},
+	}
+
+	params := testSerializeConfigOK(t, config)
+
+	if params.mode != Argon2S2K {
+		t.Fatalf("Wrong mode, expected %d got %d", Argon2S2K, params.mode)
+	}
 }
 
-func testSerializeConfigOK(t *testing.T, c *Config) {
+func testSerializeConfigOK(t *testing.T, c *Config) *Params {
 	buf := bytes.NewBuffer(nil)
 	key := make([]byte, 16)
 	passphrase := []byte("testing")
 	err := Serialize(buf, key, rand.Reader, passphrase, c)
 	if err != nil {
-		t.Errorf("failed to serialize with config %+v: %s", c, err)
-		return
+		t.Fatalf("failed to serialize with config %+v: %s", c, err)
 	}
 
-	f, err := Parse(buf)
+	f, err := Parse(bytes.NewBuffer(buf.Bytes()))
 	if err != nil {
-		t.Errorf("failed to reparse: %s", err)
-		return
+		t.Fatalf("failed to reparse: %s", err)
 	}
 	key2 := make([]byte, len(key))
 	f(key2, passphrase)
 	if !bytes.Equal(key2, key) {
 		t.Errorf("keys don't match: %x (serialied) vs %x (parsed)", key, key2)
 	}
-}
 
-func testSerializeConfigErr(t *testing.T, c *Config) {
-	buf := bytes.NewBuffer(nil)
-	key := make([]byte, 16)
-	passphrase := []byte("testing")
-	err := Serialize(buf, key, rand.Reader, passphrase, c)
-	if err == nil {
-		t.Errorf("expected to fail serialization with config %+v", c)
-		return
+	params, err := ParseIntoParams(bytes.NewBuffer(buf.Bytes()))
+	if err != nil {
+		t.Fatalf("failed to parse params: %s", err)
 	}
+
+	return params
 }

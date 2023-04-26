@@ -81,6 +81,7 @@ func TestSerializeSymmetricKeyEncryptedV5RandomizeSlow(t *testing.T) {
 	}
 
 	modesS2K := map[string]s2k.Mode{
+		"Salted":   s2k.SaltedS2K,
 		"Iterated": s2k.IteratedSaltedS2K,
 		"Argon2":   s2k.Argon2S2K,
 	}
@@ -97,7 +98,7 @@ func TestSerializeSymmetricKeyEncryptedV5RandomizeSlow(t *testing.T) {
 							config := &Config{
 								DefaultCipher: cipher,
 								AEADConfig:    &AEADConfig{DefaultMode: mode},
-								S2KConfig:     &s2k.Config{S2KMode: s2ktype},
+								S2KConfig:     &s2k.Config{S2KMode: s2ktype, PassphraseIsHighEntropy: true},
 							}
 
 							key, err := SerializeSymmetricKeyEncrypted(&buf, passphrase, config)
@@ -133,6 +134,7 @@ func TestSerializeSymmetricKeyEncryptedCiphersV4(t *testing.T) {
 	}
 
 	testS2K := map[string]s2k.Mode{
+		"Salted":   s2k.SaltedS2K,
 		"Iterated": s2k.IteratedSaltedS2K,
 		"Argon2":   s2k.Argon2S2K,
 	}
@@ -150,6 +152,7 @@ func TestSerializeSymmetricKeyEncryptedCiphersV4(t *testing.T) {
 						DefaultCipher: cipher,
 						S2KConfig: &s2k.Config{
 							S2KMode: s2ktype,
+							PassphraseIsHighEntropy: true,
 						},
 					}
 
