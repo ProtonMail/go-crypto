@@ -194,7 +194,7 @@ func TestSerializeSaltedOK(t *testing.T) {
 	hashes := []crypto.Hash{crypto.SHA256, crypto.SHA384, crypto.SHA512, crypto.SHA224, crypto.SHA3_256,
 		crypto.SHA3_512}
 	for _, h := range hashes {
-		params := testSerializeConfigOK(t, &Config{S2KMode: SaltedS2K, Hash: h, HighEntropyKey: true})
+		params := testSerializeConfigOK(t, &Config{S2KMode: SaltedS2K, Hash: h, PassphraseIsHighEntropy: true})
 
 		if params.mode != SaltedS2K {
 			t.Fatalf("Wrong mode, expected %d got %d", SaltedS2K, params.mode)

@@ -42,7 +42,7 @@ type Config struct {
 	// When true, allows the S2KMode to be s2k.SaltedS2K.
 	// When the passphrase is not a high-entropy key, using SaltedS2K is
 	// insecure, and not allowed by draft-ietf-openpgp-crypto-refresh-08.
-	HighEntropyKey bool
+	PassphraseIsHighEntropy bool
 }
 
 // Argon2Config stores the Argon2 parameters

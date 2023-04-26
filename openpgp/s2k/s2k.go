@@ -192,7 +192,7 @@ func Generate(rand io.Reader, c *Config) (*Params, error) {
 			parallelism: argonConfig.Parallelism(),
 			memoryExp:   argonConfig.EncodedMemory(),
 		}
-	} else if c != nil && c.HighEntropyKey && c.Mode() == SaltedS2K { // Allow SaltedS2K if HighEntropyKey
+	} else if c != nil && c.PassphraseIsHighEntropy && c.Mode() == SaltedS2K { // Allow SaltedS2K if PassphraseIsHighEntropy
 		hashId, ok := algorithm.HashToHashId(c.hash())
 		if !ok {
 			return nil, errors.UnsupportedError("no such hash")
