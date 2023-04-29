@@ -60,6 +60,7 @@ type MessageDetails struct {
 	// valid. (An authentication code failure is reported as a
 	// SignatureError error when reading from UnverifiedBody.)
 	Signature            *packet.Signature   // the signature packet itself.
+	SignatureV3          *packet.SignatureV3 // the signature packet if it is a v2 or v3 signature
 	SignatureError       error               // nil if the signature is good.
 	UnverifiedSignatures []*packet.Signature // all other unverified signature packets.
 
@@ -370,6 +371,7 @@ func (scr *signatureCheckReader) Read(buf []byte) (int, error) {
 		var p packet.Packet
 		var readError error
 		var sig *packet.Signature
+		var sigv3 *packet.SignatureV3
 
 		p, readError = scr.packets.Next()
 		for readError == nil {
@@ -391,6 +393,9 @@ func (scr *signatureCheckReader) Read(buf []byte) (int, error) {
 				} else {
 					scr.md.UnverifiedSignatures = append(scr.md.UnverifiedSignatures, sig)
 				}
+			} else if sigv3, ok = p.(*packet.SignatureV3); ok {
+				scr.md.SignatureV3 = sigv3
+				scr.md.SignatureError = scr.md.SignedBy.PublicKey.VerifySignatureV3(scr.h, sigv3)
 			}
 
 			p, readError = scr.packets.Next()
@@ -472,17 +477,21 @@ func verifyDetachedSignature(keyring KeyRing, signed, signature io.Reader, expec
 			return nil, nil, err
 		}
 
-		var ok bool
-		sig, ok = p.(*packet.Signature)
-		if !ok {
+		switch sig := p.(type) {
+		case *packet.Signature:
+			if sig.IssuerKeyId == nil {
+				return nil, nil, errors.StructuralError("signature doesn't have an issuer")
+			}
+			issuerKeyId = *sig.IssuerKeyId
+			hashFunc = sig.Hash
+			sigType = sig.SigType
+		case *packet.SignatureV3:
+			issuerKeyId = sig.IssuerKeyId
+			hashFunc = sig.Hash
+			sigType = sig.SigType
+		default:
 			return nil, nil, errors.StructuralError("non signature packet found")
 		}
-		if sig.IssuerKeyId == nil {
-			return nil, nil, errors.StructuralError("signature doesn't have an issuer")
-		}
-		issuerKeyId = *sig.IssuerKeyId
-		hashFunc = sig.Hash
-		sigType = sig.SigType
 
 		for i, expectedHash := range expectedHashes {
 			if hashFunc == expectedHash {
@@ -513,7 +522,22 @@ func verifyDetachedSignature(keyring KeyRing, signed, signature io.Reader, expec
 	}
 
 	for _, key := range keys {
-		err = key.PublicKey.VerifySignature(h, sig)
+		switch sig := p.(type) {
+		case *packet.Signature:
+			err = key.PublicKey.VerifySignature(h, sig)
+			if err == nil && sig.SigExpired(config.Now()) {
+				err = errors.ErrSignatureExpired
+			}
+		case *packet.SignatureV3:
+			err = key.PublicKey.VerifySignatureV3(h, sig)
+		default:
+			panic("unreachable")
+		}
+
+		if err == errors.ErrSignatureExpired {
+			return key.Entity, err
+		}
+
 		if err == nil {
 			return sig, key.Entity, checkSignatureDetails(&key, sig, config)
 		}
