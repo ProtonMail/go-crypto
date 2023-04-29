@@ -535,7 +535,7 @@ func verifyDetachedSignature(keyring KeyRing, signed, signature io.Reader, expec
 		}
 
 		if err == errors.ErrSignatureExpired {
-			return key.Entity, err
+			return sig, key.Entity, err
 		}
 
 		if err == nil {

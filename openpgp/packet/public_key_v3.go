@@ -7,6 +7,7 @@ package packet
 import (
 	"crypto"
 	"crypto/md5"
+	"crypto/rsa"
 	"encoding/binary"
 	"fmt"
 	"hash"
@@ -15,9 +16,8 @@ import (
 	"strconv"
 	"time"
 
-	"golang.org/x/crypto/openpgp/errors"
-	"golang.org/x/crypto/openpgp/internal/encoding"
-	"golang.org/x/crypto/rsa"
+	"github.com/ProtonMail/go-crypto/openpgp/errors"
+	"github.com/ProtonMail/go-crypto/openpgp/internal/encoding"
 )
 
 // PublicKeyV3 represents older, version 3 public keys. These keys are less secure and
