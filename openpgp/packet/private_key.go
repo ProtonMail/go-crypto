@@ -761,9 +761,11 @@ func EncryptPrivateKeys(keys []*PrivateKey, passphrase []byte, config *Config) e
 				s2kType = S2KAEAD
 				key.aead = config.AEAD().Mode()
 				key.cipher = config.Cipher()
-				encryptionKey = key.applyHKDF(encryptionKey)
+				derivedKey := key.applyHKDF(encryptionKey)
+				err = key.encrypt(derivedKey, params, s2kType, config.Cipher(), config.Random())
+			} else {
+				err = key.encrypt(encryptionKey, params, s2kType, config.Cipher(), config.Random())
 			}
-			err = key.encrypt(encryptionKey, params, s2kType, config.Cipher(), config.Random())
 			if err != nil {
 				return err
 			}
