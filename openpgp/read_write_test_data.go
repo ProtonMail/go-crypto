@@ -190,6 +190,17 @@ M0g12vYxoWM8Y81W+bHBw805I8kWVkXU6vFOi+HWvv/ira7ofJu16NnoUkhclkUr
 k0mXubZvyl4GBg==
 -----END PGP PRIVATE KEY BLOCK-----`
 
+// See OpenPGP crypto refresh merge request:
+// https://gitlab.com/openpgp-wg/rfc4880bis/-/merge_requests/302
+const v6PrivKeyMsg = `-----BEGIN PGP MESSAGE-----
+
+wVwGBhLIPx5wb2MI/hUaQXdDofAzeQ6T6ZeEiNHbN42pkwiFGYfPGNXxtT+BfM5a
+AEzzk8yJWL3cBl8l+Er1CbF902dkGN6jVUN5VmF5AeBpV/vKimpHpbUVPo06t9Jp
+AgcCBmFkFlNb4LBxbWDgUqVsTEB/nrNrDvr+mtCg35sDPGmiG6nr0sDslb9WnSXJ
+me5KPeFwWPQN+otMaCvj+7vXsn6w9Zu1AF+Ax8b0A4jDCtQGqwUT3Nb5/XN2Vihu
+EXfQD4iK2zHE
+-----END PGP MESSAGE-----`
+
 // See https://gitlab.com/openpgp-wg/rfc4880bis/-/merge_requests/274
 // decryption password: "correct horse battery staple"
 const v6ArgonSealedPrivKey = `-----BEGIN PGP PRIVATE KEY BLOCK-----
