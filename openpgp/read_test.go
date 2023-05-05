@@ -588,6 +588,32 @@ func TestSignatureV3Message(t *testing.T) {
 	return
 }
 
+func TestReadV6PKESKMessage(t *testing.T) {
+	key, err := ReadArmoredKeyRing(strings.NewReader(v6PrivKey))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	msgReader, err := armor.Decode(strings.NewReader(v6PrivKeyMsg))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	md, err := ReadMessage(msgReader.Body, key, nil, nil)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	contents, err := ioutil.ReadAll(md.UnverifiedBody)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	if string(contents) != "Hello, world!" {
+		t.Errorf("decrypted message is wrong: %s", contents)
+	}
+}
+
 func TestSymmetricAeadGcmOpenPGPJsMessage(t *testing.T) {
 	passphrase := []byte("test")
 	file, err := os.Open("test_data/aead-sym-message.asc")
