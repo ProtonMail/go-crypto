@@ -133,6 +133,9 @@ func decryptionTest(t *testing.T, vector testVector, sk openpgp.EntityList) {
 		t.Fatal(err)
 	}
 
+	if md.SignatureV3 != nil {
+		t.Fatal("Did not expect a signature V3 back")
+	}
 	if md.Signature == nil {
 		t.Fatal("Expected a signature to be set")
 	}

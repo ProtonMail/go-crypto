@@ -7,6 +7,7 @@
 package packet // import "github.com/ProtonMail/go-crypto/openpgp/packet"
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/cipher"
 	"crypto/rsa"
@@ -325,6 +326,19 @@ type EncryptedDataPacket interface {
 	Decrypt(CipherFunction, []byte) (io.ReadCloser, error)
 }
 
+// peekVersion detects the version of a public key packet about to
+// be read. A bufio.Reader at the original position of the io.Reader
+// is returned.
+func peekVersion(r io.Reader) (bufr *bufio.Reader, ver byte, err error) {
+	bufr = bufio.NewReader(r)
+	var verBuf []byte
+	if verBuf, err = bufr.Peek(1); err != nil {
+		return
+	}
+	ver = verBuf[0]
+	return
+}
+
 // Read reads a single OpenPGP packet from the given io.Reader. If there is an
 // error parsing a packet, the whole packet is consumed from the input.
 func Read(r io.Reader) (p Packet, err error) {
@@ -337,7 +351,16 @@ func Read(r io.Reader) (p Packet, err error) {
 	case packetTypeEncryptedKey:
 		p = new(EncryptedKey)
 	case packetTypeSignature:
-		p = new(Signature)
+		var version byte
+		// Detect signature version
+		if contents, version, err = peekVersion(contents); err != nil {
+			return
+		}
+		if version < 4 {
+			p = new(SignatureV3)
+		} else {
+			p = new(Signature)
+		}
 	case packetTypeSymmetricKeyEncrypted:
 		p = new(SymmetricKeyEncrypted)
 	case packetTypeOnePassSignature:
@@ -349,8 +372,16 @@ func Read(r io.Reader) (p Packet, err error) {
 		}
 		p = pk
 	case packetTypePublicKey, packetTypePublicSubkey:
+		var version byte
+		if contents, version, err = peekVersion(contents); err != nil {
+			return
+		}
 		isSubkey := tag == packetTypePublicSubkey
-		p = &PublicKey{IsSubkey: isSubkey}
+		if version < 4 {
+			p = &PublicKeyV3{IsSubkey: isSubkey}
+		} else {
+			p = &PublicKey{IsSubkey: isSubkey}
+		}
 	case packetTypeCompressed:
 		p = new(Compressed)
 	case packetTypeSymmetricallyEncrypted:
