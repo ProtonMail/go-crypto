@@ -525,22 +525,19 @@ func verifyDetachedSignature(keyring KeyRing, signed, signature io.Reader, expec
 		switch sig := p.(type) {
 		case *packet.Signature:
 			err = key.PublicKey.VerifySignature(h, sig)
-			if err == nil && sig.SigExpired(config.Now()) {
-				err = errors.ErrSignatureExpired
+			if err == nil {
+				return sig, key.Entity, checkSignatureDetails(&key, sig, config)
 			}
 		case *packet.SignatureV3:
 			err = key.PublicKey.VerifySignatureV3(h, sig)
+			if err == nil {
+				// NB: we are assuming that the first return value is always discarded
+				return nil, key.Entity, nil
+			}
 		default:
 			panic("unreachable")
 		}
 
-		if err == errors.ErrSignatureExpired {
-			return sig, key.Entity, err
-		}
-
-		if err == nil {
-			return sig, key.Entity, checkSignatureDetails(&key, sig, config)
-		}
 	}
 
 	return nil, nil, err
