@@ -401,7 +401,7 @@ func (scr *signatureCheckReader) Read(buf []byte) (int, error) {
 			p, readError = scr.packets.Next()
 		}
 
-		if scr.md.SignedBy != nil && scr.md.Signature == nil {
+		if scr.md.SignedBy != nil && scr.md.Signature == nil && scr.md.SignatureV3 == nil {
 			if scr.md.UnverifiedSignatures == nil {
 				scr.md.SignatureError = errors.StructuralError("LiteralData not followed by signature")
 			} else {
