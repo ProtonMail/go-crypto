@@ -78,7 +78,7 @@ func (sig *SignatureV3) parse(r io.Reader) (err error) {
 		return
 	}
 	var ok bool
-	if sig.Hash, ok = algorithm.HashIdToHash(buf[1]); !ok {
+	if sig.Hash, ok = algorithm.HashIdToHashWithSha1Md5(buf[1]); !ok {
 		return errors.UnsupportedError("hash function " + strconv.Itoa(int(buf[1])))
 	}
 
@@ -125,7 +125,7 @@ func (sig *SignatureV3) Serialize(w io.Writer) (err error) {
 
 	// Write public key algorithm, hash ID, and hash value
 	buf[0] = byte(sig.PubKeyAlgo)
-	hashId, ok := algorithm.HashToHashId(sig.Hash)
+	hashId, ok := algorithm.HashToHashIdWithSha1Md5(sig.Hash)
 	if !ok {
 		return errors.UnsupportedError(fmt.Sprintf("hash function %v", sig.Hash))
 	}

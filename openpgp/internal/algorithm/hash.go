@@ -32,6 +32,7 @@ type Hash interface {
 
 // The following vars mirror the crypto/Hash supported hash functions.
 var (
+	MD5      Hash = cryptoHash{1, crypto.MD5}
 	SHA1     Hash = cryptoHash{2, crypto.SHA1}
 	SHA256   Hash = cryptoHash{8, crypto.SHA256}
 	SHA384   Hash = cryptoHash{9, crypto.SHA384}
@@ -106,6 +107,24 @@ func HashIdToHashWithSha1(id byte) (h crypto.Hash, ok bool) {
 	return 0, false
 }
 
+// HashIdToHashWithSha1Md5 returns a crypto.Hash which corresponds to the given OpenPGP
+// hash id, allowing sha1 and md5 (for v3 keys).
+func HashIdToHashWithSha1Md5(id byte) (h crypto.Hash, ok bool) {
+	if hash, ok := HashById[id]; ok {
+		return hash.HashFunc(), true
+	}
+
+	if id == SHA1.Id() {
+		return SHA1.HashFunc(), true
+	}
+
+	if id == MD5.Id() {
+		return MD5.HashFunc(), true
+	}
+
+	return 0, false
+}
+
 // HashIdToString returns the name of the hash function corresponding to the
 // given OpenPGP hash id.
 func HashIdToString(id byte) (name string, ok bool) {
@@ -137,6 +156,26 @@ func HashToHashIdWithSha1(h crypto.Hash) (id byte, ok bool) {
 
 	if h == SHA1.HashFunc() {
 		return SHA1.Id(), true
+	}
+
+	return 0, false
+}
+
+// HashToHashIdWithSha1Md5 returns an OpenPGP hash id which corresponds the given Hash,
+// allowing instances of SHA1 and MD5 (for v3 keys)
+func HashToHashIdWithSha1Md5(h crypto.Hash) (id byte, ok bool) {
+	for id, hash := range HashById {
+		if hash.HashFunc() == h {
+			return id, true
+		}
+	}
+
+	if h == SHA1.HashFunc() {
+		return SHA1.Id(), true
+	}
+
+	if h == MD5.HashFunc() {
+		return MD5.Id(), true
 	}
 
 	return 0, false
