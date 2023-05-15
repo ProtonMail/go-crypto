@@ -315,7 +315,7 @@ func newSigner(config *packet.Config) (signer interface{}, err error) {
 	case packet.PubKeyAlgoDilithium3p256, packet.PubKeyAlgoDilithium5p384, packet.PubKeyAlgoDilithium3Brainpool256,
 		packet.PubKeyAlgoDilithium5Brainpool384:
 		if !config.V6() {
-			return nil, goerrors.New("openpgp: cannot create a non-v5 dilithium_ecdsa key")
+			return nil, goerrors.New("openpgp: cannot create a non-v6 dilithium_ecdsa key")
 		}
 
 		c, err := packet.GetECDSACurveFromAlgID(config.PublicKeyAlgorithm())
@@ -330,7 +330,7 @@ func newSigner(config *packet.Config) (signer interface{}, err error) {
 		return dilithium_ecdsa.GenerateKey(config.Random(), uint8(config.PublicKeyAlgorithm()), c, d)
 	case packet.PubKeyAlgoDilithium3Ed25519, packet.PubKeyAlgoDilithium5Ed448:
 		if !config.V6() {
-			return nil, goerrors.New("openpgp: cannot create a non-v5 dilithium_eddsa key")
+			return nil, goerrors.New("openpgp: cannot create a non-v6 dilithium_eddsa key")
 		}
 
 		c, err := packet.GetEdDSACurveFromAlgID(config.PublicKeyAlgorithm())
@@ -408,7 +408,7 @@ func newDecrypter(config *packet.Config) (decrypter interface{}, err error) {
 	case packet.PubKeyAlgoKyber768X25519, packet.PubKeyAlgoKyber1024X448, packet.PubKeyAlgoKyber768P256,
 		packet.PubKeyAlgoKyber1024P384, packet.PubKeyAlgoKyber768Brainpool256, packet.PubKeyAlgoKyber1024Brainpool384:
 		if !config.V6() {
-			return nil, goerrors.New("openpgp: cannot create a non-v5 kyber_ecdh key")
+			return nil, goerrors.New("openpgp: cannot create a non-v6 kyber_ecdh key")
 		}
 
 		c, err := packet.GetECDHCurveFromAlgID(pubKeyAlgo)

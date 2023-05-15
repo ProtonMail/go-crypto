@@ -1008,6 +1008,9 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 		}
 	case PubKeyAlgoDilithium3p256, PubKeyAlgoDilithium5p384, PubKeyAlgoDilithium3Brainpool256,
 		PubKeyAlgoDilithium5Brainpool384:
+		if sig.Version != 6 {
+			return errors.UnsupportedError("cannot use dilithium_ecdsa on a non-v6 signature")
+		}
 		sk := priv.PrivateKey.(*dilithium_ecdsa.PrivateKey)
 		dSig, ecR, ecS, err := dilithium_ecdsa.Sign(config.Random(), sk, digest)
 
@@ -1017,6 +1020,9 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 			sig.ECDSASigS = encoding.NewOctetArray(ecS)
 		}
 	case PubKeyAlgoDilithium3Ed25519, PubKeyAlgoDilithium5Ed448:
+		if sig.Version != 6 {
+			return errors.UnsupportedError("cannot use dilithium_eddsa on a non-v6 signature")
+		}
 		sk := priv.PrivateKey.(*dilithium_eddsa.PrivateKey)
 		dSig, ecSig, err := dilithium_eddsa.Sign(sk, digest)
 
@@ -1025,6 +1031,9 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 			sig.EdDSASigR = encoding.NewOctetArray(ecSig)
 		}
 	case PubKeyAlgoSphincsPlusSha2, PubKeyAlgoSphincsPlusShake:
+		if sig.Version != 6 {
+			return errors.UnsupportedError("cannot use sphincs+ on a non-v6 signature")
+		}
 		sk := priv.PrivateKey.(*sphincs_plus.PrivateKey)
 		spxSig, err := sphincs_plus.Sign(sk, digest)
 
