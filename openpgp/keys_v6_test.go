@@ -204,7 +204,6 @@ func TestNewEntityWithDefaultHashv6(t *testing.T) {
 	}
 }
 
-
 func TestGenerateDilithiumKey(t *testing.T) {
 	randomPassword := make([]byte, 128)
 	_, err := rand.Read(randomPassword)

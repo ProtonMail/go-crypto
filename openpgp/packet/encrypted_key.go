@@ -176,7 +176,11 @@ func (e *EncryptedKey) parse(r io.Reader) (err error) {
 
 // readKyberECDHKey reads Kyber + ECC PKESK as specified in
 // https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-4.3.1
-func (e *EncryptedKey) readKyberECDHKey(r io.Reader, lenEcc, lenKyber int) (err error){
+func (e *EncryptedKey) readKyberECDHKey(r io.Reader, lenEcc, lenKyber int) (err error) {
+	if e.Version != 6 {
+		return errors.StructuralError("reading non-v6 kyber PKESK")
+	}
+
 	e.encryptedMPI1 = encoding.NewEmptyOctetArray(lenEcc)
 	if _, err = e.encryptedMPI1.ReadFrom(r); err != nil {
 		return
@@ -278,6 +282,9 @@ func (e *EncryptedKey) Decrypt(priv *PrivateKey, config *Config) error {
 				return errors.StructuralError("v3 PKESK mandates AES as cipher function for x25519 and x448")
 			}
 		}
+		key = b[:]
+	case PubKeyAlgoKyber768X25519, PubKeyAlgoKyber1024X448, PubKeyAlgoKyber768P256, PubKeyAlgoKyber1024P384,
+		PubKeyAlgoKyber768Brainpool256, PubKeyAlgoKyber1024Brainpool384:
 		key = b[:]
 	default:
 		return errors.UnsupportedError("unsupported algorithm for decryption")
@@ -471,6 +478,10 @@ func SerializeEncryptedKeyAEADwithHiddenOption(w io.Writer, pub *PublicKey, ciph
 	case PubKeyAlgoX25519, PubKeyAlgoX448:
 		// algorithm is added in plaintext below
 		keyBlock = key
+	case PubKeyAlgoKyber768X25519, PubKeyAlgoKyber1024X448, PubKeyAlgoKyber768P256, PubKeyAlgoKyber1024P384,
+		PubKeyAlgoKyber768Brainpool256, PubKeyAlgoKyber1024Brainpool384:
+		// Any version below 6 is disallowed
+		keyBlock = key
 	}
 
 	switch pub.PubKeyAlgo {
@@ -486,8 +497,7 @@ func SerializeEncryptedKeyAEADwithHiddenOption(w io.Writer, pub *PublicKey, ciph
 		return serializeEncryptedKeyX448(w, config.Random(), buf[:lenHeaderWritten], pub.PublicKey.(*x448.PublicKey), keyBlock, byte(cipherFunc), version)
 	case PubKeyAlgoKyber768X25519, PubKeyAlgoKyber1024X448, PubKeyAlgoKyber768P256, PubKeyAlgoKyber1024P384,
 		PubKeyAlgoKyber768Brainpool256, PubKeyAlgoKyber1024Brainpool384:
-		// TODO: check v6 PKESK
-		return serializeEncryptedKeyKyber(w, config.Random(), buf[:lenHeaderWritten], pub.PublicKey.(*kyber_ecdh.PublicKey), keyBlock, pub)
+		return serializeEncryptedKeyKyber(w, config.Random(), buf[:lenHeaderWritten], pub.PublicKey.(*kyber_ecdh.PublicKey), keyBlock, pub, version)
 	case PubKeyAlgoDSA, PubKeyAlgoRSASignOnly:
 		return errors.InvalidArgumentError("cannot encrypt to public key of type " + strconv.Itoa(int(pub.PubKeyAlgo)))
 	}
@@ -652,7 +662,11 @@ func encodeChecksumKey(buffer []byte, key []byte) {
 	buffer[len(key)+1] = byte(checksum)
 }
 
-func serializeEncryptedKeyKyber(w io.Writer, rand io.Reader, header []byte, pub *kyber_ecdh.PublicKey, keyBlock []byte, publicKey *PublicKey) error {
+func serializeEncryptedKeyKyber(w io.Writer, rand io.Reader, header []byte, pub *kyber_ecdh.PublicKey, keyBlock []byte, publicKey *PublicKey, version int) error {
+	if version != 6 {
+		return errors.UnsupportedError("cannot create a non-v6 kyber_ecdh pkesk")
+	}
+
 	h := sha3.New256()
 	publicKey.SerializeForHash(h)
 	kE, ecE, c, err := kyber_ecdh.Encrypt(rand, pub, keyBlock, h.Sum(nil))
@@ -664,7 +678,7 @@ func serializeEncryptedKeyKyber(w io.Writer, rand io.Reader, header []byte, pub 
 	ec := encoding.NewOctetArray(ecE)
 	m := encoding.NewOID(c)
 
-	packetLen := 10 /* header length */
+	packetLen := len(header) /* header length */
 	packetLen += int(ec.EncodedLength()) + int(k.EncodedLength()) + int(m.EncodedLength())
 
 	err = serializeHeader(w, packetTypeEncryptedKey, packetLen)
