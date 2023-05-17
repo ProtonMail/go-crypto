@@ -281,7 +281,7 @@ func TestEncryptWithCompression(t *testing.T) {
 	buf := new(bytes.Buffer)
 	var config = &packet.Config{
 		DefaultCompressionAlgo: packet.CompressionZIP,
-		CompressionConfig:      &packet.CompressionConfig{-1},
+		CompressionConfig:      &packet.CompressionConfig{Level: -1},
 	}
 	w, err := Encrypt(buf, kring[:1], nil, nil /* no hints */, config)
 	if err != nil {
@@ -483,7 +483,7 @@ func TestEncryption(t *testing.T) {
 		}
 		compAlgo := compAlgos[mathrand.Intn(len(compAlgos))]
 		level := mathrand.Intn(11) - 1
-		compConf := &packet.CompressionConfig{level}
+		compConf := &packet.CompressionConfig{Level: level}
 		var config = &packet.Config{
 			DefaultCompressionAlgo: compAlgo,
 			CompressionConfig:      compConf,

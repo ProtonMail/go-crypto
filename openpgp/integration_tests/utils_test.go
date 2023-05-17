@@ -261,7 +261,7 @@ func randConfig() *packet.Config {
 	}
 
 	level := mathrand.Intn(11) - 1
-	compConf := &packet.CompressionConfig{level}
+	compConf := &packet.CompressionConfig{Level: level}
 
 	var v5 bool
 	if mathrand.Int()%2 == 0 {

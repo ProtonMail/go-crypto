@@ -33,7 +33,7 @@ type CompressionConfig struct {
 	// default compression level, 0 causing the compressor to use
 	// no compression and 1 to 9 representing increasing (better,
 	// slower) compression levels. If Level is less than -1 or
-	// more then 9, a non-nil error will be returned during
+	// more than 9, a non-nil error will be returned during
 	// encryption. See the constants above for convenient common
 	// settings for Level.
 	Level int
