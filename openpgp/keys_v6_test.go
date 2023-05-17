@@ -339,6 +339,9 @@ func TestGeneratePqKey(t *testing.T) {
 				DefaultHash: crypto.SHA512,
 				Algorithm:   algo,
 				V6Keys:      true,
+				AEADConfig: &packet.AEADConfig {
+					DefaultMode: packet.AEADModeOCB,
+				},
 				Time: func() time.Time {
 					parsed, _ := time.Parse("2006-01-02", "2013-07-01")
 					return parsed
@@ -469,6 +472,9 @@ func TestAddKyberSubkey(t *testing.T) {
 				DefaultHash: crypto.SHA512,
 				Algorithm:   algo,
 				V6Keys:      true,
+				AEADConfig: &packet.AEADConfig{
+					DefaultMode: packet.AEADModeOCB,
+				},
 				Time: func() time.Time {
 					parsed, _ := time.Parse("2006-01-02", "2013-07-01")
 					return parsed

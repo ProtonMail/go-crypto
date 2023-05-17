@@ -435,37 +435,129 @@ func TestSymmetricEncryptionSEIPDv2RandomizeSlow(t *testing.T) {
 var testEncryptionTests = []struct {
 	keyRingHex string
 	isSigned   bool
+	okV4       bool
 	okV6       bool
 }{
 	{
 		testKeys1And2PrivateHex,
 		false,
 		true,
+		true,
 	},
 	{
 		testKeys1And2PrivateHex,
 		true,
 		true,
+		true,
 	},
 	{
 		dsaElGamalTestKeysHex,
 		false,
+		true,
 		false,
 	},
 	{
 		dsaElGamalTestKeysHex,
 		true,
+		true,
 		false,
 	},
-	// Broken as it needs v5 PKESK
-	//{
-	//	eddsaKyber768X25519PrivateHex,
-	//	false,
-	//},
-	//{
-	//	eddsaKyber768X25519PrivateHex,
-	//	true,
-	//},
+	{
+		dilithium3Ed25519Kyber768X25519PrivateHex,
+		false,
+		false,
+		true,
+	},
+	{
+		dilithium3Ed25519Kyber768X25519PrivateHex,
+		true,
+		false,
+		true,
+	},
+	{
+		dilithium5Ed448Kyber1024X448PrivateHex,
+		false,
+		false,
+		true,
+	},
+	{
+		dilithium5Ed448Kyber1024X448PrivateHex,
+		true,
+		false,
+		true,
+	},
+	{
+		dilithium3P256Kyber768P245PrivateHex,
+		false,
+		false,
+		true,
+	},
+	{
+		dilithium3P256Kyber768P245PrivateHex,
+		true,
+		false,
+		true,
+	},
+	{
+		dilithium5P384_Kyber1024P384PrivateHex,
+		false,
+		false,
+		true,
+	},
+	{
+		dilithium5P384_Kyber1024P384PrivateHex,
+		true,
+		false,
+		true,
+	},
+	{
+		dilithium3Brainpool256Kyber786Brainpool256PrivateHex,
+		false,
+		false,
+		true,
+	},
+	{
+		dilithium3Brainpool256Kyber786Brainpool256PrivateHex,
+		true,
+		false,
+		true,
+	},
+	{
+		dilithium5Brainpool384Kyber1024Brainpool384PrivateHex,
+		false,
+		false,
+		true,
+	},
+	{
+		dilithium5Brainpool384Kyber1024Brainpool384PrivateHex,
+		true,
+		false,
+		true,
+	},
+	{
+		sphincsPlusSha2Kyber1024X448PrivateHex,
+		false,
+		false,
+		true,
+	},
+	{
+		sphincsPlusSha2Kyber1024X448PrivateHex,
+		true,
+		false,
+		true,
+	},
+	{
+		sphincsPlusShakeKyber1024X448PrivateHex,
+		false,
+		false,
+		true,
+	},
+	{
+		sphincsPlusShakeKyber1024X448PrivateHex,
+		true,
+		false,
+		true,
+	},
 }
 
 func TestEncryption(t *testing.T) {
@@ -521,6 +613,14 @@ func TestEncryption(t *testing.T) {
 		w, err := Encrypt(buf, kring[:1], signed, nil /* no hints */, config)
 		if (err != nil) == (test.okV6 && config.AEAD() != nil) {
 			// ElGamal is not allowed with v6
+			continue
+		}
+
+		if !test.okV4 && config.AEAD() == nil {
+			// PQC is not allowed with v6
+			if err == nil {
+				t.Errorf("#%d: no error when encrypting with forbidden v4 packet", i)
+			}
 			continue
 		}
 
