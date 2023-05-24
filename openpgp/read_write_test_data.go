@@ -191,14 +191,14 @@ k0mXubZvyl4GBg==
 -----END PGP PRIVATE KEY BLOCK-----`
 
 // See OpenPGP crypto refresh merge request:
-// https://gitlab.com/openpgp-wg/rfc4880bis/-/merge_requests/302
+// https://gitlab.com/openpgp-wg/rfc4880bis/-/merge_requests/304
 const v6PrivKeyMsg = `-----BEGIN PGP MESSAGE-----
 
-wVwGBhLIPx5wb2MI/hUaQXdDofAzeQ6T6ZeEiNHbN42pkwiFGYfPGNXxtT+BfM5a
-AEzzk8yJWL3cBl8l+Er1CbF902dkGN6jVUN5VmF5AeBpV/vKimpHpbUVPo06t9Jp
-AgcCBmFkFlNb4LBxbWDgUqVsTEB/nrNrDvr+mtCg35sDPGmiG6nr0sDslb9WnSXJ
-me5KPeFwWPQN+otMaCvj+7vXsn6w9Zu1AF+Ax8b0A4jDCtQGqwUT3Nb5/XN2Vihu
-EXfQD4iK2zHE
+wV0GIQYSyD8ecG9jCP4VGkF3Q6HwM3kOk+mXhIjR2zeNqZMIhRmHzxjV8bU/gXzO
+WgBM85PMiVi93AZfJfhK9QmxfdNnZBjeo1VDeVZheQHgaVf7yopqR6W1FT6NOrfS
+aQIHAgZhZBZTW+CwcW1g4FKlbExAf56zaw76/prQoN+bAzxpohup69LA7JW/Vp0l
+yZnuSj3hcFj0DfqLTGgr4/u717J+sPWbtQBfgMfG9AOIwwrUBqsFE9zW+f1zdlYo
+bhF30A+IitsxxA==
 -----END PGP MESSAGE-----`
 
 // See https://gitlab.com/openpgp-wg/rfc4880bis/-/merge_requests/274

@@ -50,29 +50,39 @@ func (e *EncryptedKey) parse(r io.Reader) (err error) {
 		return errors.UnsupportedError("unknown EncryptedKey version " + strconv.Itoa(int(buf[0])))
 	}
 	if e.Version == 6 {
+		//Read a one-octet size of the following two fields.
 		_, err = readFull(r, buf[:1])
 		if err != nil {
 			return
 		}
-		e.KeyVersion = int(buf[0])
-		if e.KeyVersion != 0 && e.KeyVersion != 4 && e.KeyVersion != 6 {
-			return errors.UnsupportedError("unknown public key version " + strconv.Itoa(e.KeyVersion))
-		}
-		var fingerprint []byte
-		if e.KeyVersion == 6 {
-			fingerprint = make([]byte, 32)
-		} else if e.KeyVersion == 4 {
-			fingerprint = make([]byte, 20)
-		}
-		_, err = readFull(r, fingerprint)
-		if err != nil {
-			return
-		}
-		e.KeyFingerprint = fingerprint
-		if e.KeyVersion == 6 {
-			e.KeyId = binary.BigEndian.Uint64(e.KeyFingerprint[:8])
-		} else if e.KeyVersion == 4 {
-			e.KeyId = binary.BigEndian.Uint64(e.KeyFingerprint[12:20])
+		// The size may also be zero, and the key version and
+		// fingerprint omitted for an "anonymous recipient"
+		if buf[0] != 0 {
+			// non-anonymous case
+			_, err = readFull(r, buf[:1])
+			if err != nil {
+				return
+			}
+			e.KeyVersion = int(buf[0])
+			if e.KeyVersion != 4 && e.KeyVersion != 6 {
+				return errors.UnsupportedError("unknown public key version " + strconv.Itoa(e.KeyVersion))
+			}
+			var fingerprint []byte
+			if e.KeyVersion == 6 {
+				fingerprint = make([]byte, 32)
+			} else if e.KeyVersion == 4 {
+				fingerprint = make([]byte, 20)
+			}
+			_, err = readFull(r, fingerprint)
+			if err != nil {
+				return
+			}
+			e.KeyFingerprint = fingerprint
+			if e.KeyVersion == 6 {
+				e.KeyId = binary.BigEndian.Uint64(e.KeyFingerprint[:8])
+			} else if e.KeyVersion == 4 {
+				e.KeyId = binary.BigEndian.Uint64(e.KeyFingerprint[12:20])
+			}
 		}
 	} else {
 		_, err = readFull(r, buf[:8])
@@ -308,7 +318,7 @@ func (e *EncryptedKey) Serialize(w io.Writer) error {
 // If aeadSupported is set, PKESK v6 is used else v4.
 // If config is nil, sensible defaults will be used.
 func SerializeEncryptedKeyAEAD(w io.Writer, pub *PublicKey, cipherFunc CipherFunction, aeadSupported bool, key []byte, config *Config) error {
-	var buf [35]byte // max possible header size is v6
+	var buf [36]byte // max possible header size is v6
 	lenHeaderWritten := 1
 	version := 3
 
@@ -333,11 +343,16 @@ func SerializeEncryptedKeyAEAD(w io.Writer, pub *PublicKey, cipherFunc CipherFun
 
 	if version == 6 {
 		if pub != nil {
-			buf[1] = byte(pub.Version)
-			copy(buf[2:len(pub.Fingerprint)+2], pub.Fingerprint)
-			lenHeaderWritten += len(pub.Fingerprint) + 1
+			// A one-octet size of the following two fields.
+			buf[1] = byte(1 + len(pub.Fingerprint))
+			// A one octet key version number.
+			buf[2] = byte(pub.Version)
+			// The fingerprint of the public key
+			copy(buf[3:len(pub.Fingerprint)+3], pub.Fingerprint)
+			lenHeaderWritten += len(pub.Fingerprint) + 2
 		} else {
-			// anonymous case
+			// The size may also be zero, and the key version
+			// and fingerprint omitted for an "anonymous recipient"
 			buf[1] = 0
 			lenHeaderWritten += 1
 		}
