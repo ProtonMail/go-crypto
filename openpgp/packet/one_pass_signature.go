@@ -70,23 +70,8 @@ func (ops *OnePassSignature) parse(r io.Reader) (err error) {
 			return
 		}
 		ops.Salt = salt
-	} else if ops.Version == 3 {
-		_, err = readFull(r, buf[:8])
-		if err != nil {
-			return
-		}
-		ops.KeyId = binary.BigEndian.Uint64(buf[:8])
-	}
 
-	if ops.Version == 6 {
-		_, err = readFull(r, buf[:1])
-		if err != nil {
-			return
-		}
-		if int(buf[0]) != 6 {
-			err = errors.StructuralError("version 6 signatures require version 6 keys")
-			return
-		}
+		// Only for v6 packets, 32 octets of the fingerprint of the signing key.
 		fingerprint := make([]byte, 32)
 		_, err = readFull(r, fingerprint)
 		if err != nil {
@@ -94,6 +79,12 @@ func (ops *OnePassSignature) parse(r io.Reader) (err error) {
 		}
 		ops.KeyFingerprint = fingerprint
 		ops.KeyId = binary.BigEndian.Uint64(ops.KeyFingerprint[:8])
+	} else {
+		_, err = readFull(r, buf[:8])
+		if err != nil {
+			return
+		}
+		ops.KeyId = binary.BigEndian.Uint64(buf[:8])
 	}
 
 	_, err = readFull(r, buf[:1])
@@ -106,10 +97,11 @@ func (ops *OnePassSignature) parse(r io.Reader) (err error) {
 
 // Serialize marshals the given OnePassSignature to w.
 func (ops *OnePassSignature) Serialize(w io.Writer) error {
+	//v3 length 1+1+1+1+8+1 =
 	packetLength := 13
 	if ops.Version == 6 {
-		// v6 length
-		packetLength = 39 + len(ops.Salt)
+		// v6 length 1+1+1+1+1+len(salt)+32+1 =
+		packetLength = 38 + len(ops.Salt)
 	}
 
 	if err := serializeHeader(w, packetTypeOnePassSignature, packetLength); err != nil {
@@ -143,10 +135,6 @@ func (ops *OnePassSignature) Serialize(w io.Writer) error {
 		}
 
 		// write fingerprint v6 signatures
-		_, err = w.Write([]byte{byte(ops.Version)})
-		if err != nil {
-			return err
-		}
 		_, err = w.Write(ops.KeyFingerprint)
 		if err != nil {
 			return err
