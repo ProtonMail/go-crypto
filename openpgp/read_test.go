@@ -588,7 +588,7 @@ func TestSignatureV3Message(t *testing.T) {
 	return
 }
 
-func TestReadV6PKESKMessage(t *testing.T) {
+func TestReadV6Messages(t *testing.T) {
 	key, err := ReadArmoredKeyRing(strings.NewReader(v6PrivKey))
 	if err != nil {
 		t.Error(err)
@@ -611,6 +611,28 @@ func TestReadV6PKESKMessage(t *testing.T) {
 	}
 	if string(contents) != "Hello, world!" {
 		t.Errorf("decrypted message is wrong: %s", contents)
+	}
+
+	msgReader, err = armor.Decode(strings.NewReader(v6PrivKeyInlineSignMsg))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	md, err = ReadMessage(msgReader.Body, key, nil, nil)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	contents, err = ioutil.ReadAll(md.UnverifiedBody)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	if md.SignatureError != nil {
+		t.Error("expected no signature error, got:", md.SignatureError)
+	}
+	if string(contents) != "Hello, world!" {
+		t.Errorf("inline message is wrong: %s", contents)
 	}
 }
 
