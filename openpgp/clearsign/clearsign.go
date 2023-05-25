@@ -127,12 +127,14 @@ func Decode(data []byte) (b *Block, rest []byte) {
 
 		key, val := string(line[0:i]), string(line[i+1:])
 		key = strings.TrimSpace(key)
-		if key != "Hash" {
+		if key != "Hash" && key != "SaltedHash" {
 			return nil, data
 		}
-		for _, val := range strings.Split(val, ",") {
-			val = strings.TrimSpace(val)
-			b.Headers.Add(key, val)
+		if key == "Hash" {
+			for _, val := range strings.Split(val, ",") {
+				val = strings.TrimSpace(val)
+				b.Headers.Add(key, val)
+			}
 		}
 	}
 

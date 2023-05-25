@@ -7,13 +7,14 @@ package clearsign
 import (
 	"bytes"
 	"fmt"
-	"github.com/ProtonMail/go-crypto/openpgp"
-	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	"io"
 	"testing"
+
+	"github.com/ProtonMail/go-crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp/packet"
 )
 
-func testParse(t *testing.T, input []byte, expected, expectedPlaintext string) {
+func testParse(t *testing.T, input []byte, expected, expectedPlaintext, signKey string) {
 	b, rest := Decode(input)
 	if b == nil {
 		t.Fatal("failed to decode clearsign message")
@@ -32,7 +33,7 @@ func testParse(t *testing.T, input []byte, expected, expectedPlaintext string) {
 		t.Errorf("bad plaintext, got:%x want:%x", b.Plaintext, expectedPlaintext)
 	}
 
-	keyring, err := openpgp.ReadArmoredKeyRing(bytes.NewBufferString(signingKey))
+	keyring, err := openpgp.ReadArmoredKeyRing(bytes.NewBufferString(signKey))
 	if err != nil {
 		t.Errorf("failed to parse public key: %s", err)
 	}
@@ -49,8 +50,9 @@ func testParse(t *testing.T, input []byte, expected, expectedPlaintext string) {
 }
 
 func TestParse(t *testing.T) {
-	testParse(t, clearsignInput, "Hello world\r\nline 2", "Hello world\nline 2\n")
-	testParse(t, clearsignInput2, "\r\n\r\n(This message has a couple of blank lines at the start and end.)\r\n\r\n", "\n\n(This message has a couple of blank lines at the start and end.)\n\n\n")
+	testParse(t, clearsignInput, "Hello world\r\nline 2", "Hello world\nline 2\n", signingKey)
+	testParse(t, clearsignInput2, "\r\n\r\n(This message has a couple of blank lines at the start and end.)\r\n\r\n", "\n\n(This message has a couple of blank lines at the start and end.)\n\n\n", signingKey)
+	testParse(t, []byte(cleartextV6mixed), "Hello this is a verty long text.\r\n", "Hello this is a verty long text.\n\n", cleartextV6key)
 }
 
 func TestParseWithNoNewlineAtEnd(t *testing.T) {
@@ -402,4 +404,40 @@ AHcVnXjtxrULkQFGbGvhKURLvS9WnzD/m1K2zzwxzkPTzT9/Yf06O6Mal5AdugPL
 VrM0m72/jnpKo04=
 =zNCn
 -----END PGP PRIVATE KEY BLOCK-----
+`
+var cleartextV6mixed = `-----BEGIN PGP SIGNED MESSAGE-----
+SaltedHash: SHA512:MOvqfCOPw2ONdPPtEzWRHPrtHV7jge6f7/iBUI7FqQQ
+Hash: SHA512
+
+Hello this is a verty long text.
+
+-----BEGIN PGP SIGNATURE-----
+Version: GopenPGP 3.0.0
+Comment: https://gopenpgp.org
+
+wpgGARsKAAAAKQUCZG9hvCKhBjZp0efFM+SQAJWq1Z0JhoLUT1VN/H9JEDC8JucK
+jS07AAAAAI6eIDDr6nwjj8NjjXTz7RM1kRz67R1e44Hun+/4gVCOxakEbYRcvp7U
+gmGd0RWrPf0A57fVTiuwGLc3511CDfnrIuWBHUy0RV6ViZsCjgRm/4KBEMp1IDgO
+IRzQjS/kYXsMAsJ1BAEWCgAnBQJkb2G8CZDbC0a1jI+RUxYhBEz1urc/5RxFzWem
+gtsLRrWMj5FTAACpeAD+LVXXUtUOU1dwo/2knatPQYIyQmAMG2kpe8SLWsCdrvsA
+/1XHeFNS1F34xlHlE097IQ0/eNWz8RPeFySJXcBFGIMC
+-----END PGP SIGNATURE-----
+
+trailing`
+
+var cleartextV6key = `-----BEGIN PGP PRIVATE KEY BLOCK-----
+Version: GopenPGP 3.0.0
+Comment: https://gopenpgp.org
+
+xVgEZG9YPhYJKwYBBAHaRw8BAQdAjfEaVON1/jxM3qIE7nx8bfDECgS6BmUCUpiF
+F3jpli0AAQCf5mixFzAtGHkrmWkZmEXyJreE/zgKED83Em/bZblSUQz+zRpLb2No
+IDxib2JAb3BlbnBncC5leGFtcGxlPsKPBBMWCABBBQJkb1g+CZDbC0a1jI+RUxYh
+BEz1urc/5RxFzWemgtsLRrWMj5FTAhsDAh4JAhkBAwsJBwIVCAMWAAIFJwkCBwIA
+AHNuAQC4GNSNRguO/RNtnKGczQ0KFL5WCilXiERZ5my5fKfowAEAu/VSqeO3xBiK
+JDHettDCNhgCi3qDGkvSN5fmQ0gSBw7HXQRkb1g+EgorBgEEAZdVAQUBAQdA2Kfw
+chL9Up2dr0Jj4fxicYzbBZlEtzndSx8jjkCUPQoDAQoJAAD/bfKSq1EnC0Ju8bow
+yhmVOYk3HXt+SmGsEKXCeU8v7JgPecJ4BBgWCAAqBQJkb1g+CZDbC0a1jI+RUxYh
+BEz1urc/5RxFzWemgtsLRrWMj5FTAhsMAABbOwD/SGxQzUse0vRdfRD1OgA5V2Tc
+xFPUCOJse71BBiI29Q4A/jinf7FZilQRv30lCWG1W24iiZBKRlQ1hdkN2UKYKU8F
+-----END PGP PRIVATE KEY BLOCK----
 `
