@@ -123,7 +123,7 @@ func TestExpiringPrimaryUIDKey(t *testing.T) {
 	}
 }
 
-func TestReturnFirstUnexpiredSigningSubkey(t *testing.T) {
+func TestReturnNewestUnexpiredSigningSubkey(t *testing.T) {
 	// Make a master key.
 	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
 	if err != nil {
@@ -140,6 +140,9 @@ func TestReturnFirstUnexpiredSigningSubkey(t *testing.T) {
 
 	// Second signing subkey expires in a day.
 	err = entity.AddSigningSubkey(&packet.Config{
+		Time: func() time.Time {
+			return time.Now().Add(1 * time.Second)
+		},
 		KeyLifetimeSecs: 24 * 60 * 60,
 	})
 	if err != nil {
@@ -149,7 +152,7 @@ func TestReturnFirstUnexpiredSigningSubkey(t *testing.T) {
 	subkey2 := entity.Subkeys[2]
 
 	// Before second signing subkey has expired, it should be returned.
-	time1 := time.Now()
+	time1 := time.Now().Add(2 * time.Second)
 	expected := subkey2.PublicKey.KeyIdShortString()
 	subkey, found := entity.SigningKey(time1)
 	if !found {
