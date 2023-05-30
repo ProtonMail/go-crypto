@@ -13,7 +13,6 @@ import (
 	"bufio"
 	"bytes"
 	"crypto"
-	"encoding/base64"
 	"fmt"
 	"hash"
 	"io"
@@ -53,8 +52,6 @@ var end = []byte("\n-----END PGP SIGNATURE-----")
 var crlf = []byte("\r\n")
 var lf = byte('\n')
 
-const saltedHashHeader string = "SaltedHash"
-const saltedHashKey string = "Saltedhash"
 const hashHeader string = "Hash"
 
 // getLine returns the first \r\n or \n delineated line from the given byte
@@ -137,10 +134,8 @@ func Decode(data []byte) (b *Block, rest []byte) {
 				val = strings.TrimSpace(val)
 				b.Headers.Add(key, val)
 			}
-		} else if key == saltedHashHeader {
-			val = strings.TrimSpace(val)
-			b.Headers.Add(saltedHashKey, val)
 		} else {
+			// Only "Hash" headers are allowed.
 			return nil, data
 		}
 	}
@@ -402,18 +397,9 @@ func EncodeMulti(w io.Writer, privateKeys []*packet.PrivateKey, config *packet.C
 		return
 	}
 	// write headers
-	if len(salts) > 0 {
-		for _, salt := range salts {
-			encodedSalt := base64.RawStdEncoding.EncodeToString(salt)
-			if _, err = buffered.WriteString(fmt.Sprintf("%s: %s:%s", saltedHashHeader, name, encodedSalt)); err != nil {
-				return
-			}
-			if err = buffered.WriteByte(lf); err != nil {
-				return
-			}
-		}
-	}
-	if len(salts) < len(hashers) {
+	nonV6 := len(salts) < len(hashers)
+	// Crypto refresh: Headers SHOULD NOT be emitted
+	if nonV6 { // Emit header if non v6 signatures are present for compatibility
 		if _, err = buffered.WriteString(fmt.Sprintf("%s: %s", hashHeader, name)); err != nil {
 			return
 		}
@@ -447,34 +433,7 @@ func EncodeMulti(w io.Writer, privateKeys []*packet.PrivateKey, config *packet.C
 // VerifySignature checks a clearsigned message signature, and checks that the
 // hash algorithm in the header matches the hash algorithm in the signature.
 func (b *Block) VerifySignature(keyring openpgp.KeyRing, config *packet.Config) (signer *openpgp.Entity, err error) {
-	var expectedHashes []crypto.Hash
-	var expectedSaltedHashes []*packet.SaltedHashSpecifier
-
-	// Process salted hash headers (v6)
-	for _, value := range b.Headers[saltedHashKey] {
-		var expectedSaltedHash *packet.SaltedHashSpecifier
-		expectedSaltedHash, err = getAlgorithmAndSalt(value)
-		if err != nil {
-			return
-		}
-		expectedSaltedHashes = append(expectedSaltedHashes, expectedSaltedHash)
-	}
-	// Process hash headers
-	for _, name := range b.Headers[hashHeader] {
-		expectedHash := nameToHash(name)
-		if uint8(expectedHash) == 0 {
-			return nil, errors.StructuralError("unknown hash algorithm in cleartext message headers")
-		}
-		expectedHashes = append(expectedHashes, expectedHash)
-	}
-
-	// If neither a "Hash" nor a "SaltedHash" Armor Header is given, or the message
-	// digest algorithms (and salts) used in the signatures do not match the information in the headers,
-	// the signature MUST be considered invalid.
-	if len(expectedHashes) == 0 && len(expectedSaltedHashes) == 0 {
-		return nil, errors.StructuralError("signature is invalid: no hash or salted hash header present in message")
-	}
-	return openpgp.CheckDetachedSignatureAndSaltedHash(keyring, bytes.NewBuffer(b.Bytes), b.ArmoredSignature.Body, expectedHashes, expectedSaltedHashes, config)
+	return openpgp.CheckDetachedSignature(keyring, bytes.NewBuffer(b.Bytes), b.ArmoredSignature.Body, config)
 }
 
 // nameOfHash returns the OpenPGP name for the given hash, or the empty string
@@ -517,23 +476,4 @@ func nameToHash(h string) crypto.Hash {
 		return crypto.SHA3_512
 	}
 	return crypto.Hash(0)
-}
-
-func getAlgorithmAndSalt(value string) (*packet.SaltedHashSpecifier, error) {
-	params := strings.Split(value, ":")
-	if len(params) != 2 {
-		return nil, errors.StructuralError(fmt.Sprintf("salted hash cleartext message header value has the wrong format: %s", value))
-	}
-	algo := nameToHash(strings.TrimSpace(params[0]))
-	if uint8(algo) == 0 {
-		return nil, errors.StructuralError("unknown hash algorithm in cleartext message headers")
-	}
-	salt, err := base64.RawStdEncoding.DecodeString(strings.TrimSpace(params[1]))
-	if err != nil {
-		return nil, errors.StructuralError(fmt.Sprintf("salted hash cleartext message header value has the wrong format: %s", value))
-	}
-	return &packet.SaltedHashSpecifier{
-		Hash: algo,
-		Salt: salt,
-	}, nil
 }
