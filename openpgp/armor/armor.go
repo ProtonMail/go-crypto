@@ -209,9 +209,17 @@ TryNextBlock:
 		}
 
 		i := bytes.Index(line, []byte(": "))
-		if i == -1 {
-			goto TryNextBlock
-		}
+                if i == -1 {
+                // Check if the line is empty
+                if len(line) == 0 {
+                goto TryNextBlock
+                }
+                // Check if the line contains only whitespace characters
+                if bytes.TrimSpace(line) == nil {
+                goto TryNextBlock
+                }
+                }
+
 		lastKey = string(line[:i])
 		p.Header[lastKey] = string(line[i+2:])
 	}
