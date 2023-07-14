@@ -10,8 +10,11 @@ A partial list of changes is here: https://github.com/ProtonMail/go-crypto/issue
 
 ## pgpkeys-eu fork
 
-To use this soft fork, you should use the following replace directive in your `go.mod` file:
+This soft fork of ProtonMail/go-crypto improves compatibility with older signatures by restoring code that was deprecated upstream.
+It is designed specifically for the needs of github.com/hockeypuck but may be useful for other projects.
+
+To use, add the following replace directive to your `go.mod` file:
 
 ```
-replace github.com/ProtonMail/go-crypto => github.com/pgpkeys-eu/go-crypto v0.0.0-20230506215654-16de0cc09494
+replace github.com/ProtonMail/go-crypto => github.com/pgpkeys-eu/go-crypto v0.0.0-20230714160110-40edd8c9dfc3
 ```
