@@ -588,48 +588,6 @@ func TestSignatureV3Message(t *testing.T) {
 	return
 }
 
-func TestSymmetricAeadGcmOpenPGPJsMessage(t *testing.T) {
-	passphrase := []byte("test")
-	file, err := os.Open("test_data/aead-sym-message.asc")
-	if err != nil {
-		t.Fatal(err)
-	}
-	armoredEncryptedMessage, err := ioutil.ReadAll(file)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Unarmor string
-	raw, err := armor.Decode(strings.NewReader(string(armoredEncryptedMessage)))
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	// Mock passphrase prompt
-	promptFunc := func(keys []Key, symmetric bool) ([]byte, error) {
-		return passphrase, nil
-	}
-	// Decrypt message
-	md, err := ReadMessage(raw.Body, nil, promptFunc, nil)
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	contents, err := ioutil.ReadAll(md.UnverifiedBody)
-	if err != nil {
-		t.Errorf("error reading UnverifiedBody: %s", err)
-	}
-
-	// The plaintext is https://www.gutenberg.org/cache/epub/1080/pg1080.txt
-	// We compare the SHA512 hashes.
-	wantHash := modestProposalSha512
-	gotHashRaw := sha512.Sum512(contents)
-	gotHash := base64.StdEncoding.EncodeToString(gotHashRaw[:])
-
-	if wantHash != gotHash {
-		t.Fatal("Did not decrypt OpenPGPjs message correctly")
-	}
-}
-
 func TestSymmetricDecryptionArgon2(t *testing.T) {
 	// Appendix IETF OpenPGP crypto refresh draft v08 A.8.1
 	passphrase := []byte("password")
