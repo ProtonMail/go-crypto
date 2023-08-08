@@ -14,6 +14,21 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/s2k"
 )
 
+var (
+	defaultRejectPublicKeyAlgorithms = map[PublicKeyAlgorithm]bool{
+		PubKeyAlgoElGamal: true,
+		PubKeyAlgoDSA:     true,
+	}
+	defaultRejectMessageHashAlgorithms = map[crypto.Hash]bool{
+		crypto.SHA1:      true,
+		crypto.MD5:       true,
+		crypto.RIPEMD160: true,
+	}
+	defaultRejectCurves = map[Curve]bool{
+		CurveSecP256k1: true,
+	}
+)
+
 // Config collects a number of parameters along with sensible defaults.
 // A nil *Config is valid and results in all default values.
 type Config struct {
@@ -79,6 +94,12 @@ type Config struct {
 	// V6Keys configures version 6 key generation. If false, this package still
 	// supports version 6 keys, but produces version 4 keys.
 	V6Keys bool
+	// Minimum RSA key size allowed for key generation and message signing, verification and encryption.
+	MinRSABits uint16
+	// Reject insecure algorithms, only works with v2 api
+	RejectPublicKeyAlgorithms   map[PublicKeyAlgorithm]bool
+	RejectMessageHashAlgorithms map[crypto.Hash]bool
+	RejectCurves                map[Curve]bool
 	// "The validity period of the key.  This is the number of seconds after
 	// the key creation time that the key expires.  If this is not present
 	// or has a value of zero, the key never expires.  This is found only on
@@ -113,6 +134,20 @@ type Config struct {
 	KnownNotations map[string]bool
 	// SignatureNotations is a list of Notations to be added to any signatures.
 	SignatureNotations []*Notation
+	// CheckIntendedRecipients is a flag that indicates if
+	// a decryption key for an encrypted and signed messages should be checked
+	// to be present in the signatures intended recipient list.
+	// if config is nil or flag is nil, it defaults to true
+	CheckIntendedRecipients *bool
+	// CacheSessionKey is a flag that indicates
+	// if a session key if any should be cached and returned in
+	// a pgp message decryption.
+	CacheSessionKey bool
+	// CheckPacketSequence is a flag that indicates
+	// if the pgp message parser should strictly check
+	// that the packet sequence conforms with the grammar mandated by rfc4880.
+	// The default value is true.
+	CheckPacketSequence *bool
 }
 
 func (c *Config) Random() io.Reader {
@@ -255,4 +290,65 @@ func (c *Config) V6() bool {
 		return false
 	}
 	return c.V6Keys
+}
+
+func (c *Config) IntendedRecipients() bool {
+	if c == nil || c.CheckIntendedRecipients == nil {
+		return true
+	}
+	return *c.CheckIntendedRecipients
+}
+
+func (c *Config) RetrieveSessionKey() bool {
+	if c == nil {
+		return false
+	}
+	return c.CacheSessionKey
+}
+
+func (c *Config) MinimumRSABits() uint16 {
+	if c == nil || c.MinRSABits == 0 {
+		return 2047
+	}
+	return c.MinRSABits
+}
+
+func (c *Config) RejectPublicKeyAlgorithm(alg PublicKeyAlgorithm) bool {
+	var rejectedAlgorithms map[PublicKeyAlgorithm]bool
+	if c == nil || c.RejectPublicKeyAlgorithms == nil {
+		// Default
+		rejectedAlgorithms = defaultRejectPublicKeyAlgorithms
+	} else {
+		rejectedAlgorithms = c.RejectPublicKeyAlgorithms
+	}
+	return rejectedAlgorithms[alg]
+}
+
+func (c *Config) RejectMessageHashAlgorithm(hash crypto.Hash) bool {
+	var rejectedAlgorithms map[crypto.Hash]bool
+	if c == nil || c.RejectMessageHashAlgorithms == nil {
+		// Default
+		rejectedAlgorithms = defaultRejectMessageHashAlgorithms
+	} else {
+		rejectedAlgorithms = c.RejectMessageHashAlgorithms
+	}
+	return rejectedAlgorithms[hash]
+}
+
+func (c *Config) RejectCurve(curve Curve) bool {
+	var rejectedCurve map[Curve]bool
+	if c == nil || c.RejectCurves == nil {
+		// Default
+		rejectedCurve = defaultRejectCurves
+	} else {
+		rejectedCurve = c.RejectCurves
+	}
+	return rejectedCurve[curve]
+}
+
+func (c *Config) StrictPacketSequence() bool {
+	if c == nil || c.CheckPacketSequence == nil {
+		return true
+	}
+	return *c.CheckPacketSequence
 }

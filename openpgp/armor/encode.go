@@ -186,14 +186,14 @@ func encode(out io.Writer, blockType string, headers map[string]string, checksum
 // Encode returns a WriteCloser which will encode the data written to it in
 // OpenPGP armor.
 func Encode(out io.Writer, blockType string, headers map[string]string) (w io.WriteCloser, err error) {
-	return encode(out, blockType, headers, true)
+	return encode(out, blockType, headers, false)
 }
 
-// Encode returns a WriteCloser which will encode the data written to it in
-// OpenPGP armor but does not generate checksum at the end.
+// EncodeWithChecksumOption returns a WriteCloser which will encode the data written to it in
+// OpenPGP armor and provides the option to include a checksum.
 // When forming ASCII Armor, the CRC24 footer SHOULD NOT be generated,
 // unless interoperability with implementations that require the CRC24 footer
 // to be present is a concern.
-func EncodeWithoutChecksum(out io.Writer, blockType string, headers map[string]string) (w io.WriteCloser, err error) {
-	return encode(out, blockType, headers, false)
+func EncodeWithChecksumOption(out io.Writer, blockType string, headers map[string]string, doChecksum bool) (w io.WriteCloser, err error) {
+	return encode(out, blockType, headers, doChecksum)
 }

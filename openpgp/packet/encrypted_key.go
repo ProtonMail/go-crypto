@@ -318,6 +318,15 @@ func (e *EncryptedKey) Serialize(w io.Writer) error {
 // If aeadSupported is set, PKESK v6 is used else v4.
 // If config is nil, sensible defaults will be used.
 func SerializeEncryptedKeyAEAD(w io.Writer, pub *PublicKey, cipherFunc CipherFunction, aeadSupported bool, key []byte, config *Config) error {
+	return SerializeEncryptedKeyAEADwithHiddenOption(w, pub, cipherFunc, aeadSupported, key, false, config)
+}
+
+// SerializeEncryptedKeyAEADwithHiddenOption serializes an encrypted key packet to w that contains
+// key, encrypted to pub.
+// Offers the hidden flag option to indicated if the PKESK packet should include a wildcard KeyID.
+// If aeadSupported is set, PKESK v6 is used else v4.
+// If config is nil, sensible defaults will be used.
+func SerializeEncryptedKeyAEADwithHiddenOption(w io.Writer, pub *PublicKey, cipherFunc CipherFunction, aeadSupported bool, key []byte, hidden bool, config *Config) error {
 	var buf [36]byte // max possible header size is v6
 	lenHeaderWritten := 1
 	version := 3
@@ -341,8 +350,12 @@ func SerializeEncryptedKeyAEAD(w io.Writer, pub *PublicKey, cipherFunc CipherFun
 
 	buf[0] = byte(version)
 
+	// If hidden is set, the key should be hidden
+	// An implementation MAY accept or use a Key ID of all zeros,
+	// or a key version of zero and no key fingerprint, to hide the intended decryption key.
+	// See Section 5.1.8. in the open pgp crypto refresh
 	if version == 6 {
-		if pub != nil {
+		if !hidden {
 			// A one-octet size of the following two fields.
 			buf[1] = byte(1 + len(pub.Fingerprint))
 			// A one octet key version number.
@@ -357,7 +370,9 @@ func SerializeEncryptedKeyAEAD(w io.Writer, pub *PublicKey, cipherFunc CipherFun
 			lenHeaderWritten += 1
 		}
 	} else {
-		binary.BigEndian.PutUint64(buf[1:9], pub.KeyId)
+		if !hidden {
+			binary.BigEndian.PutUint64(buf[1:9], pub.KeyId)
+		}
 		lenHeaderWritten += 8
 	}
 	buf[lenHeaderWritten] = byte(pub.PubKeyAlgo)
@@ -404,8 +419,16 @@ func SerializeEncryptedKeyAEAD(w io.Writer, pub *PublicKey, cipherFunc CipherFun
 // key, encrypted to pub.
 // PKESKv6 is used if config.AEAD() is not nil.
 // If config is nil, sensible defaults will be used.
-func SerializeEncryptedKey(w io.Writer, pub *PublicKey, cipherFunc CipherFunction, key []byte, config *Config) error {
+func SerializeEncryptedKey(w io.Writer, pub *PublicKey, cipherFunc CipherFunction, key []byte, hidden bool, config *Config) error {
 	return SerializeEncryptedKeyAEAD(w, pub, cipherFunc, config.AEAD() != nil, key, config)
+}
+
+// SerializeEncryptedKey serializes an encrypted key packet to w that contains
+// key, encrypted to pub.
+// PKESKv6 is used if config.AEAD() is not nil.
+// If config is nil, sensible defaults will be used.
+func SerializeEncryptedKeyWithHiddenOption(w io.Writer, pub *PublicKey, cipherFunc CipherFunction, key []byte, hidden bool, config *Config) error {
+	return SerializeEncryptedKeyAEADwithHiddenOption(w, pub, cipherFunc, config.AEAD() != nil, key, hidden, config)
 }
 
 func serializeEncryptedKeyRSA(w io.Writer, rand io.Reader, header []byte, pub *rsa.PublicKey, keyBlock []byte) error {

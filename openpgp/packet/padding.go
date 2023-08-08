@@ -16,6 +16,10 @@ func (pad Padding) parse(reader io.Reader) error {
 
 // SerializePadding writes the padding to writer.
 func (pad Padding) SerializePadding(writer io.Writer, rand io.Reader) error {
-	_, err := io.CopyN(writer, rand, int64(pad))
+	err := serializeHeader(writer, packetPadding, int(pad))
+	if err != nil {
+		return err
+	}
+	_, err = io.CopyN(writer, rand, int64(pad))
 	return err
 }

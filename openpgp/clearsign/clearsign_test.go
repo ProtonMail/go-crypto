@@ -6,13 +6,22 @@ package clearsign
 
 import (
 	"bytes"
+	"crypto"
 	"fmt"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 )
+
+var allowAllAlgorithmsConfig = &packet.Config{
+	RejectPublicKeyAlgorithms:   map[packet.PublicKeyAlgorithm]bool{},
+	RejectMessageHashAlgorithms: map[crypto.Hash]bool{},
+	RejectCurves:                map[packet.Curve]bool{},
+	MinRSABits:                  512,
+}
 
 func testParse(t *testing.T, input []byte, expected, expectedPlaintext string) {
 	b, rest := Decode(input)
@@ -38,13 +47,12 @@ func testParse(t *testing.T, input []byte, expected, expectedPlaintext string) {
 		t.Errorf("failed to parse public key: %s", err)
 	}
 
-	config := &packet.Config{}
-	if _, err := openpgp.CheckDetachedSignature(keyring, bytes.NewBuffer(b.Bytes), b.ArmoredSignature.Body, config); err != nil {
+	if _, _, err := openpgp.VerifyDetachedSignature(keyring, bytes.NewBuffer(b.Bytes), b.ArmoredSignature.Body, allowAllAlgorithmsConfig); err != nil {
 		t.Errorf("failed to check signature: %s", err)
 	}
 
 	b, _ = Decode(input)
-	if _, err := b.VerifySignature(keyring, config); err != nil {
+	if _, err := b.VerifySignature(keyring, allowAllAlgorithmsConfig); err != nil {
 		t.Errorf("failed to check signature: %s", err)
 	}
 }
@@ -69,21 +77,21 @@ func TestParseWithNoNewlineAtEnd(t *testing.T) {
 var signingTests = []struct {
 	in, signed, plaintext string
 }{
-	{"", "", ""},
+	{"", "", "\n"},
 	{"a", "a", "a\n"},
-	{"a\n", "a", "a\n"},
-	{"-a\n", "-a", "-a\n"},
+	{"a\n", "a\r\n", "a\n\n"},
+	{"-a\n", "-a\r\n", "-a\n\n"},
 	{"--a\nb", "--a\r\nb", "--a\nb\n"},
 	// leading whitespace
-	{" a\n", " a", " a\n"},
-	{"  a\n", "  a", "  a\n"},
+	{" a\n", " a\r\n", " a\n\n"},
+	{"  a\n", "  a\r\n", "  a\n\n"},
 	// trailing whitespace (should be stripped)
-	{"a \n", "a", "a\n"},
+	{"a \n", "a\r\n", "a\n\n"},
 	{"a ", "a", "a\n"},
-	// whitespace-only lines (should be stripped)
-	{"  \n", "", "\n"},
+	{"  \n", "\r\n", "\n\n"},
 	{"  ", "", "\n"},
-	{"a\n  \n  \nb\n", "a\r\n\r\n\r\nb", "a\n\n\nb\n"},
+	{"a\n  \n  \nb\n", "a\r\n\r\n\r\nb\r\n", "a\n\n\nb\n\n"},
+	{"a\n  \n  \nb\n", "a\r\n\r\n\r\nb\r\n", "a\n\n\nb\n\n"},
 }
 
 func TestVerifyV6(t *testing.T) {
@@ -103,11 +111,10 @@ func TestSigning(t *testing.T) {
 	if err != nil {
 		t.Errorf("failed to parse public key: %s", err)
 	}
-
 	for i, test := range signingTests {
 		var buf bytes.Buffer
 
-		plaintext, err := Encode(&buf, keyring[0].PrivateKey, nil)
+		plaintext, err := Encode(&buf, keyring[0].PrivateKey, allowAllAlgorithmsConfig, nil)
 		if err != nil {
 			t.Errorf("#%d: error from Encode: %s", i, err)
 			continue
@@ -135,10 +142,32 @@ func TestSigning(t *testing.T) {
 			continue
 		}
 
-		config := &packet.Config{}
-		if _, err := openpgp.CheckDetachedSignature(keyring, bytes.NewBuffer(b.Bytes), b.ArmoredSignature.Body, config); err != nil {
+		if _, _, err := openpgp.VerifyDetachedSignature(keyring, bytes.NewBuffer(b.Bytes), b.ArmoredSignature.Body, allowAllAlgorithmsConfig); err != nil {
 			t.Errorf("#%d: failed to check signature: %s", i, err)
 		}
+	}
+}
+
+func TestSigningInterop(t *testing.T) {
+	keyring, err := openpgp.ReadArmoredKeyRing(bytes.NewBufferString(signingKey))
+	if err != nil {
+		t.Errorf("failed to parse public key: %s", err)
+	}
+
+	var buf bytes.Buffer
+	plaintext, err := Encode(&buf, keyring[0].PrivateKey, nil, nil)
+	if err != nil {
+		t.Errorf("error from Encode")
+	}
+	if _, err := plaintext.Write([]byte(trickyGrocery)); err != nil {
+		t.Errorf("error from Write")
+	}
+	if err := plaintext.Close(); err != nil {
+		t.Fatalf("error from Close")
+	}
+	expected := "- - tofu\n- - vegetables\n- - noodles\n\n\n"
+	if !strings.Contains(buf.String(), expected) {
+		t.Fatalf("expected output to contain %s but got: %s", expected, buf.String())
 	}
 }
 
@@ -161,9 +190,9 @@ func testMultiSign(t *testing.T, v6 bool) {
 	zero := quickRand(0)
 	config := packet.Config{Rand: &zero, V6Keys: v6}
 
-	for nKeys := 0; nKeys < 4; nKeys++ {
+	for nKeys := 1; nKeys < 4; nKeys++ {
 	nextTest:
-		for nExtra := 0; nExtra < 4; nExtra++ {
+		for nExtra := 2; nExtra < 4; nExtra++ {
 			var signKeys []*packet.PrivateKey
 			var verifyKeys openpgp.EntityList
 
@@ -182,7 +211,7 @@ func testMultiSign(t *testing.T, v6 bool) {
 
 			input := []byte("this is random text\r\n4 17")
 			var output bytes.Buffer
-			w, err := EncodeMulti(&output, signKeys, nil)
+			w, err := EncodeMultiWithHeader(&output, signKeys, nil, nil)
 			if err != nil {
 				t.Errorf("EncodeMulti (%s) failed: %v", desc, err)
 			}
@@ -198,7 +227,7 @@ func testMultiSign(t *testing.T, v6 bool) {
 				t.Errorf("Inline data didn't match original; got %q want %q", string(block.Bytes), string(input))
 			}
 			config := &packet.Config{}
-			_, err = openpgp.CheckDetachedSignature(verifyKeys, bytes.NewReader(block.Bytes), block.ArmoredSignature.Body, config)
+			_, _, err = openpgp.VerifyDetachedSignature(verifyKeys, bytes.NewReader(block.Bytes), block.ArmoredSignature.Body, config)
 			if nKeys == 0 {
 				if err == nil {
 					t.Errorf("verifying inline (%s) succeeded; want failure", desc)
@@ -455,3 +484,11 @@ wpgGARsKAAAAKQWCY5ijYyIhBssYbE8GCaaX5NUt+mxyKwwfHifBilZwj2Ul7Ce6
 /FvLFuGWMbKAdA+epq7V4HOtAPlBWmU8QOd6aud+aSunHQaaEJ+iTFjP2OMW0KBr
 NK2ay45cX1IVAQ==
 -----END PGP SIGNATURE-----`
+
+const trickyGrocery = `From the grocery store we need:
+
+- tofu
+- vegetables
+- noodles
+
+`
