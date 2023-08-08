@@ -24,7 +24,7 @@ type SymmetricallyEncrypted struct {
 	prefix []byte
 
 	// Specific to version 2
-	cipher        CipherFunction
+	Cipher        CipherFunction
 	mode          AEADMode
 	chunkSizeByte byte
 	salt          [aeadSaltSize]byte

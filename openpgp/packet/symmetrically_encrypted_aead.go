@@ -22,10 +22,10 @@ func (se *SymmetricallyEncrypted) parseAead(r io.Reader) error {
 	}
 
 	// Cipher
-	se.cipher = CipherFunction(headerData[0])
+	se.Cipher = CipherFunction(headerData[0])
 	// cipherFunc must have block size 16 to use AEAD
-	if se.cipher.blockSize() != 16 {
-		return errors.UnsupportedError("invalid aead cipher: " + string(se.cipher))
+	if se.Cipher.blockSize() != 16 {
+		return errors.UnsupportedError("invalid aead cipher: " + string(se.Cipher))
 	}
 
 	// Mode
@@ -53,7 +53,7 @@ func (se *SymmetricallyEncrypted) associatedData() []byte {
 	return []byte{
 		0xD2,
 		symmetricallyEncryptedVersionAead,
-		byte(se.cipher),
+		byte(se.Cipher),
 		byte(se.mode),
 		se.chunkSizeByte,
 	}
@@ -62,7 +62,7 @@ func (se *SymmetricallyEncrypted) associatedData() []byte {
 // decryptAead decrypts a V2 SEIPD packet (AEAD) as specified in
 // https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-07.html#section-5.13.2
 func (se *SymmetricallyEncrypted) decryptAead(inputKey []byte) (io.ReadCloser, error) {
-	aead, nonce := getSymmetricallyEncryptedAeadInstance(se.cipher, se.mode, inputKey, se.salt[:], se.associatedData())
+	aead, nonce := getSymmetricallyEncryptedAeadInstance(se.Cipher, se.mode, inputKey, se.salt[:], se.associatedData())
 
 	// Carry the first tagLen bytes
 	tagLen := se.mode.TagLength()

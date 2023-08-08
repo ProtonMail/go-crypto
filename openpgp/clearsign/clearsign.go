@@ -7,7 +7,7 @@
 //
 // Clearsigned messages are cryptographically signed, but the contents of the
 // message are kept in plaintext so that it can be read without special tools.
-package clearsign // import "github.com/ProtonMail/go-crypto/openpgp/clearsign"
+package clearsign // import "github.com/ProtonMail/go-crypto/v2/openpgp/clearsign"
 
 import (
 	"bufio"
@@ -111,7 +111,7 @@ func Decode(data []byte) (b *Block, rest []byte) {
 			return nil, data
 		}
 		// An empty line marks the end of the headers.
-		if line, rest = getLine(rest); len(line) == 0 {
+		if line, rest = getLine(rest); len(strings.TrimSpace(string(line))) == 0 {
 			break
 		}
 
@@ -203,11 +203,12 @@ func Decode(data []byte) (b *Block, rest []byte) {
 // When closed, an armored signature is created and written to complete the
 // message.
 type dashEscaper struct {
-	buffered *bufio.Writer
-	hashers  []hash.Hash // one per key in privateKeys
-	hashType crypto.Hash
-	toHash   io.Writer // writes to all the hashes in hashers
-	salts    [][]byte  // salts for the signatures if v6
+	buffered    *bufio.Writer
+	hashers     []hash.Hash // one per key in privateKeys
+	hashType    crypto.Hash
+	toHash      io.Writer         // writes to all the hashes in hashers
+	salts       [][]byte          // salts for the signatures if v6
+	armorHeader map[string]string // Armor headers
 
 	atBeginningOfLine bool
 	isFirstLine       bool
@@ -293,13 +294,16 @@ func (d *dashEscaper) Write(data []byte) (n int, err error) {
 }
 
 func (d *dashEscaper) Close() (err error) {
-	if !d.atBeginningOfLine {
-		if err = d.buffered.WriteByte(lf); err != nil {
-			return
+	if d.atBeginningOfLine {
+		if !d.isFirstLine {
+			d.toHash.Write(crlf)
 		}
 	}
+	if err = d.buffered.WriteByte(lf); err != nil {
+		return
+	}
 
-	out, err := armor.Encode(d.buffered, "PGP SIGNATURE", nil)
+	out, err := armor.Encode(d.buffered, "PGP SIGNATURE", d.armorHeader)
 	if err != nil {
 		return
 	}
@@ -343,14 +347,29 @@ func (d *dashEscaper) Close() (err error) {
 
 // Encode returns a WriteCloser which will clear-sign a message with privateKey
 // and write it to w. If config is nil, sensible defaults are used.
-func Encode(w io.Writer, privateKey *packet.PrivateKey, config *packet.Config) (plaintext io.WriteCloser, err error) {
+func Encode(w io.Writer, privateKey *packet.PrivateKey, config *packet.Config, headers map[string]string) (plaintext io.WriteCloser, err error) {
 	return EncodeMulti(w, []*packet.PrivateKey{privateKey}, config)
+}
+
+// EncodeWithHeader returns a WriteCloser which will clear-sign a message with privateKey
+// and write it to w. If config is nil, sensible defaults are used.
+// Additionally provides a headers argument for custom headers.
+func EncodeWithHeader(w io.Writer, privateKey *packet.PrivateKey, config *packet.Config, headers map[string]string) (plaintext io.WriteCloser, err error) {
+	return EncodeMultiWithHeader(w, []*packet.PrivateKey{privateKey}, config, headers)
 }
 
 // EncodeMulti returns a WriteCloser which will clear-sign a message with all the
 // private keys indicated and write it to w. If config is nil, sensible defaults
 // are used.
 func EncodeMulti(w io.Writer, privateKeys []*packet.PrivateKey, config *packet.Config) (plaintext io.WriteCloser, err error) {
+	return EncodeMultiWithHeader(w, privateKeys, config, nil)
+}
+
+// EncodeMultiWithHeader returns a WriteCloser which will clear-sign a message with all the
+// private keys indicated and write it to w. If config is nil, sensible defaults
+// are used.
+// Additionally provides a headers argument for custom headers.
+func EncodeMultiWithHeader(w io.Writer, privateKeys []*packet.PrivateKey, config *packet.Config, headers map[string]string) (plaintext io.WriteCloser, err error) {
 	for _, k := range privateKeys {
 		if k.Encrypted {
 			return nil, errors.InvalidArgumentError(fmt.Sprintf("signing key %s is encrypted", k.KeyIdString()))
@@ -412,11 +431,12 @@ func EncodeMulti(w io.Writer, privateKeys []*packet.PrivateKey, config *packet.C
 	}
 
 	plaintext = &dashEscaper{
-		buffered: buffered,
-		hashers:  hashers,
-		hashType: hashType,
-		toHash:   toHash,
-		salts:    salts,
+		buffered:    buffered,
+		hashers:     hashers,
+		hashType:    hashType,
+		toHash:      toHash,
+		salts:       salts,
+		armorHeader: headers,
 
 		atBeginningOfLine: true,
 		isFirstLine:       true,
@@ -433,7 +453,8 @@ func EncodeMulti(w io.Writer, privateKeys []*packet.PrivateKey, config *packet.C
 // VerifySignature checks a clearsigned message signature, and checks that the
 // hash algorithm in the header matches the hash algorithm in the signature.
 func (b *Block) VerifySignature(keyring openpgp.KeyRing, config *packet.Config) (signer *openpgp.Entity, err error) {
-	return openpgp.CheckDetachedSignature(keyring, bytes.NewBuffer(b.Bytes), b.ArmoredSignature.Body, config)
+	_, signer, err = openpgp.VerifyDetachedSignature(keyring, bytes.NewBuffer(b.Bytes), b.ArmoredSignature.Body, config)
+	return
 }
 
 // nameOfHash returns the OpenPGP name for the given hash, or the empty string

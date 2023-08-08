@@ -4,7 +4,7 @@
 
 // Package armor implements OpenPGP ASCII Armor, see RFC 4880. OpenPGP Armor is
 // very similar to PEM except that it has an additional CRC checksum.
-package armor // import "github.com/ProtonMail/go-crypto/openpgp/armor"
+package armor // import "github.com/ProtonMail/go-crypto/v2/openpgp/armor"
 
 import (
 	"bufio"
@@ -164,12 +164,16 @@ TryNextBlock:
 			break
 		}
 
-		i := bytes.Index(line, []byte(": "))
+		i := bytes.Index(line, []byte(":"))
 		if i == -1 {
 			goto TryNextBlock
 		}
 		lastKey = string(line[:i])
-		p.Header[lastKey] = string(line[i+2:])
+		var value string
+		if i+2 < len(line) {
+			value = string(line[i+2:])
+		}
+		p.Header[lastKey] = value
 	}
 
 	p.lReader.in = r

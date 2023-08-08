@@ -175,8 +175,8 @@ func TestAeadRfcVector(t *testing.T) {
 		t.Errorf("found wrong version, want: %d, got: %d", symmetricallyEncryptedVersionAead, se.Version)
 	}
 
-	if se.cipher != CipherAES128 {
-		t.Errorf("found wrong cipher, want: %d, got: %d", CipherAES128, se.cipher)
+	if se.Cipher != CipherAES128 {
+		t.Errorf("found wrong cipher, want: %d, got: %d", CipherAES128, se.Cipher)
 	}
 
 	if se.mode != AEADModeGCM {
@@ -270,8 +270,8 @@ func testSerializeAead(t *testing.T, cipherSuite CipherSuite) {
 		t.Errorf("found wrong version, want: %d, got: %d", symmetricallyEncryptedVersionAead, se.Version)
 	}
 
-	if se.cipher != cipherSuite.Cipher {
-		t.Errorf("found wrong cipher, want: %d, got: %d", cipherSuite.Cipher, se.cipher)
+	if se.Cipher != cipherSuite.Cipher {
+		t.Errorf("found wrong cipher, want: %d, got: %d", cipherSuite.Cipher, se.Cipher)
 	}
 
 	if se.mode != cipherSuite.Mode {

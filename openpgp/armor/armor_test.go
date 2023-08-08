@@ -53,6 +53,25 @@ func TestDecodeEncode(t *testing.T) {
 	}
 }
 
+func TestDecodeEmptyVersion(t *testing.T) {
+	buf := bytes.NewBuffer([]byte(armorExampleEmptyVersion))
+	result, err := Decode(buf)
+	if err != nil {
+		t.Error(err)
+	}
+	expectedType := "PGP SIGNATURE"
+	if result.Type != expectedType {
+		t.Errorf("result.Type: got:%s want:%s", result.Type, expectedType)
+	}
+	if len(result.Header) != 1 {
+		t.Errorf("len(result.Header): got:%d want:1", len(result.Header))
+	}
+	v, ok := result.Header["Version"]
+	if !ok || v != "" {
+		t.Errorf("result.Header: got:%#v", result.Header)
+	}
+}
+
 func TestLongHeader(t *testing.T) {
 	buf := bytes.NewBuffer([]byte(armorLongLine))
 	result, err := Decode(buf)
@@ -76,7 +95,6 @@ iJwEAAECAAYFAk1Fv/0ACgkQo01+GMIMMbsYTwQAiAw+QAaNfY6WBdplZ/uMAccm
 4g+81QPmTSGHnetSb6WBiY13kVzK4HQiZH8JSkmmroMLuGeJwsRTEL4wbjRyUKEt
 p1xwUZDECs234F1xiG5enc5SGlRtP7foLBz9lOsjx+LEcA4sTl5/2eZR9zyFZqWW
 TxRjs+fJCIFuo71xb1g=
-=/teI
 -----END PGP SIGNATURE-----`
 
 const armorLongLine = `-----BEGIN PGP SIGNATURE-----
@@ -92,3 +110,20 @@ okWuf3+xA9ksp1npSY/mDvgHijmjvtpRDe6iUeqfCn8N9u9CBg8geANgaG8+QA4=
 -----END PGP SIGNATURE-----`
 
 const longValueExpected = "0123456789abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz"
+
+const armorExampleEmptyVersion = `-----BEGIN PGP SIGNATURE-----
+Version: 
+
+wsE7BAABCgBvBYJkbfmWCRD7/MgqAV5zMEcUAAAAAAAeACBzYWx0QG5vdGF0aW9u
+cy5zZXF1b2lhLXBncC5vcmeMXzsJEgIm228SdxV22XgYny4adwqEgyIT9UL3F92C
+OhYhBNGmbhojsYLJmA94jPv8yCoBXnMwAAAj1AwAiSkJPxsEcyaoYWbxc657xPW1
+MlrbNhDBIWpKVrqQgyz7NdDZvvY0Ty+/h62HK5GQ5obAzVmQVwtUVG950TxCksg1
+F18mqticpxg1veZQdw7DBYTk0RJTpdVBRYJ5UOtHaSJUAnqGh7OQE6Lu74vfFhNv
+dDjpjgEc6TnJrEBOOR7+RVp7+0i4HhM3+JdfSOMMOEb6ixWEYLtfC2Zd/p0f7vP8
+tHiqllDXDbfBCXlFl5h2LAh39o/LE0vZvwf+C9i9PgRARawWIh+xeAJsVne8FZ12
+FD+hWZJdNUCv4iE1H7QDVv8nuPAz3WB/DQWNSfeGTZnN+ouB1cjPFscBuunO5Dss
+k3hXy+XB5mZW6iisjUnUBknJEa43AMX+zGSaGHljEgfTGLbgEK+deOhPqKEkhUKr
+/VlIVBXgfjQuoizme9S9juxXHdDHa+Y5Wb9rTUc1y9YPArRem51VI0OzbJ2cRnLH
+J0YF6lYvjcTVBtmQlYeOfZsz4EABEeBYe/rbDmJC
+=b+IB
+-----END PGP SIGNATURE-----`

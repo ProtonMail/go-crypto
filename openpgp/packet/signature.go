@@ -78,6 +78,7 @@ type Signature struct {
 	SignerUserId                                            *string
 	IsPrimaryId                                             *bool
 	Notations                                               []*Notation
+	IntendedRecipients                                      []*Recipient
 
 	// TrustLevel and TrustAmount can be set by the signer to assert that
 	// the key is not only valid but also trustworthy at the specified
@@ -119,11 +120,24 @@ type Signature struct {
 	outSubpackets []outputSubpacket
 }
 
+// VerifiableSignature internally keeps state if the
+// the signature has been verified before.
+type VerifiableSignature struct {
+	Valid  *bool // nil if it has not been verified yet
+	Packet *Signature
+}
+
 // SaltedHashSpecifier specifies that the given salt and hash are
 // used by a v6 signature.
 type SaltedHashSpecifier struct {
 	Hash crypto.Hash
 	Salt []byte
+}
+
+func NewVerifiableSig(signature *Signature) *VerifiableSignature {
+	return &VerifiableSignature{
+		Packet: signature,
+	}
 }
 
 func (sig *Signature) Salt() []byte {
@@ -338,6 +352,7 @@ const (
 	featuresSubpacket            signatureSubpacketType = 30
 	embeddedSignatureSubpacket   signatureSubpacketType = 32
 	issuerFingerprintSubpacket   signatureSubpacketType = 33
+	intendedRecipientSubpacket   signatureSubpacketType = 35
 	prefCipherSuitesSubpacket    signatureSubpacketType = 39
 )
 
@@ -531,7 +546,7 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 			return
 		}
 		sig.RevocationReason = new(ReasonForRevocation)
-		*sig.RevocationReason = ReasonForRevocation(subpacket[0])
+		*sig.RevocationReason = NewReasonForRevocation(subpacket[0])
 		sig.RevocationReasonText = string(subpacket[1:])
 	case featuresSubpacket:
 		// Features subpacket, section 5.2.3.24 specifies a very general
@@ -584,6 +599,19 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		} else {
 			*sig.IssuerKeyId = binary.BigEndian.Uint64(subpacket[13:21])
 		}
+	case intendedRecipientSubpacket:
+		// Intended Recipient Fingerprint
+		// https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh#name-intended-recipient-fingerpr
+		if len(subpacket) < 1 {
+			return nil, errors.StructuralError("invalid intended recipient fingerpring length")
+		}
+		version, length := subpacket[0], len(subpacket[1:])
+		if version >= 5 && length != 32 || version < 5 && length != 20 {
+			return nil, errors.StructuralError("invalid fingerprint length")
+		}
+		fingerprint := make([]byte, length)
+		copy(fingerprint, subpacket[1:])
+		sig.IntendedRecipients = append(sig.IntendedRecipients, &Recipient{int(version), fingerprint})
 	case prefCipherSuitesSubpacket:
 		// Preferred AEAD cipher suites
 		// See https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-07.html#name-preferred-aead-ciphersuites
@@ -626,6 +654,13 @@ func (sig *Signature) CheckKeyIdOrFingerprint(pk *PublicKey) bool {
 		return bytes.Equal(sig.IssuerFingerprint, pk.Fingerprint)
 	}
 	return sig.IssuerKeyId != nil && *sig.IssuerKeyId == pk.KeyId
+}
+
+func (sig *Signature) CheckKeyIdOrFingerprintExplicit(fingerprint []byte, keyId uint64) bool {
+	if sig.IssuerFingerprint != nil && len(sig.IssuerFingerprint) >= 20 && fingerprint != nil {
+		return bytes.Equal(sig.IssuerFingerprint, fingerprint)
+	}
+	return sig.IssuerKeyId != nil && *sig.IssuerKeyId == keyId
 }
 
 // serializeSubpacketLength marshals the given length into to.
@@ -682,14 +717,14 @@ func serializeSubpackets(to []byte, subpackets []outputSubpacket, hashed bool) {
 // SigExpired returns whether sig is a signature that has expired or is created
 // in the future.
 func (sig *Signature) SigExpired(currentTime time.Time) bool {
-	if sig.CreationTime.After(currentTime) {
+	if sig.CreationTime.Unix() > currentTime.Unix() {
 		return true
 	}
 	if sig.SigLifetimeSecs == nil || *sig.SigLifetimeSecs == 0 {
 		return false
 	}
 	expiry := sig.CreationTime.Add(time.Duration(*sig.SigLifetimeSecs) * time.Second)
-	return currentTime.After(expiry)
+	return currentTime.Unix() > expiry.Unix()
 }
 
 // buildHashSuffix constructs the HashSuffix member of sig in preparation for signing.
@@ -1206,6 +1241,17 @@ func (sig *Signature) buildSubpackets(issuer PublicKey) (subpackets []outputSubp
 				notationDataSubpacket,
 				notation.IsCritical,
 				notation.getData(),
+			})
+	}
+
+	for _, recipient := range sig.IntendedRecipients {
+		subpackets = append(
+			subpackets,
+			outputSubpacket{
+				true,
+				intendedRecipientSubpacket,
+				false,
+				recipient.Serialize(),
 			})
 	}
 
