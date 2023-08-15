@@ -39,7 +39,10 @@ func TestSignTextDetached(t *testing.T) {
 	kring, _ := ReadKeyRing(readerFromHex(testKeys1And2PrivateHex))
 	out := bytes.NewBuffer(nil)
 	message := bytes.NewBufferString(signedInput)
-	err := DetachSignText(out, kring[:1], message, &allowAllAlgorithmsConfig)
+	err := DetachSignWithParams(out, kring[:1], message, &SignParams{
+		TextSig: true,
+		Config:  &allowAllAlgorithmsConfig,
+	})
 	if err != nil {
 		t.Error(err)
 	}

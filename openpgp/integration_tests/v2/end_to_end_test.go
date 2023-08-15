@@ -293,12 +293,10 @@ func signVerifyTest(
 
 	// Sign the message
 	buf := new(bytes.Buffer)
-	var errSign error
-	if binary {
-		errSign = openpgp.ArmoredDetachSign(buf, skFrom[:1], message, &allowAllAlgorithmsConfig)
-	} else {
-		errSign = openpgp.ArmoredDetachSignText(buf, skFrom[:1], message, &allowAllAlgorithmsConfig)
-	}
+	errSign := openpgp.ArmoredDetachSign(buf, skFrom[:1], message, &openpgp.SignParams{
+		TextSig: !binary,
+		Config:  &allowAllAlgorithmsConfig,
+	})
 	if errSign != nil {
 		t.Error(errSign)
 	}

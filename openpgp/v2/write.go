@@ -24,27 +24,32 @@ func DetachSign(w io.Writer, signers []*Entity, message io.Reader, config *packe
 	return detachSign(w, signers, message, packet.SigTypeBinary, config)
 }
 
+// DetachSignWithParams signs message with the private key from signer (which must
+// already have been decrypted) and writes the signature to w.
+// If config is nil, sensible defaults will be used.
+func DetachSignWithParams(w io.Writer, signers []*Entity, message io.Reader, params *SignParams) error {
+	if params == nil {
+		params = &SignParams{}
+	}
+	sigType := packet.SigTypeBinary
+	if params.TextSig {
+		sigType = packet.SigTypeText
+	}
+	return detachSign(w, signers, message, sigType, params.Config)
+}
+
 // ArmoredDetachSign signs message with the private key from signer (which
 // must already have been decrypted) and writes an armored signature to w.
 // If config is nil, sensible defaults will be used.
-func ArmoredDetachSign(w io.Writer, signers []*Entity, message io.Reader, config *packet.Config) (err error) {
-	return armoredDetachSign(w, signers, message, packet.SigTypeBinary, config)
-}
-
-// DetachSignText signs message (after canonicalising the line endings) with
-// the private key from signer (which must already have been decrypted) and
-// writes the signature to w.
-// If config is nil, sensible defaults will be used.
-func DetachSignText(w io.Writer, signers []*Entity, message io.Reader, config *packet.Config) error {
-	return detachSign(w, signers, message, packet.SigTypeText, config)
-}
-
-// ArmoredDetachSignText signs message (after canonicalising the line endings)
-// with the private key from signer (which must already have been decrypted)
-// and writes an armored signature to w.
-// If config is nil, sensible defaults will be used.
-func ArmoredDetachSignText(w io.Writer, signers []*Entity, message io.Reader, config *packet.Config) error {
-	return armoredDetachSign(w, signers, message, packet.SigTypeText, config)
+func ArmoredDetachSign(w io.Writer, signers []*Entity, message io.Reader, params *SignParams) (err error) {
+	if params == nil {
+		params = &SignParams{}
+	}
+	sigType := packet.SigTypeBinary
+	if params.TextSig {
+		sigType = packet.SigTypeText
+	}
+	return armoredDetachSign(w, signers, message, sigType, params.Config)
 }
 
 // DetachSignWriter signs a message with the private key from a signer (which must
@@ -54,12 +59,15 @@ func ArmoredDetachSignText(w io.Writer, signers []*Entity, message io.Reader, co
 // been written. If utf8Message is set to true, the line endings of the message are
 // canonicalised and the type of the signature will be SigTypeText.
 // If config is nil, sensible defaults will be used.
-func DetachSignWriter(w io.Writer, signers []*Entity, utf8Message bool, config *packet.Config) (io.WriteCloser, error) {
+func DetachSignWriter(w io.Writer, signers []*Entity, params *SignParams) (io.WriteCloser, error) {
+	if params == nil {
+		params = &SignParams{}
+	}
 	sigType := packet.SigTypeBinary
-	if utf8Message {
+	if params.TextSig {
 		sigType = packet.SigTypeText
 	}
-	return detachSignWithWriter(w, signers, sigType, config)
+	return detachSignWithWriter(w, signers, sigType, params.Config)
 }
 
 func armoredDetachSign(w io.Writer, signers []*Entity, message io.Reader, sigType packet.SignatureType, config *packet.Config) (err error) {

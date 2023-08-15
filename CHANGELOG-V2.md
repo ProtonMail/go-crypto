@@ -72,7 +72,7 @@ openpgp ProtonMail/go-crypto/openpgp/v2
 
 `openpgp.v2` API changes for writing messages:
 - `DetachSign(..., signers []*Entity,...)` takes now a slice of entities instead of a single entity as an argument.
-- `ArmoredDetachSign(..., signers []*Entity,...)` takes now a slice of entities instead of a single entity as an argument.
+- `ArmoredDetachSign(..., signers []*Entity,..., , params *SignParams)` takes now a slice of entities instead of a single entity as an argument and replaces arguments with a SignParams object.
 - `DetachSignText(..., signers []*Entity,...)` takes now a slice of entities instead of a single entity as an argument.
 - `ArmoredDetachSignText(..., signers []*Entity,...)` takes now a slice of entities instead of a single entity as an argument.
 - `EncryptText(...)` removed call `EncryptWithParams(...)` instead
@@ -169,4 +169,4 @@ This approach effectively reduces the number of API methods and simplifies the p
 - Check for known curves early when parsing ECDSA and ECDH keys
 - Skip signatures with the wrong type while parsing an entity
 - Support for signatures that appear in front of the data
-- Change file hints and literal packet field IsBinary to IsUTF8
+- Change file hints field IsBinary to IsUTF8
