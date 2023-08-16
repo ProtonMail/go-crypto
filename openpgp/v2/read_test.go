@@ -944,7 +944,7 @@ func TestMultiSignedMessage(t *testing.T) {
 		t.Errorf("expected 2 signature candidates, got: %d", len(md.SignatureCandidates))
 	}
 
-	_, err = io.ReadAll(md.UnverifiedBody)
+	_, err = ioutil.ReadAll(md.UnverifiedBody)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -994,7 +994,7 @@ func testMalformedMessage(t *testing.T, keyring EntityList, message string) {
 	if err != nil {
 		return
 	}
-	_, err = io.ReadAll(md.UnverifiedBody)
+	_, err = ioutil.ReadAll(md.UnverifiedBody)
 	if err == nil {
 		t.Error("Expected malformed message error")
 		return
