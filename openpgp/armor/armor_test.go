@@ -75,25 +75,6 @@ func TestDecodeEmptyVersion(t *testing.T) {
 	}
 }
 
-func TestDecodeEmptyVersion(t *testing.T) {
-	buf := bytes.NewBuffer([]byte(armorExampleEmptyVersion))
-	result, err := Decode(buf)
-	if err != nil {
-		t.Error(err)
-	}
-	expectedType := "PGP SIGNATURE"
-	if result.Type != expectedType {
-		t.Errorf("result.Type: got:%s want:%s", result.Type, expectedType)
-	}
-	if len(result.Header) != 1 {
-		t.Errorf("len(result.Header): got:%d want:1", len(result.Header))
-	}
-	v, ok := result.Header["Version"]
-	if !ok || v != "" {
-		t.Errorf("result.Header: got:%#v", result.Header)
-	}
-}
-
 func TestLongHeader(t *testing.T) {
 	buf := bytes.NewBuffer([]byte(armorLongLine))
 	result, err := Decode(buf)
