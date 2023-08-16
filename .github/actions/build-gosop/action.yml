@@ -13,6 +13,16 @@ inputs:
     required: true
     default: './gosop-${{ github.sha }}'
 
+  branch-gosop: 
+    description: 'Branch of the gosop to use'
+    required: false
+    default: 'main'
+
+  gosop-build-path: 
+    description: 'Build script of the gosop to use'
+    required: false
+    default: 'build_gosop_v1.sh'
+
 runs:
   using: "composite"
   steps:
@@ -30,6 +40,7 @@ runs:
       uses: actions/checkout@v3
       with:
         repository: ProtonMail/gosop
+        ref: ${{ inputs.branch-gosop }}
         path: gosop
     - name: Cache go modules
       uses: actions/cache@v3
@@ -41,7 +52,7 @@ runs:
         restore-keys: |
           ${{ runner.os }}-go-
     - name: Build gosop
-      run: ./.github/test-suite/build_gosop.sh
+      run: ./.github/test-suite/${{ inputs.gosop-build-path }}
       shell: bash
     # Test the binary
     - name: Print gosop version
