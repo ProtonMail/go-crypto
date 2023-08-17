@@ -32,7 +32,7 @@ type Reader struct {
 const maxReaders = 32
 
 // Next returns the most recently unread Packet, or reads another packet from
-// the top-most io.Reader. Unknown/unsupported packet types are skipped.
+// the top-most io.Reader. Unknown/unsupported/Marker packet types are skipped.
 func (r *Reader) Next() (p Packet, err error) {
 	for {
 		p, err := r.read()
@@ -51,6 +51,11 @@ func (r *Reader) Next() (p Packet, err error) {
 			}
 			return nil, err
 		} else {
+			//A marker packet MUST be ignored when received
+			switch p.(type) {
+			case *Marker:
+				continue
+			}
 			return p, nil
 		}
 	}
@@ -58,7 +63,7 @@ func (r *Reader) Next() (p Packet, err error) {
 }
 
 // Next returns the most recently unread Packet, or reads another packet from
-// the top-most io.Reader. Unknown packet types are skipped while unsupported
+// the top-most io.Reader. Unknown/Marker packet types are skipped while unsupported
 // packets are returned as UnsupportedPacket type.
 func (r *Reader) NextWithUnsupported() (p Packet, err error) {
 	for {
@@ -77,6 +82,11 @@ func (r *Reader) NextWithUnsupported() (p Packet, err error) {
 			}
 			return
 		} else {
+			//A marker packet MUST be ignored when received
+			switch p.(type) {
+			case *Marker:
+				continue
+			}
 			return
 		}
 	}
