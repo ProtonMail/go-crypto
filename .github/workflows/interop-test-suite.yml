@@ -63,7 +63,7 @@ jobs:
     name: Run interoperability test suite
     runs-on: ubuntu-latest
     container: 
-      image: ghcr.io/protonmail/openpgp-interop-test-docker:v1.1.1
+      image: ghcr.io/protonmail/openpgp-interop-test-docker:v1.1.2
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.github_token }}
@@ -147,14 +147,14 @@ jobs:
         with:
           name: test-suite-results.json
       - name: Compare with baseline v1
-        uses: ProtonMail/openpgp-interop-test-analyzer@5f99c093a1f2c3baccddb46e1d684ec8b33af55d
+        uses: ProtonMail/openpgp-interop-test-analyzer@5d7f4b6868ebe3bfc909302828342c461f5f4940
         with: 
           results: ${{ steps.download-test-results.outputs.download-path }}/test-suite-results.json
           output: baseline-comparison-v1.json
           baseline: gosop-main
           target: gosop-branch-v1
       - name: Compare with baseline v2
-        uses: ProtonMail/openpgp-interop-test-analyzer@5f99c093a1f2c3baccddb46e1d684ec8b33af55d
+        uses: ProtonMail/openpgp-interop-test-analyzer@5d7f4b6868ebe3bfc909302828342c461f5f4940
         with: 
           results: ${{ steps.download-test-results.outputs.download-path }}/test-suite-results.json
           output: baseline-comparison-v2.json
