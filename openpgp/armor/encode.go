@@ -186,7 +186,7 @@ func encode(out io.Writer, blockType string, headers map[string]string, checksum
 // Encode returns a WriteCloser which will encode the data written to it in
 // OpenPGP armor.
 func Encode(out io.Writer, blockType string, headers map[string]string) (w io.WriteCloser, err error) {
-	return encode(out, blockType, headers, false)
+	return encode(out, blockType, headers, true)
 }
 
 // EncodeWithChecksumOption returns a WriteCloser which will encode the data written to it in

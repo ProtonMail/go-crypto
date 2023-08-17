@@ -71,7 +71,7 @@ func DetachSignWriter(w io.Writer, signers []*Entity, params *SignParams) (io.Wr
 }
 
 func armoredDetachSign(w io.Writer, signers []*Entity, message io.Reader, sigType packet.SignatureType, config *packet.Config) (err error) {
-	out, err := armor.Encode(w, SignatureType, nil)
+	out, err := armor.EncodeWithChecksumOption(w, SignatureType, nil, false)
 	if err != nil {
 		return
 	}

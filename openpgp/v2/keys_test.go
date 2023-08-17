@@ -466,7 +466,7 @@ func TestDummyPrivateKey(t *testing.T) {
 
 	// Test serialization of stub private key via entity.SerializePrivate().
 	var buf bytes.Buffer
-	w, err := armor.Encode(&buf, PrivateKeyType, nil)
+	w, err := armor.EncodeWithChecksumOption(&buf, PrivateKeyType, nil, false)
 	if err != nil {
 		t.Errorf("Failed top initialise armored key writer")
 	}

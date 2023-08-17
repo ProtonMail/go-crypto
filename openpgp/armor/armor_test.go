@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"hash/adler32"
 	"io/ioutil"
-	"strings"
 	"testing"
 )
 
@@ -50,9 +49,8 @@ func TestDecodeEncode(t *testing.T) {
 	}
 	w.Close()
 
-	expected := strings.Replace(armorExample1, "=/teI\n", "", 1) // CRC should not be present
-	if !bytes.Equal(buf.Bytes(), []byte(expected)) {
-		t.Errorf("got: %s\nwant: %s", buf.String(), expected)
+	if !bytes.Equal(buf.Bytes(), []byte(armorExample1)) {
+		t.Errorf("got: %s\nwant: %s", buf.String(), armorExample1)
 	}
 }
 
@@ -98,6 +96,7 @@ iJwEAAECAAYFAk1Fv/0ACgkQo01+GMIMMbsYTwQAiAw+QAaNfY6WBdplZ/uMAccm
 4g+81QPmTSGHnetSb6WBiY13kVzK4HQiZH8JSkmmroMLuGeJwsRTEL4wbjRyUKEt
 p1xwUZDECs234F1xiG5enc5SGlRtP7foLBz9lOsjx+LEcA4sTl5/2eZR9zyFZqWW
 TxRjs+fJCIFuo71xb1g=
+=/teI
 -----END PGP SIGNATURE-----`
 
 const armorLongLine = `-----BEGIN PGP SIGNATURE-----

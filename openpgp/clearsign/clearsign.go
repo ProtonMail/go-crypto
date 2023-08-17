@@ -303,7 +303,7 @@ func (d *dashEscaper) Close() (err error) {
 		return
 	}
 
-	out, err := armor.Encode(d.buffered, "PGP SIGNATURE", d.armorHeader)
+	out, err := armor.EncodeWithChecksumOption(d.buffered, "PGP SIGNATURE", d.armorHeader, false)
 	if err != nil {
 		return
 	}

@@ -84,7 +84,7 @@ func generateFreshTestVectors(num int) (vectors []testVector, err error) {
 // armorWithType make bytes input to armor format
 func armorWithType(input []byte, armorType string) (string, error) {
 	var b bytes.Buffer
-	w, err := armor.Encode(&b, armorType, nil)
+	w, err := armor.EncodeWithChecksumOption(&b, armorType, nil, false)
 	if err != nil {
 		return "", err
 	}
