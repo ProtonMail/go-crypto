@@ -5,9 +5,8 @@ on:
     branches: [ main ]
 
 jobs:
-
-  build-gosop:
-    name: Build gosop from branch
+  build-gosop-v1:
+    name: Build gosop from branch v1-api
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -15,15 +14,32 @@ jobs:
       - name: Build gosop from branch
         uses: ./.github/actions/build-gosop
         with: 
-          binary-location: ./gosop-${{ github.sha }}
+          binary-location: ./gosop-${{ github.sha }}-v1
+      # Upload as artifact
+      - name: Upload gosop artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: gosop-${{ github.sha }}-v1
+          path: ./gosop-${{ github.sha }}-v1
+        
+  build-gosop-v2:
+    name: Build gosop from branch v2-api
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Build gosop from branch
+        uses: ./.github/actions/build-gosop
+        with: 
+          binary-location: ./gosop-${{ github.sha }}-v2
           branch-gosop: gosop-gopenpgp-v3
           gosop-build-path: build_gosop.sh
       # Upload as artifact
       - name: Upload gosop artifact
         uses: actions/upload-artifact@v3
         with:
-          name: gosop-${{ github.sha }}
-          path: ./gosop-${{ github.sha }}
+          name: gosop-${{ github.sha }}-v2
+          path: ./gosop-${{ github.sha }}-v2
 
   build-gosop-main:
     name: Build gosop from main
@@ -42,7 +58,6 @@ jobs:
         with:
           name: gosop-main
           path: ./gosop-main
-    
 
   test-suite:
     name: Run interoperability test suite
@@ -53,7 +68,8 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.github_token }}
     needs: 
-      - build-gosop
+      - build-gosop-v1
+      - build-gosop-v2
       - build-gosop-main
     steps:
       - name: Checkout
@@ -68,21 +84,33 @@ jobs:
         run: chmod +x gosop-main
       - name: Print gosop-main version
         run: ./gosop-main version --extended
-      # Fetch gosop from branch
-      - name: Download gosop-branch
+      # Fetch gosop from branch v1
+      - name: Download gosop-branch-v1
         uses: actions/download-artifact@v3
         with:
-          name: gosop-${{ github.sha }}
-      - name: Rename gosop-branch
-        run: mv gosop-${{ github.sha }} gosop-branch
-      # Test gosop-branch
-      - name: Make gosop-branch executable
-        run: chmod +x gosop-branch
-      - name: Print gosop-branch version
-        run: ./gosop-branch version --extended
+          name: gosop-${{ github.sha }}-v1
+      - name: Rename gosop-branch-v1
+        run: mv gosop-${{ github.sha }}-v1 gosop-branch-v1
+      # Test gosop-branch v1
+      - name: Make gosop-branch-v1 executable
+        run: chmod +x gosop-branch-v1
+      - name: Print gosop-branch-v1 version
+        run: ./gosop-branch-v1 version --extended
+      # Fetch gosop from branch v2
+      - name: Download gosop-branch-v2
+        uses: actions/download-artifact@v3
+        with:
+          name: gosop-${{ github.sha }}-v2
+      - name: Rename gosop-branch-v2
+        run: mv gosop-${{ github.sha }}-v2 gosop-branch-v2
+      # Test gosop-branch v2
+      - name: Make gosop-branch-v2 executable
+        run: chmod +x gosop-branch-v2
+      - name: Print gosop-branch-v2 version
+        run: ./gosop-branch-v2 version --extended
       # Run test suite
       - name: Prepare test configuration
-        run: ./.github/test-suite/prepare_config.sh $CONFIG_TEMPLATE $CONFIG_OUTPUT $GITHUB_WORKSPACE/gosop-branch $GITHUB_WORKSPACE/gosop-main
+        run: ./.github/test-suite/prepare_config.sh $CONFIG_TEMPLATE $CONFIG_OUTPUT $GITHUB_WORKSPACE/gosop-branch-v1 $GITHUB_WORKSPACE/gosop-branch-v2 $GITHUB_WORKSPACE/gosop-main
         env:
          CONFIG_TEMPLATE: .github/test-suite/config.json.template
          CONFIG_OUTPUT: .github/test-suite/config.json
@@ -118,10 +146,18 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: test-suite-results.json
-      - name: Compare with baseline
+      - name: Compare with baseline v1
         uses: ProtonMail/openpgp-interop-test-analyzer@5f99c093a1f2c3baccddb46e1d684ec8b33af55d
         with: 
           results: ${{ steps.download-test-results.outputs.download-path }}/test-suite-results.json
-          output: baseline-comparison.json
+          output: baseline-comparison-v1.json
           baseline: gosop-main
-          target: gosop-branch
+          target: gosop-branch-v1
+      - name: Compare with baseline v2
+        uses: ProtonMail/openpgp-interop-test-analyzer@5f99c093a1f2c3baccddb46e1d684ec8b33af55d
+        with: 
+          results: ${{ steps.download-test-results.outputs.download-path }}/test-suite-results.json
+          output: baseline-comparison-v2.json
+          baseline: gosop-main
+          target: gosop-branch-v2
+
