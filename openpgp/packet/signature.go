@@ -458,16 +458,18 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		copy(sig.PreferredSymmetric, subpacket)
 	case issuerSubpacket:
 		// Issuer, section 5.2.3.5
-		if sig.Version > 4 {
-			err = errors.StructuralError("issuer subpacket found in v5 key")
+		if sig.Version > 4 && isHashed {
+			err = errors.StructuralError("issuer subpacket found in v6 key")
 			return
 		}
 		if len(subpacket) != 8 {
 			err = errors.StructuralError("issuer subpacket with bad length")
 			return
 		}
-		sig.IssuerKeyId = new(uint64)
-		*sig.IssuerKeyId = binary.BigEndian.Uint64(subpacket)
+		if sig.Version <= 4 {
+			sig.IssuerKeyId = new(uint64)
+			*sig.IssuerKeyId = binary.BigEndian.Uint64(subpacket)
+		}
 	case notationDataSubpacket:
 		// Notation data, section 5.2.3.16
 		if len(subpacket) < 8 {
