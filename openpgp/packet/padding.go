@@ -1,6 +1,9 @@
 package packet
 
-import "io"
+import (
+	"io"
+	"io/ioutil"
+)
 
 // Padding type represents a Padding Packet (Tag 21).
 // The padding type is represented by the length of its padding.
@@ -9,8 +12,7 @@ type Padding int
 
 // parse just ignores the padding content.
 func (pad Padding) parse(reader io.Reader) error {
-	buffer := make([]byte, int64(pad))
-	_, err := io.ReadFull(reader, buffer)
+	_, err := io.CopyN(ioutil.Discard, reader, int64(pad))
 	return err
 }
 
