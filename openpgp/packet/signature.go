@@ -225,7 +225,7 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 	}
 	var unhashedSubpacketsLength int
 	if sig.Version == 6 {
-		unhashedSubpacketsLength = int(buf[3])<<24 | int(buf[2])<<16 | int(buf[1])<<8 | int(buf[0])
+		unhashedSubpacketsLength = int(buf[0])<<24 | int(buf[1])<<16 | int(buf[2])<<8 | int(buf[3])
 	} else {
 		unhashedSubpacketsLength = int(buf[0])<<8 | int(buf[1])
 	}
