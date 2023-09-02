@@ -751,6 +751,21 @@ func (sig *Signature) SignUserId(id string, pub *PublicKey, priv *PrivateKey, co
 	return sig.Sign(h, priv, config)
 }
 
+// SignUserAttribute computes a signature from priv, asserting that pub is a valid
+// key for the identity id.  On success, the signature is stored in sig. Call
+// Serialize to write it out.
+// If config is nil, sensible defaults will be used.
+func (sig *Signature) SignUserAttribute(uat *UserAttribute, pub *PublicKey, priv *PrivateKey, config *Config) error {
+	if priv.Dummy() {
+		return errors.ErrDummyPrivateKey("dummy key found")
+	}
+	h, err := userAttributeSignatureHash(uat, pub, sig.Hash)
+	if err != nil {
+		return err
+	}
+	return sig.Sign(h, priv, config)
+}
+
 // CrossSignKey computes a signature from signingKey on pub hashed using hashKey. On success,
 // the signature is stored in sig. Call Serialize to write it out.
 // If config is nil, sensible defaults will be used.
