@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"crypto/rand"
 	goerrors "errors"
-	"github.com/ProtonMail/go-crypto/openpgp/packet"
-	"golang.org/x/crypto/openpgp/armor"
 	"io"
 	"io/ioutil"
 	"strings"
 	"testing"
+
+	"github.com/ProtonMail/go-crypto/openpgp/packet"
+	"golang.org/x/crypto/openpgp/armor"
 )
 
 const forwardeeKey = `-----BEGIN PGP PRIVATE KEY BLOCK-----
@@ -59,7 +60,7 @@ func TestForwardingStatic(t *testing.T) {
 
 	dec, err := ioutil.ReadAll(m.decrypted)
 
-	if bytes.Compare(dec, []byte(forwardedPlaintext)) != 0 {
+	if !bytes.Equal(dec, []byte(forwardedPlaintext)) {
 		t.Fatal("forwarded decrypted does not match original")
 	}
 }
@@ -89,11 +90,11 @@ func TestForwardingFull(t *testing.T) {
 		t.Fatalf("invalid number of instances, expected 1 got %d", len(instances))
 	}
 
-	if bytes.Compare(instances[0].ForwarderFingerprint, bobEntity.Subkeys[0].PublicKey.Fingerprint) != 0 {
+	if !bytes.Equal(instances[0].ForwarderFingerprint, bobEntity.Subkeys[0].PublicKey.Fingerprint) {
 		t.Fatalf("invalid forwarder key ID, expected: %x, got: %x", bobEntity.Subkeys[0].PublicKey.Fingerprint, instances[0].ForwarderFingerprint)
 	}
 
-	if bytes.Compare(instances[0].ForwardeeFingerprint, charlesEntity.Subkeys[0].PublicKey.Fingerprint) != 0 {
+	if !bytes.Equal(instances[0].ForwardeeFingerprint, charlesEntity.Subkeys[0].PublicKey.Fingerprint) {
 		t.Fatalf("invalid forwardee key ID, expected: %x, got: %x", charlesEntity.Subkeys[0].PublicKey.Fingerprint, instances[0].ForwardeeFingerprint)
 	}
 
@@ -123,7 +124,7 @@ func TestForwardingFull(t *testing.T) {
 	}
 	dec, err := ioutil.ReadAll(m.decrypted)
 
-	if bytes.Compare(dec, plaintext) != 0 {
+	if !bytes.Equal(dec, plaintext) {
 		t.Fatal("decrypted does not match original")
 	}
 
@@ -139,7 +140,7 @@ func TestForwardingFull(t *testing.T) {
 
 	dec, err = ioutil.ReadAll(m.decrypted)
 
-	if bytes.Compare(dec, plaintext) != 0 {
+	if !bytes.Equal(dec, plaintext) {
 		t.Fatal("forwarded decrypted does not match original")
 	}
 
@@ -161,7 +162,7 @@ func TestForwardingFull(t *testing.T) {
 
 	dec, err = ioutil.ReadAll(m.decrypted)
 
-	if bytes.Compare(dec, plaintext) != 0 {
+	if !bytes.Equal(dec, plaintext) {
 		t.Fatal("forwarded decrypted does not match original")
 	}
 }
