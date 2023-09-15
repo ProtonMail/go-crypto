@@ -6,6 +6,7 @@ package v2
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/rand"
 	"io"
 	mathrand "math/rand"
@@ -996,4 +997,88 @@ FindKey:
 		return errors.StructuralError("No compressed packets found")
 	}
 	return nil
+}
+
+func TestEncryptWithAEAD(t *testing.T) {
+	c := &packet.Config{
+		MinRSABits:    1024,
+		Algorithm:     packet.ExperimentalPubKeyAlgoAEAD,
+		DefaultCipher: packet.CipherAES256,
+		AEADConfig: &packet.AEADConfig{
+			DefaultMode: packet.AEADMode(1),
+		},
+	}
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", &packet.Config{RSABits: 1024})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = entity.AddEncryptionSubkey(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	list := make([]*Entity, 1)
+	list[0] = entity
+	entityList := EntityList(list)
+	buf := bytes.NewBuffer(nil)
+	w, err := Encrypt(buf, entityList[:], nil, nil, nil, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const message = "test"
+	_, err = w.Write([]byte(message))
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = w.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m, err := ReadMessage(buf, entityList, nil /* no prompt */, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dec, err := ioutil.ReadAll(m.decrypted)
+
+	if !bytes.Equal(dec, []byte(message)) {
+		t.Error("decrypted does not match original")
+	}
+}
+
+func TestSignWithHMAC(t *testing.T) {
+	c := &packet.Config{
+		MinRSABits:  1024,
+		Algorithm:   packet.ExperimentalPubKeyAlgoHMAC,
+		DefaultHash: crypto.SHA512,
+	}
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", &packet.Config{RSABits: 1024})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = entity.AddSigningSubkey(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	list := make([]*Entity, 1)
+	list[0] = entity
+	entityList := EntityList(list)
+
+	msgBytes := []byte("message")
+	msg := bytes.NewBuffer(msgBytes)
+	sig := bytes.NewBuffer(nil)
+
+	err = DetachSign(sig, []*Entity{entity}, msg, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	msg = bytes.NewBuffer(msgBytes)
+	_, _, err = VerifyDetachedSignature(entityList, msg, sig, c)
+	if err != nil {
+		t.Fatal(err)
+	}
 }

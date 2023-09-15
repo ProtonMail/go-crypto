@@ -134,10 +134,10 @@ func (e *Entity) NewForwardingEntity(
 		instance.ForwardeeFingerprint = forwardeeSubKey.PublicKey.Fingerprint
 
 		// 0x04 - This key may be used to encrypt communications.
-		forwardeeSubKey.Sig.FlagEncryptCommunications = true
+		forwardeeSubKey.Sig.FlagEncryptCommunications = false
 
 		// 0x08 - This key may be used to encrypt storage.
-		forwardeeSubKey.Sig.FlagEncryptStorage = true
+		forwardeeSubKey.Sig.FlagEncryptStorage = false
 
 		// 0x10 - The private component of this key may have been split by a secret-sharing mechanism.
 		forwardeeSubKey.Sig.FlagSplitKey = true
