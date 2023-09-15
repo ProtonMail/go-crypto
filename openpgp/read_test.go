@@ -757,7 +757,7 @@ func TestSymmetricAeadEaxOpenPGPJsMessage(t *testing.T) {
 	}
 
 	// Decrypt with key
-	var edp = p.(*packet.AEADEncrypted)
+	edp := p.(*packet.AEADEncrypted)
 	rc, err := edp.Decrypt(packet.CipherFunction(0), key)
 	if err != nil {
 		panic(err)
