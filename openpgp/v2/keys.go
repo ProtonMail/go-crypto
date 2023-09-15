@@ -608,6 +608,10 @@ func (e *Entity) serializePrivate(w io.Writer, config *packet.Config, reSign boo
 // Serialize writes the public part of the given Entity to w, including
 // signatures from other entities. No private key material will be output.
 func (e *Entity) Serialize(w io.Writer) error {
+	if e.PrimaryKey.PubKeyAlgo == packet.ExperimentalPubKeyAlgoHMAC ||
+		e.PrimaryKey.PubKeyAlgo == packet.ExperimentalPubKeyAlgoAEAD {
+		return errors.InvalidArgumentError("Can't serialize symmetric primary key")
+	}
 	if err := e.PrimaryKey.Serialize(w); err != nil {
 		return err
 	}
@@ -628,6 +632,16 @@ func (e *Entity) Serialize(w io.Writer) error {
 		}
 	}
 	for _, subkey := range e.Subkeys {
+		// The types of keys below are only useful as private keys. Thus, the
+		// public key packets contain no meaningful information and do not need
+		// to be serialized.
+		// Prevent public key export for forwarding keys, see forwarding section 4.1.
+		subKeySelfSig, err := subkey.LatestValidBindingSignature(time.Time{})
+		if subkey.PublicKey.PubKeyAlgo == packet.ExperimentalPubKeyAlgoHMAC ||
+			subkey.PublicKey.PubKeyAlgo == packet.ExperimentalPubKeyAlgoAEAD ||
+			(err == nil && subKeySelfSig.FlagForward) {
+			continue
+		}
 		if err := subkey.Serialize(w, false); err != nil {
 			return err
 		}
@@ -782,5 +796,5 @@ func isValidCertificationKey(signature *packet.Signature, algo packet.PublicKeyA
 func isValidEncryptionKey(signature *packet.Signature, algo packet.PublicKeyAlgorithm) bool {
 	return algo.CanEncrypt() &&
 		signature.FlagsValid &&
-		signature.FlagEncryptCommunications
+		(signature.FlagEncryptCommunications || signature.FlagForward || signature.FlagEncryptStorage)
 }
