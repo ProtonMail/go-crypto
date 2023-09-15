@@ -1000,3 +1000,10 @@ func testMalformedMessage(t *testing.T, keyring EntityList, message string) {
 		return
 	}
 }
+
+func TestReadKeyRingWithSymmetricSubkey(t *testing.T) {
+	_, err := ReadArmoredKeyRing(strings.NewReader(keyWithAEADSubkey))
+	if err != nil {
+		t.Error("could not read keyring", err)
+	}
+}

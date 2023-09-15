@@ -218,7 +218,7 @@ func (e *EncryptedKey) Decrypt(priv *PrivateKey, config *Config) error {
 
 	var key []byte
 	switch priv.PubKeyAlgo {
-	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoElGamal, PubKeyAlgoECDH:
+	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoElGamal, PubKeyAlgoECDH, ExperimentalPubKeyAlgoAEAD:
 		keyOffset := 0
 		if e.Version < 6 {
 			e.CipherFunc = CipherFunction(b[0])
