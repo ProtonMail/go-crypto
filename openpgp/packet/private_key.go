@@ -28,10 +28,10 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/encoding"
 	"github.com/ProtonMail/go-crypto/openpgp/s2k"
+	"github.com/ProtonMail/go-crypto/openpgp/symmetric"
 	"github.com/ProtonMail/go-crypto/openpgp/x25519"
 	"github.com/ProtonMail/go-crypto/openpgp/x448"
 	"golang.org/x/crypto/hkdf"
-	"github.com/ProtonMail/go-crypto/openpgp/symmetric"
 )
 
 // PrivateKey represents a possibly encrypted private key. See RFC 4880,
@@ -186,15 +186,12 @@ func NewDecrypterPrivateKey(creationTime time.Time, decrypter interface{}) *Priv
 		pk.PublicKey = *NewElGamalPublicKey(creationTime, &priv.PublicKey)
 	case *ecdh.PrivateKey:
 		pk.PublicKey = *NewECDHPublicKey(creationTime, &priv.PublicKey)
-<<<<<<< HEAD
 	case *x25519.PrivateKey:
 		pk.PublicKey = *NewX25519PublicKey(creationTime, &priv.PublicKey)
 	case *x448.PrivateKey:
 		pk.PublicKey = *NewX448PublicKey(creationTime, &priv.PublicKey)
-=======
 	case *symmetric.AEADPrivateKey:
 		pk.PublicKey = *NewAEADPublicKey(creationTime, &priv.PublicKey)
->>>>>>> 3731c9c (openpgp: Add support for symmetric subkeys (#74))
 	default:
 		panic("openpgp: unknown decrypter type in NewDecrypterPrivateKey")
 	}

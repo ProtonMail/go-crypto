@@ -6,6 +6,7 @@ package openpgp
 
 import (
 	goerrors "errors"
+
 	"github.com/ProtonMail/go-crypto/openpgp/ecdh"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
@@ -51,7 +52,7 @@ func (e *Entity) NewForwardingEntity(
 		Subkeys:    []Subkey{},
 	}
 
-	err = forwardeeKey.addUserId(name, comment, email, config, now, keyLifetimeSecs)
+	err = forwardeeKey.addUserId(name, comment, email, config, now, keyLifetimeSecs, true)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -91,7 +92,7 @@ func (e *Entity) NewForwardingEntity(
 			return nil, nil, err
 		}
 
-		forwardeeSubKey := forwardeeKey.Subkeys[len(forwardeeKey.Subkeys) - 1]
+		forwardeeSubKey := forwardeeKey.Subkeys[len(forwardeeKey.Subkeys)-1]
 
 		forwardeeEcdhKey, ok := forwardeeSubKey.PrivateKey.PrivateKey.(*ecdh.PrivateKey)
 		if !ok {
@@ -99,7 +100,7 @@ func (e *Entity) NewForwardingEntity(
 		}
 
 		instance := packet.ForwardingInstance{
-			KeyVersion: 4,
+			KeyVersion:           4,
 			ForwarderFingerprint: forwarderSubKey.PublicKey.Fingerprint,
 		}
 
@@ -109,9 +110,9 @@ func (e *Entity) NewForwardingEntity(
 		}
 
 		kdf := ecdh.KDF{
-			Version:                ecdh.KDFVersionForwarding,
-			Hash:                   forwarderEcdhKey.KDF.Hash,
-			Cipher:                 forwarderEcdhKey.KDF.Cipher,
+			Version: ecdh.KDFVersionForwarding,
+			Hash:    forwarderEcdhKey.KDF.Hash,
+			Cipher:  forwarderEcdhKey.KDF.Cipher,
 		}
 
 		// If deriving a forwarding key from a forwarding key
