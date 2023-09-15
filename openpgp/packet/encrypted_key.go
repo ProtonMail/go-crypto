@@ -405,7 +405,7 @@ func SerializeEncryptedKeyAEADwithHiddenOption(w io.Writer, pub *PublicKey, ciph
 
 	var keyBlock []byte
 	switch pub.PubKeyAlgo {
-	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoElGamal, PubKeyAlgoECDH:
+	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoElGamal, PubKeyAlgoECDH, ExperimentalPubKeyAlgoAEAD:
 		lenKeyBlock := len(key) + 2
 		if version < 6 {
 			lenKeyBlock += 1 // cipher type included
@@ -434,7 +434,7 @@ func SerializeEncryptedKeyAEADwithHiddenOption(w io.Writer, pub *PublicKey, ciph
 	case PubKeyAlgoX448:
 		return serializeEncryptedKeyX448(w, config.Random(), buf[:lenHeaderWritten], pub.PublicKey.(*x448.PublicKey), keyBlock, byte(cipherFunc), version)
 	case ExperimentalPubKeyAlgoAEAD:
-		return serializeEncryptedKeyAEAD(w, config.Random(), buf, pub.PublicKey.(*symmetric.AEADPublicKey), keyBlock, config.AEAD())
+		return serializeEncryptedKeyAEAD(w, config.Random(), buf[:lenHeaderWritten], pub.PublicKey.(*symmetric.AEADPublicKey), keyBlock, config.AEAD())
 	case PubKeyAlgoDSA, PubKeyAlgoRSASignOnly, ExperimentalPubKeyAlgoHMAC:
 		return errors.InvalidArgumentError("cannot encrypt to public key of type " + strconv.Itoa(int(pub.PubKeyAlgo)))
 	}
@@ -478,8 +478,9 @@ func (e *EncryptedKey) ProxyTransform(instance ForwardingInstance) (transformed 
 	copy(copiedWrappedKey, wrappedKey)
 
 	transformed = &EncryptedKey{
-		KeyId: instance.getForwardeeKeyIdOrZero(e.KeyId),
-		Algo: e.Algo,
+		Version:       e.Version,
+		KeyId:         instance.getForwardeeKeyIdOrZero(e.KeyId),
+		Algo:          e.Algo,
 		encryptedMPI1: encoding.NewMPI(transformedEphemeral),
 		encryptedMPI2: encoding.NewOID(copiedWrappedKey),
 	}
@@ -603,7 +604,7 @@ func serializeEncryptedKeyX448(w io.Writer, rand io.Reader, header []byte, pub *
 	return x448.EncodeFields(w, ephemeralPublicX448, ciphertext, cipherFunc, version == 6)
 }
 
-func serializeEncryptedKeyAEAD(w io.Writer, rand io.Reader, header [10]byte, pub *symmetric.AEADPublicKey, keyBlock []byte, config *AEADConfig) error {
+func serializeEncryptedKeyAEAD(w io.Writer, rand io.Reader, header []byte, pub *symmetric.AEADPublicKey, keyBlock []byte, config *AEADConfig) error {
 	mode := algorithm.AEADMode(config.Mode())
 	iv, ciphertextRaw, err := pub.Encrypt(rand, keyBlock, mode)
 	if err != nil {
@@ -615,7 +616,7 @@ func serializeEncryptedKeyAEAD(w io.Writer, rand io.Reader, header [10]byte, pub
 	buffer := append([]byte{byte(mode)}, iv...)
 	buffer = append(buffer, ciphertextShortByteString.EncodedBytes()...)
 
-	packetLen := 10 /* header length */
+	packetLen := len(header) /* header length */
 	packetLen += int(len(buffer))
 
 	err = serializeHeader(w, packetTypeEncryptedKey, packetLen)
@@ -632,60 +633,27 @@ func serializeEncryptedKeyAEAD(w io.Writer, rand io.Reader, header [10]byte, pub
 	return err
 }
 
-<<<<<<< HEAD
 func checksumKeyMaterial(key []byte) uint16 {
 	var checksum uint16
 	for _, v := range key {
 		checksum += uint16(v)
-=======
-func (e *EncryptedKey) ProxyTransform(instance ForwardingInstance) (transformed *EncryptedKey, err error) {
-	if e.Algo != PubKeyAlgoECDH {
-		return nil, errors.InvalidArgumentError("invalid PKESK")
->>>>>>> edf1961 (Use fingerprints instead of KeyIDs)
 	}
 	return checksum
 }
 
-<<<<<<< HEAD
 func decodeChecksumKey(msg []byte) (key []byte, err error) {
 	key = msg[:len(msg)-2]
 	expectedChecksum := uint16(msg[len(msg)-2])<<8 | uint16(msg[len(msg)-1])
 	checksum := checksumKeyMaterial(key)
 	if checksum != expectedChecksum {
 		err = errors.StructuralError("session key checksum is incorrect")
-=======
-	if e.KeyId != 0 && e.KeyId != instance.GetForwarderKeyId() {
-		return nil, errors.InvalidArgumentError("invalid key id in PKESK")
->>>>>>> edf1961 (Use fingerprints instead of KeyIDs)
 	}
 	return
 }
 
-<<<<<<< HEAD
 func encodeChecksumKey(buffer []byte, key []byte) {
 	copy(buffer, key)
 	checksum := checksumKeyMaterial(key)
 	buffer[len(key)] = byte(checksum >> 8)
 	buffer[len(key)+1] = byte(checksum)
 }
-=======
-	ephemeral := e.encryptedMPI1.Bytes()
-	transformedEphemeral, err := ecdh.ProxyTransform(ephemeral, instance.ProxyParameter)
-	if err != nil {
-		return nil, err
-	}
-
-	wrappedKey := e.encryptedMPI2.Bytes()
-	copiedWrappedKey := make([]byte, len(wrappedKey))
-	copy(copiedWrappedKey, wrappedKey)
-
-	transformed = &EncryptedKey{
-		KeyId: instance.getForwardeeKeyIdOrZero(e.KeyId),
-		Algo: e.Algo,
-		encryptedMPI1: encoding.NewMPI(transformedEphemeral),
-		encryptedMPI2: encoding.NewOID(copiedWrappedKey),
-	}
-
-	return transformed, nil
-}
->>>>>>> edf1961 (Use fingerprints instead of KeyIDs)
