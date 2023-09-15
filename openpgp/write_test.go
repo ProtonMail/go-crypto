@@ -266,13 +266,13 @@ func TestNewEntity(t *testing.T) {
 
 func TestEncryptWithAEAD(t *testing.T) {
 	c := &packet.Config{
-		Algorithm:   packet.ExperimentalPubKeyAlgoAEAD,
+		Algorithm:     packet.ExperimentalPubKeyAlgoAEAD,
 		DefaultCipher: packet.CipherAES256,
 		AEADConfig: &packet.AEADConfig{
 			DefaultMode: packet.AEADMode(1),
 		},
 	}
-	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", &packet.Config{ RSABits: 1024})
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", &packet.Config{RSABits: 1024})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -282,8 +282,7 @@ func TestEncryptWithAEAD(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var list []*Entity
-	list = make([]*Entity, 1)
+	list := make([]*Entity, 1)
 	list[0] = entity
 	entityList := EntityList(list)
 	buf := bytes.NewBuffer(nil)
@@ -308,7 +307,7 @@ func TestEncryptWithAEAD(t *testing.T) {
 	}
 	dec, err := ioutil.ReadAll(m.decrypted)
 
-	if bytes.Compare(dec, []byte(message)) != 0 {
+	if !bytes.Equal(dec, []byte(message)) {
 		t.Error("decrypted does not match original")
 	}
 }
@@ -318,7 +317,7 @@ func TestSignWithHMAC(t *testing.T) {
 		Algorithm:   packet.ExperimentalPubKeyAlgoHMAC,
 		DefaultHash: crypto.SHA512,
 	}
-	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", &packet.Config{ RSABits: 1024})
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", &packet.Config{RSABits: 1024})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -327,8 +326,7 @@ func TestSignWithHMAC(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var list []*Entity
-	list = make([]*Entity, 1)
+	list := make([]*Entity, 1)
 	list[0] = entity
 	entityList := EntityList(list)
 
