@@ -175,20 +175,20 @@ func TestAeadRfcVector(t *testing.T) {
 		t.Errorf("found wrong version, want: %d, got: %d", symmetricallyEncryptedVersionAead, se.Version)
 	}
 
-	if se.cipher != CipherAES128 {
-		t.Errorf("found wrong cipher, want: %d, got: %d", CipherAES128, se.cipher)
+	if se.Cipher != CipherAES128 {
+		t.Errorf("found wrong cipher, want: %d, got: %d", CipherAES128, se.Cipher)
 	}
 
-	if se.mode != AEADModeGCM {
-		t.Errorf("found wrong mode, want: %d, got: %d", AEADModeGCM, se.mode)
+	if se.Mode != AEADModeGCM {
+		t.Errorf("found wrong mode, want: %d, got: %d", AEADModeGCM, se.Mode)
 	}
 
-	if !bytes.Equal(se.salt[:], expectedSalt) {
-		t.Errorf("found wrong salt, want: %x, got: %x", expectedSalt, se.salt)
+	if !bytes.Equal(se.Salt[:], expectedSalt) {
+		t.Errorf("found wrong salt, want: %x, got: %x", expectedSalt, se.Salt)
 	}
 
-	if se.chunkSizeByte != 0x06 {
-		t.Errorf("found wrong chunk size byte, want: %d, got: %d", 0x06, se.chunkSizeByte)
+	if se.ChunkSizeByte != 0x06 {
+		t.Errorf("found wrong chunk size byte, want: %d, got: %d", 0x06, se.ChunkSizeByte)
 	}
 
 	aeadReader, err := se.Decrypt(CipherFunction(0), key)
@@ -270,12 +270,12 @@ func testSerializeAead(t *testing.T, cipherSuite CipherSuite) {
 		t.Errorf("found wrong version, want: %d, got: %d", symmetricallyEncryptedVersionAead, se.Version)
 	}
 
-	if se.cipher != cipherSuite.Cipher {
-		t.Errorf("found wrong cipher, want: %d, got: %d", cipherSuite.Cipher, se.cipher)
+	if se.Cipher != cipherSuite.Cipher {
+		t.Errorf("found wrong cipher, want: %d, got: %d", cipherSuite.Cipher, se.Cipher)
 	}
 
-	if se.mode != cipherSuite.Mode {
-		t.Errorf("found wrong mode, want: %d, got: %d", cipherSuite.Mode, se.mode)
+	if se.Mode != cipherSuite.Mode {
+		t.Errorf("found wrong mode, want: %d, got: %d", cipherSuite.Mode, se.Mode)
 	}
 
 	r, err := se.Decrypt(CipherFunction(0), key)
