@@ -102,6 +102,9 @@ func TestSerializeSymmetricKeyEncryptedV5RandomizeSlow(t *testing.T) {
 							}
 
 							key, err := SerializeSymmetricKeyEncrypted(&buf, passphrase, config)
+							if err != nil {
+								t.Errorf("failed to serialize encrypted symmetric key: %s", err)
+							}
 							p, err := Read(&buf)
 							if err != nil {
 								t.Errorf("failed to reparse %s", err)
@@ -151,7 +154,7 @@ func TestSerializeSymmetricKeyEncryptedCiphersV4(t *testing.T) {
 					config := &Config{
 						DefaultCipher: cipher,
 						S2KConfig: &s2k.Config{
-							S2KMode: s2ktype,
+							S2KMode:                 s2ktype,
 							PassphraseIsHighEntropy: true,
 						},
 					}

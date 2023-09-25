@@ -80,6 +80,9 @@ func TestAeadEmptyStream(t *testing.T) {
 	}
 	// decrypted plaintext can be read from 'rc'
 	rc, err := packet.decrypt(key)
+	if err != nil {
+		t.Errorf("Error decrypting packet: %s", err)
+	}
 
 	_, err = readDecryptedStream(rc)
 	if err != nil {
@@ -97,6 +100,9 @@ func TestAeadEmptyStream(t *testing.T) {
 	}
 	// decrypted plaintext can be read from 'rc'
 	rc, err = packet.decrypt(key)
+	if err != nil {
+		t.Errorf("Error decrypting packet: %s", err)
+	}
 
 	_, err = readDecryptedStream(rc)
 	if err == nil {
@@ -127,6 +133,9 @@ func TestAeadNilConfigStream(t *testing.T) {
 	}
 	// decrypted plaintext can be read from 'rc'
 	rc, err := packet.decrypt(key)
+	if err != nil {
+		t.Errorf("Error decrypting packet: %s", err)
+	}
 
 	got, err := readDecryptedStream(rc)
 	if err != nil {
@@ -161,6 +170,9 @@ func TestAeadStreamRandomizeSlow(t *testing.T) {
 	}
 	// decrypted plaintext can be read from 'rc'
 	rc, err := packet.decrypt(key)
+	if err != nil {
+		t.Errorf("Error decrypting packet: %s", err)
+	}
 
 	got, err := readDecryptedStream(rc)
 	if err != nil {
@@ -206,6 +218,9 @@ func TestAeadCorruptStreamRandomizeSlow(t *testing.T) {
 		return
 	}
 	rc, err := packet.decrypt(key)
+	if err != nil {
+		t.Errorf("Error decrypting packet: %s", err)
+	}
 	got, err := readDecryptedStream(rc)
 	if err == nil || err == io.EOF {
 		t.Errorf("No error raised when decrypting corrupt stream")
