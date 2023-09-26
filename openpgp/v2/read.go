@@ -588,7 +588,11 @@ func (scr *signatureCheckReader) Read(buf []byte) (int, error) {
 
 		// Check if there is a valid candidate.
 		for _, candidate := range scr.md.SignatureCandidates {
-			// md.SignatureError points to the last error, if
+			if candidate.SignedBy == nil {
+				// Ignore candidates that have no matching key
+				continue
+			}
+			// md.SignatureError points to the last candidate with a key match, if
 			// all signature verifications have failed.
 			scr.md.SignatureError = candidate.SignatureError
 			scr.md.SelectedCandidate = candidate
@@ -602,6 +606,14 @@ func (scr *signatureCheckReader) Read(buf []byte) (int, error) {
 
 		if len(scr.md.SignatureCandidates) == 0 {
 			scr.md.SignatureError = errors.StructuralError("no signature found")
+		}
+
+		if len(scr.md.SignatureCandidates) > 0 && scr.md.SelectedCandidate == nil {
+			// No candidate with a matching key present.
+			// Just point to the last candidate in this case.
+			candidate := scr.md.SignatureCandidates[len(scr.md.SignatureCandidates)-1]
+			scr.md.SignatureError = candidate.SignatureError
+			scr.md.SelectedCandidate = candidate
 		}
 
 		if scr.md.SignatureError == nil && scr.md.Signature == nil {
