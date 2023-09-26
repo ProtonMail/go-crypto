@@ -163,12 +163,12 @@ func (e *Entity) DecryptionKeys(id uint64, date time.Time) (keys []Key) {
 	for _, subkey := range e.Subkeys {
 		subkeySelfSig, err := subkey.LatestValidBindingSignature(date)
 		if err == nil &&
-			isValidEncryptionKey(subkeySelfSig, subkey.PublicKey.PubKeyAlgo) &&
+			isValidDecryptionKey(subkeySelfSig, subkey.PublicKey.PubKeyAlgo) &&
 			(id == 0 || subkey.PublicKey.KeyId == id) {
 			keys = append(keys, Key{subkey.Primary, primarySelfSignature, subkey.PublicKey, subkey.PrivateKey, subkeySelfSig})
 		}
 	}
-	if isValidEncryptionKey(primarySelfSignature, e.PrimaryKey.PubKeyAlgo) {
+	if isValidDecryptionKey(primarySelfSignature, e.PrimaryKey.PubKeyAlgo) {
 		keys = append(keys, Key{e, primarySelfSignature, e.PrimaryKey, e.PrivateKey, primarySelfSignature})
 	}
 	return
@@ -794,6 +794,12 @@ func isValidCertificationKey(signature *packet.Signature, algo packet.PublicKeyA
 }
 
 func isValidEncryptionKey(signature *packet.Signature, algo packet.PublicKeyAlgorithm) bool {
+	return algo.CanEncrypt() &&
+		signature.FlagsValid &&
+		(signature.FlagEncryptCommunications || signature.FlagEncryptStorage)
+}
+
+func isValidDecryptionKey(signature *packet.Signature, algo packet.PublicKeyAlgorithm) bool {
 	return algo.CanEncrypt() &&
 		signature.FlagsValid &&
 		(signature.FlagEncryptCommunications || signature.FlagForward || signature.FlagEncryptStorage)
