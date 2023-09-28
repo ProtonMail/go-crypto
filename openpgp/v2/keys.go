@@ -718,8 +718,8 @@ func (e *Entity) VerifyPrimaryKey(date time.Time) (*packet.Signature, error) {
 		return nil, errors.ErrKeyRevoked
 	}
 
-	if e.PrimaryKey.KeyExpired(primarySelfSignature, date) || // primary key has expired
-		primarySelfSignature.SigExpired(date) { // self-signature has expired
+	if !date.IsZero() && (e.PrimaryKey.KeyExpired(primarySelfSignature, date) || // primary key has expired
+		primarySelfSignature.SigExpired(date)) { // self-signature has expired
 		return primarySelfSignature, errors.ErrKeyExpired
 	}
 
@@ -727,7 +727,7 @@ func (e *Entity) VerifyPrimaryKey(date time.Time) (*packet.Signature, error) {
 		// check for expiration time in direct signatures (for V6 keys, the above already did so)
 		primaryDirectKeySignature, _ := e.LatestValidDirectSignature(date)
 		if primaryDirectKeySignature != nil &&
-			e.PrimaryKey.KeyExpired(primaryDirectKeySignature, date) {
+			(!date.IsZero() && e.PrimaryKey.KeyExpired(primaryDirectKeySignature, date)) {
 			return primarySelfSignature, errors.ErrKeyExpired
 		}
 	}

@@ -228,6 +228,12 @@ type EncryptParams struct {
 	// Should only be used for exceptional cases.
 	// If nil, ignored.
 	OutsideSig []byte
+	// EncryptionTime allows to override the time that is used
+	// for selecting the encryption key.
+	// If EncryptionTime is zero (i.e., EncryptionTime.isZero()) expiration checks
+	// are not performed on the encryption key.
+	// If nil, the default clock in config is used.
+	EncryptionTime *time.Time
 	// Config provides the config to be used.
 	// If Config is nil, sensible defaults will be used.
 	Config *packet.Config
@@ -581,14 +587,19 @@ func encrypt(
 		intendedRecipients = append(intendedRecipients, &packet.Recipient{KeyVersion: publicRecipient.PrimaryKey.Version, Fingerprint: publicRecipient.PrimaryKey.Fingerprint})
 	}
 
+	timeForEncryptionKey := config.Now()
+	if params.EncryptionTime != nil {
+		// Override the time to select the encryption key with the provided one.
+		timeForEncryptionKey = *params.EncryptionTime
+	}
 	for i, recipient := range append(to, toHidden...) {
 		var ok bool
-		encryptKeys[i], ok = recipient.EncryptionKey(config.Now(), config)
+		encryptKeys[i], ok = recipient.EncryptionKey(timeForEncryptionKey, config)
 		if !ok {
 			return nil, errors.InvalidArgumentError("cannot encrypt a message to key id " + strconv.FormatUint(to[i].PrimaryKey.KeyId, 16) + " because it has no valid encryption keys")
 		}
 
-		primarySelfSignature, _ := recipient.PrimarySelfSignature(config.Now())
+		primarySelfSignature, _ := recipient.PrimarySelfSignature(timeForEncryptionKey)
 		if primarySelfSignature == nil {
 			return nil, errors.InvalidArgumentError("entity without a self-signature")
 		}
