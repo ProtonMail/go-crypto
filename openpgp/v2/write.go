@@ -5,7 +5,9 @@
 package v2
 
 import (
+	"bytes"
 	"crypto"
+	goerrors "errors"
 	"hash"
 	"io"
 	"strconv"
@@ -221,6 +223,11 @@ type EncryptParams struct {
 	// SessionKey provides a session key to be used for encryption.
 	// If nil, a one-time session key is generated
 	SessionKey []byte
+	// OutsideSig allows to set a signature that should be included
+	// in the message to encrypt.
+	// Should only be used for exceptional cases.
+	// If nil, ignored.
+	OutsideSig []byte
 	// Config provides the config to be used.
 	// If Config is nil, sensible defaults will be used.
 	Config *packet.Config
@@ -383,8 +390,46 @@ func Encrypt(ciphertext io.Writer, to, toHidden []*Entity, signers []*Entity, hi
 // that aids the recipients in processing the message. The resulting
 // WriteCloser must be closed after the contents of the file have been
 // written. If config is nil, sensible defaults will be used.
-func writeAndSign(payload io.WriteCloser, candidateHashes [][]uint8, signEntities []*Entity, hints *FileHints, sigType packet.SignatureType, intendedRecipients []*packet.Recipient, config *packet.Config) (plaintext io.WriteCloser, err error) {
+func writeAndSign(payload io.WriteCloser, candidateHashes [][]uint8, signEntities []*Entity, hints *FileHints, sigType packet.SignatureType, intendedRecipients []*packet.Recipient, outsideSig []byte, config *packet.Config) (plaintext io.WriteCloser, err error) {
 	var signers []*signatureContext
+	var numberOfOutsideSigs int
+
+	if outsideSig != nil {
+		outSigPacket, err := parseOutsideSig(outsideSig)
+		if err != nil {
+			return nil, err
+		}
+		opsVersion := 3
+		if outSigPacket.Version == 6 {
+			opsVersion = 6
+		}
+		opsOutside := &packet.OnePassSignature{
+			Version:    opsVersion,
+			SigType:    outSigPacket.SigType,
+			Hash:       outSigPacket.Hash,
+			PubKeyAlgo: outSigPacket.PubKeyAlgo,
+			KeyId:      *outSigPacket.IssuerKeyId,
+			IsLast:     len(signEntities) == 0,
+		}
+		sigContext := signatureContext{
+			outsideSig: outSigPacket,
+		}
+		if outSigPacket.Version == 6 {
+			opsOutside.KeyFingerprint = outSigPacket.IssuerFingerprint
+			sigContext.salt = outSigPacket.Salt()
+			opsOutside.Salt = outSigPacket.Salt()
+		}
+		sigContext.h, sigContext.wrappedHash, err = hashForSignature(outSigPacket.Hash, sigType, sigContext.salt)
+		if err != nil {
+			return nil, err
+		}
+		if err := opsOutside.Serialize(payload); err != nil {
+			return nil, err
+		}
+		signers = append([]*signatureContext{&sigContext}, signers...)
+		numberOfOutsideSigs = 1
+	}
+
 	for signEntityIdx, signEntity := range signEntities {
 		if signEntity == nil {
 			continue
@@ -442,7 +487,7 @@ func writeAndSign(payload io.WriteCloser, candidateHashes [][]uint8, signEntitie
 		signers = append([]*signatureContext{&sigContext}, signers...)
 	}
 
-	if signEntities != nil && len(signers) < 1 {
+	if signEntities != nil && len(signEntities)+numberOfOutsideSigs != len(signers) {
 		return nil, errors.InvalidArgumentError("no valid signing key")
 	}
 
@@ -451,7 +496,7 @@ func writeAndSign(payload io.WriteCloser, candidateHashes [][]uint8, signEntitie
 	}
 
 	w := payload
-	if signers != nil {
+	if signers != nil || numberOfOutsideSigs > 0 {
 		// If we need to write a signature packet after the literal
 		// data then we need to stop literalData from closing
 		// encryptedData.
@@ -467,7 +512,7 @@ func writeAndSign(payload io.WriteCloser, candidateHashes [][]uint8, signEntitie
 		return nil, err
 	}
 
-	if signers != nil {
+	if signers != nil || numberOfOutsideSigs > 0 {
 		metadata := &packet.LiteralData{
 			Format:   'b',
 			FileName: hints.FileName,
@@ -640,7 +685,7 @@ func encryptDataAndSign(
 	if err != nil {
 		return nil, err
 	}
-	return writeAndSign(payload, candidateHashes, params.Signers, params.Hints, sigType, intendedRecipients, params.Config)
+	return writeAndSign(payload, candidateHashes, params.Signers, params.Hints, sigType, intendedRecipients, params.OutsideSig, params.Config)
 }
 
 type SignParams struct {
@@ -649,6 +694,11 @@ type SignParams struct {
 	Hints *FileHints
 	// TextSig indicates if signatures of type SigTypeText should be produced
 	TextSig bool
+	// OutsideSig allows to set a signature that should be included
+	// in an inline signed message.
+	// Should only be used for exceptional cases.
+	// If nil, ignored.
+	OutsideSig []byte
 	// Config provides the config to be used.
 	// If Config is nil, sensible defaults will be used.
 	Config *packet.Config
@@ -661,7 +711,7 @@ func SignWithParams(output io.Writer, signers []*Entity, params *SignParams) (in
 	if params == nil {
 		params = &SignParams{}
 	}
-	if len(signers) < 1 {
+	if len(signers) < 1 && params.OutsideSig == nil {
 		return nil, errors.InvalidArgumentError("no signer provided")
 	}
 	var candidateHashesPerSignature [][]uint8
@@ -708,7 +758,7 @@ func SignWithParams(output io.Writer, signers []*Entity, params *SignParams) (in
 	if err != nil {
 		return nil, err
 	}
-	return writeAndSign(payload, candidateHashesPerSignature, signers, params.Hints, sigType, nil, params.Config)
+	return writeAndSign(payload, candidateHashesPerSignature, signers, params.Hints, sigType, nil, params.OutsideSig, params.Config)
 }
 
 // Sign signs a message. The resulting WriteCloser must be closed after the
@@ -742,6 +792,7 @@ type signatureContext struct {
 	h           hash.Hash
 	salt        []byte // v6 only
 	signer      *packet.PrivateKey
+	outsideSig  *packet.Signature
 }
 
 func (s signatureWriter) Write(data []byte) (int, error) {
@@ -764,16 +815,21 @@ func (s signatureWriter) Close() error {
 		return err
 	}
 	for _, ctx := range s.signatureContexts {
-		sig := createSignaturePacket(&ctx.signer.PublicKey, s.sigType, s.config)
-		sig.Hash = ctx.hashType
-		sig.Metadata = s.metadata
-		sig.IntendedRecipients = s.intendedRecipients
-
-		if err := sig.SetSalt(ctx.salt); err != nil {
-			return err
-		}
-		if err := sig.Sign(ctx.h, ctx.signer, s.config); err != nil {
-			return err
+		var sig *packet.Signature
+		if ctx.outsideSig != nil {
+			// Signature that was supplied outside
+			sig = ctx.outsideSig
+		} else {
+			sig = createSignaturePacket(&ctx.signer.PublicKey, s.sigType, s.config)
+			sig.Hash = ctx.hashType
+			sig.Metadata = s.metadata
+			sig.IntendedRecipients = s.intendedRecipients
+			if err := sig.SetSalt(ctx.salt); err != nil {
+				return err
+			}
+			if err := sig.Sign(ctx.h, ctx.signer, s.config); err != nil {
+				return err
+			}
 		}
 		if err := sig.Serialize(s.encryptedData); err != nil {
 			return err
@@ -871,4 +927,26 @@ func selectHash(candidateHashes []byte, configuredHash crypto.Hash) (hash crypto
 		return 0, errors.InvalidArgumentError("no candidate hash functions are compiled in. (Wanted " + name + " in this case.)")
 	}
 	return
+}
+
+func parseOutsideSig(outsideSig []byte) (outSigPacket *packet.Signature, err error) {
+	var p packet.Packet
+	packets := packet.NewReader(bytes.NewReader(outsideSig))
+	p, err = packets.Next()
+	if goerrors.Is(err, io.EOF) {
+		return nil, errors.ErrUnknownIssuer
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	var ok bool
+	outSigPacket, ok = p.(*packet.Signature)
+	if !ok {
+		return nil, errors.StructuralError("non signature packet found")
+	}
+	if outSigPacket.IssuerKeyId == nil {
+		return nil, errors.StructuralError("signature doesn't have an issuer")
+	}
+	return outSigPacket, nil
 }
