@@ -306,6 +306,11 @@ func newSigner(config *packet.Config) (signer interface{}, err error) {
 		}
 		return rsa.GenerateKey(config.Random(), bits)
 	case packet.PubKeyAlgoEdDSA:
+		if config.V6() {
+			// Implementations MUST NOT accept or generate v6 key material
+			// using the deprecated OIDs.
+			return nil, errors.InvalidArgumentError("EdDSALegacy cannot be used for v6 keys")
+		}
 		curve := ecc.FindEdDSAByGenName(string(config.CurveName()))
 		if curve == nil {
 			return nil, errors.InvalidArgumentError("unsupported curve")
@@ -361,6 +366,13 @@ func newDecrypter(config *packet.Config) (decrypter interface{}, err error) {
 	case packet.PubKeyAlgoEdDSA, packet.PubKeyAlgoECDSA:
 		fallthrough // When passing EdDSA or ECDSA, we generate an ECDH subkey
 	case packet.PubKeyAlgoECDH:
+		if config.V6() &&
+			(config.CurveName() == packet.Curve25519 ||
+				config.CurveName() == packet.Curve448) {
+			// Implementations MUST NOT accept or generate v6 key material
+			// using the deprecated OIDs.
+			return nil, errors.InvalidArgumentError("ECDH with Curve25519/448 legacy cannot be used for v6 keys")
+		}
 		var kdf = ecdh.KDF{
 			Hash:   algorithm.SHA512,
 			Cipher: algorithm.AES256,

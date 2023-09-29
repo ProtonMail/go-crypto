@@ -758,6 +758,12 @@ func checkKeyRequirements(usedKey *packet.PublicKey, config *packet.Config) erro
 		if err != nil || config.RejectCurve(curve) {
 			return errors.WeakAlgorithmError("elliptic curve " + curve)
 		}
+		if usedKey.Version == 6 &&
+			(curve == packet.Curve25519 ||
+				curve == packet.Curve448) {
+			// Implementations MUST NOT accept or generate v6 key material using the deprecated OIDs.
+			return errors.StructuralError("v6 key uses legacy elliptic curve " + curve)
+		}
 	}
 	return nil
 }
