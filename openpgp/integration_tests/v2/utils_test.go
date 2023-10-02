@@ -270,6 +270,9 @@ func randConfig() *packet.Config {
 	var v6 bool
 	if mathrand.Int()%2 == 0 {
 		v6 = true
+		if pkAlgo == packet.PubKeyAlgoEdDSA {
+			pkAlgo = packet.PubKeyAlgoEd25519
+		}
 	}
 
 	var s2kConf *s2k.Config
