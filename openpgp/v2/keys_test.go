@@ -829,7 +829,7 @@ func TestNewEntityWithDefaultHash(t *testing.T) {
 				t.Fatal("didn't find a preferred hash list in self signature")
 			}
 			ph := hashToHashId(c.DefaultHash)
-			if prefs[0] != ph {
+			if c.DefaultHash != crypto.SHA224 && prefs[0] != ph {
 				t.Fatalf("Expected preferred hash to be %d, got %d", ph, prefs[0])
 			}
 		}

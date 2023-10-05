@@ -30,6 +30,16 @@ type userIdData struct {
 	name, comment, email string
 }
 
+type keyProperties struct {
+	primaryKey      *packet.PrivateKey
+	creationTime    time.Time
+	keyLifetimeSecs uint32
+	hash            crypto.Hash
+	cipher          packet.CipherFunction
+	aead            *packet.AEADConfig
+	compression     packet.CompressionAlgo
+}
+
 // NewEntityWithoutId returns an Entity that contains fresh keys for signing and
 // encrypting pgp messages. The key is not associated with an identity.
 // This is only allowed for v6 key generation. If v6 is not enabled,
@@ -48,13 +58,23 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 	return newEntity(&userIdData{name, comment, email}, config)
 }
 
+func selectKeyProperties(creationTime time.Time, config *packet.Config, primary *packet.PrivateKey) *keyProperties {
+	return &keyProperties{
+		primaryKey:      primary,
+		creationTime:    creationTime,
+		keyLifetimeSecs: config.KeyLifetime(),
+		hash:            config.Hash(),
+		cipher:          config.Cipher(),
+		aead:            config.AEAD(),
+		compression:     config.Compression(),
+	}
+}
+
 func newEntity(uid *userIdData, config *packet.Config) (*Entity, error) {
 	if uid == nil && !config.V6() {
 		return nil, errors.InvalidArgumentError("user id has to be set for non-v6 keys")
 	}
-
 	creationTime := config.Now()
-	keyLifetimeSecs := config.KeyLifetime()
 
 	// Generate a primary signing key
 	primaryPrivRaw, err := newSigner(config)
@@ -66,6 +86,8 @@ func newEntity(uid *userIdData, config *packet.Config) (*Entity, error) {
 		primary.UpgradeToV6()
 	}
 
+	keyProperties := selectKeyProperties(creationTime, config, primary)
+
 	e := &Entity{
 		PrimaryKey:       &primary.PublicKey,
 		PrivateKey:       primary,
@@ -75,10 +97,12 @@ func newEntity(uid *userIdData, config *packet.Config) (*Entity, error) {
 	}
 
 	if config.V6() {
-		e.AddDirectKeySignature(config)
+		e.AddDirectKeySignature(keyProperties, config)
+		keyProperties = nil
 	}
+
 	if uid != nil {
-		err = e.addUserId(*uid, config, creationTime, keyLifetimeSecs, !config.V6())
+		err = e.addUserId(*uid, config, keyProperties)
 		if err != nil {
 			return nil, err
 		}
@@ -95,16 +119,16 @@ func newEntity(uid *userIdData, config *packet.Config) (*Entity, error) {
 }
 
 func (t *Entity) AddUserId(name, comment, email string, config *packet.Config) error {
-	creationTime := config.Now()
-	keyLifetimeSecs := config.KeyLifetime()
-	return t.addUserId(userIdData{name, comment, email}, config, creationTime, keyLifetimeSecs, !config.V6())
+	var keyProperties *keyProperties
+	if !config.V6() {
+		keyProperties = selectKeyProperties(config.Now(), config, t.PrivateKey)
+	}
+	return t.addUserId(userIdData{name, comment, email}, config, keyProperties)
 }
 
-func (t *Entity) AddDirectKeySignature(config *packet.Config) error {
+func (t *Entity) AddDirectKeySignature(selectedKeyProperties *keyProperties, config *packet.Config) error {
 	selfSignature := createSignaturePacket(&t.PrivateKey.PublicKey, packet.SigTypeDirectSignature, config)
-	creationTime := config.Now()
-	keyLifetimeSecs := config.KeyLifetime()
-	err := writeKeyProperties(selfSignature, creationTime, keyLifetimeSecs, config)
+	err := writeKeyProperties(selfSignature, selectedKeyProperties)
 	if err != nil {
 		return err
 	}
@@ -116,30 +140,45 @@ func (t *Entity) AddDirectKeySignature(config *packet.Config) error {
 	return nil
 }
 
-func writeKeyProperties(selfSignature *packet.Signature, creationTime time.Time, keyLifetimeSecs uint32, config *packet.Config) error {
-	selfSignature.CreationTime = creationTime
-	selfSignature.KeyLifetimeSecs = &keyLifetimeSecs
+func writeKeyProperties(selfSignature *packet.Signature, selectedKeyProperties *keyProperties) error {
+	selfSignature.CreationTime = selectedKeyProperties.creationTime
+	selfSignature.KeyLifetimeSecs = &selectedKeyProperties.keyLifetimeSecs
 	selfSignature.FlagsValid = true
 	selfSignature.FlagSign = true
 	selfSignature.FlagCertify = true
 	selfSignature.SEIPDv1 = true // true by default, see 5.8 vs. 5.14
-	selfSignature.SEIPDv2 = config.AEAD() != nil
+	selfSignature.SEIPDv2 = selectedKeyProperties.aead != nil
 
 	// Set the PreferredHash for the SelfSignature from the packet.Config.
 	// If it is not the must-implement algorithm from rfc4880bis, append that.
-	hash, ok := algorithm.HashToHashId(config.Hash())
+	hash, ok := algorithm.HashToHashId(selectedKeyProperties.hash)
 	if !ok {
 		return errors.UnsupportedError("unsupported preferred hash function")
 	}
 
-	selfSignature.PreferredHash = []uint8{hash}
-	if config.Hash() != crypto.SHA256 {
+	selfSignature.PreferredHash = []uint8{}
+	// Ensure that for signing algorithms with higher security level an
+	// appropriate a matching hash function is available.
+	acceptableHashes := acceptableHashesToWrite(&selectedKeyProperties.primaryKey.PublicKey)
+	var match bool
+	for _, acceptableHashes := range acceptableHashes {
+		if acceptableHashes == hash {
+			match = true
+			break
+		}
+	}
+	if !match && len(acceptableHashes) > 0 {
+		selfSignature.PreferredHash = []uint8{acceptableHashes[0]}
+	}
+
+	selfSignature.PreferredHash = append(selfSignature.PreferredHash, hash)
+	if selectedKeyProperties.hash != crypto.SHA256 {
 		selfSignature.PreferredHash = append(selfSignature.PreferredHash, hashToHashId(crypto.SHA256))
 	}
 
 	// Likewise for DefaultCipher.
-	selfSignature.PreferredSymmetric = []uint8{uint8(config.Cipher())}
-	if config.Cipher() != packet.CipherAES128 {
+	selfSignature.PreferredSymmetric = []uint8{uint8(selectedKeyProperties.cipher)}
+	if selectedKeyProperties.cipher != packet.CipherAES128 {
 		selfSignature.PreferredSymmetric = append(selfSignature.PreferredSymmetric, uint8(packet.CipherAES128))
 	}
 
@@ -148,13 +187,13 @@ func writeKeyProperties(selfSignature *packet.Signature, creationTime time.Time,
 	// DefaultCompressionAlgo if any is set (to signal support for cases
 	// where the application knows that using compression is safe).
 	selfSignature.PreferredCompression = []uint8{uint8(packet.CompressionNone)}
-	if config.Compression() != packet.CompressionNone {
-		selfSignature.PreferredCompression = append(selfSignature.PreferredCompression, uint8(config.Compression()))
+	if selectedKeyProperties.compression != packet.CompressionNone {
+		selfSignature.PreferredCompression = append(selfSignature.PreferredCompression, uint8(selectedKeyProperties.compression))
 	}
 
 	// And for DefaultMode.
-	modes := []uint8{uint8(config.AEAD().Mode())}
-	if config.AEAD().Mode() != packet.AEADModeOCB {
+	modes := []uint8{uint8(selectedKeyProperties.aead.Mode())}
+	if selectedKeyProperties.aead.Mode() != packet.AEADModeOCB {
 		modes = append(modes, uint8(packet.AEADModeOCB))
 	}
 
@@ -167,7 +206,7 @@ func writeKeyProperties(selfSignature *packet.Signature, creationTime time.Time,
 	return nil
 }
 
-func (t *Entity) addUserId(userIdData userIdData, config *packet.Config, creationTime time.Time, keyLifetimeSecs uint32, writeProperties bool) error {
+func (t *Entity) addUserId(userIdData userIdData, config *packet.Config, selectedKeyProperties *keyProperties) error {
 	uid := packet.NewUserId(userIdData.name, userIdData.comment, userIdData.email)
 	if uid == nil {
 		return errors.InvalidArgumentError("user id field contained invalid characters")
@@ -180,8 +219,8 @@ func (t *Entity) addUserId(userIdData userIdData, config *packet.Config, creatio
 	primary := t.PrivateKey
 	isPrimaryId := len(t.Identities) == 0
 	selfSignature := createSignaturePacket(&primary.PublicKey, packet.SigTypePositiveCert, config)
-	if writeProperties {
-		err := writeKeyProperties(selfSignature, creationTime, keyLifetimeSecs, config)
+	if selectedKeyProperties != nil {
+		err := writeKeyProperties(selfSignature, selectedKeyProperties)
 		if err != nil {
 			return err
 		}

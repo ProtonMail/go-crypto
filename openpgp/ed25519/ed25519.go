@@ -61,6 +61,7 @@ func GenerateKey(rand io.Reader) (*PrivateKey, error) {
 }
 
 // Sign signs a message with the ed25519 algorithm.
+// priv MUST be a valid key! Check this with Validate() before use.
 func Sign(priv *PrivateKey, message []byte) ([]byte, error) {
 	return ed25519lib.Sign(priv.Key, message), nil
 }

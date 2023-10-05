@@ -201,3 +201,26 @@ func TestNewEntityWithDefaultHashV6(t *testing.T) {
 		}
 	}
 }
+
+func TestKeyGenerationHighSecurityLevel(t *testing.T) {
+	c := &packet.Config{
+		V6Keys:      true,
+		Algorithm:   packet.PubKeyAlgoEd448,
+		DefaultHash: crypto.SHA256,
+	}
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selfSig, err := entity.PrimarySelfSignature(time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !(selfSig.PreferredHash[0] == hashToHashId(crypto.SHA512)) {
+		t.Fatal("sha 512 should be the preferred option")
+	}
+	if selfSig.Hash != crypto.SHA512 {
+		t.Fatal("sha 512 should be used in self signatures")
+	}
+
+}

@@ -61,6 +61,7 @@ func GenerateKey(rand io.Reader) (*PrivateKey, error) {
 }
 
 // Sign signs a message with the ed448 algorithm.
+// priv MUST be a valid key! Check this with Validate() before use.
 func Sign(priv *PrivateKey, message []byte) ([]byte, error) {
 	// Ed448 is used with the empty string as a context string.
 	// See https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh-08#section-13.7

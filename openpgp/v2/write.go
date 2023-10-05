@@ -164,7 +164,7 @@ func detachSignWithWriter(w io.Writer, signers []*Entity, sigType packet.Signatu
 		candidateHashes = intersectPreferences(candidateHashes, preferredHashes)
 
 		var hash crypto.Hash
-		if hash, err = selectHash(candidateHashes, config.Hash()); err != nil {
+		if hash, err = selectHash(candidateHashes, config.Hash(), signingKey.PrivateKey); err != nil {
 			return
 		}
 
@@ -454,7 +454,12 @@ func writeAndSign(payload io.WriteCloser, candidateHashes [][]uint8, signEntitie
 		sigContext := signatureContext{
 			signer: signer,
 		}
-		hash, err := selectHash(candidateHashes[signEntityIdx], config.Hash())
+
+		if signKey.PrimarySelfSignature == nil {
+			return nil, errors.InvalidArgumentError("signing key has no self-signature")
+		}
+		candidateHashes[signEntityIdx] = intersectPreferences(candidateHashes[signEntityIdx], signKey.PrimarySelfSignature.PreferredHash)
+		hash, err := selectHash(candidateHashes[signEntityIdx], config.Hash(), signKey.PrivateKey)
 		if err != nil {
 			return nil, err
 		}
@@ -849,13 +854,35 @@ func (s signatureWriter) Close() error {
 	return s.encryptedData.Close()
 }
 
+func adaptHashToSigningKey(config *packet.Config, primary *packet.PublicKey) crypto.Hash {
+	acceptableHashes := acceptableHashesToWrite(primary)
+	hash, ok := algorithm.HashToHashId(config.Hash())
+	if !ok {
+		return config.Hash()
+	}
+	for _, acceptableHashes := range acceptableHashes {
+		if acceptableHashes == hash {
+			return config.Hash()
+		}
+	}
+	if len(acceptableHashes) > 0 {
+		defaultAcceptedHash, ok := algorithm.HashIdToHash(acceptableHashes[0])
+		if !ok {
+			return config.Hash()
+		}
+		return defaultAcceptedHash
+	}
+	return config.Hash()
+}
+
 func createSignaturePacket(signer *packet.PublicKey, sigType packet.SignatureType, config *packet.Config) *packet.Signature {
 	sigLifetimeSecs := config.SigLifetime()
+	hash := adaptHashToSigningKey(config, signer)
 	return &packet.Signature{
 		Version:           signer.Version,
 		SigType:           sigType,
 		PubKeyAlgo:        signer.PubKeyAlgo,
-		Hash:              config.Hash(),
+		Hash:              hash,
 		CreationTime:      config.Now(),
 		IssuerKeyId:       &signer.KeyId,
 		IssuerFingerprint: signer.Fingerprint,
@@ -911,7 +938,10 @@ func handleCompression(compressed io.WriteCloser, candidateCompression []uint8, 
 }
 
 // selectHash selects the preferred hash given the candidateHashes and the configuredHash
-func selectHash(candidateHashes []byte, configuredHash crypto.Hash) (hash crypto.Hash, err error) {
+func selectHash(candidateHashes []byte, configuredHash crypto.Hash, signer *packet.PrivateKey) (hash crypto.Hash, err error) {
+	acceptableHashes := acceptableHashesToWrite(&signer.PublicKey)
+	candidateHashes = intersectPreferences(acceptableHashes, candidateHashes)
+
 	for _, hashId := range candidateHashes {
 		if h, ok := algorithm.HashIdToHash(hashId); ok && h.Available() {
 			hash = h
@@ -930,20 +960,22 @@ func selectHash(candidateHashes []byte, configuredHash crypto.Hash) (hash crypto
 	}
 
 	if hash == 0 {
-		hashId := candidateHashes[0]
-		name, ok := algorithm.HashIdToString(hashId)
-		if !ok {
-			name = "#" + strconv.Itoa(int(hashId))
+		if len(acceptableHashes) > 0 {
+			if h, ok := algorithm.HashIdToHash(acceptableHashes[0]); ok {
+				hash = h
+			} else {
+				return 0, errors.InvalidArgumentError("no candidate hash functions are compiled in.")
+			}
+		} else {
+			return 0, errors.InvalidArgumentError("no candidate hash functions are compiled in.")
 		}
-		return 0, errors.InvalidArgumentError("no candidate hash functions are compiled in. (Wanted " + name + " in this case.)")
 	}
 	return
 }
 
 func parseOutsideSig(outsideSig []byte) (outSigPacket *packet.Signature, err error) {
-	var p packet.Packet
 	packets := packet.NewReader(bytes.NewReader(outsideSig))
-	p, err = packets.Next()
+	p, err := packets.Next()
 	if goerrors.Is(err, io.EOF) {
 		return nil, errors.ErrUnknownIssuer
 	}
@@ -960,4 +992,40 @@ func parseOutsideSig(outsideSig []byte) (outSigPacket *packet.Signature, err err
 		return nil, errors.StructuralError("signature doesn't have an issuer")
 	}
 	return outSigPacket, nil
+}
+
+func acceptableHashesToWrite(singingKey *packet.PublicKey) []uint8 {
+	switch singingKey.PubKeyAlgo {
+	case packet.PubKeyAlgoEd448:
+		return []uint8{
+			hashToHashId(crypto.SHA512),
+			hashToHashId(crypto.SHA3_512),
+		}
+	case packet.PubKeyAlgoECDSA:
+		if curve, err := singingKey.Curve(); err == nil {
+			if curve == packet.Curve448 ||
+				curve == packet.CurveNistP521 ||
+				curve == packet.CurveBrainpoolP512 {
+				return []uint8{
+					hashToHashId(crypto.SHA512),
+					hashToHashId(crypto.SHA3_512),
+				}
+			} else if curve == packet.CurveBrainpoolP384 ||
+				curve == packet.CurveNistP384 {
+				return []uint8{
+					hashToHashId(crypto.SHA256),
+					hashToHashId(crypto.SHA384),
+					hashToHashId(crypto.SHA512),
+					hashToHashId(crypto.SHA3_512),
+				}
+			}
+		}
+	}
+	return []uint8{
+		hashToHashId(crypto.SHA256),
+		hashToHashId(crypto.SHA384),
+		hashToHashId(crypto.SHA512),
+		hashToHashId(crypto.SHA3_256),
+		hashToHashId(crypto.SHA3_512),
+	}
 }
