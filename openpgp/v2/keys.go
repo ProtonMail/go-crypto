@@ -636,7 +636,7 @@ func (e *Entity) Serialize(w io.Writer) error {
 		// public key packets contain no meaningful information and do not need
 		// to be serialized.
 		// Prevent public key export for forwarding keys, see forwarding section 4.1.
-		subKeySelfSig, err := subkey.LatestValidBindingSignature(time.Time{})
+		subKeySelfSig, err := subkey.LatestValidBindingSignature(time.Time{}, nil)
 		if subkey.PublicKey.PubKeyAlgo == packet.ExperimentalPubKeyAlgoHMAC ||
 			subkey.PublicKey.PubKeyAlgo == packet.ExperimentalPubKeyAlgoAEAD ||
 			(err == nil && subKeySelfSig.FlagForward) {
