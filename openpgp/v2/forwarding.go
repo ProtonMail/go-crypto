@@ -26,14 +26,13 @@ func (e *Entity) NewForwardingEntity(
 
 	now := config.Now()
 
-	if _, err = e.VerifyPrimaryKey(now); err != nil {
+	if _, err = e.VerifyPrimaryKey(now, config); err != nil {
 		return nil, nil, err
 	}
 
 	// Generate a new Primary key for the forwardee
 	config.Algorithm = packet.PubKeyAlgoEdDSA
 	config.Curve = packet.Curve25519
-	keyLifetimeSecs := config.KeyLifetime()
 
 	forwardeePrimaryPrivRaw, err := newSigner(config)
 	if err != nil {
@@ -49,7 +48,8 @@ func (e *Entity) NewForwardingEntity(
 		Subkeys:    []Subkey{},
 	}
 
-	err = forwardeeKey.addUserId(userIdData{name, comment, email}, config, now, keyLifetimeSecs, true)
+	keyProperties := selectKeyProperties(now, config, primary)
+	err = forwardeeKey.addUserId(userIdData{name, comment, email}, config, keyProperties)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -64,7 +64,7 @@ func (e *Entity) NewForwardingEntity(
 			continue
 		}
 
-		forwarderSubKeySelfSig, err := forwarderSubKey.Verify(now)
+		forwarderSubKeySelfSig, err := forwarderSubKey.Verify(now, config)
 		// Filter expiration & revokal
 		if err != nil {
 			continue
