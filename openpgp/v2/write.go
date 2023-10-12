@@ -589,7 +589,9 @@ func encrypt(
 	var intendedRecipients []*packet.Recipient
 	// Intended Recipient Fingerprint subpacket SHOULD be used when creating a signed and encrypted message
 	for _, publicRecipient := range to {
-		intendedRecipients = append(intendedRecipients, &packet.Recipient{KeyVersion: publicRecipient.PrimaryKey.Version, Fingerprint: publicRecipient.PrimaryKey.Fingerprint})
+		if config.IntendedRecipients() {
+			intendedRecipients = append(intendedRecipients, &packet.Recipient{KeyVersion: publicRecipient.PrimaryKey.Version, Fingerprint: publicRecipient.PrimaryKey.Fingerprint})
+		}
 	}
 
 	timeForEncryptionKey := config.Now()

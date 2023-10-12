@@ -137,6 +137,7 @@ type Config struct {
 	// CheckIntendedRecipients is a flag that indicates if
 	// a decryption key for an encrypted and signed messages should be checked
 	// to be present in the signatures intended recipient list.
+	// In encrypt and sign intended recipients are only included if this flag is true.
 	// if config is nil or flag is nil, it defaults to true
 	CheckIntendedRecipients *bool
 	// CacheSessionKey is a flag that indicates
