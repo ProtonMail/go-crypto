@@ -1859,3 +1859,90 @@ mQ00BF00000BCAD0000000000000000000000000000000000000000000000000
 000000000000000000000000000000000000ABE000G0Dn000000000000000000iQ00BB0BAgAGBCG00000`
 	ReadArmoredKeyRing(strings.NewReader(data))
 }
+
+func TestAddV4MlkemSubkey(t *testing.T) {
+	eddsaConfig := &packet.Config{
+		DefaultHash: crypto.SHA512,
+		Algorithm:   packet.PubKeyAlgoEdDSA,
+		V6Keys:      false,
+		Time: func() time.Time {
+			parsed, _ := time.Parse("2006-01-02", "2013-07-01")
+			return parsed
+		},
+	}
+
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", eddsaConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testAddMlkemSubkey(t, entity, false)
+}
+
+
+func testAddMlkemSubkey(t *testing.T, entity *Entity, v6Keys bool) {
+	var err error
+
+	asymmAlgos := map[string] packet.PublicKeyAlgorithm{
+		"Mlkem768_X25519": packet.PubKeyAlgoMlkem768X25519,
+		"Mlkem1024_X448": packet.PubKeyAlgoMlkem1024X448,
+		"Mlkem768_P256": packet.PubKeyAlgoMlkem768P256,
+		"Mlkem1024_P384":packet.PubKeyAlgoMlkem1024P384,
+		"Mlkem768_Brainpool256": packet.PubKeyAlgoMlkem768Brainpool256,
+		"Mlkem1024_Brainpool384":packet.PubKeyAlgoMlkem1024Brainpool384,
+	}
+
+	for name, algo := range asymmAlgos {
+		// Remove existing subkeys
+		entity.Subkeys = []Subkey{}
+
+		t.Run(name, func(t *testing.T) {
+			kyberConfig := &packet.Config{
+				DefaultHash: crypto.SHA512,
+				Algorithm:   algo,
+				V6Keys:      v6Keys,
+				AEADConfig: &packet.AEADConfig{
+					DefaultMode: packet.AEADModeOCB,
+				},
+				Time: func() time.Time {
+					parsed, _ := time.Parse("2006-01-02", "2013-07-01")
+					return parsed
+				},
+			}
+
+			err = entity.AddEncryptionSubkey(kyberConfig)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if len(entity.Subkeys) != 1 {
+				t.Fatalf("Expected 1 subkey, got %d", len(entity.Subkeys))
+			}
+
+			if entity.Subkeys[0].PublicKey.PubKeyAlgo != algo {
+				t.Fatalf("Expected subkey algorithm: %v, got: %v", packet.PubKeyAlgoEdDSA,
+					entity.Subkeys[0].PublicKey.PubKeyAlgo)
+			}
+
+			serializedEntity := bytes.NewBuffer(nil)
+			err = entity.SerializePrivate(serializedEntity, nil)
+			if err != nil {
+				t.Fatalf("Failed to serialize entity: %s", err)
+			}
+
+			read, err := ReadEntity(packet.NewReader(bytes.NewBuffer(serializedEntity.Bytes())))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if len(read.Subkeys) != 1 {
+				t.Fatalf("Expected 1 subkey, got %d", len(entity.Subkeys))
+			}
+
+			if read.Subkeys[0].PublicKey.PubKeyAlgo != algo {
+				t.Fatalf("Expected subkey algorithm: %v, got: %v", packet.PubKeyAlgoEdDSA,
+					entity.Subkeys[0].PublicKey.PubKeyAlgo)
+			}
+		})
+	}
+}
