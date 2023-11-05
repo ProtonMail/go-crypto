@@ -24,11 +24,12 @@ var PrivateKeyType = "PGP PRIVATE KEY BLOCK"
 // (which must be a signing key), one or more identities claimed by that key,
 // and zero or more subkeys, which may be encryption keys.
 type Entity struct {
-	PrimaryKey  *packet.PublicKey
-	PrivateKey  *packet.PrivateKey
-	Identities  map[string]*Identity // indexed by Identity.Name
-	Revocations []*packet.Signature
-	Subkeys     []Subkey
+	PrimaryKey    *packet.PublicKey
+	PrivateKey    *packet.PrivateKey
+	Identities    map[string]*Identity // indexed by Identity.Name
+	Revocations   []*packet.Signature
+	Subkeys       []Subkey
+	UserAttribute []*UserAttribute
 }
 
 // An Identity represents an identity claimed by an Entity and zero or more
@@ -36,6 +37,13 @@ type Entity struct {
 type Identity struct {
 	Name          string // by convention, has the form "Full Name (comment) <email@example.com>"
 	UserId        *packet.UserId
+	SelfSignature *packet.Signature
+	Revocations   []*packet.Signature
+	Signatures    []*packet.Signature // all (potentially unverified) self-signatures, revocations, and third-party signatures
+}
+
+type UserAttribute struct {
+	UserAttribute *packet.UserAttribute
 	SelfSignature *packet.Signature
 	Revocations   []*packet.Signature
 	Signatures    []*packet.Signature // all (potentially unverified) self-signatures, revocations, and third-party signatures
@@ -259,7 +267,7 @@ func (e *Entity) EncryptPrivateKeys(passphrase []byte, config *packet.Config) er
 	var keysToEncrypt []*packet.PrivateKey
 	// Add entity private key to encrypt.
 	if e.PrivateKey != nil && !e.PrivateKey.Dummy() && !e.PrivateKey.Encrypted {
-		keysToEncrypt = append(keysToEncrypt,  e.PrivateKey)
+		keysToEncrypt = append(keysToEncrypt, e.PrivateKey)
 	}
 
 	// Add subkeys to encrypt.
@@ -284,7 +292,7 @@ func (e *Entity) DecryptPrivateKeys(passphrase []byte) error {
 	// Add subkeys to decrypt.
 	for _, sub := range e.Subkeys {
 		if sub.PrivateKey != nil && !sub.PrivateKey.Dummy() && sub.PrivateKey.Encrypted {
-			keysToDecrypt = append(keysToDecrypt,  sub.PrivateKey)
+			keysToDecrypt = append(keysToDecrypt, sub.PrivateKey)
 		}
 	}
 	return packet.DecryptPrivateKeys(keysToDecrypt, passphrase)
@@ -489,6 +497,10 @@ EachPacket:
 		}
 
 		switch pkt := p.(type) {
+		case *packet.UserAttribute:
+			if err := addUserAttribute(e, packets, pkt); err != nil {
+				return nil, err
+			}
 		case *packet.UserId:
 			if err := addUserID(e, packets, pkt); err != nil {
 				return nil, err
@@ -693,6 +705,37 @@ func (e *Entity) serializePrivate(w io.Writer, config *packet.Config, reSign boo
 			}
 		}
 	}
+
+	for _, uat := range e.UserAttribute {
+		if reSign {
+			UserAttribute := uat.UserAttribute
+
+			err = UserAttribute.Serialize(w)
+			if err != nil {
+				return
+			}
+
+			if uat.SelfSignature == nil {
+				return goerrors.New("openpgp: can't re-sign identity without valid self-signature")
+			}
+			err = uat.SelfSignature.SignUserAttribute(UserAttribute, e.PrimaryKey, e.PrivateKey, config)
+			if err != nil {
+				return
+			}
+		} else {
+			err = uat.UserAttribute.Serialize(w)
+			if err != nil {
+				return
+			}
+		}
+		for _, sig := range uat.Signatures {
+			err = sig.Serialize(w)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	for _, subkey := range e.Subkeys {
 		err = subkey.PrivateKey.Serialize(w)
 		if err != nil {
@@ -750,6 +793,20 @@ func (e *Entity) Serialize(w io.Writer) error {
 			}
 		}
 	}
+
+	for _, uat := range e.UserAttribute {
+		err = uat.UserAttribute.Serialize(w)
+		if err != nil {
+			return err
+		}
+		for _, sig := range uat.Signatures {
+			err = sig.Serialize(w)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	for _, subkey := range e.Subkeys {
 		err = subkey.PublicKey.Serialize(w)
 		if err != nil {
