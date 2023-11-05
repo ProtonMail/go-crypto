@@ -1,13 +1,13 @@
-// Package sphincs_plus implements SPHINCS+ suitable for OpenPGP, experimental.
-// It follows the specs https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#name-sphincs-8
-package sphincs_plus
+// Package slhdsa implements SLH-DSA suitable for OpenPGP, experimental.
+// It follows the specs https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-slh-dsa-2
+package slhdsa
 
 import (
 	goerrors "errors"
 )
 
 // ParameterSetId represents the security level parameters defined in:
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#table-13
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-slh-dsa-parameters-and-arti
 type ParameterSetId uint8
 const (
 	Param128s  ParameterSetId = 1
@@ -25,12 +25,12 @@ func ParseParameterSetID(data [1]byte) (setId ParameterSetId, err error) {
 	case Param128s, Param128f, Param192s, Param192f, Param256s, Param256f:
 		return setId, nil
 	default:
-		return 0, goerrors.New("packet: unsupported sphincs+ parameter id")
+		return 0, goerrors.New("packet: unsupported SLH-DSA parameter id")
 	}
 }
 
 // GetPkLen returns the size of the public key in octets according to
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-6.1
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-the-slh-dsa-algorithms
 func (setId ParameterSetId) GetPkLen() int {
 	switch setId {
 	case Param128s, Param128f:
@@ -40,12 +40,12 @@ func (setId ParameterSetId) GetPkLen() int {
 	case Param256s, Param256f:
 		return 64
 	default:
-		panic("sphincs_plus: unsupported parameter")
+		panic("slhdsa: unsupported parameter")
 	}
 }
 
 // GetSkLen returns the size of the secret key in octets according to
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-6.1
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-the-slh-dsa-algorithms
 func (setId ParameterSetId) GetSkLen() int {
 	switch setId {
 	case Param128s, Param128f:
@@ -55,12 +55,12 @@ func (setId ParameterSetId) GetSkLen() int {
 	case Param256s, Param256f:
 		return 128
 	default:
-		panic("sphincs_plus: unsupported parameter")
+		panic("slhdsa: unsupported parameter")
 	}
 }
 
 // GetSigLen returns the size of the signature in octets according to
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-6.1
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-the-slh-dsa-algorithms
 func (setId ParameterSetId) GetSigLen() int {
 	switch setId {
 	case Param128s:
@@ -76,7 +76,7 @@ func (setId ParameterSetId) GetSigLen() int {
 	case Param256f:
 		return 49856
 	default:
-		panic("sphincs_plus: unsupported parameter")
+		panic("slhdsa: unsupported parameter")
 	}
 }
 
