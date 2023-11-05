@@ -9,9 +9,9 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	goerrors "errors"
-	"github.com/ProtonMail/go-crypto/openpgp/dilithium_ecdsa"
-	"github.com/ProtonMail/go-crypto/openpgp/dilithium_eddsa"
-	"github.com/ProtonMail/go-crypto/openpgp/sphincs_plus"
+	"github.com/ProtonMail/go-crypto/openpgp/mldsa_ecdsa"
+	"github.com/ProtonMail/go-crypto/openpgp/mldsa_eddsa"
+	"github.com/ProtonMail/go-crypto/openpgp/slhdsa"
 	"io"
 	"math/big"
 	"time"
@@ -24,7 +24,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
-	"github.com/ProtonMail/go-crypto/openpgp/kyber_ecdh"
+	"github.com/ProtonMail/go-crypto/openpgp/mlkem_ecdh"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	"github.com/ProtonMail/go-crypto/openpgp/x25519"
 	"github.com/ProtonMail/go-crypto/openpgp/x448"
@@ -312,49 +312,49 @@ func newSigner(config *packet.Config) (signer interface{}, err error) {
 			return nil, err
 		}
 		return priv, nil
-	case packet.PubKeyAlgoDilithium3p256, packet.PubKeyAlgoDilithium5p384, packet.PubKeyAlgoDilithium3Brainpool256,
-		packet.PubKeyAlgoDilithium5Brainpool384:
+	case packet.PubKeyAlgoMldsa65p256, packet.PubKeyAlgoMldsa87p384, packet.PubKeyAlgoMldsa65Brainpool256,
+		packet.PubKeyAlgoMldsa87Brainpool384:
 		if !config.V6() {
-			return nil, goerrors.New("openpgp: cannot create a non-v6 dilithium_ecdsa key")
+			return nil, goerrors.New("openpgp: cannot create a non-v6 ML-DSA + ECDSA key")
 		}
 
-		c, err := packet.GetECDSACurveFromAlgID(config.PublicKeyAlgorithm())
+		c, err := packet.GetEcdsaCurveFromAlgID(config.PublicKeyAlgorithm())
 		if err != nil {
 			return nil, err
 		}
-		d, err := packet.GetDilithiumFromAlgID(config.PublicKeyAlgorithm())
+		d, err := packet.GetMldsaFromAlgID(config.PublicKeyAlgorithm())
 		if err != nil {
 			return nil, err
 		}
 
-		return dilithium_ecdsa.GenerateKey(config.Random(), uint8(config.PublicKeyAlgorithm()), c, d)
-	case packet.PubKeyAlgoDilithium3Ed25519, packet.PubKeyAlgoDilithium5Ed448:
+		return mldsa_ecdsa.GenerateKey(config.Random(), uint8(config.PublicKeyAlgorithm()), c, d)
+	case packet.PubKeyAlgoMldsa65Ed25519, packet.PubKeyAlgoMldsa87Ed448:
 		if !config.V6() {
-			return nil, goerrors.New("openpgp: cannot create a non-v6 dilithium_eddsa key")
+			return nil, goerrors.New("openpgp: cannot create a non-v6 mldsa_eddsa key")
 		}
 
 		c, err := packet.GetEdDSACurveFromAlgID(config.PublicKeyAlgorithm())
 		if err != nil {
 			return nil, err
 		}
-		d, err := packet.GetDilithiumFromAlgID(config.PublicKeyAlgorithm())
+		d, err := packet.GetMldsaFromAlgID(config.PublicKeyAlgorithm())
 		if err != nil {
 			return nil, err
 		}
 
-		return dilithium_eddsa.GenerateKey(config.Random(), uint8(config.PublicKeyAlgorithm()), c, d)
-	case packet.PubKeyAlgoSphincsPlusSha2, packet.PubKeyAlgoSphincsPlusShake:
+		return mldsa_eddsa.GenerateKey(config.Random(), uint8(config.PublicKeyAlgorithm()), c, d)
+	case packet.PubKeyAlgoSlhdsaSha2, packet.PubKeyAlgoSlhdsaShake:
 		if !config.V6() {
-			return nil, goerrors.New("openpgp: cannot create a non-v6 sphincs+ key")
+			return nil, goerrors.New("openpgp: cannot create a non-v6 SLH-DSA key")
 		}
 
-		mode, err := packet.GetSphincsPlusModeFromAlgID(config.PublicKeyAlgorithm())
+		mode, err := packet.GetSlhdsaModeFromAlgID(config.PublicKeyAlgorithm())
 		if err != nil {
 			return nil, err
 		}
-		parameter := config.SphincsPlusParam()
+		parameter := config.SlhdsaParam()
 
-		return sphincs_plus.GenerateKey(config.Random(), mode, parameter)
+		return slhdsa.GenerateKey(config.Random(), mode, parameter)
 	default:
 		return nil, errors.InvalidArgumentError("unsupported public key algorithm")
 	}
@@ -398,29 +398,26 @@ func newDecrypter(config *packet.Config) (decrypter interface{}, err error) {
 		return x25519.GenerateKey(config.Random())
 	case packet.PubKeyAlgoEd448, packet.PubKeyAlgoX448: // When passing Ed448, we generate an x448 subkey
 		return x448.GenerateKey(config.Random())
-	case packet.PubKeyAlgoDilithium3Ed25519, packet.PubKeyAlgoDilithium5Ed448, packet.PubKeyAlgoDilithium3p256,
-		packet.PubKeyAlgoDilithium5p384, packet.PubKeyAlgoDilithium3Brainpool256,
-		packet.PubKeyAlgoDilithium5Brainpool384, packet.PubKeyAlgoSphincsPlusSha2, packet.PubKeyAlgoSphincsPlusShake:
-		if pubKeyAlgo, err = packet.GetMatchingKyberKem(config.PublicKeyAlgorithm()); err != nil {
+	case packet.PubKeyAlgoMldsa65Ed25519, packet.PubKeyAlgoMldsa87Ed448, packet.PubKeyAlgoMldsa65p256,
+		packet.PubKeyAlgoMldsa87p384, packet.PubKeyAlgoMldsa65Brainpool256,
+		packet.PubKeyAlgoMldsa87Brainpool384, packet.PubKeyAlgoSlhdsaSha2, packet.PubKeyAlgoSlhdsaShake:
+		if pubKeyAlgo, err = packet.GetMatchingMlkemKem(config.PublicKeyAlgorithm()); err != nil {
 			return nil, err
 		}
-		fallthrough // When passing Dilithium + EdDSA or ECDSA, we generate a Kyber + ECDH subkey
-	case packet.PubKeyAlgoKyber768X25519, packet.PubKeyAlgoKyber1024X448, packet.PubKeyAlgoKyber768P256,
-		packet.PubKeyAlgoKyber1024P384, packet.PubKeyAlgoKyber768Brainpool256, packet.PubKeyAlgoKyber1024Brainpool384:
-		if !config.V6() {
-			return nil, goerrors.New("openpgp: cannot create a non-v6 kyber_ecdh key")
-		}
+		fallthrough // When passing ML-DSA + EdDSA or ECDSA, we generate a ML-KEM + ECDH subkey
+	case packet.PubKeyAlgoMlkem768X25519, packet.PubKeyAlgoMlkem1024X448, packet.PubKeyAlgoMlkem768P256,
+		packet.PubKeyAlgoMlkem1024P384, packet.PubKeyAlgoMlkem768Brainpool256, packet.PubKeyAlgoMlkem1024Brainpool384:
 
 		c, err := packet.GetECDHCurveFromAlgID(pubKeyAlgo)
 		if err != nil {
 			return nil, err
 		}
-		k, err := packet.GetKyberFromAlgID(pubKeyAlgo)
+		k, err := packet.GetMlkemFromAlgID(pubKeyAlgo)
 		if err != nil {
 			return nil, err
 		}
 
-		return kyber_ecdh.GenerateKey(config.Random(), uint8(pubKeyAlgo), c, k)
+		return mlkem_ecdh.GenerateKey(config.Random(), uint8(pubKeyAlgo), c, k)
 	default:
 		return nil, errors.InvalidArgumentError("unsupported public key algorithm")
 	}

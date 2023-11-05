@@ -923,3 +923,32 @@ func TestReadV5Messages(t *testing.T) {
 		t.Error("expected no signature error, got:", md.SignatureError)
 	}
 }
+
+func TestReadPqcMessages(t *testing.T) {
+	secretKey, err := ReadArmoredKeyRing(strings.NewReader(v6PqcPrivKey))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	msgReader, err := armor.Decode(strings.NewReader(v6PqcMsg))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	md, err := ReadMessage(msgReader.Body, secretKey, nil, nil)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	contents, err := ioutil.ReadAll(md.UnverifiedBody)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if string(contents) != "Amazing!!!!11elfelfeins now with the cypher byte in the right place hopefully\n" {
+		t.Errorf("decrypted message is wrong: %s", contents)
+	}
+}

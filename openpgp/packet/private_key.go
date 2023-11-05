@@ -15,9 +15,9 @@ import (
 	"crypto/subtle"
 	goerrors "errors"
 	"fmt"
-	"github.com/ProtonMail/go-crypto/openpgp/dilithium_ecdsa"
-	"github.com/ProtonMail/go-crypto/openpgp/dilithium_eddsa"
-	"github.com/ProtonMail/go-crypto/openpgp/sphincs_plus"
+	"github.com/ProtonMail/go-crypto/openpgp/mldsa_ecdsa"
+	"github.com/ProtonMail/go-crypto/openpgp/mldsa_eddsa"
+	"github.com/ProtonMail/go-crypto/openpgp/slhdsa"
 	"io"
 	"math/big"
 	"strconv"
@@ -31,7 +31,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/elgamal"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/encoding"
-	"github.com/ProtonMail/go-crypto/openpgp/kyber_ecdh"
+	"github.com/ProtonMail/go-crypto/openpgp/mlkem_ecdh"
 	"github.com/ProtonMail/go-crypto/openpgp/s2k"
 	"github.com/ProtonMail/go-crypto/openpgp/x25519"
 	"github.com/ProtonMail/go-crypto/openpgp/x448"
@@ -171,12 +171,12 @@ func NewSignerPrivateKey(creationTime time.Time, signer interface{}) *PrivateKey
 		pk.PublicKey = *NewEd448PublicKey(creationTime, &pubkey.PublicKey)
 	case ed448.PrivateKey:
 		pk.PublicKey = *NewEd448PublicKey(creationTime, &pubkey.PublicKey)
-	case *dilithium_ecdsa.PrivateKey:
-		pk.PublicKey = *NewDilithiumECDSAPublicKey(creationTime, &pubkey.PublicKey)
-	case *dilithium_eddsa.PrivateKey:
-		pk.PublicKey = *NewDilithiumEdDSAPublicKey(creationTime, &pubkey.PublicKey)
-	case *sphincs_plus.PrivateKey:
-		pk.PublicKey = *NewSphincsPlusPublicKey(creationTime, &pubkey.PublicKey)
+	case *mldsa_ecdsa.PrivateKey:
+		pk.PublicKey = *NewMldsaEcdsaPublicKey(creationTime, &pubkey.PublicKey)
+	case *mldsa_eddsa.PrivateKey:
+		pk.PublicKey = *NewMldsaEddsaPublicKey(creationTime, &pubkey.PublicKey)
+	case *slhdsa.PrivateKey:
+		pk.PublicKey = *NewSlhdsaPublicKey(creationTime, &pubkey.PublicKey)
 	default:
 		panic("openpgp: unknown signer type in NewSignerPrivateKey")
 	}
@@ -184,7 +184,7 @@ func NewSignerPrivateKey(creationTime time.Time, signer interface{}) *PrivateKey
 	return pk
 }
 
-// NewDecrypterPrivateKey creates a PrivateKey from a *{rsa|elgamal|ecdh|x25519|x448|kyber_ecdh}.PrivateKey.
+// NewDecrypterPrivateKey creates a PrivateKey from a *{rsa|elgamal|ecdh|x25519|x448|mlkem_ecdh}.PrivateKey.
 func NewDecrypterPrivateKey(creationTime time.Time, decrypter interface{}) *PrivateKey {
 	pk := new(PrivateKey)
 	switch priv := decrypter.(type) {
@@ -198,8 +198,8 @@ func NewDecrypterPrivateKey(creationTime time.Time, decrypter interface{}) *Priv
 		pk.PublicKey = *NewX25519PublicKey(creationTime, &priv.PublicKey)
 	case *x448.PrivateKey:
 		pk.PublicKey = *NewX448PublicKey(creationTime, &priv.PublicKey)
-	case *kyber_ecdh.PrivateKey:
-		pk.PublicKey = *NewKyberECDHPublicKey(creationTime, &priv.PublicKey)
+	case *mlkem_ecdh.PrivateKey:
+		pk.PublicKey = *NewMlkemEcdhPublicKey(creationTime, &priv.PublicKey)
 	default:
 		panic("openpgp: unknown decrypter type in NewDecrypterPrivateKey")
 	}
@@ -533,43 +533,43 @@ func serializeEd448PrivateKey(w io.Writer, priv *ed448.PrivateKey) error {
 	return err
 }
 
-// serializeKyberPrivateKey serializes a Kyber + ECC private key according to
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#name-key-material-packets-7
-func serializeKyberPrivateKey(w io.Writer, priv *kyber_ecdh.PrivateKey) (err error) {
+// serializeMlkemPrivateKey serializes a ML-KEM + ECC private key according to
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-key-material-packets
+func serializeMlkemPrivateKey(w io.Writer, priv *mlkem_ecdh.PrivateKey) (err error) {
 	var kyberBin []byte
-	if kyberBin, err = priv.SecretKyber.MarshalBinary(); err != nil {
+	if kyberBin, err = priv.SecretMlkem.MarshalBinary(); err != nil {
 		return err
 	}
-	if _, err = w.Write(encoding.NewOctetArray(priv.SecretEC).EncodedBytes()); err != nil {
+	if _, err = w.Write(encoding.NewOctetArray(priv.SecretEc).EncodedBytes()); err != nil {
 		return err
 	}
 	_, err = w.Write(encoding.NewOctetArray(kyberBin).EncodedBytes())
 	return err
 }
 
-// serializeDilithiumECDSAPrivateKey serializes a Dilithium + ECDSA private key according to
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-5.3.2
-func serializeDilithiumECDSAPrivateKey(w io.Writer, priv *dilithium_ecdsa.PrivateKey) error {
+// serializeMldsaEcdsaPrivateKey serializes a ML-DSA + ECDSA private key according to
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-key-material-packets-2
+func serializeMldsaEcdsaPrivateKey(w io.Writer, priv *mldsa_ecdsa.PrivateKey) error {
 	if _, err := w.Write(encoding.NewOctetArray(priv.MarshalIntegerSecret()).EncodedBytes()); err != nil {
 		return err
 	}
-	_, err := w.Write(encoding.NewOctetArray(priv.SecretDilithium.Bytes()).EncodedBytes())
+	_, err := w.Write(encoding.NewOctetArray(priv.SecretMldsa.Bytes()).EncodedBytes())
 	return err
 }
 
-// serializeDilithiumEdDSAPrivateKey serializes a Dilithium + EdDSA private key according to
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-5.3.2
-func serializeDilithiumEdDSAPrivateKey(w io.Writer, priv *dilithium_eddsa.PrivateKey) error {
-	if _, err := w.Write(encoding.NewOctetArray(priv.SecretEC).EncodedBytes()); err != nil {
+// serializeMldsaEddsaPrivateKey serializes a ML-DSA + EdDSA private key according to
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-key-material-packets-2
+func serializeMldsaEddsaPrivateKey(w io.Writer, priv *mldsa_eddsa.PrivateKey) error {
+	if _, err := w.Write(encoding.NewOctetArray(priv.SecretEc).EncodedBytes()); err != nil {
 		return err
 	}
-	_, err := w.Write(encoding.NewOctetArray(priv.SecretDilithium.Bytes()).EncodedBytes())
+	_, err := w.Write(encoding.NewOctetArray(priv.SecretMldsa.Bytes()).EncodedBytes())
 	return err
 }
 
-// serializeSphincsPlusPrivateKey serializes a SPHINCS+ private key according to
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-6.2.2
-func serializeSphincsPlusPrivateKey(w io.Writer, priv *sphincs_plus.PrivateKey) error {
+// serializeSlhdsaPrivateKey serializes a SLH-DSA private key according to
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-key-material-packets-3
+func serializeSlhdsaPrivateKey(w io.Writer, priv *slhdsa.PrivateKey) error {
 	privateData, err := priv.SerializePrivate()
 	if err != nil {
 		return err
@@ -871,14 +871,14 @@ func (pk *PrivateKey) serializePrivateKey(w io.Writer) (err error) {
 		err = serializeEd25519PrivateKey(w, priv)
 	case *ed448.PrivateKey:
 		err = serializeEd448PrivateKey(w, priv)
-	case *kyber_ecdh.PrivateKey:
-		err = serializeKyberPrivateKey(w, priv)
-	case *dilithium_ecdsa.PrivateKey:
-		err = serializeDilithiumECDSAPrivateKey(w, priv)
-	case *dilithium_eddsa.PrivateKey:
-		err = serializeDilithiumEdDSAPrivateKey(w, priv)
-	case *sphincs_plus.PrivateKey:
-		err = serializeSphincsPlusPrivateKey(w, priv)
+	case *mlkem_ecdh.PrivateKey:
+		err = serializeMlkemPrivateKey(w, priv)
+	case *mldsa_ecdsa.PrivateKey:
+		err = serializeMldsaEcdsaPrivateKey(w, priv)
+	case *mldsa_eddsa.PrivateKey:
+		err = serializeMldsaEddsaPrivateKey(w, priv)
+	case *slhdsa.PrivateKey:
+		err = serializeSlhdsaPrivateKey(w, priv)
 
 	default:
 		err = errors.InvalidArgumentError("unknown private key type")
@@ -908,22 +908,22 @@ func (pk *PrivateKey) parsePrivateKey(data []byte) (err error) {
 		return pk.parseEd25519PrivateKey(data)
 	case PubKeyAlgoEd448:
 		return pk.parseEd448PrivateKey(data)
-	case PubKeyAlgoKyber768X25519, PubKeyAlgoKyber768P256, PubKeyAlgoKyber768Brainpool256:
-		return pk.parseKyberECDHPrivateKey(data, 32, 2400)
-	case PubKeyAlgoKyber1024X448:
-		return pk.parseKyberECDHPrivateKey(data, 56, 3168)
-	case PubKeyAlgoKyber1024P384, PubKeyAlgoKyber1024Brainpool384:
-		return pk.parseKyberECDHPrivateKey(data, 48, 3168)
-	case PubKeyAlgoDilithium3Ed25519:
-		return pk.parseDilithiumEdDSAPrivateKey(data, 32, 4000)
-	case PubKeyAlgoDilithium5Ed448:
-		return pk.parseDilithiumEdDSAPrivateKey(data, 57, 4864)
-	case PubKeyAlgoDilithium3p256, PubKeyAlgoDilithium3Brainpool256:
-		return pk.parseDilithiumECDSAPrivateKey(data, 32, 4000)
-	case PubKeyAlgoDilithium5p384, PubKeyAlgoDilithium5Brainpool384:
-		return pk.parseDilithiumECDSAPrivateKey(data, 48, 4864)
-	case PubKeyAlgoSphincsPlusSha2, PubKeyAlgoSphincsPlusShake:
-		return pk.parseSphincsPlusPrivateKey(data)
+	case PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem768P256, PubKeyAlgoMlkem768Brainpool256:
+		return pk.parseMlkemEcdhPrivateKey(data, 32, 2400)
+	case PubKeyAlgoMlkem1024X448:
+		return pk.parseMlkemEcdhPrivateKey(data, 56, 3168)
+	case PubKeyAlgoMlkem1024P384, PubKeyAlgoMlkem1024Brainpool384:
+		return pk.parseMlkemEcdhPrivateKey(data, 48, 3168)
+	case PubKeyAlgoMldsa65Ed25519:
+		return pk.parseMldsaEddsaPrivateKey(data, 32, 4000)
+	case PubKeyAlgoMldsa87Ed448:
+		return pk.parseMldsaEddsaPrivateKey(data, 57, 4864)
+	case PubKeyAlgoMldsa65p256, PubKeyAlgoMldsa65Brainpool256:
+		return pk.parseMldsaEcdsaPrivateKey(data, 32, 4000)
+	case PubKeyAlgoMldsa87p384, PubKeyAlgoMldsa87Brainpool384:
+		return pk.parseMldsaEcdsaPrivateKey(data, 48, 4864)
+	case PubKeyAlgoSlhdsaSha2, PubKeyAlgoSlhdsaShake:
+		return pk.parseSlhdsaPrivateKey(data)
 	default:
 		err = errors.StructuralError("unknown private key type")
 		return
@@ -1187,14 +1187,14 @@ func (pk *PrivateKey) applyHKDF(inputKey []byte) []byte {
 	return encryptionKey
 }
 
-// parseDilithiumECDSAPrivateKey parses a Dilithium + ECDSA private key as specified in
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-5.3.2
-func (pk *PrivateKey) parseDilithiumECDSAPrivateKey(data []byte, ecLen, dLen int) (err error) {
+// parseMldsaEcdsaPrivateKey parses a ML-DSA + ECDSA private key as specified in
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-key-material-packets-2
+func (pk *PrivateKey) parseMldsaEcdsaPrivateKey(data []byte, ecLen, dLen int) (err error) {
 	if pk.Version != 6 {
-		return goerrors.New("openpgp: cannot parse non-v6 dilithium_ecdsa key")
+		return goerrors.New("openpgp: cannot parse non-v6 ML-DSA + ECDSA key")
 	}
-	pub := pk.PublicKey.PublicKey.(*dilithium_ecdsa.PublicKey)
-	priv := new(dilithium_ecdsa.PrivateKey)
+	pub := pk.PublicKey.PublicKey.(*mldsa_ecdsa.PublicKey)
+	priv := new(mldsa_ecdsa.PrivateKey)
 	priv.PublicKey = *pub
 
 	buf := bytes.NewBuffer(data)
@@ -1213,8 +1213,8 @@ func (pk *PrivateKey) parseDilithiumECDSAPrivateKey(data []byte, ecLen, dLen int
 		return err
 	}
 
-	priv.SecretDilithium = priv.Dilithium.PrivateKeyFromBytes(d.Bytes())
-	if err := dilithium_ecdsa.Validate(priv); err != nil {
+	priv.SecretMldsa = priv.Mldsa.PrivateKeyFromBytes(d.Bytes())
+	if err := mldsa_ecdsa.Validate(priv); err != nil {
 		return err
 	}
 	pk.PrivateKey = priv
@@ -1222,14 +1222,14 @@ func (pk *PrivateKey) parseDilithiumECDSAPrivateKey(data []byte, ecLen, dLen int
 	return nil
 }
 
-// parseDilithiumEdDSAPrivateKey parses a Dilithium + EdDSA private key as specified in
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-5.3.2
-func (pk *PrivateKey) parseDilithiumEdDSAPrivateKey(data []byte, ecLen, dLen int) (err error) {
+// parseMldsaEddsaPrivateKey parses a ML-DSA + EdDSA private key as specified in
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-key-material-packets-2
+func (pk *PrivateKey) parseMldsaEddsaPrivateKey(data []byte, ecLen, dLen int) (err error) {
 	if pk.Version != 6 {
-		return goerrors.New("openpgp: cannot parse non-v6 dilithium_eddsa key")
+		return goerrors.New("openpgp: cannot parse non-v6 ML-DSA + EdDSA key")
 	}
-	pub := pk.PublicKey.PublicKey.(*dilithium_eddsa.PublicKey)
-	priv := new(dilithium_eddsa.PrivateKey)
+	pub := pk.PublicKey.PublicKey.(*mldsa_eddsa.PublicKey)
+	priv := new(mldsa_eddsa.PrivateKey)
 	priv.PublicKey = *pub
 
 	buf := bytes.NewBuffer(data)
@@ -1243,9 +1243,9 @@ func (pk *PrivateKey) parseDilithiumEdDSAPrivateKey(data []byte, ecLen, dLen int
 		return err
 	}
 
-	priv.SecretEC = ec.Bytes()
-	priv.SecretDilithium = priv.Dilithium.PrivateKeyFromBytes(d.Bytes())
-	if err := dilithium_eddsa.Validate(priv); err != nil {
+	priv.SecretEc = ec.Bytes()
+	priv.SecretMldsa = priv.Mldsa.PrivateKeyFromBytes(d.Bytes())
+	if err := mldsa_eddsa.Validate(priv); err != nil {
 		return err
 	}
 	pk.PrivateKey = priv
@@ -1253,14 +1253,11 @@ func (pk *PrivateKey) parseDilithiumEdDSAPrivateKey(data []byte, ecLen, dLen int
 	return nil
 }
 
-// parseKyberECDHPrivateKey parses a Kyber + ECC private key as specified in
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-4.3.2
-func (pk *PrivateKey) parseKyberECDHPrivateKey(data []byte, ecLen, kLen int) (err error) {
-	if pk.Version != 6 {
-		return goerrors.New("openpgp: cannot parse non-v6 kyber_ecdh key")
-	}
-	pub := pk.PublicKey.PublicKey.(*kyber_ecdh.PublicKey)
-	priv := new(kyber_ecdh.PrivateKey)
+// parseMlkemEcdhPrivateKey parses a ML-KEM + ECC private key as specified in
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-key-material-packets
+func (pk *PrivateKey) parseMlkemEcdhPrivateKey(data []byte, ecLen, kLen int) (err error) {
+	pub := pk.PublicKey.PublicKey.(*mlkem_ecdh.PublicKey)
+	priv := new(mlkem_ecdh.PrivateKey)
 	priv.PublicKey = *pub
 
 	buf := bytes.NewBuffer(data)
@@ -1274,12 +1271,12 @@ func (pk *PrivateKey) parseKyberECDHPrivateKey(data []byte, ecLen, kLen int) (er
 		return err
 	}
 
-	priv.SecretEC = ec.Bytes()
-	if priv.SecretKyber, err = priv.PublicKey.Kyber.UnmarshalBinaryPrivateKey(k.Bytes()); err != nil {
+	priv.SecretEc = ec.Bytes()
+	if priv.SecretMlkem, err = priv.PublicKey.Mlkem.UnmarshalBinaryPrivateKey(k.Bytes()); err != nil {
 		return err
 	}
 
-	if err := kyber_ecdh.Validate(priv); err != nil {
+	if err := mlkem_ecdh.Validate(priv); err != nil {
 		return err
 	}
 	pk.PrivateKey = priv
@@ -1287,14 +1284,14 @@ func (pk *PrivateKey) parseKyberECDHPrivateKey(data []byte, ecLen, kLen int) (er
 	return nil
 }
 
-// parseSphincsPlusPrivateKey parses a Sphincs+ private key as specified in
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-6.2.2
-func (pk *PrivateKey) parseSphincsPlusPrivateKey(data []byte) (err error) {
+// parseSlhdsaPrivateKey parses a SLH-DSA private key as specified in
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-key-material-packets-3
+func (pk *PrivateKey) parseSlhdsaPrivateKey(data []byte) (err error) {
 	if pk.Version != 6 {
-		return goerrors.New("openpgp: cannot parse non-v6 sphincs+ key")
+		return goerrors.New("openpgp: cannot parse non-v6 SLH-DSA key")
 	}
-	pub := pk.PublicKey.PublicKey.(*sphincs_plus.PublicKey)
-	priv := new(sphincs_plus.PrivateKey)
+	pub := pk.PublicKey.PublicKey.(*slhdsa.PublicKey)
+	priv := new(slhdsa.PrivateKey)
 	priv.PublicKey = *pub
 
 	buf := bytes.NewBuffer(data)
@@ -1304,7 +1301,7 @@ func (pk *PrivateKey) parseSphincsPlusPrivateKey(data []byte) (err error) {
 	}
 
 	priv.UnmarshalPrivate(spx.Bytes())
-	if err := sphincs_plus.Validate(priv); err != nil {
+	if err := slhdsa.Validate(priv); err != nil {
 		return err
 	}
 	pk.PrivateKey = priv

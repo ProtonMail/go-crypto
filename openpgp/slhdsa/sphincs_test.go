@@ -1,27 +1,27 @@
-// Package sphincs_plus_test tests the implementation of SPHINCS+ signatures, suitable for OpenPGP, experimental.
-package sphincs_plus_test
+// Package slh_dsa_test tests the implementation of SLH-DSA signatures, suitable for OpenPGP, experimental.
+package slhdsa_test
 
 import (
 	"crypto/rand"
 	"io"
 	"testing"
 
-	"github.com/ProtonMail/go-crypto/openpgp/sphincs_plus"
+	"github.com/ProtonMail/go-crypto/openpgp/slhdsa"
 )
 
 func TestSignVerify(t *testing.T) {
-	asymmAlgos := map[string] sphincs_plus.Mode{
-		"SHA2-Simple": sphincs_plus.ModeSimpleSHA2,
-		"SHAKE-Simple": sphincs_plus.ModeSimpleShake,
+	asymmAlgos := map[string] slhdsa.Mode{
+		"SHA2-Simple":  slhdsa.ModeSimpleSHA2,
+		"SHAKE-Simple": slhdsa.ModeSimpleShake,
 	}
 
-	params := map[string] sphincs_plus.ParameterSetId {
-		"1": sphincs_plus.Param128s,
-		"2": sphincs_plus.Param128f,
-		"3": sphincs_plus.Param192s,
-		"4": sphincs_plus.Param192f,
-		"5": sphincs_plus.Param256s,
-		"6": sphincs_plus.Param256f,
+	params := map[string] slhdsa.ParameterSetId {
+		"1": slhdsa.Param128s,
+		"2": slhdsa.Param128f,
+		"3": slhdsa.Param192s,
+		"4": slhdsa.Param192f,
+		"5": slhdsa.Param256s,
+		"6": slhdsa.Param256f,
 	}
 
 	for asymmName, asymmAlgo := range asymmAlgos {
@@ -37,9 +37,9 @@ func TestSignVerify(t *testing.T) {
 	}
 }
 
-func testvalidateAlgo(t *testing.T, mode sphincs_plus.Mode, param sphincs_plus.ParameterSetId) {
+func testvalidateAlgo(t *testing.T, mode slhdsa.Mode, param slhdsa.ParameterSetId) {
 	key := testGenerateKeyAlgo(t, mode, param)
-	if err := sphincs_plus.Validate(key); err != nil {
+	if err := slhdsa.Validate(key); err != nil {
 		t.Fatalf("valid key marked as invalid: %s", err)
 	}
 
@@ -63,14 +63,14 @@ func testvalidateAlgo(t *testing.T, mode sphincs_plus.Mode, param sphincs_plus.P
 		t.Fatalf("unable to deserialize private key")
 	}
 
-	if err := sphincs_plus.Validate(key); err != nil {
+	if err := slhdsa.Validate(key); err != nil {
 		t.Fatalf("valid key marked as invalid: %s", err)
 	}
 
 	// Corrupt the root of the public key
 	key.PublicData.PKroot[1] ^= 1
 
-	if err := sphincs_plus.Validate(key); err == nil {
+	if err := slhdsa.Validate(key); err == nil {
 		t.Fatalf("failed to detect invalid root in key")
 	}
 
@@ -83,20 +83,20 @@ func testvalidateAlgo(t *testing.T, mode sphincs_plus.Mode, param sphincs_plus.P
 		t.Fatalf("unable to deserialize private key")
 	}
 
-	if err := sphincs_plus.Validate(key); err != nil {
+	if err := slhdsa.Validate(key); err != nil {
 		t.Fatalf("valid key marked as invalid: %s", err)
 	}
 
 	// Corrupt the seed of the public key
 	key.PublicData.PKseed[1] ^= 1
 
-	if err := sphincs_plus.Validate(key); err == nil {
+	if err := slhdsa.Validate(key); err == nil {
 		t.Fatalf("failed to detect invalid seed in key")
 	}
 }
 
-func testGenerateKeyAlgo(t *testing.T, mode sphincs_plus.Mode, param sphincs_plus.ParameterSetId) *sphincs_plus.PrivateKey {
-	priv, err := sphincs_plus.GenerateKey(rand.Reader, mode, param)
+func testGenerateKeyAlgo(t *testing.T, mode slhdsa.Mode, param slhdsa.ParameterSetId) *slhdsa.PrivateKey {
+	priv, err := slhdsa.GenerateKey(rand.Reader, mode, param)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,19 +105,19 @@ func testGenerateKeyAlgo(t *testing.T, mode sphincs_plus.Mode, param sphincs_plu
 }
 
 
-func testSignVerifyAlgo(t *testing.T, priv *sphincs_plus.PrivateKey) {
+func testSignVerifyAlgo(t *testing.T, priv *slhdsa.PrivateKey) {
 	digest := make([]byte, 32)
 	_, err := io.ReadFull(rand.Reader, digest[:])
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	sig, err := sphincs_plus.Sign(priv, digest)
+	sig, err := slhdsa.Sign(priv, digest)
 	if err != nil {
 		t.Errorf("error encrypting: %s", err)
 	}
 
-	result := sphincs_plus.Verify(&priv.PublicKey, digest, sig)
+	result := slhdsa.Verify(&priv.PublicKey, digest, sig)
 	if !result {
 		t.Error("unable to verify message")
 	}

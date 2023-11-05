@@ -511,22 +511,22 @@ const (
 	PubKeyAlgoRSASignOnly    PublicKeyAlgorithm = 3
 
 	// Experimental PQC KEM algorithms
-	PubKeyAlgoKyber768X25519 = 29
-	PubKeyAlgoKyber1024X448 = 30
-	PubKeyAlgoKyber768P256 = 31
-	PubKeyAlgoKyber1024P384 = 32
-	PubKeyAlgoKyber768Brainpool256 = 33
-	PubKeyAlgoKyber1024Brainpool384 = 34
+	PubKeyAlgoMlkem768X25519 = 29
+	PubKeyAlgoMlkem1024X448 = 30
+	PubKeyAlgoMlkem768P256 = 31
+	PubKeyAlgoMlkem1024P384 = 32
+	PubKeyAlgoMlkem768Brainpool256 = 33
+	PubKeyAlgoMlkem1024Brainpool384 = 34
 
 	// Experimental PQC DSA algorithms
-	PubKeyAlgoDilithium3Ed25519 = 35
-	PubKeyAlgoDilithium5Ed448 = 36
-	PubKeyAlgoDilithium3p256 = 37
-	PubKeyAlgoDilithium5p384 = 38
-	PubKeyAlgoDilithium3Brainpool256 = 39
-	PubKeyAlgoDilithium5Brainpool384 = 40
-	PubKeyAlgoSphincsPlusSha2  = 41
-	PubKeyAlgoSphincsPlusShake = 42
+	PubKeyAlgoMldsa65Ed25519 = 35
+	PubKeyAlgoMldsa87Ed448 = 36
+	PubKeyAlgoMldsa65p256 = 37
+	PubKeyAlgoMldsa87p384 = 38
+	PubKeyAlgoMldsa65Brainpool256 = 39
+	PubKeyAlgoMldsa87Brainpool384 = 40
+	PubKeyAlgoSlhdsaSha2  = 41
+	PubKeyAlgoSlhdsaShake = 42
 )
 
 // CanEncrypt returns true if it's possible to encrypt a message to a public
@@ -534,8 +534,8 @@ const (
 func (pka PublicKeyAlgorithm) CanEncrypt() bool {
 	switch pka {
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoElGamal, PubKeyAlgoECDH, PubKeyAlgoX25519, PubKeyAlgoX448,
-		PubKeyAlgoKyber768X25519, PubKeyAlgoKyber1024X448, PubKeyAlgoKyber768P256, PubKeyAlgoKyber1024P384,
-		PubKeyAlgoKyber768Brainpool256, PubKeyAlgoKyber1024Brainpool384:
+		PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem1024X448, PubKeyAlgoMlkem768P256, PubKeyAlgoMlkem1024P384,
+		PubKeyAlgoMlkem768Brainpool256, PubKeyAlgoMlkem1024Brainpool384:
 		return true
 	}
 	return false
@@ -546,9 +546,9 @@ func (pka PublicKeyAlgorithm) CanEncrypt() bool {
 func (pka PublicKeyAlgorithm) CanSign() bool {
 	switch pka {
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA, PubKeyAlgoEd25519,
-		PubKeyAlgoEd448, PubKeyAlgoDilithium3Ed25519, PubKeyAlgoDilithium5Ed448, PubKeyAlgoDilithium3p256,
-		PubKeyAlgoDilithium5p384, PubKeyAlgoDilithium3Brainpool256, PubKeyAlgoDilithium5Brainpool384,
-		PubKeyAlgoSphincsPlusSha2, PubKeyAlgoSphincsPlusShake:
+		PubKeyAlgoEd448, PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448, PubKeyAlgoMldsa65p256,
+		PubKeyAlgoMldsa87p384, PubKeyAlgoMldsa65Brainpool256, PubKeyAlgoMldsa87Brainpool384,
+		PubKeyAlgoSlhdsaSha2, PubKeyAlgoSlhdsaShake:
 		return true
 	}
 	return false

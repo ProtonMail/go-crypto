@@ -3,7 +3,7 @@ package openpgp
 import (
 	"bytes"
 	"crypto/rand"
-	"io"
+	"io/ioutil"
 	"testing"
 	"time"
 
@@ -59,71 +59,71 @@ var benchmarkTestSet = map[string] *packet.Config {
 		Algorithm: packet.PubKeyAlgoECDSA,
 		Curve: packet.CurveBrainpoolP512,
 	},
-	"Dilithium3Ed25519_Kyber768X25519": {
-		Algorithm: packet.PubKeyAlgoDilithium3Ed25519,
+	"ML-DSA3Ed25519_ML-KEM768X25519": {
+		Algorithm: packet.PubKeyAlgoMldsa65Ed25519,
 	},
-	"Dilithium5Ed448_Kyber1024X448": {
-		Algorithm: packet.PubKeyAlgoDilithium5Ed448,
+	"ML-DSA5Ed448_ML-KEM1024X448": {
+		Algorithm: packet.PubKeyAlgoMldsa87Ed448,
 	},
-	"Dilithium3P256_Kyber768P256": {
-		Algorithm: packet.PubKeyAlgoDilithium3p256,
+	"ML-DSA3P256_ML-KEM768P256": {
+		Algorithm: packet.PubKeyAlgoMldsa65p256,
 	},
-	"Dilithium5P384_Kyber1024P384": {
-		Algorithm: packet.PubKeyAlgoDilithium5p384,
+	"ML-DSA5P384_ML-KEM1024P384": {
+		Algorithm: packet.PubKeyAlgoMldsa87p384,
 	},
-	"Dilithium3Brainpool256_Kyber768Brainpool256": {
-		Algorithm: packet.PubKeyAlgoDilithium3Brainpool256,
+	"ML-DSA3Brainpool256_ML-KEM768Brainpool256": {
+		Algorithm: packet.PubKeyAlgoMldsa65Brainpool256,
 	},
-	"Dilithium5Brainpool384_Kyber1024Brainpool384": {
-		Algorithm: packet.PubKeyAlgoDilithium5Brainpool384,
+	"ML-DSA5Brainpool384_ML-KEM1024Brainpool384": {
+		Algorithm: packet.PubKeyAlgoMldsa87Brainpool384,
 	},
-	"SphincsPlusSHA2_128s_Kyber1024X448": {
-		Algorithm: packet.PubKeyAlgoSphincsPlusSha2,
-		SphincsPlusParameterId: 1,
+	"SLH-DSA-SHA2_128s_ML-KEM1024X448": {
+		Algorithm: packet.PubKeyAlgoSlhdsaSha2,
+		SlhdsaParameterId: 1,
 	},
-	"SphincsPlusSHA2_128f_Kyber1024X448": {
-		Algorithm: packet.PubKeyAlgoSphincsPlusSha2,
-		SphincsPlusParameterId: 2,
+	"SLH-DSA-SHA2_128f_ML-KEM1024X448": {
+		Algorithm: packet.PubKeyAlgoSlhdsaSha2,
+		SlhdsaParameterId: 2,
 	},
-	"SphincsPlusSHA2_192s_Kyber1024X448": {
-		Algorithm: packet.PubKeyAlgoSphincsPlusSha2,
-		SphincsPlusParameterId: 3,
+	"SLH-DSA-SHA2_192s_ML-KEM1024X448": {
+		Algorithm: packet.PubKeyAlgoSlhdsaSha2,
+		SlhdsaParameterId: 3,
 	},
-	"SphincsPlusSHA2_192f_Kyber1024X448": {
-		Algorithm: packet.PubKeyAlgoSphincsPlusSha2,
-		SphincsPlusParameterId: 4,
+	"SLH-DSA-SHA2_192f_ML-KEM1024X448": {
+		Algorithm: packet.PubKeyAlgoSlhdsaSha2,
+		SlhdsaParameterId: 4,
 	},
-	"SphincsPlusSHA2_256s_Kyber1024X448": {
-		Algorithm: packet.PubKeyAlgoSphincsPlusSha2,
-		SphincsPlusParameterId: 5,
+	"SLH-DSA-SHA2_256s_ML-KEM1024X448": {
+		Algorithm: packet.PubKeyAlgoSlhdsaSha2,
+		SlhdsaParameterId: 5,
 	},
-	"SphincsPlusSHA2_256f_Kyber1024X448": {
-		Algorithm: packet.PubKeyAlgoSphincsPlusSha2,
-		SphincsPlusParameterId: 6,
+	"SLH-DSA-SHA2_256f_ML-KEM1024X448": {
+		Algorithm: packet.PubKeyAlgoSlhdsaSha2,
+		SlhdsaParameterId: 6,
 	},
-	"SphincsPlusSHAKE_128s_Kyber1024X448":{
-		Algorithm: packet.PubKeyAlgoSphincsPlusShake,
-		SphincsPlusParameterId: 1,
+	"SLH-DSA-SHAKE_128s_ML-KEM1024X448":{
+		Algorithm: packet.PubKeyAlgoSlhdsaShake,
+		SlhdsaParameterId: 1,
 	},
-	"SphincsPlusSHAKE_128f_Kyber1024X448":{
-		Algorithm: packet.PubKeyAlgoSphincsPlusShake,
-		SphincsPlusParameterId: 2,
+	"SLH-DSA-SHAKE_128f_ML-KEM1024X448":{
+		Algorithm: packet.PubKeyAlgoSlhdsaShake,
+		SlhdsaParameterId: 2,
 	},
-	"SphincsPlusSHAKE_192s_Kyber1024X448":{
-		Algorithm: packet.PubKeyAlgoSphincsPlusShake,
-		SphincsPlusParameterId: 3,
+	"SLH-DSA-SHAKE_192s_ML-KEM1024X448":{
+		Algorithm: packet.PubKeyAlgoSlhdsaShake,
+		SlhdsaParameterId: 3,
 	},
-	"SphincsPlusSHAKE_192f_Kyber1024X448":{
-		Algorithm: packet.PubKeyAlgoSphincsPlusShake,
-		SphincsPlusParameterId: 4,
+	"SLH-DSA-SHAKE_192f_ML-KEM1024X448":{
+		Algorithm: packet.PubKeyAlgoSlhdsaShake,
+		SlhdsaParameterId: 4,
 	},
-	"SphincsPlusSHAKE_256s_Kyber1024X448":{
-		Algorithm: packet.PubKeyAlgoSphincsPlusShake,
-		SphincsPlusParameterId: 5,
+	"SLH-DSA-SHAKE_256s_ML-KEM1024X448":{
+		Algorithm: packet.PubKeyAlgoSlhdsaShake,
+		SlhdsaParameterId: 5,
 	},
-	"SphincsPlusSHAKE_256f_Kyber1024X448":{
-		Algorithm: packet.PubKeyAlgoSphincsPlusShake,
-		SphincsPlusParameterId: 6,
+	"SLH-DSA-SHAKE_256f_ML-KEM1024X448":{
+		Algorithm: packet.PubKeyAlgoSlhdsaShake,
+		SlhdsaParameterId: 6,
 	},
 }
 
@@ -229,7 +229,7 @@ func benchmarkDecrypt(b *testing.B, keys []*Entity, plaintext []byte, encryptedM
 			continue
 		}
 
-		decrypted, err := io.ReadAll(md.UnverifiedBody)
+		decrypted, err := ioutil.ReadAll(md.UnverifiedBody)
 		if err != nil {
 			b.Errorf("Error reading encrypted content: %s", err)
 			continue

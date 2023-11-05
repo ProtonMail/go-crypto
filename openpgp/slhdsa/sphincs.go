@@ -1,6 +1,6 @@
-// Package sphincs_plus implements SPHINCS+ suitable for OpenPGP, experimental.
-// It follows the specs https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#name-sphincs-8
-package sphincs_plus
+// Package slhdsa implements SLH-DSA suitable for OpenPGP, experimental.
+// It follows the specs https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-slh-dsa-2
+package slhdsa
 
 import (
 	"crypto/subtle"
@@ -13,7 +13,7 @@ import (
 )
 
 // Mode defines the underlying hash and mode depending on the algorithm ID as specified here:
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-2.2
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-parameter-specification
 type Mode uint8
 const (
 	ModeSimpleSHA2  Mode = 1
@@ -66,6 +66,8 @@ func (pub *PublicKey) UnmarshalPublic (data []byte) (err error) {
 	return nil
 }
 
+// GenerateKey generates a SLH-DSA key as specified in
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-key-generation
 func GenerateKey(_ io.Reader, mode Mode, param ParameterSetId) (priv *PrivateKey, err error) {
 	priv = new(PrivateKey)
 
@@ -82,15 +84,15 @@ func GenerateKey(_ io.Reader, mode Mode, param ParameterSetId) (priv *PrivateKey
 	return
 }
 
-// Sign generates a SPHINCS+ signature as specified in
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-6.1.2
+// Sign generates a SLH-DSA signature as specified in
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-signature-generation-2
 func Sign(priv *PrivateKey, message []byte) ([]byte, error) {
 	sig := sphincs.Spx_sign(priv.Parameters, message, priv.SecretData)
 	return sig.SerializeSignature()
 }
 
-// Verify verifies a SPHINCS+ signature as specified in
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-00.html#section-6.1.3
+// Verify verifies a SLH-DSA signature as specified in
+// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-signature-verification-2
 func Verify(pub *PublicKey, message, sig []byte) bool {
 	deserializedSig, err := sphincs.DeserializeSignature(pub.Parameters, sig)
 	if err != nil {
@@ -104,7 +106,7 @@ func Verify(pub *PublicKey, message, sig []byte) bool {
 func Validate(priv *PrivateKey) (err error) {
 	if subtle.ConstantTimeCompare(priv.PublicData.PKseed, priv.SecretData.PKseed) == 0 ||
 		subtle.ConstantTimeCompare(priv.PublicData.PKroot, priv.SecretData.PKroot) == 0 {
-		return errors.KeyInvalidError("sphincs_plus: invalid public key")
+		return errors.KeyInvalidError("slhdsa: invalid public key")
 	}
 
 	return
@@ -128,7 +130,7 @@ func GetParametersFromModeAndId(mode Mode, param ParameterSetId) (*parameters.Pa
 		case Param256f:
 			return parameters.MakeSphincsPlusSHA256256fSimple(false), nil
 		default:
-			return nil, goerrors.New("sphincs_plus: invalid sha2 parameter")
+			return nil, goerrors.New("slhdsa: invalid sha2 parameter")
 		}
 	case ModeSimpleShake:
 		switch param {
@@ -145,9 +147,9 @@ func GetParametersFromModeAndId(mode Mode, param ParameterSetId) (*parameters.Pa
 		case Param256f:
 			return parameters.MakeSphincsPlusSHAKE256256fSimple(false), nil
 		default:
-			return nil, goerrors.New("sphincs_plus: invalid shake parameter")
+			return nil, goerrors.New("slhdsa: invalid shake parameter")
 		}
 	default:
-		return nil, goerrors.New("sphincs_plus: invalid hash algorithm")
+		return nil, goerrors.New("slhdsa: invalid hash algorithm")
 	}
 }

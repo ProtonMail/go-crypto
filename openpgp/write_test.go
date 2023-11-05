@@ -435,127 +435,106 @@ func TestSymmetricEncryptionSEIPDv2RandomizeSlow(t *testing.T) {
 var testEncryptionTests = []struct {
 	keyRingHex string
 	isSigned   bool
-	okV4       bool
 	okV6       bool
 }{
 	{
 		testKeys1And2PrivateHex,
 		false,
 		true,
-		true,
 	},
 	{
 		testKeys1And2PrivateHex,
 		true,
 		true,
-		true,
 	},
 	{
 		dsaElGamalTestKeysHex,
 		false,
-		true,
 		false,
 	},
 	{
 		dsaElGamalTestKeysHex,
 		true,
-		true,
 		false,
 	},
 	{
-		dilithium3Ed25519Kyber768X25519PrivateHex,
-		false,
-		false,
-		true,
-	},
-	{
-		dilithium3Ed25519Kyber768X25519PrivateHex,
-		true,
+		dilithium3Ed25519Mlkem768X25519PrivateHex,
 		false,
 		true,
 	},
 	{
-		dilithium5Ed448Kyber1024X448PrivateHex,
-		false,
+		dilithium3Ed25519Mlkem768X25519PrivateHex,
+		true,
+		true,
+	},
+	{
+		dilithium5Ed448Mlkem1024X448PrivateHex,
 		false,
 		true,
 	},
 	{
-		dilithium5Ed448Kyber1024X448PrivateHex,
+		dilithium5Ed448Mlkem1024X448PrivateHex,
 		true,
+		true,
+	},
+	{
+		dilithium3P256Mlkem768P245PrivateHex,
 		false,
 		true,
 	},
 	{
-		dilithium3P256Kyber768P245PrivateHex,
-		false,
+		dilithium3P256Mlkem768P245PrivateHex,
+		true,
+		true,
+	},
+	{
+		dilithium5P384_Mlkem1024P384PrivateHex,
 		false,
 		true,
 	},
 	{
-		dilithium3P256Kyber768P245PrivateHex,
+		dilithium5P384_Mlkem1024P384PrivateHex,
 		true,
+		true,
+	},
+	{
+		dilithium3Brainpool256Mlkem768Brainpool256PrivateHex,
 		false,
 		true,
 	},
 	{
-		dilithium5P384_Kyber1024P384PrivateHex,
-		false,
+		dilithium3Brainpool256Mlkem768Brainpool256PrivateHex,
+		true,
+		true,
+	},
+	{
+		dilithium5Brainpool384Mlkem1024Brainpool384PrivateHex,
 		false,
 		true,
 	},
 	{
-		dilithium5P384_Kyber1024P384PrivateHex,
+		dilithium5Brainpool384Mlkem1024Brainpool384PrivateHex,
 		true,
+		true,
+	},
+	{
+		slhDsaSha2Mlkem1024X448PrivateHex,
 		false,
 		true,
 	},
 	{
-		dilithium3Brainpool256Kyber786Brainpool256PrivateHex,
-		false,
+		slhDsaSha2Mlkem1024X448PrivateHex,
+		true,
+		true,
+	},
+	{
+		slhDsaShakeMlkem1024X448PrivateHex,
 		false,
 		true,
 	},
 	{
-		dilithium3Brainpool256Kyber786Brainpool256PrivateHex,
+		slhDsaShakeMlkem1024X448PrivateHex,
 		true,
-		false,
-		true,
-	},
-	{
-		dilithium5Brainpool384Kyber1024Brainpool384PrivateHex,
-		false,
-		false,
-		true,
-	},
-	{
-		dilithium5Brainpool384Kyber1024Brainpool384PrivateHex,
-		true,
-		false,
-		true,
-	},
-	{
-		sphincsPlusSha2Kyber1024X448PrivateHex,
-		false,
-		false,
-		true,
-	},
-	{
-		sphincsPlusSha2Kyber1024X448PrivateHex,
-		true,
-		false,
-		true,
-	},
-	{
-		sphincsPlusShakeKyber1024X448PrivateHex,
-		false,
-		false,
-		true,
-	},
-	{
-		sphincsPlusShakeKyber1024X448PrivateHex,
-		true,
-		false,
 		true,
 	},
 }
@@ -600,6 +579,7 @@ func TestEncryption(t *testing.T) {
 		var config = &packet.Config{
 			DefaultCompressionAlgo: compAlgo,
 			CompressionConfig:      compConf,
+			DefaultCipher: 			packet.CipherAES128,
 		}
 
 		// Flip coin to enable AEAD mode
@@ -613,14 +593,6 @@ func TestEncryption(t *testing.T) {
 		w, err := Encrypt(buf, kring[:1], signed, nil /* no hints */, config)
 		if (err != nil) == (test.okV6 && config.AEAD() != nil) {
 			// ElGamal is not allowed with v6
-			continue
-		}
-
-		if !test.okV4 && config.AEAD() == nil {
-			// PQC is not allowed with v6
-			if err == nil {
-				t.Errorf("#%d: no error when encrypting with forbidden v4 packet", i)
-			}
 			continue
 		}
 
@@ -804,9 +776,9 @@ ParsePackets:
 			// This packet contains the decryption key encrypted to a public key.
 			switch p.Algo {
 			case packet.PubKeyAlgoRSA, packet.PubKeyAlgoRSAEncryptOnly, packet.PubKeyAlgoElGamal, packet.PubKeyAlgoECDH,
-				packet.PubKeyAlgoKyber768X25519, packet.PubKeyAlgoKyber1024X448, packet.PubKeyAlgoKyber768P256,
-				packet.PubKeyAlgoKyber1024P384, packet.PubKeyAlgoKyber768Brainpool256,
-				packet.PubKeyAlgoKyber1024Brainpool384:
+				packet.PubKeyAlgoMlkem768X25519, packet.PubKeyAlgoMlkem1024X448, packet.PubKeyAlgoMlkem768P256,
+				packet.PubKeyAlgoMlkem1024P384, packet.PubKeyAlgoMlkem768Brainpool256,
+				packet.PubKeyAlgoMlkem1024Brainpool384:
 				break
 			default:
 				continue
