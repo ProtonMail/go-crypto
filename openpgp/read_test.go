@@ -433,6 +433,11 @@ func TestDetachedSignatureExpiredCrossSig(t *testing.T) {
 	if err != errors.ErrSignatureExpired {
 		t.Fatalf("Unexpected class of error: %s", err)
 	}
+	config.IgnoreSignatureExpiration = true
+	_, err = CheckArmoredDetachedSignature(kring, bytes.NewBufferString("Hello World :)"), bytes.NewBufferString(sigFromKeyWithExpiredCrossSig), config)
+	if err != nil {
+		t.Fatalf("Expected signature expiration check to be skipped")
+	}
 }
 
 func TestSignatureUnknownNotation(t *testing.T) {
