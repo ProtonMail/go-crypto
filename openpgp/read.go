@@ -548,7 +548,8 @@ func CheckArmoredDetachedSignature(keyring KeyRing, signed, signature io.Reader,
 //   - The signing subkey binding signature is expired
 //   - The signing subkey cross-signature is expired
 //
-// NOTE: The order of these checks is important, as the caller may choose to
+// NOTE (deprecated, use config.Ignore(Key/Signature)Expiration):
+// The order of these checks is important, as the caller may choose to
 // ignore ErrSignatureExpired or ErrKeyExpired errors, but should never
 // ignore any other errors.
 //
@@ -570,22 +571,26 @@ func checkSignatureDetails(key *Key, signature *packet.Signature, config *packet
 			}
 		}
 	}
-	if key.Entity.Revoked(now) || // primary key is revoked
-		(signedBySubKey && key.Revoked(now)) || // subkey is revoked
-		primaryIdentity.Revoked(now) { // primary identity is revoked
-		return errors.ErrKeyRevoked
-	}
-	if key.Entity.PrimaryKey.KeyExpired(primaryIdentity.SelfSignature, now) { // primary key is expired
-		return errors.ErrKeyExpired
-	}
-	if signedBySubKey {
-		if key.PublicKey.KeyExpired(key.SelfSignature, now) { // subkey is expired
+	if config == nil || !config.IgnoreKeyExpiration {
+		if key.Entity.Revoked(now) || // primary key is revoked
+			(signedBySubKey && key.Revoked(now)) || // subkey is revoked
+			primaryIdentity.Revoked(now) { // primary identity is revoked
+			return errors.ErrKeyRevoked
+		}
+		if key.Entity.PrimaryKey.KeyExpired(primaryIdentity.SelfSignature, now) { // primary key is expired
 			return errors.ErrKeyExpired
 		}
+		if signedBySubKey {
+			if key.PublicKey.KeyExpired(key.SelfSignature, now) { // subkey is expired
+				return errors.ErrKeyExpired
+			}
+		}
 	}
-	for _, sig := range sigsToCheck {
-		if sig.SigExpired(now) { // any of the relevant signatures are expired
-			return errors.ErrSignatureExpired
+	if config == nil || !config.IgnoreSignatureExpiration {
+		for _, sig := range sigsToCheck {
+			if sig.SigExpired(now) { // any of the relevant signatures are expired
+				return errors.ErrSignatureExpired
+			}
 		}
 	}
 	return nil

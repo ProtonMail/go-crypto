@@ -29,6 +29,10 @@ type Config struct {
 	// Time returns the current time as the number of seconds since the
 	// epoch. If Time is nil, time.Now is used.
 	Time func() time.Time
+	// Ignore Key Expiration, some clients may not care about expiration
+	IgnoreKeyExpiration bool
+	// Ignore Signature Expiration, some clients may not care about expiration
+	IgnoreSignatureExpiration bool
 	// DefaultCompressionAlgo is the compression algorithm to be
 	// applied to the plaintext before encryption. If zero, no
 	// compression is done.
