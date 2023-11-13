@@ -737,6 +737,20 @@ func (pk *PublicKey) VerifyKeySignature(signed *PublicKey, sig *Signature) error
 	return nil
 }
 
+// VerifyKeySignatureV3 returns nil iff sig is a valid signature, made by this
+// public key, of signed.
+func (pk *PublicKey) VerifyKeySignatureV3(signed *PublicKey, sig *SignatureV3) (err error) {
+	if signed.CanSign() {
+		// Signing subkeys must be cross-signed, and this is not supported for v3 sigs
+		return errors.StructuralError("signing subkey may not have a v3 binding signature")
+	}
+	h, err := keySignatureHash(pk, signed, sig.Hash)
+	if err != nil {
+		return err
+	}
+	return pk.VerifySignatureV3(h, sig)
+}
+
 func keyRevocationHash(pk signingKey, hashFunc crypto.Hash) (h hash.Hash, err error) {
 	if !hashFunc.Available() {
 		return nil, errors.UnsupportedError("hash function")
