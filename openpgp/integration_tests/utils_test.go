@@ -228,8 +228,8 @@ func randConfig() *packet.Config {
 
 	compAlgos := []packet.CompressionAlgo{
 		packet.CompressionNone,
-		//packet.CompressionZIP,
-		//packet.CompressionZLIB,
+		packet.CompressionZIP,
+		packet.CompressionZLIB,
 	}
 	compAlgo := compAlgos[mathrand.Intn(len(compAlgos))]
 
@@ -265,7 +265,7 @@ func randConfig() *packet.Config {
 	}
 
 	level := mathrand.Intn(11) - 1
-	compConf := &packet.CompressionConfig{level}
+	compConf := &packet.CompressionConfig{Level: level}
 
 	var v6 bool
 	if mathrand.Int()%2 == 0 {

@@ -228,8 +228,8 @@ func randConfig() *packet.Config {
 
 	compAlgos := []packet.CompressionAlgo{
 		packet.CompressionNone,
-		//packet.CompressionZIP,
-		//packet.CompressionZLIB,
+		packet.CompressionZIP,
+		packet.CompressionZLIB,
 	}
 	compAlgo := compAlgos[mathrand.Intn(len(compAlgos))]
 
