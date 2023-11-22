@@ -11,27 +11,32 @@ import (
 	"golang.org/x/crypto/hkdf"
 )
 
-const hkdfInfo = "OpenPGP X25519"
-const aes128KeySize = 16
-const PointSize = 32
+const (
+	hkdfInfo      = "OpenPGP X25519"
+	aes128KeySize = 16
+	// The size of a public or private key in bytes.
+	KeySize = x25519lib.Size
+)
 
 type PublicKey struct {
+	// Point represents the encoded elliptic curve point of the public key.
 	Point []byte
 }
 
 type PrivateKey struct {
 	PublicKey
+	// Secret represents the secret of the private key.
 	Secret []byte
 }
 
+// NewPrivateKey creates a new empty private key including the public key.
 func NewPrivateKey(key PublicKey) *PrivateKey {
 	return &PrivateKey{
 		PublicKey: key,
 	}
 }
 
-// Validate validates that the provided public key matches
-// the private key.
+// Validate validates that the provided public key matches the private key.
 func Validate(pk *PrivateKey) (err error) {
 	var expectedPublicKey, privateKey x25519lib.Key
 	subtle.ConstantTimeCopy(1, privateKey[:], pk.Secret)
@@ -42,7 +47,7 @@ func Validate(pk *PrivateKey) (err error) {
 	return nil
 }
 
-// GenerateKey generates a new x25519 key pair
+// GenerateKey generates a new x25519 key pair.
 func GenerateKey(rand io.Reader) (*PrivateKey, error) {
 	var privateKey, publicKey x25519lib.Key
 	privateKeyOut := new(PrivateKey)
@@ -72,13 +77,13 @@ func generateKey(rand io.Reader, privateKey *x25519lib.Key, publicKey *x25519lib
 	return nil
 }
 
-// Encrypt encrpyts a sessionKey with x25519 according to
+// Encrypt encrypts a sessionKey with x25519 according to
 // the OpenPGP crypto refresh specification section 5.1.6. The function assumes that the
 // sessionKey has the correct format and padding according to the specification.
 func Encrypt(rand io.Reader, publicKey *PublicKey, sessionKey []byte) (ephemeralPublicKey *PublicKey, encryptedSessionKey []byte, err error) {
 	var ephemeralPrivate, ephemeralPublic, staticPublic, shared x25519lib.Key
 	// Check that the input static public key has 32 bytes
-	if len(publicKey.Point) != PointSize {
+	if len(publicKey.Point) != KeySize {
 		err = errors.KeyInvalidError("x25519: the public key has the wrong size")
 		return
 	}
@@ -105,11 +110,11 @@ func Encrypt(rand io.Reader, publicKey *PublicKey, sessionKey []byte) (ephemeral
 }
 
 // Decrypt decrypts a session key stored in ciphertext with the provided x25519
-// private key and ephemeral public key
+// private key and ephemeral public key.
 func Decrypt(privateKey *PrivateKey, ephemeralPublicKey *PublicKey, ciphertext []byte) (encodedSessionKey []byte, err error) {
 	var ephemeralPublic, staticPrivate, shared x25519lib.Key
 	// Check that the input ephemeral public key has 32 bytes
-	if len(ephemeralPublicKey.Point) != PointSize {
+	if len(ephemeralPublicKey.Point) != KeySize {
 		err = errors.KeyInvalidError("x25519: the public key has the wrong size")
 		return
 	}
@@ -129,11 +134,11 @@ func Decrypt(privateKey *PrivateKey, ephemeralPublicKey *PublicKey, ciphertext [
 }
 
 func applyHKDF(ephemeralPublicKey []byte, publicKey []byte, sharedSecret []byte) []byte {
-	inputKey := make([]byte, 3*PointSize)
+	inputKey := make([]byte, 3*KeySize)
 	// ephemeral public key | recipient public key | shared secret
-	subtle.ConstantTimeCopy(1, inputKey[:PointSize], ephemeralPublicKey)
-	subtle.ConstantTimeCopy(1, inputKey[PointSize:2*PointSize], publicKey)
-	subtle.ConstantTimeCopy(1, inputKey[2*PointSize:], sharedSecret)
+	subtle.ConstantTimeCopy(1, inputKey[:KeySize], ephemeralPublicKey)
+	subtle.ConstantTimeCopy(1, inputKey[KeySize:2*KeySize], publicKey)
+	subtle.ConstantTimeCopy(1, inputKey[2*KeySize:], sharedSecret)
 	hkdfReader := hkdf.New(sha256.New, inputKey, []byte{}, []byte(hkdfInfo))
 	encryptionKey := make([]byte, aes128KeySize)
 	_, _ = io.ReadFull(hkdfReader, encryptionKey)
@@ -151,67 +156,66 @@ func constantTimeIsZero(bytes []byte) bool {
 // ENCODING/DECODING ciphertexts:
 
 // EncodeFieldsLength returns the length of the ciphertext encoding
-// given the encrpyted session key.
+// given the encrypted session key.
 func EncodedFieldsLength(encryptedSessionKey []byte, v6 bool) int {
 	lenCipherFunction := 0
 	if !v6 {
 		lenCipherFunction = 1
 	}
-	return PointSize + 1 + len(encryptedSessionKey) + lenCipherFunction
+	return KeySize + 1 + len(encryptedSessionKey) + lenCipherFunction
 }
 
-// EncodeField encodes X25519 session key encryption as
+// EncodeField encodes X25519 session key encryption fields as
 // ephemeral X25519 public key | follow byte length | cipherFunction (v3 only) | encryptedSessionKey
-// and writes it to writer
+// and writes it to writer.
 func EncodeFields(writer io.Writer, ephemeralPublicKey *PublicKey, encryptedSessionKey []byte, cipherFunction byte, v6 bool) (err error) {
 	lenAlgorithm := 0
 	if !v6 {
 		lenAlgorithm = 1
 	}
 	if _, err = writer.Write(ephemeralPublicKey.Point); err != nil {
-		return
+		return err
 	}
 	if _, err = writer.Write([]byte{byte(len(encryptedSessionKey) + lenAlgorithm)}); err != nil {
-		return
+		return err
 	}
 	if !v6 {
 		if _, err = writer.Write([]byte{cipherFunction}); err != nil {
-			return
+			return err
 		}
 	}
 	_, err = writer.Write(encryptedSessionKey)
-	return
+	return err
 }
 
 // DecodeField decodes a X25519 session key encryption as
-// ephemeral X25519 public key | follow byte length | cipherFunction (v3 only) | encryptedSessionKey
+// ephemeral X25519 public key | follow byte length | cipherFunction (v3 only) | encryptedSessionKey.
 func DecodeFields(reader io.Reader, v6 bool) (ephemeralPublicKey *PublicKey, encryptedSessionKey []byte, cipherFunction byte, err error) {
 	var buf [1]byte
 	ephemeralPublicKey = &PublicKey{
-		Point: make([]byte, PointSize),
+		Point: make([]byte, KeySize),
 	}
 	// 32 octets representing an ephemeral X25519 public key.
-	_, err = io.ReadFull(reader, ephemeralPublicKey.Point)
-	if err != nil {
-		return
+	if _, err = io.ReadFull(reader, ephemeralPublicKey.Point); err != nil {
+		return nil, nil, 0, err
 	}
 	// A one-octet size of the following fields.
-	_, err = io.ReadFull(reader, buf[:])
-	if err != nil {
-		return
+	if _, err = io.ReadFull(reader, buf[:]); err != nil {
+		return nil, nil, 0, err
 	}
 	followingLen := buf[0]
 	// The one-octet algorithm identifier, if it was passed (in the case of a v3 PKESK packet).
 	if !v6 {
-		_, err = io.ReadFull(reader, buf[:])
-		if err != nil {
-			return
+		if _, err = io.ReadFull(reader, buf[:]); err != nil {
+			return nil, nil, 0, err
 		}
 		cipherFunction = buf[0]
 		followingLen -= 1
 	}
 	// The encrypted session key.
 	encryptedSessionKey = make([]byte, followingLen)
-	_, err = io.ReadFull(reader, encryptedSessionKey)
-	return
+	if _, err = io.ReadFull(reader, encryptedSessionKey); err != nil {
+		return nil, nil, 0, err
+	}
+	return ephemeralPublicKey, encryptedSessionKey, cipherFunction, nil
 }

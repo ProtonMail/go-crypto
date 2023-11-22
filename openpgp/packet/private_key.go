@@ -967,9 +967,9 @@ func (pk *PrivateKey) parseX25519PrivateKey(data []byte) (err error) {
 	privateKey := x25519.NewPrivateKey(*publicKey)
 	privateKey.PublicKey = *publicKey
 
-	privateKey.Secret = make([]byte, x25519.PointSize)
+	privateKey.Secret = make([]byte, x25519.KeySize)
 
-	if len(data) != x25519.PointSize {
+	if len(data) != x25519.KeySize {
 		err = errors.StructuralError("wrong X25519 key size")
 	}
 	copy(privateKey.Secret, data)
