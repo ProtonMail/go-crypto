@@ -11,10 +11,10 @@ func TestGenerate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(privateKey.Secret) != PointSize {
+	if len(privateKey.Secret) != KeySize {
 		t.Fatal("key has the wrong size")
 	}
-	if len(privateKey.PublicKey.Point) != PointSize {
+	if len(privateKey.PublicKey.Point) != KeySize {
 		t.Fatal("key has the wrong size")
 	}
 }

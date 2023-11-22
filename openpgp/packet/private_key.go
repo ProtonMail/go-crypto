@@ -986,9 +986,9 @@ func (pk *PrivateKey) parseX448PrivateKey(data []byte) (err error) {
 	privateKey := x448.NewPrivateKey(*publicKey)
 	privateKey.PublicKey = *publicKey
 
-	privateKey.Secret = make([]byte, x448.PointSize)
+	privateKey.Secret = make([]byte, x448.KeySize)
 
-	if len(data) != x448.PointSize {
+	if len(data) != x448.KeySize {
 		err = errors.StructuralError("wrong x448 key size")
 	}
 	copy(privateKey.Secret, data)
