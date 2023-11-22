@@ -4,7 +4,7 @@
 
 // Package armor implements OpenPGP ASCII Armor, see RFC 4880. OpenPGP Armor is
 // very similar to PEM except that it has an additional CRC checksum.
-package armor // import "github.com/ProtonMail/go-crypto/v2/openpgp/armor"
+package armor // import "github.com/ProtonMail/go-crypto/openpgp/armor"
 
 import (
 	"bufio"
@@ -100,9 +100,7 @@ func (l *lineReader) Read(p []byte) (n int, err error) {
 	return
 }
 
-// openpgpReader passes Read calls to the underlying base64 decoder, but keeps
-// a running CRC of the resulting data and checks the CRC against the value
-// found by the lineReader at EOF.
+// openpgpReader passes Read calls to the underlying base64 decoder.
 type openpgpReader struct {
 	lReader   *lineReader
 	b64Reader io.Reader

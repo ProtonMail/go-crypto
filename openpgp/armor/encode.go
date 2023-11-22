@@ -16,7 +16,6 @@ var armorEndOfLineOut = []byte("-----\n")
 
 const crc24Init = 0xb704ce
 const crc24Poly = 0x1864cfb
-const crc24Mask = 0xffffff
 
 // crc24 calculates the OpenPGP checksum as specified in RFC 4880, section 6.1
 func crc24(crc uint32, d []byte) uint32 {

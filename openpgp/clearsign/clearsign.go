@@ -476,25 +476,3 @@ func nameOfHash(h crypto.Hash) string {
 	}
 	return ""
 }
-
-// nameToHash returns a hash for a given OpenPGP name, or 0
-// if the name isn't known. See RFC 4880, section 9.4.
-func nameToHash(h string) crypto.Hash {
-	switch h {
-	case "SHA1":
-		return crypto.SHA1
-	case "SHA224":
-		return crypto.SHA224
-	case "SHA256":
-		return crypto.SHA256
-	case "SHA384":
-		return crypto.SHA384
-	case "SHA512":
-		return crypto.SHA512
-	case "SHA3-256":
-		return crypto.SHA3_256
-	case "SHA3-512":
-		return crypto.SHA3_512
-	}
-	return crypto.Hash(0)
-}
