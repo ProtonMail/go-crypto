@@ -41,7 +41,7 @@ type EncryptedKey struct {
 
 func (e *EncryptedKey) parse(r io.Reader) (err error) {
 	var buf [8]byte
-	_, err = readFull(r, buf[:1])
+	_, err = readFull(r, buf[:versionSize])
 	if err != nil {
 		return
 	}
@@ -51,15 +51,14 @@ func (e *EncryptedKey) parse(r io.Reader) (err error) {
 	}
 	if e.Version == 6 {
 		//Read a one-octet size of the following two fields.
-		_, err = readFull(r, buf[:1])
-		if err != nil {
+		if _, err = readFull(r, buf[:1]); err != nil {
 			return
 		}
 		// The size may also be zero, and the key version and
 		// fingerprint omitted for an "anonymous recipient"
 		if buf[0] != 0 {
 			// non-anonymous case
-			_, err = readFull(r, buf[:1])
+			_, err = readFull(r, buf[:versionSize])
 			if err != nil {
 				return
 			}
@@ -69,9 +68,9 @@ func (e *EncryptedKey) parse(r io.Reader) (err error) {
 			}
 			var fingerprint []byte
 			if e.KeyVersion == 6 {
-				fingerprint = make([]byte, 32)
+				fingerprint = make([]byte, fingerprintSizeV6)
 			} else if e.KeyVersion == 4 {
-				fingerprint = make([]byte, 20)
+				fingerprint = make([]byte, fingerprintSize)
 			}
 			_, err = readFull(r, fingerprint)
 			if err != nil {
@@ -79,9 +78,9 @@ func (e *EncryptedKey) parse(r io.Reader) (err error) {
 			}
 			e.KeyFingerprint = fingerprint
 			if e.KeyVersion == 6 {
-				e.KeyId = binary.BigEndian.Uint64(e.KeyFingerprint[:8])
+				e.KeyId = binary.BigEndian.Uint64(e.KeyFingerprint[:keyIdSize])
 			} else if e.KeyVersion == 4 {
-				e.KeyId = binary.BigEndian.Uint64(e.KeyFingerprint[12:20])
+				e.KeyId = binary.BigEndian.Uint64(e.KeyFingerprint[fingerprintSize-keyIdSize : fingerprintSize])
 			}
 		}
 	} else {
@@ -89,7 +88,7 @@ func (e *EncryptedKey) parse(r io.Reader) (err error) {
 		if err != nil {
 			return
 		}
-		e.KeyId = binary.BigEndian.Uint64(buf[:8])
+		e.KeyId = binary.BigEndian.Uint64(buf[:keyIdSize])
 	}
 
 	_, err = readFull(r, buf[:1])
@@ -206,6 +205,9 @@ func (e *EncryptedKey) Decrypt(priv *PrivateKey, config *Config) error {
 			}
 		}
 		key, err = decodeChecksumKey(b[keyOffset:])
+		if err != nil {
+			return err
+		}
 	case PubKeyAlgoX25519, PubKeyAlgoX448:
 		if e.Version < 6 {
 			switch e.CipherFunc {
@@ -216,9 +218,8 @@ func (e *EncryptedKey) Decrypt(priv *PrivateKey, config *Config) error {
 			}
 		}
 		key = b[:]
-	}
-	if err != nil {
-		return err
+	default:
+		return errors.UnsupportedError("unsupported algorithm for decryption")
 	}
 	e.Key = key
 	return nil
@@ -242,13 +243,13 @@ func (e *EncryptedKey) Serialize(w io.Writer) error {
 		return errors.InvalidArgumentError("don't know how to serialize encrypted key type " + strconv.Itoa(int(e.Algo)))
 	}
 
-	packetLen := 1 /* version */ + 8 /* key id */ + 1 /* algo */ + encodedLength
+	packetLen := versionSize /* version */ + keyIdSize /* key id */ + algorithmSize /* algo */ + encodedLength
 	if e.Version == 6 {
-		packetLen = 1 /* version */ + 1 /* algo */ + encodedLength + 1 /* key version */
+		packetLen = versionSize /* version */ + algorithmSize /* algo */ + encodedLength + keyVersionSize /* key version */
 		if e.KeyVersion == 6 {
-			packetLen += 32
+			packetLen += fingerprintSizeV6
 		} else if e.KeyVersion == 4 {
-			packetLen += 20
+			packetLen += fingerprintSize
 		}
 	}
 
@@ -313,7 +314,7 @@ func (e *EncryptedKey) Serialize(w io.Writer) error {
 	}
 }
 
-// SerializeEncryptedKey serializes an encrypted key packet to w that contains
+// SerializeEncryptedKeyAEAD serializes an encrypted key packet to w that contains
 // key, encrypted to pub.
 // If aeadSupported is set, PKESK v6 is used else v4.
 // If config is nil, sensible defaults will be used.
@@ -328,7 +329,7 @@ func SerializeEncryptedKeyAEAD(w io.Writer, pub *PublicKey, cipherFunc CipherFun
 // If config is nil, sensible defaults will be used.
 func SerializeEncryptedKeyAEADwithHiddenOption(w io.Writer, pub *PublicKey, cipherFunc CipherFunction, aeadSupported bool, key []byte, hidden bool, config *Config) error {
 	var buf [36]byte // max possible header size is v6
-	lenHeaderWritten := 1
+	lenHeaderWritten := versionSize
 	version := 3
 
 	if aeadSupported {
@@ -357,12 +358,13 @@ func SerializeEncryptedKeyAEADwithHiddenOption(w io.Writer, pub *PublicKey, ciph
 	if version == 6 {
 		if !hidden {
 			// A one-octet size of the following two fields.
-			buf[1] = byte(1 + len(pub.Fingerprint))
+			buf[1] = byte(keyVersionSize + len(pub.Fingerprint))
 			// A one octet key version number.
 			buf[2] = byte(pub.Version)
+			lenHeaderWritten += keyVersionSize + 1
 			// The fingerprint of the public key
-			copy(buf[3:len(pub.Fingerprint)+3], pub.Fingerprint)
-			lenHeaderWritten += len(pub.Fingerprint) + 2
+			copy(buf[lenHeaderWritten:lenHeaderWritten+len(pub.Fingerprint)], pub.Fingerprint)
+			lenHeaderWritten += len(pub.Fingerprint)
 		} else {
 			// The size may also be zero, and the key version
 			// and fingerprint omitted for an "anonymous recipient"
@@ -371,12 +373,12 @@ func SerializeEncryptedKeyAEADwithHiddenOption(w io.Writer, pub *PublicKey, ciph
 		}
 	} else {
 		if !hidden {
-			binary.BigEndian.PutUint64(buf[1:9], pub.KeyId)
+			binary.BigEndian.PutUint64(buf[versionSize:(versionSize+keyIdSize)], pub.KeyId)
 		}
-		lenHeaderWritten += 8
+		lenHeaderWritten += keyIdSize
 	}
 	buf[lenHeaderWritten] = byte(pub.PubKeyAlgo)
-	lenHeaderWritten += 1
+	lenHeaderWritten += algorithmSize
 
 	var keyBlock []byte
 	switch pub.PubKeyAlgo {
@@ -423,9 +425,9 @@ func SerializeEncryptedKey(w io.Writer, pub *PublicKey, cipherFunc CipherFunctio
 	return SerializeEncryptedKeyAEAD(w, pub, cipherFunc, config.AEAD() != nil, key, config)
 }
 
-// SerializeEncryptedKey serializes an encrypted key packet to w that contains
-// key, encrypted to pub.
-// PKESKv6 is used if config.AEAD() is not nil.
+// SerializeEncryptedKeyWithHiddenOption serializes an encrypted key packet to w that contains
+// key, encrypted to pub. PKESKv6 is used if config.AEAD() is not nil.
+// The hidden option controls if the packet should be anonymous, i.e., omit key metadata.
 // If config is nil, sensible defaults will be used.
 func SerializeEncryptedKeyWithHiddenOption(w io.Writer, pub *PublicKey, cipherFunc CipherFunction, key []byte, hidden bool, config *Config) error {
 	return SerializeEncryptedKeyAEADwithHiddenOption(w, pub, cipherFunc, config.AEAD() != nil, key, hidden, config)

@@ -656,3 +656,18 @@ type TrustLevel uint8
 
 // TrustAmount represents a trust amount per RFC4880 5.2.3.13
 type TrustAmount uint8
+
+const (
+	// versionSize is the length in bytes of the version value.
+	versionSize = 1
+	// algorithmSize is the length in bytes of the key algorithm value.
+	algorithmSize = 1
+	// keyVersionSize is the length in bytes of the key version value
+	keyVersionSize = 1
+	// keyIdSize is the length in bytes of the key identifier value.
+	keyIdSize = 8
+	// fingerprintSizeV6 is the length in bytes of the key fingerprint in v6.
+	fingerprintSizeV6 = 32
+	// fingerprintSize is the length in bytes of the key fingerprint.
+	fingerprintSize = 20
+)
