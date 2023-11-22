@@ -11,7 +11,7 @@ func TestGenerate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(priv.Key) != 114 && len(priv.Point) != 57 {
+	if len(priv.Key) != SeedSize+PublicKeySize && len(priv.Point) != PublicKeySize {
 		t.Error("gnerated wrong key sizes")
 	}
 }

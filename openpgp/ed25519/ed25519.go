@@ -62,6 +62,7 @@ func (sk *PrivateKey) UnmarshalByteSecret(seed []byte) error {
 	return nil
 }
 
+// GenerateKey generates a fresh private key with the provided randomness source.
 func GenerateKey(rand io.Reader) (*PrivateKey, error) {
 	publicKey, privateKey, err := ed25519lib.GenerateKey(rand)
 	if err != nil {

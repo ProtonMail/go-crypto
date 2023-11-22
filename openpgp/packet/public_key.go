@@ -546,7 +546,7 @@ func (pk *PublicKey) parseEd25519(r io.Reader) (err error) {
 }
 
 func (pk *PublicKey) parseEd448(r io.Reader) (err error) {
-	point := make([]byte, ed448.PointSize)
+	point := make([]byte, ed448.PublicKeySize)
 	_, err = io.ReadFull(r, point)
 	if err != nil {
 		return
@@ -634,7 +634,7 @@ func (pk *PublicKey) algorithmSpecificByteCount() int {
 	case PubKeyAlgoEd25519:
 		length += ed25519.PublicKeySize
 	case PubKeyAlgoEd448:
-		length += ed448.PointSize
+		length += ed448.PublicKeySize
 	default:
 		panic("unknown public key algorithm")
 	}
@@ -989,7 +989,7 @@ func (pk *PublicKey) BitLength() (bitLength uint16, err error) {
 	case PubKeyAlgoEd25519:
 		bitLength = ed25519.PublicKeySize * 8
 	case PubKeyAlgoEd448:
-		bitLength = ed448.PointSize * 8
+		bitLength = ed448.PublicKeySize * 8
 	default:
 		err = errors.InvalidArgumentError("bad public-key algorithm")
 	}

@@ -1025,7 +1025,7 @@ func (pk *PrivateKey) parseEd448PrivateKey(data []byte) (err error) {
 	privateKey := ed448.NewPrivateKey(*publicKey)
 	privateKey.PublicKey = *publicKey
 
-	if len(data) != ed448.PointSize {
+	if len(data) != ed448.SeedSize {
 		err = errors.StructuralError("wrong ed448 key size")
 	}
 	err = privateKey.UnmarshalByteSecret(data)
