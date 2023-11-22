@@ -737,7 +737,12 @@ func verifyDetachedSignatureReader(keyring KeyRing, signed, signature io.Reader,
 	return md, nil
 }
 
-// checkSignatureDetails returns an error if:
+// checkSignatureDetails verifies the metadata of the signature.
+// Checks the following:
+// - Hash function should not be invalid.
+// - Verification key must be older than the signature creation time.
+// - Check signature notations.
+// - Signature is not expired.
 func checkSignatureDetails(verifiedKey *Key, signature *packet.Signature, config *packet.Config) error {
 	var collectedErrors []error
 	now := config.Now()
