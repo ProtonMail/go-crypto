@@ -69,11 +69,8 @@ type Config struct {
 	//
 	// Deprecated: SK2Count should be configured in S2KConfig instead.
 	S2KCount int
-	// An S2K specifier can be stored in the secret keyring to specify
-	// how to convert the passphrase to a key that unlocks the secret data.
-	// This config allows to set this key encryption parameters.
-	// If nil, the default parameters are used.
-	// See OpenPGP crypto refresh 3.7.2.1.
+	// RSABits is the number of bits in new RSA keys made with NewEntity.
+	// If zero, then 2048 bit keys are created.
 	RSABits int
 	// The public key algorithm to use - will always create a signing primary
 	// key and encryption subkey.
@@ -134,20 +131,20 @@ type Config struct {
 	KnownNotations map[string]bool
 	// SignatureNotations is a list of Notations to be added to any signatures.
 	SignatureNotations []*Notation
-	// CheckIntendedRecipients is a flag that indicates if
-	// a decryption key for an encrypted and signed messages should be checked
-	// to be present in the signatures intended recipient list.
-	// In encrypt and sign intended recipients are only included if this flag is true.
-	// if config is nil or flag is nil, it defaults to true
+	// CheckIntendedRecipients controls, whether the OpenPGP Intended Recipient Fingerprint feature
+	// should be enabled for encryption and decryption.
+	// (See https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-12.html#name-intended-recipient-fingerpr).
+	// When the flag is set, encryption produces Intended Recipient Fingerprint signature sub-packets and decryption
+	// checks whether the key it was encrypted to is one of the included fingerprints in the signature.
+	// If the flag is disabled, no Intended Recipient Fingerprint sub-packets are created or checked.
+	// The default behavior, when the config or flag is nil, is to enable the feature.
 	CheckIntendedRecipients *bool
-	// CacheSessionKey is a flag that indicates
-	// if a session key if any should be cached and returned in
-	// a pgp message decryption.
+	// CacheSessionKey controls if decryption should return the session key used for decryption.
+	// If the flag is set, the session key is cached in the message details struct.
 	CacheSessionKey bool
-	// CheckPacketSequence is a flag that indicates
-	// if the pgp message parser should strictly check
+	// CheckPacketSequence is a flag that controls if the pgp message reader should strictly check
 	// that the packet sequence conforms with the grammar mandated by rfc4880.
-	// The default value is true.
+	// The default behavior, when the config or flag is nil, is to check he packet sequence.
 	CheckPacketSequence *bool
 }
 
