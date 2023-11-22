@@ -952,11 +952,10 @@ func (sig *Signature) SignUserId(id string, pub *PublicKey, priv *PrivateKey, co
 	if err != nil {
 		return err
 	}
-	h, err := userIdSignatureHash(id, pub, prepareHash)
-	if err != nil {
+	if err := userIdSignatureHash(id, pub, prepareHash); err != nil {
 		return err
 	}
-	return sig.Sign(h, priv, config)
+	return sig.Sign(prepareHash, priv, config)
 }
 
 // SignUserId computes a signature from priv
@@ -971,11 +970,10 @@ func (sig *Signature) SignDirectKeyBinding(pub *PublicKey, priv *PrivateKey, con
 	if err != nil {
 		return err
 	}
-	h, err := directKeySignatureHash(pub, prepareHash)
-	if err != nil {
+	if err := directKeySignatureHash(pub, prepareHash); err != nil {
 		return err
 	}
-	return sig.Sign(h, priv, config)
+	return sig.Sign(prepareHash, priv, config)
 }
 
 // CrossSignKey computes a signature from signingKey on pub hashed using hashKey. On success,

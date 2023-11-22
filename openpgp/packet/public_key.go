@@ -32,9 +32,6 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/x448"
 )
 
-type kdfHashFunction byte
-type kdfAlgorithm byte
-
 // PublicKey represents an OpenPGP public key. See RFC 4880, section 5.5.2.
 type PublicKey struct {
 	Version      int
@@ -570,9 +567,15 @@ func (pk *PublicKey) SerializeForHash(w io.Writer) error {
 // RFC 4880, section 5.2.4.
 func (pk *PublicKey) SerializeSignaturePrefix(w io.Writer) {
 	var pLength = pk.algorithmSpecificByteCount()
+	// version, timestamp, algorithm
+	pLength += versionSize + timestampSize + algorithmSize
 	if pk.Version >= 5 {
-		pLength += 10 // version, timestamp (4), algorithm, key octet count (4).
+		// key octet count (4).
+		pLength += 4
 		w.Write([]byte{
+			// When a v4 signature is made over a key, the hash data starts with the octet 0x99, followed by a two-octet length
+			// of the key, and then the body of the key packet. When a v6 signature is made over a key, the hash data starts
+			// with the salt, then octet 0x9B, followed by a four-octet length of the key, and then the body of the key packet.
 			0x95 + byte(pk.Version),
 			byte(pLength >> 24),
 			byte(pLength >> 16),
@@ -581,12 +584,11 @@ func (pk *PublicKey) SerializeSignaturePrefix(w io.Writer) {
 		})
 		return
 	}
-	pLength += 6
 	w.Write([]byte{0x99, byte(pLength >> 8), byte(pLength)})
 }
 
 func (pk *PublicKey) Serialize(w io.Writer) (err error) {
-	length := 6 // 6 byte header
+	length := uint32(versionSize + timestampSize + algorithmSize) // 6 byte header
 	length += pk.algorithmSpecificByteCount()
 	if pk.Version >= 5 {
 		length += 4 // octet key count
@@ -595,38 +597,38 @@ func (pk *PublicKey) Serialize(w io.Writer) (err error) {
 	if pk.IsSubkey {
 		packetType = packetTypePublicSubkey
 	}
-	err = serializeHeader(w, packetType, length)
+	err = serializeHeader(w, packetType, int(length))
 	if err != nil {
 		return
 	}
 	return pk.serializeWithoutHeaders(w)
 }
 
-func (pk *PublicKey) algorithmSpecificByteCount() int {
-	length := 0
+func (pk *PublicKey) algorithmSpecificByteCount() uint32 {
+	length := uint32(0)
 	switch pk.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoRSASignOnly:
-		length += int(pk.n.EncodedLength())
-		length += int(pk.e.EncodedLength())
+		length += uint32(pk.n.EncodedLength())
+		length += uint32(pk.e.EncodedLength())
 	case PubKeyAlgoDSA:
-		length += int(pk.p.EncodedLength())
-		length += int(pk.q.EncodedLength())
-		length += int(pk.g.EncodedLength())
-		length += int(pk.y.EncodedLength())
+		length += uint32(pk.p.EncodedLength())
+		length += uint32(pk.q.EncodedLength())
+		length += uint32(pk.g.EncodedLength())
+		length += uint32(pk.y.EncodedLength())
 	case PubKeyAlgoElGamal:
-		length += int(pk.p.EncodedLength())
-		length += int(pk.g.EncodedLength())
-		length += int(pk.y.EncodedLength())
+		length += uint32(pk.p.EncodedLength())
+		length += uint32(pk.g.EncodedLength())
+		length += uint32(pk.y.EncodedLength())
 	case PubKeyAlgoECDSA:
-		length += int(pk.oid.EncodedLength())
-		length += int(pk.p.EncodedLength())
+		length += uint32(pk.oid.EncodedLength())
+		length += uint32(pk.p.EncodedLength())
 	case PubKeyAlgoECDH:
-		length += int(pk.oid.EncodedLength())
-		length += int(pk.p.EncodedLength())
-		length += int(pk.kdf.EncodedLength())
+		length += uint32(pk.oid.EncodedLength())
+		length += uint32(pk.p.EncodedLength())
+		length += uint32(pk.kdf.EncodedLength())
 	case PubKeyAlgoEdDSA:
-		length += int(pk.oid.EncodedLength())
-		length += int(pk.p.EncodedLength())
+		length += uint32(pk.oid.EncodedLength())
+		length += uint32(pk.p.EncodedLength())
 	case PubKeyAlgoX25519:
 		length += x25519.KeySize
 	case PubKeyAlgoX448:
@@ -897,8 +899,7 @@ func (pk *PublicKey) VerifySubkeyRevocationSignature(sig *Signature, signed *Pub
 
 // userIdSignatureHash returns a Hash of the message that needs to be signed
 // to assert that pk is a valid key for id.
-func userIdSignatureHash(id string, pk *PublicKey, hash hash.Hash) (h hash.Hash, err error) {
-	h = hash
+func userIdSignatureHash(id string, pk *PublicKey, h hash.Hash) (err error) {
 
 	// RFC 4880, section 5.2.4
 	pk.SerializeSignaturePrefix(h)
@@ -913,13 +914,11 @@ func userIdSignatureHash(id string, pk *PublicKey, hash hash.Hash) (h hash.Hash,
 	h.Write(buf[:])
 	h.Write([]byte(id))
 
-	return
+	return nil
 }
 
 // directSignatureHash returns a Hash of the message that needs to be signed
-func directKeySignatureHash(pk *PublicKey, hash hash.Hash) (h hash.Hash, err error) {
-	h = hash
-
+func directKeySignatureHash(pk *PublicKey, h hash.Hash) (err error) {
 	// RFC 4880, section 5.2.4
 	pk.SerializeSignaturePrefix(h)
 	pk.serializeWithoutHeaders(h)
@@ -930,12 +929,11 @@ func directKeySignatureHash(pk *PublicKey, hash hash.Hash) (h hash.Hash, err err
 // VerifyUserIdSignature returns nil iff sig is a valid signature, made by this
 // public key, that id is the identity of pub.
 func (pk *PublicKey) VerifyUserIdSignature(id string, pub *PublicKey, sig *Signature) (err error) {
-	preparedHash, err := sig.PrepareVerify()
+	h, err := sig.PrepareVerify()
 	if err != nil {
 		return err
 	}
-	h, err := userIdSignatureHash(id, pub, preparedHash)
-	if err != nil {
+	if err := userIdSignatureHash(id, pub, h); err != nil {
 		return err
 	}
 	return pk.VerifySignature(h, sig)
@@ -944,12 +942,11 @@ func (pk *PublicKey) VerifyUserIdSignature(id string, pub *PublicKey, sig *Signa
 // VerifyUserIdSignature returns nil iff sig is a valid signature, made by this
 // public key
 func (pk *PublicKey) VerifyDirectKeySignature(sig *Signature) (err error) {
-	preparedHash, err := sig.PrepareVerify()
+	h, err := sig.PrepareVerify()
 	if err != nil {
 		return err
 	}
-	h, err := directKeySignatureHash(pk, preparedHash)
-	if err != nil {
+	if err := directKeySignatureHash(pk, h); err != nil {
 		return err
 	}
 	return pk.VerifySignature(h, sig)

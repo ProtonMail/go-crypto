@@ -839,7 +839,7 @@ func (pk *PrivateKey) parsePrivateKey(data []byte) (err error) {
 	case PubKeyAlgoEd448:
 		return pk.parseEd448PrivateKey(data)
 	default:
-		err = errors.InvalidArgumentError("unknown private key type")
+		err = errors.StructuralError("unknown private key type")
 		return
 	}
 }

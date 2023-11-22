@@ -666,6 +666,8 @@ const (
 	keyVersionSize = 1
 	// keyIdSize is the length in bytes of the key identifier value.
 	keyIdSize = 8
+	// timestampSize is the length in bytes of encoded timestamps.
+	timestampSize = 4
 	// fingerprintSizeV6 is the length in bytes of the key fingerprint in v6.
 	fingerprintSizeV6 = 32
 	// fingerprintSize is the length in bytes of the key fingerprint.
