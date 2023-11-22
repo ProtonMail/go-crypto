@@ -10,7 +10,7 @@ type Marker struct{}
 
 const markerString = "PGP"
 
-// parse just ignores the padding content.
+// parse just checks if the packet contains "PGP".
 func (m *Marker) parse(reader io.Reader) error {
 	var buffer [3]byte
 	if _, err := io.ReadFull(reader, buffer[:]); err != nil {
