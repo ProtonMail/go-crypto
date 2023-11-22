@@ -134,12 +134,14 @@ type SaltedHashSpecifier struct {
 	Salt []byte
 }
 
+// NewVerifiableSig returns a struct of type VerifiableSignature referencing the input signature.
 func NewVerifiableSig(signature *Signature) *VerifiableSignature {
 	return &VerifiableSignature{
 		Packet: signature,
 	}
 }
 
+// Salt returns the signature salt for v6 signatures.
 func (sig *Signature) Salt() []byte {
 	if sig == nil {
 		return nil
@@ -223,11 +225,11 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	var unhashedSubpacketsLength int
+	var unhashedSubpacketsLength uint32
 	if sig.Version == 6 {
-		unhashedSubpacketsLength = int(buf[0])<<24 | int(buf[1])<<16 | int(buf[2])<<8 | int(buf[3])
+		unhashedSubpacketsLength = uint32(buf[0])<<24 | uint32(buf[1])<<16 | uint32(buf[2])<<8 | uint32(buf[3])
 	} else {
-		unhashedSubpacketsLength = int(buf[0])<<8 | int(buf[1])
+		unhashedSubpacketsLength = uint32(buf[0])<<8 | uint32(buf[1])
 	}
 	unhashedSubpackets := make([]byte, unhashedSubpacketsLength)
 	_, err = readFull(r, unhashedSubpackets)
@@ -713,7 +715,6 @@ func serializeSubpackets(to []byte, subpackets []outputSubpacket, hashed bool) {
 			to = to[n:]
 		}
 	}
-	return
 }
 
 // SigExpired returns whether sig is a signature that has expired or is created
@@ -753,7 +754,7 @@ func (sig *Signature) buildHashSuffix(hashedSubpackets []byte) (err error) {
 	})
 	hashedSubpacketsLength := len(hashedSubpackets)
 	if sig.Version == 6 {
-		// v6 keys store the length in 4 ocets
+		// v6 keys store the length in 4 octets
 		hashedFields.Write([]byte{
 			uint8(hashedSubpacketsLength >> 24),
 			uint8(hashedSubpacketsLength >> 16),
@@ -958,7 +959,7 @@ func (sig *Signature) SignUserId(id string, pub *PublicKey, priv *PrivateKey, co
 	return sig.Sign(prepareHash, priv, config)
 }
 
-// SignUserId computes a signature from priv
+// SignDirectKeyBinding computes a signature from priv
 // On success, the signature is stored in sig.
 // Call Serialize to write it out.
 // If config is nil, sensible defaults will be used.
@@ -1073,8 +1074,8 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 	}
 	if sig.Version == 6 {
 		// unhashed length is four-octet instead
-		// salt len 1 ocet
-		// len(salt) ocets
+		// salt len 1 octet
+		// len(salt) octets
 		length += 3 + len(sig.salt)
 	}
 	err = serializeHeader(w, packetTypeSignature, length)
@@ -1091,7 +1092,7 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 func (sig *Signature) serializeBody(w io.Writer) (err error) {
 	var fields []byte
 	if sig.Version == 6 {
-		// v6 signatures use 4 ocets for length
+		// v6 signatures use 4 octets for length
 		hashedSubpacketsLen :=
 			uint32(uint32(sig.HashSuffix[4])<<24) |
 				uint32(uint32(sig.HashSuffix[5])<<16) |
@@ -1382,20 +1383,14 @@ func (sig *Signature) AddMetadataToHashSuffix() {
 
 // SaltLengthForHash selects the required salt length for the given hash algorithm,
 // as per Table 23 (Hash algorithm registry) of the crypto refresh.
-// See https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh#section-9.5|Crypto Refresh Section 9.5
+// See https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh#section-9.5|Crypto Refresh Section 9.5.
 func SaltLengthForHash(hash crypto.Hash) (int, error) {
 	switch hash {
-	case crypto.SHA256:
+	case crypto.SHA256, crypto.SHA224, crypto.SHA3_256:
 		return 16, nil
 	case crypto.SHA384:
 		return 24, nil
-	case crypto.SHA512:
-		return 32, nil
-	case crypto.SHA224:
-		return 16, nil
-	case crypto.SHA3_256:
-		return 16, nil
-	case crypto.SHA3_512:
+	case crypto.SHA512, crypto.SHA3_512:
 		return 32, nil
 	default:
 		return 0, errors.UnsupportedError("hash function not supported for V6 signatures")
@@ -1404,7 +1399,7 @@ func SaltLengthForHash(hash crypto.Hash) (int, error) {
 
 // SignatureSaltForHash generates a random signature salt
 // with the length for the given hash algorithm.
-// See https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh#section-9.5|Crypto Refresh Section 9.5
+// See https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh#section-9.5|Crypto Refresh Section 9.5.
 func SignatureSaltForHash(hash crypto.Hash, randReader io.Reader) ([]byte, error) {
 	saltLength, err := SaltLengthForHash(hash)
 	if err != nil {
