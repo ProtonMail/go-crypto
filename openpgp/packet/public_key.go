@@ -533,7 +533,7 @@ func (pk *PublicKey) parseX448(r io.Reader) (err error) {
 }
 
 func (pk *PublicKey) parseEd25519(r io.Reader) (err error) {
-	point := make([]byte, ed25519.PointSize)
+	point := make([]byte, ed25519.PublicKeySize)
 	_, err = io.ReadFull(r, point)
 	if err != nil {
 		return
@@ -632,7 +632,7 @@ func (pk *PublicKey) algorithmSpecificByteCount() int {
 	case PubKeyAlgoX448:
 		length += x448.PointSize
 	case PubKeyAlgoEd25519:
-		length += ed25519.PointSize
+		length += ed25519.PublicKeySize
 	case PubKeyAlgoEd448:
 		length += ed448.PointSize
 	default:
@@ -987,7 +987,7 @@ func (pk *PublicKey) BitLength() (bitLength uint16, err error) {
 	case PubKeyAlgoX448:
 		bitLength = x448.PointSize * 8
 	case PubKeyAlgoEd25519:
-		bitLength = ed25519.PointSize * 8
+		bitLength = ed25519.PublicKeySize * 8
 	case PubKeyAlgoEd448:
 		bitLength = ed448.PointSize * 8
 	default:

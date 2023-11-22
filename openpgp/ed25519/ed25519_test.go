@@ -1,23 +1,26 @@
 package ed25519
 
 import (
+	"crypto/ed25519"
 	"crypto/rand"
 	"io"
 	"testing"
 )
+
+const messageDigestSize = 32
 
 func TestGenerate(t *testing.T) {
 	priv, err := GenerateKey(rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(priv.Key) != 64 && len(priv.Point) != 32 {
-		t.Error("gnerated wrong key sizes")
+	if len(priv.Key) != ed25519.SeedSize+ed25519.PublicKeySize && len(priv.Point) != ed25519.PublicKeySize {
+		t.Error("generated wrong key sizes")
 	}
 }
 
 func TestSignVerify(t *testing.T) {
-	digest := make([]byte, 32)
+	digest := make([]byte, messageDigestSize)
 	_, err := io.ReadFull(rand.Reader, digest[:])
 	if err != nil {
 		t.Fatal(err)
