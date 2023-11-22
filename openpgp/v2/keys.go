@@ -55,7 +55,8 @@ type KeyRing interface {
 
 // PrimaryIdentity returns a valid non-revoked Identity while preferring
 // identities marked as primary, or the latest-created identity, in that order.
-func (e *Entity) PrimaryIdentity(date time.Time) (*packet.Signature, *Identity, error) {
+// Returns an nil for both return values if there is no valid primary identity.
+func (e *Entity) PrimaryIdentity(date time.Time) (*packet.Signature, *Identity) {
 	var primaryIdentityCandidates []*Identity
 	var primaryIdentityCandidatesSelfSigs []*packet.Signature
 	for _, identity := range e.Identities {
@@ -66,7 +67,7 @@ func (e *Entity) PrimaryIdentity(date time.Time) (*packet.Signature, *Identity, 
 		}
 	}
 	if len(primaryIdentityCandidates) == 0 {
-		return nil, nil, errors.StructuralError("no primary identity found")
+		return nil, nil
 	}
 	primaryIdentity := -1
 	for idx := range primaryIdentityCandidates {
@@ -76,7 +77,7 @@ func (e *Entity) PrimaryIdentity(date time.Time) (*packet.Signature, *Identity, 
 			primaryIdentity = idx
 		}
 	}
-	return primaryIdentityCandidatesSelfSigs[primaryIdentity], primaryIdentityCandidates[primaryIdentity], nil
+	return primaryIdentityCandidatesSelfSigs[primaryIdentity], primaryIdentityCandidates[primaryIdentity]
 }
 
 func shouldPreferIdentity(existingId, potentialNewId *packet.Signature) bool {
@@ -665,6 +666,7 @@ func (e *Entity) SignIdentity(identity string, signer *Entity, config *packet.Co
 	return ident.SignIdentity(signer, config)
 }
 
+// LatestValidDirectSignature returns the latest valid direct key-signature of the entity.
 func (e *Entity) LatestValidDirectSignature(date time.Time) (selectedSig *packet.Signature, err error) {
 	for sigIdx := len(e.DirectSignatures) - 1; sigIdx >= 0; sigIdx-- {
 		sig := e.DirectSignatures[sigIdx]
@@ -686,8 +688,8 @@ func (e *Entity) LatestValidDirectSignature(date time.Time) (selectedSig *packet
 	return
 }
 
-// primarySelfSignature searches the entitity for the self-signature that stores key prefrences.
-// For V4 keys, returns the self-signature of the primary indentity, and the identity.
+// PrimarySelfSignature searches the entity for the self-signature that stores key preferences.
+// For V4 keys, returns the self-signature of the primary identity, and the identity.
 // For V6 keys, returns the latest valid direct-key self-signature, and no identity (nil).
 // This self-signature is to be used to check the key expiration,
 // algorithm preferences, and so on.
@@ -696,9 +698,9 @@ func (e *Entity) PrimarySelfSignature(date time.Time) (primarySig *packet.Signat
 		primarySig, err = e.LatestValidDirectSignature(date)
 		return
 	}
-	primarySig, _, err = e.PrimaryIdentity(date)
-	if err != nil {
-		return
+	primarySig, _ = e.PrimaryIdentity(date)
+	if primarySig == nil {
+		return nil, errors.StructuralError("no primary identity found")
 	}
 	return
 }
@@ -741,7 +743,6 @@ func (k *Key) IsPrimary() bool {
 	return k.PrimarySelfSignature == k.SelfSignature
 }
 
-// checkKeyRequirements
 func checkKeyRequirements(usedKey *packet.PublicKey, config *packet.Config) error {
 	algo := usedKey.PubKeyAlgo
 	if config.RejectPublicKeyAlgorithm(algo) {
@@ -758,9 +759,7 @@ func checkKeyRequirements(usedKey *packet.PublicKey, config *packet.Config) erro
 		if err != nil || config.RejectCurve(curve) {
 			return errors.WeakAlgorithmError("elliptic curve " + curve)
 		}
-		if usedKey.Version == 6 &&
-			(curve == packet.Curve25519 ||
-				curve == packet.Curve448) {
+		if usedKey.Version == 6 && (curve == packet.Curve25519 || curve == packet.Curve448) {
 			// Implementations MUST NOT accept or generate v6 key material using the deprecated OIDs.
 			return errors.StructuralError("v6 key uses legacy elliptic curve " + curve)
 		}

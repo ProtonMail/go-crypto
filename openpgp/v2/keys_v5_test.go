@@ -2,11 +2,8 @@ package v2
 
 import (
 	"bytes"
-	"io/ioutil"
 	"strings"
 	"testing"
-
-	"github.com/ProtonMail/go-crypto/openpgp/armor"
 )
 
 var foreignKeys = []string{
@@ -23,7 +20,8 @@ func TestReadPrivateForeignV5Key(t *testing.T) {
 	}
 }
 
-// TODO: Replace message with a correctly generated one.
+// Deprecated
+/*
 func testV5ForeignSignedMessage(t *testing.T) {
 	kring, err := ReadArmoredKeyRing(strings.NewReader(v5PrivKey))
 	if err != nil {
@@ -61,8 +59,6 @@ func testV5ForeignSignedMessage(t *testing.T) {
 	}
 }
 
-// Depricated
-/*
 func TestReadPrivateEncryptedV5Key(t *testing.T) {
 	c := &packet.Config{V5Keys: true}
 	e, err := NewEntity("V5 Key Owner", "V5 Key", "v5@pm.me", c)
@@ -119,7 +115,7 @@ func TestReadPrivateSerializeForeignV5Key(t *testing.T) {
 	}
 }
 
-// Depricated
+// Deprecated
 /*
 func TestNewEntitySerializeV5Key(t *testing.T) {
 	c := &packet.Config{V5Keys: true}

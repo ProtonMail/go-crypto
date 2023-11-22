@@ -118,6 +118,7 @@ func newEntity(uid *userIdData, config *packet.Config) (*Entity, error) {
 	return e, nil
 }
 
+// AddUserId adds a user-id packet to the given entity.
 func (t *Entity) AddUserId(name, comment, email string, config *packet.Config) error {
 	var keyProperties *keyProperties
 	if !config.V6() {
@@ -126,6 +127,7 @@ func (t *Entity) AddUserId(name, comment, email string, config *packet.Config) e
 	return t.addUserId(userIdData{name, comment, email}, config, keyProperties)
 }
 
+// AddDirectKeySignature adds a fresh direct key signature with the selected key-properties.
 func (t *Entity) AddDirectKeySignature(selectedKeyProperties *keyProperties, config *packet.Config) error {
 	selfSignature := createSignaturePacket(&t.PrivateKey.PublicKey, packet.SigTypeDirectSignature, config)
 	err := writeKeyProperties(selfSignature, selectedKeyProperties)
@@ -330,7 +332,7 @@ func (e *Entity) addEncryptionSubkey(config *packet.Config, creationTime time.Ti
 	return nil
 }
 
-// Generates a signing key
+// newSigner generates a signing key.
 func newSigner(config *packet.Config) (signer interface{}, err error) {
 	switch config.PublicKeyAlgorithm() {
 	case packet.PubKeyAlgoRSA:
@@ -388,7 +390,7 @@ func newSigner(config *packet.Config) (signer interface{}, err error) {
 	}
 }
 
-// Generates an encryption/decryption key
+// newDecrypter generates an encryption/decryption key.
 func newDecrypter(config *packet.Config) (decrypter interface{}, err error) {
 	switch config.PublicKeyAlgorithm() {
 	case packet.PubKeyAlgoRSA:

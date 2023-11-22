@@ -1967,7 +1967,7 @@ zaXZE2aAMQ==
 		t.Fatal(err)
 	}
 	var config *packet.Config
-	sig, _, err := key[0].PrimaryIdentity(config.Now())
+	sig, _ := key[0].PrimaryIdentity(config.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
