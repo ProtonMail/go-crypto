@@ -54,6 +54,8 @@ func readSubkey(primary *Entity, packets *packet.Reader, pub *packet.PublicKey, 
 	return nil
 }
 
+// Serialize serializes the subkey and writes it into writer.
+// The includeSecrets flag controls if the secrets should be included in the encoding or not.
 func (s *Subkey) Serialize(w io.Writer, includeSecrets bool) error {
 	if includeSecrets {
 		if err := s.PrivateKey.Serialize(w); err != nil {
