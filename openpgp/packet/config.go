@@ -144,7 +144,7 @@ type Config struct {
 	CacheSessionKey bool
 	// CheckPacketSequence is a flag that controls if the pgp message reader should strictly check
 	// that the packet sequence conforms with the grammar mandated by rfc4880.
-	// The default behavior, when the config or flag is nil, is to check he packet sequence.
+	// The default behavior, when the config or flag is nil, is to check the packet sequence.
 	CheckPacketSequence *bool
 }
 
