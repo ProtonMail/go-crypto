@@ -987,7 +987,7 @@ FindKey:
 	}
 	_, ok := decPackets.(*packet.Compressed)
 	if !ok {
-		return errors.InvalidArgumentError("No compressed packets found")
+		return errors.StructuralError("No compressed packets found")
 	}
 	return nil
 }
