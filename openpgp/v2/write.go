@@ -1015,7 +1015,6 @@ func acceptableHashesToWrite(singingKey *packet.PublicKey) []uint8 {
 			} else if curve == packet.CurveBrainpoolP384 ||
 				curve == packet.CurveNistP384 {
 				return []uint8{
-					hashToHashId(crypto.SHA256),
 					hashToHashId(crypto.SHA384),
 					hashToHashId(crypto.SHA512),
 					hashToHashId(crypto.SHA3_512),
