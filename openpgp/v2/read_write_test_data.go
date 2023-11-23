@@ -275,18 +275,6 @@ TcIYl5/Uyoi+FOvPLcNw4hOv2nwUzSSVAw==
 =IiS2
 -----END PGP PRIVATE KEY BLOCK-----`
 
-// Generated with the above private key
-const v5PrivKeyMsg = `-----BEGIN PGP MESSAGE-----
-Version: OpenPGP.js v4.10.7
-Comment: https://openpgpjs.org
-
-xA0DAQoWGTR7yYckZAIByxF1B21zZy50eHRfbIGSdGVzdMJ3BQEWCgAGBQJf
-bIGSACMiIQUZNHvJhyRkAl+Z3z7C4AAO2YhIkuH3s+pMlACRWVabVDQvAP9G
-y29VPonFXqi2zKkpZrvyvZxg+n5e8Nt9wNbuxeCd3QD/TtO2s+JvjrE4Siwv
-UQdl5MlBka1QSNbMq2Bz7XwNPg4=
-=6lbM
------END PGP MESSAGE-----`
-
 // See OpenPGP crypto refresh Section A.3.
 const v6PrivKey = `-----BEGIN PGP PRIVATE KEY BLOCK-----
 

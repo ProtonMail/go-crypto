@@ -281,7 +281,7 @@ func TestEncryptWithCompression(t *testing.T) {
 	buf := new(bytes.Buffer)
 	var config = &packet.Config{
 		DefaultCompressionAlgo: packet.CompressionZIP,
-		CompressionConfig:      &packet.CompressionConfig{-1},
+		CompressionConfig:      &packet.CompressionConfig{Level: -1},
 	}
 	w, err := Encrypt(buf, kring[:1], nil, nil /* no hints */, config)
 	if err != nil {
@@ -391,6 +391,9 @@ func TestSymmetricEncryptionV5RandomizeSlow(t *testing.T) {
 	packets := packet.NewReader(copiedBuf)
 	// First a SymmetricKeyEncrypted packet
 	p, err := packets.Next()
+	if err != nil {
+		t.Fatal(err)
+	}
 	switch tp := p.(type) {
 	case *packet.SymmetricKeyEncrypted:
 	default:
@@ -398,6 +401,9 @@ func TestSymmetricEncryptionV5RandomizeSlow(t *testing.T) {
 	}
 	// Then an SymmetricallyEncrypted packet version 2
 	p, err = packets.Next()
+	if err != nil {
+		t.Fatal(err)
+	}
 	switch tp := p.(type) {
 	case *packet.SymmetricallyEncrypted:
 		if tp.Version != 2 {
@@ -488,7 +494,7 @@ func TestEncryption(t *testing.T) {
 		}
 		compAlgo := compAlgos[mathrand.Intn(len(compAlgos))]
 		level := mathrand.Intn(11) - 1
-		compConf := &packet.CompressionConfig{level}
+		compConf := &packet.CompressionConfig{Level: level}
 		var config = &packet.Config{
 			DefaultCompressionAlgo: compAlgo,
 			CompressionConfig:      compConf,
@@ -503,7 +509,7 @@ func TestEncryption(t *testing.T) {
 		}
 
 		w, err := Encrypt(buf, kring[:1], signed, nil /* no hints */, config)
-		if err != nil && config.AEAD() != nil && !test.okV6 {
+		if (err != nil) == (test.okV6 && config.AEAD() != nil) {
 			// ElGamal is not allowed with v6
 			continue
 		}
@@ -757,6 +763,9 @@ FindKey:
 	}
 
 	decPackets, err := packet.Read(decrypted)
+	if err != nil {
+		return err
+	}
 	_, ok := decPackets.(*packet.Compressed)
 	if !ok {
 		return errors.StructuralError("No compressed packets found")

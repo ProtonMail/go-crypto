@@ -721,7 +721,7 @@ func TestEncryption(t *testing.T) {
 			signers = []*Entity{signed}
 		}
 		w, err := Encrypt(buf, kring[:1], nil, signers, nil /* no hints */, &config)
-		if err != nil && config.AEAD() != nil && !test.okV6 {
+		if (err != nil) == (test.okV6 && config.AEAD() != nil) {
 			// ElGamal is not allowed with v6
 			continue
 		}
