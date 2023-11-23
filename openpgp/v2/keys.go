@@ -29,7 +29,7 @@ type Entity struct {
 	PrivateKey       *packet.PrivateKey
 	Identities       map[string]*Identity // indexed by Identity.Name
 	Revocations      []*packet.VerifiableSignature
-	DirectSignatures []*packet.VerifiableSignature // Direct-key self signature of the PrimaryKey (containts primary key properties in v6)}
+	DirectSignatures []*packet.VerifiableSignature // Direct-key self signature of the PrimaryKey (contains primary key properties in v6)}
 	Subkeys          []Subkey
 }
 
@@ -305,7 +305,7 @@ func (e *Entity) EncryptPrivateKeys(passphrase []byte, config *packet.Config) er
 	return packet.EncryptPrivateKeys(keysToEncrypt, passphrase, config)
 }
 
-// DecryptPrivateKeys decrypts all encrypted keys in the entitiy with the given passphrase.
+// DecryptPrivateKeys decrypts all encrypted keys in the entity with the given passphrase.
 // Avoids recomputation of similar s2k key derivations. Public keys and dummy keys are ignored,
 // and don't cause an error to be returned.
 func (e *Entity) DecryptPrivateKeys(passphrase []byte) error {

@@ -6,6 +6,7 @@ package openpgp
 
 import (
 	goerrors "errors"
+	"fmt"
 	"io"
 	"time"
 
@@ -29,7 +30,7 @@ type Entity struct {
 	Identities    map[string]*Identity // indexed by Identity.Name
 	Revocations   []*packet.Signature
 	Subkeys       []Subkey
-	SelfSignature *packet.Signature   // Direct-key self signature of the PrimaryKey (containts primary key properties in v6)
+	SelfSignature *packet.Signature   // Direct-key self signature of the PrimaryKey (contains primary key properties in v6)
 	Signatures    []*packet.Signature // all (potentially unverified) self-signatures, revocations, and third-party signatures
 }
 
@@ -273,7 +274,7 @@ func (e *Entity) EncryptPrivateKeys(passphrase []byte, config *packet.Config) er
 	return packet.EncryptPrivateKeys(keysToEncrypt, passphrase, config)
 }
 
-// DecryptPrivateKeys decrypts all encrypted keys in the entitiy with the given passphrase.
+// DecryptPrivateKeys decrypts all encrypted keys in the entity with the given passphrase.
 // Avoids recomputation of similar s2k key derivations. Public keys and dummy keys are ignored,
 // and don't cause an error to be returned.
 func (e *Entity) DecryptPrivateKeys(passphrase []byte) error {
@@ -522,20 +523,20 @@ EachPacket:
 				return nil, err
 			}
 		default:
-			// we ignore unknown packets
+			// we ignore unknown packets.
 		}
 	}
 
 	if len(e.Identities) == 0 && e.PrimaryKey.Version < 6 {
-		return nil, errors.StructuralError("v4 entity without any identities")
+		return nil, errors.StructuralError(fmt.Sprintf("v%d entity without any identities", e.PrimaryKey.Version))
 	}
 
-	// An implementation MUST ensure that a valid direct-key signature is present before using a v6 key
+	// An implementation MUST ensure that a valid direct-key signature is present before using a v6 key.
 	if e.PrimaryKey.Version == 6 {
 		if len(directSignatures) == 0 {
 			return nil, errors.StructuralError("v6 entity without a valid direct-key signature")
 		}
-		// Select main direct key signature
+		// Select main direct key signature.
 		var mainDirectKeySelfSignature *packet.Signature
 		for _, directSignature := range directSignatures {
 			if directSignature.SigType == packet.SigTypeDirectSignature &&
@@ -548,10 +549,10 @@ EachPacket:
 		if mainDirectKeySelfSignature == nil {
 			return nil, errors.StructuralError("no valid direct-key self-signature for v6 primary key found")
 		}
-		// Check that the main self-signature is valid
+		// Check that the main self-signature is valid.
 		err = e.PrimaryKey.VerifyDirectKeySignature(mainDirectKeySelfSignature)
 		if err != nil {
-			return nil, errors.StructuralError("invalid direct-key self-signature for v6 xprimary key")
+			return nil, errors.StructuralError("invalid direct-key self-signature for v6 primary key")
 		}
 		e.SelfSignature = mainDirectKeySelfSignature
 		e.Signatures = directSignatures
@@ -884,8 +885,8 @@ func (e *Entity) primaryDirectSignature() *packet.Signature {
 	return e.SelfSignature
 }
 
-// primarySelfSignature searches the entitity for the self-signature that stores key prefrences.
-// For V4 keys, returns the self-signature of the primary indentity, and the identity.
+// PrimarySelfSignature searches the entity for the self-signature that stores key preferences.
+// For V4 keys, returns the self-signature of the primary identity, and the identity.
 // For V6 keys, returns the latest valid direct-key self-signature, and no identity (nil).
 // This self-signature is to be used to check the key expiration,
 // algorithm preferences, and so on.

@@ -1572,7 +1572,6 @@ func TestEncryptAndDecryptPrivateKeys(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func TestKeyValidateOnDecrypt(t *testing.T) {
