@@ -194,14 +194,14 @@ func detachSignWithWriter(w io.Writer, signers []*Entity, sigType packet.Signatu
 }
 
 // FileHints contains metadata about encrypted files. This metadata is, itself,
-// encrypted.
+// encrypted. OpenPGP signatures do not include the FileHints in a signature hash and
+// thus those fields are not protected against tampering in a signed document.
+// The crypto[refresh does not recommend to set the data in file hints.
+// See https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-12.html#section-5.9.
 type FileHints struct {
-	// IsUTF8 can be set to hint that the contents are utf8 encoded data
+	// IsUTF8 can be set to hint that the contents are utf8 encoded data.
 	IsUTF8 bool
-	// FileName hints at the name of the file that should be written. It's
-	// truncated to 255 bytes if longer. It may be empty to suggest that the
-	// file should not be written to disk. It may be equal to "_CONSOLE" to
-	// suggest the data should not be written to disk.
+	// FileName hints at the name of the file that should be written.
 	FileName string
 	// ModTime contains the modification time of the file, or the zero time if not applicable.
 	ModTime time.Time
@@ -377,9 +377,11 @@ func EncryptWithParams(ciphertext io.Writer, to, toHidden []*Entity, params *Enc
 }
 
 // Encrypt encrypts a message to a number of recipients and, optionally, signs
-// it. hints contains optional information, that is also encrypted, that aids
-// the recipients in processing the message. The resulting WriteCloser must
-// be closed after the contents of the file have been written.
+// it. Hints contains optional information, that is also encrypted, that aids
+// the recipients in processing the message. The crypto-refresh recommends
+// to not set file hints since the data is not included in the signature hash.
+// See https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-12.html#section-5.9.
+// The resulting WriteCloser must be closed after the contents of the file have been written.
 // The to argument contains recipients that are explicitly mentioned in signatures and encrypted keys,
 // whereas the toHidden argument contains recipients that will be hidden and not mentioned.
 // If config is nil, sensible defaults will be used.
@@ -708,6 +710,8 @@ func encryptDataAndSign(
 
 type SignParams struct {
 	// Hints contains file metadata for the literal data packet.
+	// The crypto-refresh recommends to not set file hints since the data is not included in the signature hash.
+	// See https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-12.html#section-5.9.
 	// If nil, default is used.
 	Hints *FileHints
 	// TextSig indicates if signatures of type SigTypeText should be produced
@@ -780,8 +784,10 @@ func SignWithParams(output io.Writer, signers []*Entity, params *SignParams) (in
 }
 
 // Sign signs a message. The resulting WriteCloser must be closed after the
-// contents of the file have been written.  hints contains optional information
+// contents of the file have been written.  Hints contains optional information
 // that aids the recipients in processing the message.
+// The crypto-refresh recommends to not set file hints since the data is not included in the signature hash.
+// See https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-12.html#section-5.9.
 // If config is nil, sensible defaults will be used.
 func Sign(output io.Writer, signers []*Entity, hints *FileHints, config *packet.Config) (input io.WriteCloser, err error) {
 	return SignWithParams(output, signers, &SignParams{
@@ -966,10 +972,10 @@ func selectHash(candidateHashes []byte, configuredHash crypto.Hash, signer *pack
 			if h, ok := algorithm.HashIdToHash(acceptableHashes[0]); ok {
 				hash = h
 			} else {
-				return 0, errors.InvalidArgumentError("no candidate hash functions are compiled in.")
+				return 0, errors.UnsupportedError("no candidate hash functions are compiled in.")
 			}
 		} else {
-			return 0, errors.InvalidArgumentError("no candidate hash functions are compiled in.")
+			return 0, errors.UnsupportedError("no candidate hash functions are compiled in.")
 		}
 	}
 	return

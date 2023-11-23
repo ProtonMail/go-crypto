@@ -178,7 +178,6 @@ func TestSignDetachedWithCriticalNotation(t *testing.T) {
 }
 
 func TestNewEntity(t *testing.T) {
-
 	// Check bit-length with no config.
 	e, err := NewEntity("Test User", "test", "test@example.com", nil)
 	if err != nil {
