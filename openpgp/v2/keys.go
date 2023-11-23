@@ -427,7 +427,6 @@ func readToNextPublicKey(packets *packet.Reader) (err error) {
 			return
 		} else if err != nil {
 			if _, ok := err.(errors.UnsupportedError); ok {
-				err = nil
 				continue
 			}
 			return

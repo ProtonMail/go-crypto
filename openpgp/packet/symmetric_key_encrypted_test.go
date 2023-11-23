@@ -102,6 +102,9 @@ func TestSerializeSymmetricKeyEncryptedV6RandomizeSlow(t *testing.T) {
 							}
 
 							key, err := SerializeSymmetricKeyEncrypted(&buf, passphrase, config)
+							if err != nil {
+								t.Errorf("failed to serialize %s", err)
+							}
 							p, err := Read(&buf)
 							if err != nil {
 								t.Errorf("failed to reparse %s", err)

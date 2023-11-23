@@ -1446,7 +1446,9 @@ func TestRevokeSubkey(t *testing.T) {
 	}
 
 	serializedEntity := bytes.NewBuffer(nil)
-	entity.SerializePrivate(serializedEntity, nil)
+	if err := entity.SerializePrivate(serializedEntity, nil); err != nil {
+		t.Fatal(err)
+	}
 
 	// Make sure revocation reason subpackets are not lost during serialization.
 	newEntity, err := ReadEntity(packet.NewReader(bytes.NewBuffer(serializedEntity.Bytes())))

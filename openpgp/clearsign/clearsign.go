@@ -289,7 +289,9 @@ func (d *dashEscaper) Write(data []byte) (n int, err error) {
 					}
 					d.whitespace = d.whitespace[:0]
 				}
-				d.toHash.Write(d.byteBuf)
+				if _, err = d.toHash.Write(d.byteBuf); err != nil {
+					return
+				}
 				if err = d.buffered.WriteByte(b); err != nil {
 					return
 				}
