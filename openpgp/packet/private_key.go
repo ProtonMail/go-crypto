@@ -971,10 +971,10 @@ func (pk *PrivateKey) parseX25519PrivateKey(data []byte) (err error) {
 
 	if len(data) != x25519.KeySize {
 		err = errors.StructuralError("wrong X25519 key size")
+		return err
 	}
 	copy(privateKey.Secret, data)
-	err = x25519.Validate(privateKey)
-	if err != nil {
+	if err = x25519.Validate(privateKey); err != nil {
 		return err
 	}
 	pk.PrivateKey = privateKey
@@ -990,10 +990,10 @@ func (pk *PrivateKey) parseX448PrivateKey(data []byte) (err error) {
 
 	if len(data) != x448.KeySize {
 		err = errors.StructuralError("wrong x448 key size")
+		return err
 	}
 	copy(privateKey.Secret, data)
-	err = x448.Validate(privateKey)
-	if err != nil {
+	if err = x448.Validate(privateKey); err != nil {
 		return err
 	}
 	pk.PrivateKey = privateKey
