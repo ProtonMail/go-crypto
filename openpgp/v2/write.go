@@ -155,7 +155,7 @@ func detachSignWithWriter(w io.Writer, signers []*Entity, sigType packet.Signatu
 		defaultHashes := candidateHashes[0:1]
 		primarySelfSignature, _ := signer.PrimarySelfSignature(config.Now())
 		if primarySelfSignature == nil {
-			return nil, errors.InvalidArgumentError("signed entity has no valid self-signature")
+			return nil, errors.StructuralError("signed entity has no valid self-signature")
 		}
 		preferredHashes := primarySelfSignature.PreferredHash
 		if len(preferredHashes) == 0 {
@@ -303,7 +303,7 @@ func symmetricallyEncrypt(passphrase []byte, dataWriter io.Writer, params *Encry
 			defaultHashes := candidateHashes[0:1]
 			primarySelfSignature, _ := signer.PrimarySelfSignature(params.Config.Now())
 			if primarySelfSignature == nil {
-				return nil, errors.InvalidArgumentError("signed entity has no self-signature")
+				return nil, errors.StructuralError("signed entity has no self-signature")
 			}
 			preferredHashes := primarySelfSignature.PreferredHash
 			if len(preferredHashes) == 0 {
@@ -610,7 +610,7 @@ func encrypt(
 
 		primarySelfSignature, _ := recipient.PrimarySelfSignature(timeForEncryptionKey)
 		if primarySelfSignature == nil {
-			return nil, errors.InvalidArgumentError("entity without a self-signature")
+			return nil, errors.StructuralError("entity without a self-signature")
 		}
 
 		if !primarySelfSignature.SEIPDv2 {
@@ -754,7 +754,7 @@ func SignWithParams(output io.Writer, signers []*Entity, params *SignParams) (in
 		defaultHashes := candidateHashes[0:1]
 		primarySelfSignature, _ := signer.PrimarySelfSignature(params.Config.Now())
 		if primarySelfSignature == nil {
-			return nil, errors.InvalidArgumentError("signed entity has no self-signature")
+			return nil, errors.StructuralError("signed entity has no self-signature")
 		}
 		preferredHashes := primarySelfSignature.PreferredHash
 		if len(preferredHashes) == 0 {
@@ -762,7 +762,7 @@ func SignWithParams(output io.Writer, signers []*Entity, params *SignParams) (in
 		}
 		candidateHashes = intersectPreferences(candidateHashes, preferredHashes)
 		if len(candidateHashes) == 0 {
-			return nil, errors.InvalidArgumentError("cannot sign because signing key shares no common algorithms with candidate hashes")
+			return nil, errors.StructuralError("cannot sign because signing key shares no common algorithms with candidate hashes")
 		}
 		candidateHashesPerSignature = append(candidateHashesPerSignature, candidateHashes)
 		candidateCompression = intersectPreferences(candidateCompression, primarySelfSignature.PreferredCompression)

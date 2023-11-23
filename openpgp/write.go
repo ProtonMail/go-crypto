@@ -489,7 +489,7 @@ func Sign(output io.Writer, signed *Entity, hints *FileHints, config *packet.Con
 	defaultHashes := candidateHashes[0:1]
 	primarySelfSignature, _ := signed.PrimarySelfSignature()
 	if primarySelfSignature == nil {
-		return nil, errors.InvalidArgumentError("signed entity has no self-signature")
+		return nil, errors.StructuralError("signed entity has no self-signature")
 	}
 	preferredHashes := primarySelfSignature.PreferredHash
 	if len(preferredHashes) == 0 {
@@ -497,7 +497,7 @@ func Sign(output io.Writer, signed *Entity, hints *FileHints, config *packet.Con
 	}
 	candidateHashes = intersectPreferences(candidateHashes, preferredHashes)
 	if len(candidateHashes) == 0 {
-		return nil, errors.InvalidArgumentError("cannot sign because signing key shares no common algorithms with candidate hashes")
+		return nil, errors.StructuralError("cannot sign because signing key shares no common algorithms with candidate hashes")
 	}
 
 	return writeAndSign(noOpCloser{output}, candidateHashes, signed, hints, packet.SigTypeBinary, config)
