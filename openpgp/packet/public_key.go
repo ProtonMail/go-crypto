@@ -72,7 +72,7 @@ func (pk *PublicKey) UpgradeToV6() {
 // for v3 and v4 public keys.
 type signingKey interface {
 	SerializeForHash(io.Writer) error
-	SerializeSignaturePrefix(io.Writer)
+	SerializeSignaturePrefix(io.Writer) error
 	serializeWithoutHeaders(io.Writer) error
 }
 
@@ -289,13 +289,19 @@ func (pk *PublicKey) setFingerprintAndKeyId() {
 	// RFC 4880, section 12.2
 	if pk.Version >= 5 {
 		fingerprint := sha256.New()
-		pk.SerializeForHash(fingerprint)
+		if err := pk.SerializeForHash(fingerprint); err != nil {
+			// Should not happen for a hash.
+			panic(err)
+		}
 		pk.Fingerprint = make([]byte, 32)
 		copy(pk.Fingerprint, fingerprint.Sum(nil))
 		pk.KeyId = binary.BigEndian.Uint64(pk.Fingerprint[:8])
 	} else {
 		fingerprint := sha1.New()
-		pk.SerializeForHash(fingerprint)
+		if err := pk.SerializeForHash(fingerprint); err != nil {
+			// Should not happen for a hash.
+			panic(err)
+		}
 		pk.Fingerprint = make([]byte, 20)
 		copy(pk.Fingerprint, fingerprint.Sum(nil))
 		pk.KeyId = binary.BigEndian.Uint64(pk.Fingerprint[12:20])
@@ -558,21 +564,23 @@ func (pk *PublicKey) parseEd448(r io.Reader) (err error) {
 // SerializeForHash serializes the PublicKey to w with the special packet
 // header format needed for hashing.
 func (pk *PublicKey) SerializeForHash(w io.Writer) error {
-	pk.SerializeSignaturePrefix(w)
+	if err := pk.SerializeSignaturePrefix(w); err != nil {
+		return err
+	}
 	return pk.serializeWithoutHeaders(w)
 }
 
 // SerializeSignaturePrefix writes the prefix for this public key to the given Writer.
 // The prefix is used when calculating a signature over this public key. See
 // RFC 4880, section 5.2.4.
-func (pk *PublicKey) SerializeSignaturePrefix(w io.Writer) {
+func (pk *PublicKey) SerializeSignaturePrefix(w io.Writer) error {
 	var pLength = pk.algorithmSpecificByteCount()
 	// version, timestamp, algorithm
 	pLength += versionSize + timestampSize + algorithmSize
 	if pk.Version >= 5 {
 		// key octet count (4).
 		pLength += 4
-		w.Write([]byte{
+		_, err := w.Write([]byte{
 			// When a v4 signature is made over a key, the hash data starts with the octet 0x99, followed by a two-octet length
 			// of the key, and then the body of the key packet. When a v6 signature is made over a key, the hash data starts
 			// with the salt, then octet 0x9B, followed by a four-octet length of the key, and then the body of the key packet.
@@ -582,9 +590,15 @@ func (pk *PublicKey) SerializeSignaturePrefix(w io.Writer) {
 			byte(pLength >> 8),
 			byte(pLength),
 		})
-		return
+		if err != nil {
+			return err
+		}
+		return nil
 	}
-	w.Write([]byte{0x99, byte(pLength >> 8), byte(pLength)})
+	if _, err := w.Write([]byte{0x99, byte(pLength >> 8), byte(pLength)}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (pk *PublicKey) Serialize(w io.Writer) (err error) {
@@ -902,8 +916,12 @@ func (pk *PublicKey) VerifySubkeyRevocationSignature(sig *Signature, signed *Pub
 func userIdSignatureHash(id string, pk *PublicKey, h hash.Hash) (err error) {
 
 	// RFC 4880, section 5.2.4
-	pk.SerializeSignaturePrefix(h)
-	pk.serializeWithoutHeaders(h)
+	if err := pk.SerializeSignaturePrefix(h); err != nil {
+		return err
+	}
+	if err := pk.serializeWithoutHeaders(h); err != nil {
+		return err
+	}
 
 	var buf [5]byte
 	buf[0] = 0xb4
@@ -920,10 +938,13 @@ func userIdSignatureHash(id string, pk *PublicKey, h hash.Hash) (err error) {
 // directSignatureHash returns a Hash of the message that needs to be signed
 func directKeySignatureHash(pk *PublicKey, h hash.Hash) (err error) {
 	// RFC 4880, section 5.2.4
-	pk.SerializeSignaturePrefix(h)
-	pk.serializeWithoutHeaders(h)
-
-	return
+	if err := pk.SerializeSignaturePrefix(h); err != nil {
+		return err
+	}
+	if err := pk.serializeWithoutHeaders(h); err != nil {
+		return err
+	}
+	return nil
 }
 
 // VerifyUserIdSignature returns nil iff sig is a valid signature, made by this

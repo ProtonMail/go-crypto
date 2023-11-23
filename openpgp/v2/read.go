@@ -542,7 +542,6 @@ func (scr *signatureCheckReader) Read(buf []byte) (int, error) {
 			for _, candidate := range scr.md.SignatureCandidates {
 				candidate.SignatureError = noMatchError
 			}
-			signatures = nil
 		} else {
 			var sigIndex int
 			// Verify all signature candidates.

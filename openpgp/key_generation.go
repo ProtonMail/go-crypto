@@ -358,7 +358,7 @@ func newDecrypter(config *packet.Config) (decrypter interface{}, err error) {
 var bigOne = big.NewInt(1)
 
 // generateRSAKeyWithPrimes generates a multi-prime RSA keypair of the
-// given bit size, using the given random source and prepopulated primes.
+// given bit size, using the given random source and pre-populated primes.
 func generateRSAKeyWithPrimes(random io.Reader, nprimes int, bits int, prepopulatedPrimes []*big.Int) (*rsa.PrivateKey, error) {
 	priv := new(rsa.PrivateKey)
 	priv.E = 65537

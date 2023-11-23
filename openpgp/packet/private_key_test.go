@@ -463,9 +463,13 @@ func TestEncryptDecryptEdDSAPrivateKeyRandomizeFast(t *testing.T) {
 	copy(copiedSecret, privKey.PrivateKey.(*eddsa.PrivateKey).D)
 
 	// Encrypt private key with random passphrase
-	privKey.Encrypt(password)
+	if err := privKey.Encrypt(password); err != nil {
+		t.Fatal(err)
+	}
 	// Decrypt and check correctness
-	privKey.Decrypt(password)
+	if err := privKey.Decrypt(password); err != nil {
+		t.Fatal(err)
+	}
 
 	decryptedSecret := privKey.PrivateKey.(*eddsa.PrivateKey).D
 	if !bytes.Equal(decryptedSecret, copiedSecret) {

@@ -68,6 +68,9 @@ func TestCompressDecompressRandomizeFast(t *testing.T) {
 	wcomp.Close()
 	// Read the packet and decompress
 	p, err := Read(w)
+	if err != nil {
+		t.Fatal(err)
+	}
 	c, ok := p.(*Compressed)
 	if !ok {
 		t.Error("didn't find Compressed packet")

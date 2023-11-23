@@ -97,7 +97,9 @@ func newEntity(uid *userIdData, config *packet.Config) (*Entity, error) {
 	}
 
 	if config.V6() {
-		e.AddDirectKeySignature(keyProperties, config)
+		if err := e.AddDirectKeySignature(keyProperties, config); err != nil {
+			return nil, err
+		}
 		keyProperties = nil
 	}
 

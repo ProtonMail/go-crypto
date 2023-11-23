@@ -596,7 +596,9 @@ func (e *Entity) serializePrivate(w io.Writer, config *packet.Config, reSign boo
 	}
 	for _, subkey := range e.Subkeys {
 		if reSign {
-			subkey.ReSign(config)
+			if err := subkey.ReSign(config); err != nil {
+				return err
+			}
 		}
 		if err = subkey.Serialize(w, true); err != nil {
 			return err

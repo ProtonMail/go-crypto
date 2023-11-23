@@ -90,7 +90,7 @@ func TestPublicKeySerialize(t *testing.T) {
 			t.Errorf("#%d: Read error (from serialized data): %s", i, err)
 			continue
 		}
-		pk, ok = packet.(*PublicKey)
+		_, ok = packet.(*PublicKey)
 		if !ok {
 			t.Errorf("#%d: failed to parse serialized data, got: %#v", i, packet)
 			continue

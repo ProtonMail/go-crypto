@@ -100,7 +100,10 @@ func TestSerializeMdc(t *testing.T) {
 
 	contents := []byte("hello world\n")
 
-	w.Write(contents)
+	if _, err := w.Write(contents); err != nil {
+		t.Error(err)
+		return
+	}
 	w.Close()
 
 	p, err := Read(buf)

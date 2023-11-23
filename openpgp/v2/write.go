@@ -27,7 +27,7 @@ func DetachSign(w io.Writer, signers []*Entity, message io.Reader, config *packe
 }
 
 // DetachSignWithParams signs message with the private key from signer (which must
-// already have been decrypted) and writes the signature to w.
+// already have been decrypted) and writes the signature to the Writer.
 // If config is nil, sensible defaults will be used.
 func DetachSignWithParams(w io.Writer, signers []*Entity, message io.Reader, params *SignParams) error {
 	if params == nil {
@@ -41,7 +41,7 @@ func DetachSignWithParams(w io.Writer, signers []*Entity, message io.Reader, par
 }
 
 // ArmoredDetachSign signs message with the private key from signer (which
-// must already have been decrypted) and writes an armored signature to w.
+// must already have been decrypted) and writes an armored signature to the Writer.
 // If config is nil, sensible defaults will be used.
 func ArmoredDetachSign(w io.Writer, signers []*Entity, message io.Reader, params *SignParams) (err error) {
 	if params == nil {
@@ -55,7 +55,7 @@ func ArmoredDetachSign(w io.Writer, signers []*Entity, message io.Reader, params
 }
 
 // DetachSignWriter signs a message with the private key from a signer (which must
-// already have been decrypted) and writes the signature to w.
+// already have been decrypted) and writes the signature to the Writer.
 // DetachSignWriter returns a WriteCloser to which the message can be written to.
 // The resulting WriteCloser must be closed after the contents of the message have
 // been written. If utf8Message is set to true, the line endings of the message are

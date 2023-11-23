@@ -42,11 +42,11 @@ func TestDecryptSymmetricKeyAndEncryptedDataPacket(t *testing.T) {
 		}
 		// Decrypt contents
 		var edp EncryptedDataPacket
-		switch packet.(type) {
+		switch p := packet.(type) {
 		case *SymmetricallyEncrypted:
-			edp, _ = packet.(*SymmetricallyEncrypted)
+			edp = p
 		case *AEADEncrypted:
-			edp, _ = packet.(*AEADEncrypted)
+			edp = p
 		default:
 			t.Fatal("no integrity protected packet")
 		}
@@ -151,7 +151,7 @@ func TestSerializeSymmetricKeyEncryptedCiphersV4(t *testing.T) {
 					config := &Config{
 						DefaultCipher: cipher,
 						S2KConfig: &s2k.Config{
-							S2KMode: s2ktype,
+							S2KMode:                 s2ktype,
 							PassphraseIsHighEntropy: true,
 						},
 					}

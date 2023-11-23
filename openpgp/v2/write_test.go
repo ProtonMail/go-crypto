@@ -64,7 +64,9 @@ func TestSignDetachedDSA(t *testing.T) {
 
 func TestSignDetachedP256(t *testing.T) {
 	kring, _ := ReadKeyRing(readerFromHex(p256TestKeyPrivateHex))
-	kring[0].PrivateKey.Decrypt([]byte("passphrase"))
+	if err := kring[0].PrivateKey.Decrypt([]byte("passphrase")); err != nil {
+		t.Error(err)
+	}
 
 	out := bytes.NewBuffer(nil)
 	message := bytes.NewBufferString(signedInput)
@@ -563,7 +565,7 @@ func TestIntendedRecipientsEncryption(t *testing.T) {
 		t.Errorf("not verified despite all data read")
 	}
 	if md.SignatureError != nil {
-		t.Error("singature verification should pass")
+		t.Error("signature verification should pass")
 	}
 }
 

@@ -61,7 +61,9 @@ func TestSignDetachedDSA(t *testing.T) {
 
 func TestSignDetachedP256(t *testing.T) {
 	kring, _ := ReadKeyRing(readerFromHex(p256TestKeyPrivateHex))
-	kring[0].PrivateKey.Decrypt([]byte("passphrase"))
+	if err := kring[0].PrivateKey.Decrypt([]byte("passphrase")); err != nil {
+		t.Error(err)
+	}
 
 	out := bytes.NewBuffer(nil)
 	message := bytes.NewBufferString(signedInput)
@@ -219,7 +221,7 @@ func TestNewEntity(t *testing.T) {
 
 	el, err := ReadKeyRing(w)
 	if err != nil {
-		t.Errorf("failed to reparse entity: %s", err)
+		t.Errorf("failed to rephrase entity: %s", err)
 		return
 	}
 
@@ -253,7 +255,7 @@ func TestNewEntity(t *testing.T) {
 
 	_, err = ReadKeyRing(w)
 	if err != nil {
-		t.Errorf("failed to reparse entity after encryption round: %s", err)
+		t.Errorf("failed to re-parse entity after encryption round: %s", err)
 		return
 	}
 }

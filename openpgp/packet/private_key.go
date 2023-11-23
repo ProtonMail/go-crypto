@@ -417,7 +417,9 @@ func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 		contents.Write([]byte{uint8(optional.Len())})
 	}
 
-	io.Copy(contents, optional)
+	if _, err := io.Copy(contents, optional); err != nil {
+		return err
+	}
 
 	if !pk.Dummy() {
 		l := 0
@@ -1007,6 +1009,7 @@ func (pk *PrivateKey) parseEd25519PrivateKey(data []byte) (err error) {
 
 	if len(data) != ed25519.SeedSize {
 		err = errors.StructuralError("wrong ed25519 key size")
+		return err
 	}
 	err = privateKey.UnmarshalByteSecret(data)
 	if err != nil {
@@ -1027,6 +1030,7 @@ func (pk *PrivateKey) parseEd448PrivateKey(data []byte) (err error) {
 
 	if len(data) != ed448.SeedSize {
 		err = errors.StructuralError("wrong ed448 key size")
+		return err
 	}
 	err = privateKey.UnmarshalByteSecret(data)
 	if err != nil {

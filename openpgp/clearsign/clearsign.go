@@ -228,7 +228,9 @@ func (d *dashEscaper) Write(data []byte) (n int, err error) {
 			// The final CRLF isn't included in the hash so we have to wait
 			// until this point (the start of the next line) before writing it.
 			if !d.isFirstLine {
-				d.toHash.Write(crlf)
+				if _, err = d.toHash.Write(crlf); err != nil {
+					return
+				}
 			}
 			d.isFirstLine = false
 		}
@@ -249,12 +251,16 @@ func (d *dashEscaper) Write(data []byte) (n int, err error) {
 				if _, err = d.buffered.Write(dashEscape); err != nil {
 					return
 				}
-				d.toHash.Write(d.byteBuf)
+				if _, err = d.toHash.Write(d.byteBuf); err != nil {
+					return
+				}
 				d.atBeginningOfLine = false
 			} else if b == '\n' {
 				// Nothing to do because we delay writing CRLF to the hash.
 			} else {
-				d.toHash.Write(d.byteBuf)
+				if _, err = d.toHash.Write(d.byteBuf); err != nil {
+					return
+				}
 				d.atBeginningOfLine = false
 			}
 			if err = d.buffered.WriteByte(b); err != nil {
@@ -275,7 +281,9 @@ func (d *dashEscaper) Write(data []byte) (n int, err error) {
 				// Any buffered whitespace wasn't at the end of the line so
 				// we need to write it out.
 				if len(d.whitespace) > 0 {
-					d.toHash.Write(d.whitespace)
+					if _, err = d.toHash.Write(d.whitespace); err != nil {
+						return
+					}
 					if _, err = d.buffered.Write(d.whitespace); err != nil {
 						return
 					}
@@ -296,7 +304,9 @@ func (d *dashEscaper) Write(data []byte) (n int, err error) {
 func (d *dashEscaper) Close() (err error) {
 	if d.atBeginningOfLine {
 		if !d.isFirstLine {
-			d.toHash.Write(crlf)
+			if _, err := d.toHash.Write(crlf); err != nil {
+				return err
+			}
 		}
 	}
 	if err = d.buffered.WriteByte(lf); err != nil {

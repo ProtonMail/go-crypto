@@ -1081,7 +1081,9 @@ func TestAddUserId(t *testing.T) {
 	}
 
 	serializedEntity := bytes.NewBuffer(nil)
-	entity.SerializePrivate(serializedEntity, nil)
+	if err := entity.SerializePrivate(serializedEntity, nil); err != nil {
+		t.Fatal(err)
+	}
 
 	_, err = ReadEntity(packet.NewReader(bytes.NewBuffer(serializedEntity.Bytes())))
 	if err != nil {
@@ -1116,7 +1118,9 @@ func TestAddSubkey(t *testing.T) {
 	}
 
 	serializedEntity := bytes.NewBuffer(nil)
-	entity.SerializePrivate(serializedEntity, nil)
+	if err := entity.SerializePrivate(serializedEntity, nil); err != nil {
+		t.Fatal(err)
+	}
 
 	_, err = ReadEntity(packet.NewReader(bytes.NewBuffer(serializedEntity.Bytes())))
 	if err != nil {
@@ -1141,7 +1145,9 @@ func TestAddSubkeySerialized(t *testing.T) {
 	}
 
 	serializedEntity := bytes.NewBuffer(nil)
-	entity.SerializePrivateWithoutSigning(serializedEntity, nil)
+	if err = entity.SerializePrivateWithoutSigning(serializedEntity, nil); err != nil {
+		t.Fatal(err)
+	}
 
 	entity, err = ReadEntity(packet.NewReader(bytes.NewBuffer(serializedEntity.Bytes())))
 	if err != nil {
@@ -1217,7 +1223,9 @@ func TestAddSubkeyWithConfig(t *testing.T) {
 	}
 
 	serializedEntity := bytes.NewBuffer(nil)
-	entity.SerializePrivate(serializedEntity, nil)
+	if err = entity.SerializePrivate(serializedEntity, nil); err != nil {
+		t.Fatal(err)
+	}
 
 	_, err = ReadEntity(packet.NewReader(bytes.NewBuffer(serializedEntity.Bytes())))
 	if err != nil {
@@ -1246,7 +1254,9 @@ func TestAddSubkeyWithConfigSerialized(t *testing.T) {
 	}
 
 	serializedEntity := bytes.NewBuffer(nil)
-	entity.SerializePrivateWithoutSigning(serializedEntity, nil)
+	if err := entity.SerializePrivateWithoutSigning(serializedEntity, nil); err != nil {
+		t.Fatal(err)
+	}
 
 	entity, err = ReadEntity(packet.NewReader(bytes.NewBuffer(serializedEntity.Bytes())))
 	if err != nil {
