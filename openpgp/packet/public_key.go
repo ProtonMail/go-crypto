@@ -874,13 +874,8 @@ func (pk *PublicKey) VerifyKeySignature(signed *PublicKey, sig *Signature) error
 	return nil
 }
 
-func keyRevocationHash(pk signingKey, hashFunc hash.Hash) (h hash.Hash, err error) {
-	h = hashFunc
-
-	// RFC 4880, section 5.2.4
-	err = pk.SerializeForHash(h)
-
-	return
+func keyRevocationHash(pk signingKey, hashFunc hash.Hash) (err error) {
+	return pk.SerializeForHash(hashFunc)
 }
 
 // VerifyRevocationSignature returns nil iff sig is a valid signature, made by this
@@ -890,11 +885,10 @@ func (pk *PublicKey) VerifyRevocationSignature(sig *Signature) (err error) {
 	if err != nil {
 		return err
 	}
-	h, err := keyRevocationHash(pk, preparedHash)
-	if err != nil {
+	if keyRevocationHash(pk, preparedHash); err != nil {
 		return err
 	}
-	return pk.VerifySignature(h, sig)
+	return pk.VerifySignature(preparedHash, sig)
 }
 
 // VerifySubkeyRevocationSignature returns nil iff sig is a valid subkey revocation signature,
@@ -935,16 +929,9 @@ func userIdSignatureHash(id string, pk *PublicKey, h hash.Hash) (err error) {
 	return nil
 }
 
-// directSignatureHash returns a Hash of the message that needs to be signed
+// directKeySignatureHash returns a Hash of the message that needs to be signed.
 func directKeySignatureHash(pk *PublicKey, h hash.Hash) (err error) {
-	// RFC 4880, section 5.2.4
-	if err := pk.SerializeSignaturePrefix(h); err != nil {
-		return err
-	}
-	if err := pk.serializeWithoutHeaders(h); err != nil {
-		return err
-	}
-	return nil
+	return pk.SerializeForHash(h)
 }
 
 // VerifyUserIdSignature returns nil iff sig is a valid signature, made by this
@@ -960,8 +947,8 @@ func (pk *PublicKey) VerifyUserIdSignature(id string, pub *PublicKey, sig *Signa
 	return pk.VerifySignature(h, sig)
 }
 
-// VerifyUserIdSignature returns nil iff sig is a valid signature, made by this
-// public key
+// VerifyDirectKeySignature returns nil iff sig is a valid signature, made by this
+// public key.
 func (pk *PublicKey) VerifyDirectKeySignature(sig *Signature) (err error) {
 	h, err := sig.PrepareVerify()
 	if err != nil {

@@ -79,6 +79,7 @@ func (s *Subkey) Serialize(w io.Writer, includeSecrets bool) error {
 	return nil
 }
 
+// ReSign resigns the latest valid subkey binding signature with the given config.
 func (s *Subkey) ReSign(config *packet.Config) error {
 	selectedSig, err := s.LatestValidBindingSignature(time.Time{})
 	if err != nil {

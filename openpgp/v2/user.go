@@ -71,6 +71,7 @@ func readUser(e *Entity, packets *packet.Reader, pkt *packet.UserId) error {
 	return nil
 }
 
+// Serialize serializes the user id to the writer.
 func (i *Identity) Serialize(w io.Writer) error {
 	if err := i.UserId.Serialize(w); err != nil {
 		return err
@@ -135,6 +136,7 @@ func (i *Identity) Revoked(selfCertification *packet.Signature, date time.Time) 
 	return false
 }
 
+// ReSign resigns the latest valid self-certification with the given config.
 func (i *Identity) ReSign(config *packet.Config) error {
 	selectedSig, err := i.LatestValidSelfCertification(config.Now())
 	if err != nil {

@@ -1019,11 +1019,10 @@ func (sig *Signature) RevokeKey(pub *PublicKey, priv *PrivateKey, config *Config
 	if err != nil {
 		return err
 	}
-	h, err := keyRevocationHash(pub, prepareHash)
-	if err != nil {
+	if err := keyRevocationHash(pub, prepareHash); err != nil {
 		return err
 	}
-	return sig.Sign(h, priv, config)
+	return sig.Sign(prepareHash, priv, config)
 }
 
 // RevokeSubkey computes a subkey revocation signature of pub using priv.
