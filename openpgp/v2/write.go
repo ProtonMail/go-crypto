@@ -394,7 +394,7 @@ func Encrypt(ciphertext io.Writer, to, toHidden []*Entity, signers []*Entity, hi
 }
 
 // writeAndSign writes the data as a payload package and, optionally, signs
-// it. hints contains optional information, that is also encrypted,
+// it. Hints contains optional information, that is also encrypted,
 // that aids the recipients in processing the message. The resulting
 // WriteCloser must be closed after the contents of the file have been
 // written. If config is nil, sensible defaults will be used.
@@ -784,7 +784,7 @@ func SignWithParams(output io.Writer, signers []*Entity, params *SignParams) (in
 }
 
 // Sign signs a message. The resulting WriteCloser must be closed after the
-// contents of the file have been written.  Hints contains optional information
+// contents of the file have been written. Hints contains optional information
 // that aids the recipients in processing the message.
 // The crypto-refresh recommends to not set file hints since the data is not included in the signature hash.
 // See https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-12.html#section-5.9.
