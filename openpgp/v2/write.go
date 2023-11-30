@@ -216,12 +216,15 @@ type EncryptParams struct {
 	// If nil, default is used.
 	Hints *FileHints
 	// SiningEntities contains the private keys to produce signatures with
-	// If nil, no signatures are created
+	// If nil, no signatures are created.
 	Signers []*Entity
-	// TextSig indicates if signatures of type SigTypeText should be produced
+	// TextSig indicates if signatures of type SigTypeText should be produced.
 	TextSig bool
+	// Passwords defines additional passwords that the message should be encrypted to.
+	// i.e., for each defined password an additional SKESK packet is written.
+	Passwords [][]byte
 	// SessionKey provides a session key to be used for encryption.
-	// If nil, a one-time session key is generated
+	// If nil, a one-time session key is generated.
 	SessionKey []byte
 	// OutsideSig allows to set a signature that should be included
 	// in the message to encrypt.
@@ -282,6 +285,12 @@ func symmetricallyEncrypt(passphrase []byte, dataWriter io.Writer, params *Encry
 	if err != nil {
 		return
 	}
+	for _, additionalPassword := range params.Passwords {
+		if err = packet.SerializeSymmetricKeyEncryptedReuseKey(params.KeyWriter, params.SessionKey, additionalPassword, params.Config); err != nil {
+			return
+		}
+	}
+
 	config := params.Config
 	candidateCompression := []uint8{uint8(config.Compression())}
 	cipherSuite := packet.CipherSuite{
@@ -672,6 +681,12 @@ func encrypt(
 		// hide the keys of the hidden recipients
 		hidden := idx >= len(to)
 		if err := packet.SerializeEncryptedKeyAEADwithHiddenOption(params.KeyWriter, key.PublicKey, cipher, aeadSupported, params.SessionKey, hidden, config); err != nil {
+			return nil, err
+		}
+	}
+
+	for _, password := range params.Passwords {
+		if err = packet.SerializeSymmetricKeyEncryptedReuseKey(params.KeyWriter, params.SessionKey, password, params.Config); err != nil {
 			return nil, err
 		}
 	}
