@@ -773,6 +773,16 @@ func (pk *PublicKey) VerifyRevocationSignature(sig *Signature) (err error) {
 	return pk.VerifySignature(h, sig)
 }
 
+// VerifyRevocationSignatureV3 returns nil iff sig is a valid signature, made by this
+// public key.
+func (pk *PublicKey) VerifyRevocationSignatureV3(sig *SignatureV3) (err error) {
+	h, err := keyRevocationHash(pk, sig.Hash)
+	if err != nil {
+		return err
+	}
+	return pk.VerifySignatureV3(h, sig)
+}
+
 // VerifySubkeyRevocationSignature returns nil iff sig is a valid subkey revocation signature,
 // made by this public key, of signed.
 func (pk *PublicKey) VerifySubkeyRevocationSignature(sig *Signature, signed *PublicKey) (err error) {

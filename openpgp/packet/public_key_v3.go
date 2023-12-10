@@ -252,6 +252,16 @@ func (pk *PublicKeyV3) VerifyKeySignatureV3(signed *PublicKeyV3, sig *SignatureV
 	return pk.VerifySignatureV3(h, sig)
 }
 
+// VerifyRevocationSignatureV3 returns nil iff sig is a valid signature, made by this
+// public key.
+func (pk *PublicKeyV3) VerifyRevocationSignatureV3(sig *SignatureV3) (err error) {
+	h, err := keyRevocationHash(pk, sig.Hash)
+	if err != nil {
+		return err
+	}
+	return pk.VerifySignatureV3(h, sig)
+}
+
 // userIdSignatureV3Hash returns a Hash of the message that needs to be signed
 // to assert that pk is a valid key for id.
 func userIdSignatureV3Hash(id string, pk signingKey, hfn crypto.Hash) (h hash.Hash, err error) {
