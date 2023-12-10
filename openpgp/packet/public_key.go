@@ -589,6 +589,20 @@ func (pk *PublicKey) CanSign() bool {
 	return pk.PubKeyAlgo != PubKeyAlgoRSAEncryptOnly && pk.PubKeyAlgo != PubKeyAlgoElGamal && pk.PubKeyAlgo != PubKeyAlgoECDH
 }
 
+// VerifyHashTag returns nil iff sig appears to be a plausible signature of the data
+// hashed into signed, based solely on its HashTag. signed is mutated by this call.
+func VerifyHashTag(signed hash.Hash, sig *Signature) (err error) {
+	if sig.Version == 5 && (sig.SigType == 0x00 || sig.SigType == 0x01) {
+		sig.AddMetadataToHashSuffix()
+	}
+	signed.Write(sig.HashSuffix)
+	hashBytes := signed.Sum(nil)
+	if hashBytes[0] != sig.HashTag[0] || hashBytes[1] != sig.HashTag[1] {
+		return errors.SignatureError("hash tag doesn't match")
+	}
+	return nil
+}
+
 // VerifySignature returns nil iff sig is a valid signature, made by this
 // public key, of the data hashed into signed. signed is mutated by this call.
 func (pk *PublicKey) VerifySignature(signed hash.Hash, sig *Signature) (err error) {
@@ -662,6 +676,16 @@ func keySignatureHash(pk, signed signingKey, hashFunc crypto.Hash) (h hash.Hash,
 	return
 }
 
+// VerifyKeyHashTag returns nil iff sig appears to be a plausible signature over this
+// primary key and subkey, based solely on its HashTag.
+func (pk *PublicKey) VerifyKeyHashTag(signed *PublicKey, sig *Signature) error {
+	h, err := keySignatureHash(pk, signed, sig.Hash)
+	if err != nil {
+		return err
+	}
+	return VerifyHashTag(h, sig)
+}
+
 // VerifyKeySignature returns nil iff sig is a valid signature, made by this
 // public key, of signed.
 func (pk *PublicKey) VerifyKeySignature(signed *PublicKey, sig *Signature) error {
@@ -703,6 +727,16 @@ func keyRevocationHash(pk signingKey, hashFunc crypto.Hash) (h hash.Hash, err er
 	err = pk.SerializeForHash(h)
 
 	return
+}
+
+// VerifyRevocationHashTag returns nil iff sig appears to be a plausible signature
+// over this public key, based solely on its HashTag.
+func (pk *PublicKey) VerifyRevocationHashTag(sig *Signature) (err error) {
+	h, err := keyRevocationHash(pk, sig.Hash)
+	if err != nil {
+		return err
+	}
+	return VerifyHashTag(h, sig)
 }
 
 // VerifyRevocationSignature returns nil iff sig is a valid signature, made by this
@@ -747,6 +781,16 @@ func userIdSignatureHash(id string, pk *PublicKey, hashFunc crypto.Hash) (h hash
 	h.Write([]byte(id))
 
 	return
+}
+
+// VerifyUserIdHashTag returns nil iff sig appears to be a plausible signature over this
+// public key and UserId, based solely on its HashTag
+func (pk *PublicKey) VerifyUserIdHashTag(id string, sig *Signature) (err error) {
+	h, err := userIdSignatureHash(id, pk, sig.Hash)
+	if err != nil {
+		return err
+	}
+	return VerifyHashTag(h, sig)
 }
 
 // VerifyUserIdSignature returns nil iff sig is a valid signature, made by this
