@@ -346,9 +346,9 @@ func newDecrypter(config *packet.Config) (decrypter interface{}, err error) {
 			return nil, errors.InvalidArgumentError("unsupported curve")
 		}
 		return ecdh.GenerateKey(config.Random(), curve, kdf)
-	case packet.PubKeyAlgoEd25519, packet.PubKeyAlgoX25519: // When passing Ed25519, we generate an X25519 subkey
+	case packet.PubKeyAlgoEd25519, packet.PubKeyAlgoX25519: // When passing Ed25519, we generate an x25519 subkey
 		return x25519.GenerateKey(config.Random())
-	case packet.PubKeyAlgoEd448, packet.PubKeyAlgoX448: // When passing Ed448, we generate an X448 subkey
+	case packet.PubKeyAlgoEd448, packet.PubKeyAlgoX448: // When passing Ed448, we generate an x448 subkey
 		return x448.GenerateKey(config.Random())
 	default:
 		return nil, errors.InvalidArgumentError("unsupported public key algorithm")

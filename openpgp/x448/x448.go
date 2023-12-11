@@ -203,7 +203,7 @@ func DecodeFields(reader io.Reader, v6 bool) (ephemeralPublicKey *PublicKey, enc
 	ephemeralPublicKey = &PublicKey{
 		Point: make([]byte, KeySize),
 	}
-	// 56 octets representing an ephemeral X448 public key.
+	// 56 octets representing an ephemeral x448 public key.
 	if _, err = io.ReadFull(reader, ephemeralPublicKey.Point); err != nil {
 		return nil, nil, 0, err
 	}

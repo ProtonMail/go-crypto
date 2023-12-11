@@ -339,7 +339,7 @@ func SerializeEncryptedKeyAEADwithHiddenOption(w io.Writer, pub *PublicKey, ciph
 	if version == 6 && pub.PubKeyAlgo == PubKeyAlgoElGamal {
 		return errors.InvalidArgumentError("ElGamal v6 PKESK are not allowed")
 	}
-	// In v3 PKESKs, for X25519 and X448, mandate using AES
+	// In v3 PKESKs, for x25519 and x448, mandate using AES
 	if version == 3 && (pub.PubKeyAlgo == PubKeyAlgoX25519 || pub.PubKeyAlgo == PubKeyAlgoX448) {
 		switch cipherFunc {
 		case CipherAES128, CipherAES192, CipherAES256:
@@ -510,7 +510,7 @@ func serializeEncryptedKeyECDH(w io.Writer, rand io.Reader, header []byte, pub *
 func serializeEncryptedKeyX25519(w io.Writer, rand io.Reader, header []byte, pub *x25519.PublicKey, keyBlock []byte, cipherFunc byte, version int) error {
 	ephemeralPublicX25519, ciphertext, err := x25519.Encrypt(rand, pub, keyBlock)
 	if err != nil {
-		return errors.InvalidArgumentError("X25519 encryption failed: " + err.Error())
+		return errors.InvalidArgumentError("x25519 encryption failed: " + err.Error())
 	}
 
 	packetLen := len(header) /* header length */

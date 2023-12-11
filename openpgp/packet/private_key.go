@@ -973,7 +973,7 @@ func (pk *PrivateKey) parseX25519PrivateKey(data []byte) (err error) {
 	privateKey.Secret = make([]byte, x25519.KeySize)
 
 	if len(data) != x25519.KeySize {
-		err = errors.StructuralError("wrong X25519 key size")
+		err = errors.StructuralError("wrong x25519 key size")
 		return err
 	}
 	subtle.ConstantTimeCopy(1, privateKey.Secret, data)

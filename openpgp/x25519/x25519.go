@@ -165,8 +165,8 @@ func EncodedFieldsLength(encryptedSessionKey []byte, v6 bool) int {
 	return KeySize + 1 + len(encryptedSessionKey) + lenCipherFunction
 }
 
-// EncodeField encodes X25519 session key encryption fields as
-// ephemeral X25519 public key | follow byte length | cipherFunction (v3 only) | encryptedSessionKey
+// EncodeField encodes x25519 session key encryption fields as
+// ephemeral x25519 public key | follow byte length | cipherFunction (v3 only) | encryptedSessionKey
 // and writes it to writer.
 func EncodeFields(writer io.Writer, ephemeralPublicKey *PublicKey, encryptedSessionKey []byte, cipherFunction byte, v6 bool) (err error) {
 	lenAlgorithm := 0
@@ -188,14 +188,14 @@ func EncodeFields(writer io.Writer, ephemeralPublicKey *PublicKey, encryptedSess
 	return err
 }
 
-// DecodeField decodes a X25519 session key encryption as
-// ephemeral X25519 public key | follow byte length | cipherFunction (v3 only) | encryptedSessionKey.
+// DecodeField decodes a x25519 session key encryption as
+// ephemeral x25519 public key | follow byte length | cipherFunction (v3 only) | encryptedSessionKey.
 func DecodeFields(reader io.Reader, v6 bool) (ephemeralPublicKey *PublicKey, encryptedSessionKey []byte, cipherFunction byte, err error) {
 	var buf [1]byte
 	ephemeralPublicKey = &PublicKey{
 		Point: make([]byte, KeySize),
 	}
-	// 32 octets representing an ephemeral X25519 public key.
+	// 32 octets representing an ephemeral x25519 public key.
 	if _, err = io.ReadFull(reader, ephemeralPublicKey.Point); err != nil {
 		return nil, nil, 0, err
 	}
