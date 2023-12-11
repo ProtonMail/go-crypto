@@ -32,7 +32,7 @@ type PrivateKey struct {
 	Key []byte
 }
 
-// NewPublicKey creates a new empty ed25519 public key.
+// NewPublicKey creates a new empty ed448 public key.
 func NewPublicKey() *PublicKey {
 	return &PublicKey{}
 }
@@ -44,7 +44,7 @@ func NewPrivateKey(key PublicKey) *PrivateKey {
 	}
 }
 
-// Seed returns the ed25519 private key secret seed.
+// Seed returns the ed448 private key secret seed.
 // The private key representation by RFC 8032.
 func (pk *PrivateKey) Seed() []byte {
 	return pk.Key[:SeedSize]
