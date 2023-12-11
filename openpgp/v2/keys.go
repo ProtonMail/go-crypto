@@ -201,7 +201,6 @@ func (e *Entity) SigningKeyById(now time.Time, id uint64, config *packet.Config)
 }
 
 func (e *Entity) signingKeyByIdUsage(now time.Time, id uint64, flags int, config *packet.Config) (Key, error) {
-	// Fail to find any signing key if the...
 	primarySelfSignature, err := e.VerifyPrimaryKey(now)
 	if err != nil {
 		return Key{}, err
@@ -212,7 +211,7 @@ func (e *Entity) signingKeyByIdUsage(now time.Time, id uint64, flags int, config
 		return Key{}, err
 	}
 
-	// Iterate the keys to find the newest, unexpired one
+	// Iterate the keys to find the newest, unexpired one.
 	candidateSubkey := -1
 	var maxTime time.Time
 	var selectedSubkeySelfSig *packet.Signature
