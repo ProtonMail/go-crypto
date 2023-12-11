@@ -12,6 +12,7 @@ import (
 	"crypto/rsa"
 	"crypto/sha1"
 	"crypto/sha256"
+	"crypto/subtle"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -975,7 +976,7 @@ func (pk *PrivateKey) parseX25519PrivateKey(data []byte) (err error) {
 		err = errors.StructuralError("wrong X25519 key size")
 		return err
 	}
-	copy(privateKey.Secret, data)
+	subtle.ConstantTimeCopy(1, privateKey.Secret, data)
 	if err = x25519.Validate(privateKey); err != nil {
 		return err
 	}
@@ -994,7 +995,7 @@ func (pk *PrivateKey) parseX448PrivateKey(data []byte) (err error) {
 		err = errors.StructuralError("wrong x448 key size")
 		return err
 	}
-	copy(privateKey.Secret, data)
+	subtle.ConstantTimeCopy(1, privateKey.Secret, data)
 	if err = x448.Validate(privateKey); err != nil {
 		return err
 	}
