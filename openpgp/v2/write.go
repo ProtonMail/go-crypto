@@ -111,8 +111,8 @@ type detachSignContext struct {
 
 func (s detachSignWriter) Write(data []byte) (int, error) {
 	for _, signature := range s.signatures {
-		if _, err := signature.wrappedHash.Write(data); err != nil {
-			return 0, err
+		if n, err := signature.wrappedHash.Write(data); err != nil {
+			return n, err
 		}
 	}
 	return len(data), nil
@@ -1024,7 +1024,7 @@ func acceptableHashesToWrite(singingKey *packet.PublicKey) []uint8 {
 			hashToHashId(crypto.SHA512),
 			hashToHashId(crypto.SHA3_512),
 		}
-	case packet.PubKeyAlgoECDSA:
+	case packet.PubKeyAlgoECDSA, packet.PubKeyAlgoEdDSA:
 		if curve, err := singingKey.Curve(); err == nil {
 			if curve == packet.Curve448 ||
 				curve == packet.CurveNistP521 ||

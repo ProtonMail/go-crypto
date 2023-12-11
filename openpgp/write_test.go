@@ -352,7 +352,7 @@ func TestSymmetricEncryption(t *testing.T) {
 	}
 }
 
-func TestSymmetricEncryptionV5RandomizeSlow(t *testing.T) {
+func TestSymmetricEncryptionSEIPDv2RandomizeSlow(t *testing.T) {
 	modesS2K := map[int]s2k.Mode{
 		0: s2k.IteratedSaltedS2K,
 		1: s2k.Argon2S2K,
