@@ -47,7 +47,7 @@ type MessageDetails struct {
 	DecryptedWith            Key                 // the private key used to decrypt the message, if any.
 	IsSigned                 bool                // true if the message is signed.
 	SignedByKeyId            uint64              // the key id of the signer, if any.
-	SignedByFingerprint      []byte              // the key fingerprint of the signer, if any. (only v6)
+	SignedByFingerprint      []byte              // the key fingerprint of the signer, if any.
 	SignedBy                 *Key                // the key of the signer, if available.
 	LiteralData              *packet.LiteralData // the metadata of the contents
 	UnverifiedBody           io.Reader           // the contents of the message.

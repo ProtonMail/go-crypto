@@ -324,7 +324,7 @@ func (e *Entity) DecryptPrivateKeys(passphrase []byte) error {
 	return packet.DecryptPrivateKeys(keysToDecrypt, passphrase)
 }
 
-// An EntityList contains one or more Entities.
+// EntityList contains one or more Entities.
 type EntityList []*Entity
 
 // KeysById returns the set of keys that have the given key id.

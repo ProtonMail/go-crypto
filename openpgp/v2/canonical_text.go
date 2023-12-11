@@ -111,7 +111,7 @@ func (tr *canonicalTextReader) Read(buf []byte) (int, error) {
 		return n, err
 	}
 	if _, err = writeCanonical(tr.buffer, buf[:n], &tr.s); err != nil {
-		return 0, err
+		return n, err
 	}
 	return tr.buffer.Read(buf)
 }

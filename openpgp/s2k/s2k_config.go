@@ -50,7 +50,7 @@ type Config struct {
 type Argon2Config struct {
 	NumberOfPasses      uint8
 	DegreeOfParallelism uint8
-	// The memory parameter for Argon2 specifies desired memory usage in kibibytes.
+	// Memory specifies the desired Argon2 memory usage in kibibytes.
 	// For example memory=64*1024 sets the memory cost to ~64 MB.
 	Memory uint32
 }

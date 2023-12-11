@@ -473,7 +473,7 @@ func (cr checkReader) Read(buf []byte) (int, error) {
 				break
 			}
 			if err != nil {
-				return 0, err
+				return n, err
 			}
 		}
 		if cr.md.decrypted != nil {
@@ -519,7 +519,7 @@ func (scr *signatureCheckReader) Read(buf []byte) (int, error) {
 				break
 			}
 			if err != nil {
-				return 0, errors.StructuralError("parsing error")
+				return n, errors.StructuralError("parsing error")
 			}
 			if sig, ok := p.(*packet.Signature); ok {
 				if sig.Version == 5 && scr.md.LiteralData != nil && (sig.SigType == 0x00 || sig.SigType == 0x01) {

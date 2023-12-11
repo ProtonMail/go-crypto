@@ -8,7 +8,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 )
 
-// An Identity represents an identity claimed by an Entity and zero or more
+// Identity represents an identity claimed by an Entity and zero or more
 // assertions by other entities about that claim.
 type Identity struct {
 	Primary             *Entity

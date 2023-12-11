@@ -8,7 +8,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 )
 
-// A Subkey is an additional public key in an Entity. Subkeys can be used for
+// Subkey is an additional public key in an Entity. Subkeys can be used for
 // encryption.
 type Subkey struct {
 	Primary     *Entity

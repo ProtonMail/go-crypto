@@ -36,7 +36,7 @@ type EncryptedKey struct {
 	encryptedMPI1, encryptedMPI2 encoding.Field
 	ephemeralPublicX25519        *x25519.PublicKey // used for x25519
 	ephemeralPublicX448          *x448.PublicKey   // used for x448
-	encryptedSession             []byte            // used for x25519 and Ed448
+	encryptedSession             []byte            // used for x25519 and x448
 }
 
 func (e *EncryptedKey) parse(r io.Reader) (err error) {
@@ -525,8 +525,7 @@ func serializeEncryptedKeyX25519(w io.Writer, rand io.Reader, header []byte, pub
 	if err != nil {
 		return err
 	}
-	err = x25519.EncodeFields(w, ephemeralPublicX25519, ciphertext, cipherFunc, version == 6)
-	return err
+	return x25519.EncodeFields(w, ephemeralPublicX25519, ciphertext, cipherFunc, version == 6)
 }
 
 func serializeEncryptedKeyX448(w io.Writer, rand io.Reader, header []byte, pub *x448.PublicKey, keyBlock []byte, cipherFunc byte, version int) error {
@@ -547,8 +546,7 @@ func serializeEncryptedKeyX448(w io.Writer, rand io.Reader, header []byte, pub *
 	if err != nil {
 		return err
 	}
-	err = x448.EncodeFields(w, ephemeralPublicX448, ciphertext, cipherFunc, version == 6)
-	return err
+	return x448.EncodeFields(w, ephemeralPublicX448, ciphertext, cipherFunc, version == 6)
 }
 
 func checksumKeyMaterial(key []byte) uint16 {

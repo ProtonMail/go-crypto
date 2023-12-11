@@ -224,7 +224,7 @@ type EncryptParams struct {
 	// i.e., for each defined password an additional SKESK packet is written.
 	Passwords [][]byte
 	// SessionKey provides a session key to be used for encryption.
-	// If nil, a one-time session key is generated.
+	// If nil, a random one-time session key is generated.
 	SessionKey []byte
 	// OutsideSig allows to set a signature that should be included
 	// in the message to encrypt.
@@ -253,7 +253,7 @@ func SymmetricallyEncrypt(ciphertext io.Writer, passphrase []byte, hints *FileHi
 	})
 }
 
-// SymmetricallyEncryptWithParams acts like SymmetricallyEncrypt: but provides more configuration options
+// SymmetricallyEncryptWithParams acts like SymmetricallyEncrypt but provides more configuration options.
 // EncryptParams provides the optional parameters.
 // The resulting WriteCloser must be closed after the contents of the file have been written.
 func SymmetricallyEncryptWithParams(passphrase []byte, dataWriter io.Writer, params *EncryptParams) (plaintext io.WriteCloser, err error) {
@@ -345,7 +345,7 @@ func intersectPreferences(a []uint8, b []uint8) (intersection []uint8) {
 	return a[:j]
 }
 
-// intersectPreferences mutates and returns a prefix of a that contains only
+// intersectCipherSuites mutates and returns a prefix of a that contains only
 // the values in the intersection of a and b. The order of a is preserved.
 func intersectCipherSuites(a [][2]uint8, b [][2]uint8) (intersection [][2]uint8) {
 	var j int
