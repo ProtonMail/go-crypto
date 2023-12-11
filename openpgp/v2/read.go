@@ -3,7 +3,7 @@
 // license that can be found in the LICENSE file.
 
 // Package openpgp implements high level operations on OpenPGP messages.
-package v2 // import "github.com/ProtonMail/go-crypto/openpgp"
+package v2
 
 import (
 	"bytes"
@@ -280,7 +280,7 @@ type SignatureCandidate struct {
 	HashAlgorithm     crypto.Hash
 	PubKeyAlgo        packet.PublicKeyAlgorithm
 	IssuerKeyId       uint64
-	IssuerFingerprint []byte // v6 only
+	IssuerFingerprint []byte
 	Salt              []byte // v6 only
 
 	SignedByEntity    *Entity
@@ -430,9 +430,9 @@ func wrapHashForSignature(hashFunc hash.Hash, sigType packet.SignatureType) (has
 // hashForSignature returns a pair of hashes that can be used to verify a
 // signature. The signature may specify that the contents of the signed message
 // should be preprocessed (i.e. to normalize line endings). Thus this function
-// returns two hashes. The second should be used to hash the message itself and
-// performs any needed preprocessing.
-func hashForSignature(hashFunc crypto.Hash, sigType packet.SignatureType, sigSalt []byte) (hash.Hash, hash.Hash, error) {
+// returns two hashes. The first, directHash, will feed directly into the signature algorithm.
+// The second, wrappedHash, should be used to hash the message itself and performs any needed preprocessing.
+func hashForSignature(hashFunc crypto.Hash, sigType packet.SignatureType, sigSalt []byte) (directHash hash.Hash, wrappedHash hash.Hash, err error) {
 	if _, ok := algorithm.HashToHashIdWithSha1(hashFunc); !ok {
 		return nil, nil, errors.UnsupportedError("unsupported hash function")
 	}
@@ -443,7 +443,7 @@ func hashForSignature(hashFunc crypto.Hash, sigType packet.SignatureType, sigSal
 	if sigSalt != nil {
 		h.Write(sigSalt)
 	}
-	wrappedHash, err := wrapHashForSignature(h, sigType)
+	wrappedHash, err = wrapHashForSignature(h, sigType)
 	if err != nil {
 		return nil, nil, err
 	}
