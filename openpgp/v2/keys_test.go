@@ -685,67 +685,6 @@ func TestKeyWithSubKeyAndBadSelfSigOrder(t *testing.T) {
 
 }
 
-/*func TestKeyUsage(t *testing.T) {
-	kring, err := ReadKeyRing(readerFromHex(subkeyUsageHex))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// subkeyUsageHex contains these keys:
-	// pub  1024R/2866382A  created: 2014-04-01  expires: never       usage: SC
-	// sub  1024R/936C9153  created: 2014-04-01  expires: never       usage: E
-	// sub  1024R/64D5F5BB  created: 2014-04-02  expires: never       usage: E
-	// sub  1024D/BC0BA992  created: 2014-04-02  expires: never       usage: S
-	certifiers := []uint64{0xA42704B92866382A}
-	signers := []uint64{0xA42704B92866382A, 0x42CE2C64BC0BA992}
-	encrypters := []uint64{0x09C0C7D9936C9153, 0xC104E98664D5F5BB}
-
-	for _, id := range certifiers {
-		keys := kring.KeysByIdUsage(id, packet.KeyFlagCertify)
-		if len(keys) == 1 {
-			if keys[0].PublicKey.KeyId != id {
-				t.Errorf("Expected to find certifier key id %X, but got %X", id, keys[0].PublicKey.KeyId)
-			}
-		} else {
-			t.Errorf("Expected one match for certifier key id %X, but got %d matches", id, len(keys))
-		}
-	}
-
-	for _, id := range signers {
-		keys := kring.KeysByIdUsage(id, packet.KeyFlagSign)
-		if len(keys) == 1 {
-			if keys[0].PublicKey.KeyId != id {
-				t.Errorf("Expected to find signing key id %X, but got %X", id, keys[0].PublicKey.KeyId)
-			}
-		} else {
-			t.Errorf("Expected one match for signing key id %X, but got %d matches", id, len(keys))
-		}
-
-		// This keyring contains no encryption keys that are also good for signing.
-		keys = kring.KeysByIdUsage(id, packet.KeyFlagEncryptStorage|packet.KeyFlagEncryptCommunications)
-		if len(keys) != 0 {
-			t.Errorf("Unexpected match for encryption key id %X", id)
-		}
-	}
-
-	for _, id := range encrypters {
-		keys := kring.KeysByIdUsage(id, packet.KeyFlagEncryptStorage|packet.KeyFlagEncryptCommunications)
-		if len(keys) == 1 {
-			if keys[0].PublicKey.KeyId != id {
-				t.Errorf("Expected to find encryption key id %X, but got %X", id, keys[0].PublicKey.KeyId)
-			}
-		} else {
-			t.Errorf("Expected one match for encryption key id %X, but got %d matches", id, len(keys))
-		}
-
-		// This keyring contains no encryption keys that are also good for signing.
-		keys = kring.KeysByIdUsage(id, packet.KeyFlagSign)
-		if len(keys) != 0 {
-			t.Errorf("Unexpected match for signing key id %X", id)
-		}
-	}
-}*/
-
 func TestIdVerification(t *testing.T) {
 	kring, err := ReadKeyRing(readerFromHex(testKeys1And2PrivateHex))
 	if err != nil {
@@ -1463,25 +1402,6 @@ func TestRevokeSubkey(t *testing.T) {
 		t.Fatal("Revocation reason text lost after serialization of entity")
 	}
 }
-
-/*func TestRevokeSubkeyWithAnotherEntity(t *testing.T) {
-	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	sk := entity.Subkeys[0]
-
-	newEntity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = newEntity.RevokeSubkey(&sk, packet.NoReason, "Key revocation", nil)
-	if err == nil {
-		t.Fatal("Entity was able to revoke a subkey owned by a different entity")
-	}
-}*/
 
 func TestRevokeSubkeyWithInvalidSignature(t *testing.T) {
 	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
