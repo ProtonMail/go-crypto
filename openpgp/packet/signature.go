@@ -754,7 +754,7 @@ func (sig *Signature) buildHashSuffix(hashedSubpackets []byte) (err error) {
 	})
 	hashedSubpacketsLength := len(hashedSubpackets)
 	if sig.Version == 6 {
-		// v6 keys store the length in 4 octets
+		// v6 signatures store the length in 4 octets
 		hashedFields.Write([]byte{
 			uint8(hashedSubpacketsLength >> 24),
 			uint8(hashedSubpacketsLength >> 16),
@@ -1064,18 +1064,16 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 		panic("impossible")
 	}
 
+	hashedSubpacketsLen := subpacketsLength(sig.outSubpackets, true)
 	unhashedSubpacketsLen := subpacketsLength(sig.outSubpackets, false)
-	length := len(sig.HashSuffix) - 6 /* trailer not included */ +
+	length := 4 + /* length of version|signature type|public-key algorithm|hash algorithm */
+		2 /* length of hashed subpackets */ + hashedSubpacketsLen +
 		2 /* length of unhashed subpackets */ + unhashedSubpacketsLen +
 		2 /* hash tag */ + sigLength
-	if sig.Version == 5 {
-		length -= 4 // eight-octet instead of four-octet big endian
-	}
 	if sig.Version == 6 {
-		// unhashed length is four-octet instead
-		// salt len 1 octet
-		// len(salt) octets
-		length += 3 + len(sig.salt)
+		length += 4 + /* the two length fields are four-octet instead of two */
+			1 + /* salt length */
+			len(sig.salt) /* length salt */
 	}
 	err = serializeHeader(w, packetTypeSignature, length)
 	if err != nil {
@@ -1370,8 +1368,6 @@ func (sig *Signature) AddMetadataToHashSuffix() {
 	binary.BigEndian.PutUint32(buf[:], lit.Time)
 	suffix.Write(buf[:])
 
-	// Update the counter and restore trailing bytes
-	l = uint64(suffix.Len())
 	suffix.Write([]byte{0x05, 0xff})
 	suffix.Write([]byte{
 		uint8(l >> 56), uint8(l >> 48), uint8(l >> 40), uint8(l >> 32),

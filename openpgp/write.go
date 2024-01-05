@@ -333,7 +333,7 @@ func writeAndSign(payload io.WriteCloser, candidateHashes []uint8, signed *Entit
 			return nil, err
 		}
 		metadata := &packet.LiteralData{
-			Format:   't',
+			Format:   'u',
 			FileName: hints.FileName,
 			Time:     epochSeconds,
 		}

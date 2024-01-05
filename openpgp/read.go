@@ -298,7 +298,7 @@ FindLiteralData:
 	if md.IsSigned && md.SignatureError == nil {
 		md.UnverifiedBody = &signatureCheckReader{packets, h, wrappedHash, md, config}
 	} else if md.decrypted != nil {
-		md.UnverifiedBody = checkReader{md}
+		md.UnverifiedBody = &checkReader{md, false}
 	} else {
 		md.UnverifiedBody = md.LiteralData.Body
 	}
@@ -349,16 +349,22 @@ func hashForSignature(hashFunc crypto.Hash, sigType packet.SignatureType, sigSal
 // it closes the ReadCloser from any SymmetricallyEncrypted packet to trigger
 // MDC checks.
 type checkReader struct {
-	md *MessageDetails
+	md      *MessageDetails
+	checked bool
 }
 
-func (cr checkReader) Read(buf []byte) (int, error) {
+func (cr *checkReader) Read(buf []byte) (int, error) {
 	n, sensitiveParsingError := cr.md.LiteralData.Body.Read(buf)
 	if sensitiveParsingError == io.EOF {
+		if cr.checked {
+			// Only check once
+			return n, io.EOF
+		}
 		mdcErr := cr.md.decrypted.Close()
 		if mdcErr != nil {
 			return n, mdcErr
 		}
+		cr.checked = true
 		return n, io.EOF
 	}
 

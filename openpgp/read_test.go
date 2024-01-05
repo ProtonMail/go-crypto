@@ -888,3 +888,38 @@ func TestMessageWithoutMdc(t *testing.T) {
 		}
 	})
 }
+
+func TestReadV5Messages(t *testing.T) {
+	key, err := ReadArmoredKeyRing(strings.NewReader(keyv5Test))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	keyVer, err := ReadArmoredKeyRing(strings.NewReader(certv5Test))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	keys := append(key, keyVer...)
+	msgReader, err := armor.Decode(strings.NewReader(msgv5Test))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	md, err := ReadMessage(msgReader.Body, keys, nil, nil)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	contents, err := ioutil.ReadAll(md.UnverifiedBody)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	if string(contents) != "Hello World :)" {
+		t.Errorf("decrypted message is wrong: %s", contents)
+	}
+	if md.SignatureError != nil {
+		t.Error("expected no signature error, got:", md.SignatureError)
+	}
+}
