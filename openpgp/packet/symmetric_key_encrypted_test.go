@@ -9,7 +9,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"io"
-	"io/ioutil"
 	mathrand "math/rand"
 	"testing"
 
@@ -55,7 +54,7 @@ func TestDecryptSymmetricKeyAndEncryptedDataPacket(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		contents, err := ioutil.ReadAll(r)
+		contents, err := io.ReadAll(r)
 		if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
 			t.Fatal(err)
 		}

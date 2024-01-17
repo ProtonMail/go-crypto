@@ -131,7 +131,7 @@ func checkSignedMessage(t *testing.T, signedHex, expected string) {
 		t.Errorf("bad MessageDetails: %#v", md)
 	}
 
-	contents, err := ioutil.ReadAll(md.UnverifiedBody)
+	contents, err := io.ReadAll(md.UnverifiedBody)
 	if err != nil {
 		t.Errorf("error reading UnverifiedBody: %s", err)
 	}
@@ -229,7 +229,7 @@ func TestSignedEncryptedMessage(t *testing.T) {
 			t.Errorf("#%d: bad MessageDetails: %#v", i, md)
 		}
 
-		contents, err := ioutil.ReadAll(md.UnverifiedBody)
+		contents, err := io.ReadAll(md.UnverifiedBody)
 		if err != nil {
 			t.Errorf("#%d: error reading UnverifiedBody: %s", i, err)
 		}
@@ -248,7 +248,7 @@ func TestSignedEncryptedMessage(t *testing.T) {
 				t.Errorf("#%d: error serializing verified signature: %s", i, err)
 			}
 
-			sigData, err := ioutil.ReadAll(&sig)
+			sigData, err := io.ReadAll(&sig)
 			if err != nil {
 				t.Errorf("#%d: error reading verified signature: %s", i, err)
 			}
@@ -267,7 +267,7 @@ func TestSignedEncryptedMessage(t *testing.T) {
 				}
 			}
 
-			sigData, err := ioutil.ReadAll(&sig)
+			sigData, err := io.ReadAll(&sig)
 			if err != nil {
 				t.Errorf("#%d: error reading unverified signature: %s", i, err)
 			}
@@ -289,7 +289,7 @@ func TestUnspecifiedRecipient(t *testing.T) {
 		return
 	}
 
-	contents, err := ioutil.ReadAll(md.UnverifiedBody)
+	contents, err := io.ReadAll(md.UnverifiedBody)
 	if err != nil {
 		t.Errorf("error reading UnverifiedBody: %s", err)
 	}
@@ -324,7 +324,7 @@ func TestSymmetricallyEncrypted(t *testing.T) {
 		return
 	}
 
-	contents, err := ioutil.ReadAll(md.UnverifiedBody)
+	contents, err := io.ReadAll(md.UnverifiedBody)
 	if err != nil {
 		t.Errorf("ReadAll: %s", err)
 	}
@@ -450,7 +450,7 @@ func TestSignatureUnknownNotation(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	_, err = ioutil.ReadAll(md.UnverifiedBody)
+	_, err = io.ReadAll(md.UnverifiedBody)
 	if err != nil {
 		t.Error(err)
 		return
@@ -481,7 +481,7 @@ func TestSignatureKnownNotation(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	_, err = ioutil.ReadAll(md.UnverifiedBody)
+	_, err = io.ReadAll(md.UnverifiedBody)
 	if err != nil {
 		t.Error(err)
 		return
@@ -568,7 +568,7 @@ func TestSignatureV3Message(t *testing.T) {
 		return
 	}
 
-	_, err = ioutil.ReadAll(md.UnverifiedBody)
+	_, err = io.ReadAll(md.UnverifiedBody)
 	if err != nil {
 		t.Error(err)
 		return
@@ -603,7 +603,7 @@ func TestReadV6Messages(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	contents, err := ioutil.ReadAll(md.UnverifiedBody)
+	contents, err := io.ReadAll(md.UnverifiedBody)
 	if err != nil {
 		t.Error(err)
 		return
@@ -622,7 +622,7 @@ func TestReadV6Messages(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	contents, err = ioutil.ReadAll(md.UnverifiedBody)
+	contents, err = io.ReadAll(md.UnverifiedBody)
 	if err != nil {
 		t.Error(err)
 		return
@@ -642,7 +642,7 @@ func TestSymmetricDecryptionArgon2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	armoredEncryptedMessage, err := ioutil.ReadAll(file)
+	armoredEncryptedMessage, err := io.ReadAll(file)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -662,7 +662,7 @@ func TestSymmetricDecryptionArgon2(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	contents, err := ioutil.ReadAll(md.UnverifiedBody)
+	contents, err := io.ReadAll(md.UnverifiedBody)
 	if err != nil {
 		t.Errorf("error reading UnverifiedBody: %s", err)
 	}
@@ -687,7 +687,7 @@ func TestAsymmestricAeadOcbOpenPGPjsCompressedMessage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	armoredEncryptedMessage, err := ioutil.ReadAll(ciphertext)
+	armoredEncryptedMessage, err := io.ReadAll(ciphertext)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -704,7 +704,7 @@ func TestAsymmestricAeadOcbOpenPGPjsCompressedMessage(t *testing.T) {
 		return
 	}
 	// Read contents
-	contents, err := ioutil.ReadAll(md.UnverifiedBody)
+	contents, err := io.ReadAll(md.UnverifiedBody)
 	if err != nil && err != io.ErrUnexpectedEOF {
 		t.Errorf("error reading UnverifiedBody: %s", err)
 	}
@@ -727,7 +727,7 @@ func TestSymmetricAeadEaxOpenPGPJsMessage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fileBytes, err := ioutil.ReadAll(file)
+	fileBytes, err := io.ReadAll(file)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -757,7 +757,7 @@ func TestSymmetricAeadEaxOpenPGPJsMessage(t *testing.T) {
 	ld := p.(*packet.LiteralData)
 
 	// Read contents
-	contents, err := ioutil.ReadAll(ld.Body)
+	contents, err := io.ReadAll(ld.Body)
 	if err != nil && err != io.ErrUnexpectedEOF {
 		t.Errorf("error reading UnverifiedBody: %s", err)
 	}
@@ -779,7 +779,7 @@ func TestCorruptedMessageInvalidSigHeader(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	armoredEncryptedMessage, err := ioutil.ReadAll(file)
+	armoredEncryptedMessage, err := io.ReadAll(file)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -813,7 +813,7 @@ func TestCorruptedMessageWrongLength(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	armoredEncryptedMessage, err := ioutil.ReadAll(file)
+	armoredEncryptedMessage, err := io.ReadAll(file)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -827,7 +827,7 @@ func TestCorruptedMessageWrongLength(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	_, err = ioutil.ReadAll(md.UnverifiedBody)
+	_, err = io.ReadAll(md.UnverifiedBody)
 	if err == nil {
 		t.Fatal("Parsing error expected")
 	}
@@ -878,7 +878,7 @@ func TestMessageWithoutMdc(t *testing.T) {
 			t.Fatal("reading the message should have worked")
 		}
 
-		b, err := ioutil.ReadAll(md.UnverifiedBody)
+		b, err := io.ReadAll(md.UnverifiedBody)
 		if err != nil {
 			t.Fatal("reading the message should have worked")
 		}
@@ -911,7 +911,7 @@ func TestReadV5Messages(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	contents, err := ioutil.ReadAll(md.UnverifiedBody)
+	contents, err := io.ReadAll(md.UnverifiedBody)
 	if err != nil {
 		t.Error(err)
 		return

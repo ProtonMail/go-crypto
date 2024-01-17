@@ -11,7 +11,6 @@ import (
 	"encoding/hex"
 	goerrors "errors"
 	"io"
-	"io/ioutil"
 	"testing"
 
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
@@ -49,7 +48,7 @@ func TestMDCReader(t *testing.T) {
 	for stride := 1; stride < len(mdcPlaintext)/2; stride++ {
 		r := &testReader{data: mdcPlaintext, stride: stride}
 		mdcReader := &seMDCReader{in: r, h: sha1.New()}
-		body, err := ioutil.ReadAll(mdcReader)
+		body, err := io.ReadAll(mdcReader)
 		if err != nil {
 			t.Errorf("stride: %d, error: %s", stride, err)
 			continue
@@ -69,7 +68,7 @@ func TestMDCReader(t *testing.T) {
 
 	r := &testReader{data: mdcPlaintext, stride: 2}
 	mdcReader := &seMDCReader{in: r, h: sha1.New()}
-	_, err := ioutil.ReadAll(mdcReader)
+	_, err := io.ReadAll(mdcReader)
 	if err != nil {
 		t.Errorf("corruption test, error: %s", err)
 		return
@@ -200,7 +199,7 @@ func TestAeadRfcVector(t *testing.T) {
 		return
 	}
 
-	decrypted, err := ioutil.ReadAll(aeadReader)
+	decrypted, err := io.ReadAll(aeadReader)
 	if err != nil {
 		t.Errorf("error when reading: %s", err)
 		return

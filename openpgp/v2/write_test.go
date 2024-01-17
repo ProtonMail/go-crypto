@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"crypto/rand"
 	"io"
-	"io/ioutil"
 	mathrand "math/rand"
 	"testing"
 	"time"
@@ -510,7 +509,7 @@ func TestIntendedRecipientsEncryption(t *testing.T) {
 	if !md.CheckRecipients {
 		t.Error("should check for intended recipient")
 	}
-	_, err = ioutil.ReadAll(md.UnverifiedBody)
+	_, err = io.ReadAll(md.UnverifiedBody)
 	if err != nil {
 		t.Errorf("error reading encrypted contents: %s", err)
 	}
@@ -534,7 +533,7 @@ func TestIntendedRecipientsEncryption(t *testing.T) {
 	if !md.CheckRecipients {
 		t.Error("should check for intended recipient")
 	}
-	_, err = ioutil.ReadAll(md.UnverifiedBody)
+	_, err = io.ReadAll(md.UnverifiedBody)
 	if err != nil {
 		t.Errorf("error reading encrypted contents: %s", err)
 	}
@@ -557,7 +556,7 @@ func TestIntendedRecipientsEncryption(t *testing.T) {
 	if md.CheckRecipients {
 		t.Error("should not check for intended recipient")
 	}
-	_, err = ioutil.ReadAll(md.UnverifiedBody)
+	_, err = io.ReadAll(md.UnverifiedBody)
 	if err != nil {
 		t.Errorf("error reading encrypted contents: %s", err)
 	}
@@ -619,7 +618,7 @@ func TestMultiSignEncryption(t *testing.T) {
 	}
 
 	// Check reading with v4 key
-	_, err = ioutil.ReadAll(md.UnverifiedBody)
+	_, err = io.ReadAll(md.UnverifiedBody)
 	if err != nil {
 		t.Errorf("error reading encrypted contents: %s", err)
 	}
@@ -637,7 +636,7 @@ func TestMultiSignEncryption(t *testing.T) {
 	if err != nil {
 		t.Errorf("error reading message: %s", err)
 	}
-	_, err = ioutil.ReadAll(md.UnverifiedBody)
+	_, err = io.ReadAll(md.UnverifiedBody)
 	if err != nil {
 		t.Errorf("error reading encrypted contents: %s", err)
 	}
@@ -655,7 +654,7 @@ func TestMultiSignEncryption(t *testing.T) {
 	if err != nil {
 		t.Errorf("error reading message: %s", err)
 	}
-	_, err = ioutil.ReadAll(md.UnverifiedBody)
+	_, err = io.ReadAll(md.UnverifiedBody)
 	if err != nil {
 		t.Errorf("error reading encrypted contents: %s", err)
 	}
@@ -766,7 +765,7 @@ func TestEncryption(t *testing.T) {
 			}
 		}
 
-		plaintext, err := ioutil.ReadAll(md.UnverifiedBody)
+		plaintext, err := io.ReadAll(md.UnverifiedBody)
 		if err != nil {
 			t.Errorf("#%d: error reading encrypted contents: %s", i, err)
 			continue
@@ -872,7 +871,7 @@ func TestSigning(t *testing.T) {
 			t.Errorf("#%d: failed to find the signing Entity", i)
 		}
 
-		plaintext, err := ioutil.ReadAll(md.UnverifiedBody)
+		plaintext, err := io.ReadAll(md.UnverifiedBody)
 		if err != nil {
 			t.Errorf("#%d: error reading contents: %v", i, err)
 			continue

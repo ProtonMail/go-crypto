@@ -15,7 +15,6 @@ import (
 	"crypto/subtle"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/big"
 	"strconv"
 	"time"
@@ -312,7 +311,7 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 			return
 		}
 	} else {
-		privateKeyData, err = ioutil.ReadAll(r)
+		privateKeyData, err = io.ReadAll(r)
 		if err != nil {
 			return
 		}

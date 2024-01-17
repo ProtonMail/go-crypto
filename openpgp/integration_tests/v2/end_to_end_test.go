@@ -7,7 +7,6 @@ import (
 	"crypto"
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
@@ -50,7 +49,7 @@ func TestEndToEnd(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	raw, err := ioutil.ReadAll(file)
+	raw, err := io.ReadAll(file)
 	if err != nil {
 		panic(err)
 	}
@@ -128,7 +127,7 @@ func decryptionTest(t *testing.T, vector testVector, sk openpgp.EntityList) {
 		t.Fatal(err)
 	}
 
-	body, err := ioutil.ReadAll(md.UnverifiedBody)
+	body, err := io.ReadAll(md.UnverifiedBody)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,7 +234,7 @@ func encDecTest(t *testing.T, from testVector, testVectors []testVector) {
 				t.Fatalf("Failed to find the signing Entity")
 			}
 
-			plaintext, err := ioutil.ReadAll(md.UnverifiedBody)
+			plaintext, err := io.ReadAll(md.UnverifiedBody)
 			if err != nil {
 				t.Fatalf("Error reading encrypted contents: %s", err)
 			}
