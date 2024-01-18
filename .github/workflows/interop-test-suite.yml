@@ -41,8 +41,8 @@ jobs:
           name: gosop-${{ github.sha }}-v2
           path: ./gosop-${{ github.sha }}-v2
 
-  build-gosop-main:
-    name: Build gosop from main
+  build-gosop-main-v1:
+    name: Build gosop from main v1-api
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -51,13 +51,33 @@ jobs:
         uses: ./.github/actions/build-gosop
         with: 
           go-crypto-ref: main
-          binary-location: ./gosop-main
+          binary-location: ./gosop-main-v1
       # Upload as artifact
       - name: Upload gosop-main artifact
         uses: actions/upload-artifact@v3
         with:
-          name: gosop-main
-          path: ./gosop-main
+          name: gosop-main-v1
+          path: ./gosop-main-v1
+    
+  build-gosop-main-v2:
+    name: Build gosop from main v2-api
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Build gosop from branch
+        uses: ./.github/actions/build-gosop
+        with: 
+          go-crypto-ref: main
+          binary-location: ./gosop-main-v2
+          branch-gosop: gosop-gopenpgp-v3
+          gosop-build-path: build_gosop.sh
+      # Upload as artifact
+      - name: Upload gosop-main artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: gosop-main-v2
+          path: ./gosop-main-v2
 
   test-suite:
     name: Run interoperability test suite
@@ -70,20 +90,31 @@ jobs:
     needs: 
       - build-gosop-v1
       - build-gosop-v2
-      - build-gosop-main
+      - build-gosop-main-v1
+      - build-gosop-main-v2
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-      # Fetch gosop from main
-      - name: Download gosop-main
+      # Fetch gosop from main v1
+      - name: Download gosop-main-v1
         uses: actions/download-artifact@v3
         with:
-          name: gosop-main
-      # Test gosop-main
+          name: gosop-main-v1
+      # Test gosop-main-v1
       - name: Make gosop-main executable
-        run: chmod +x gosop-main
-      - name: Print gosop-main version
-        run: ./gosop-main version --extended
+        run: chmod +x gosop-main-v1
+      - name: Print gosop-main-v1 version
+        run: ./gosop-main-v1 version --extended
+      # Fetch gosop from main v2
+      - name: Download gosop-main-v2
+        uses: actions/download-artifact@v3
+        with:
+          name: gosop-main-v2
+      # Test gosop-main-v2
+      - name: Make gosop-main executable
+        run: chmod +x gosop-main-v2
+      - name: Print gosop-main-v2 version
+        run: ./gosop-main-v2 version --extended
       # Fetch gosop from branch v1
       - name: Download gosop-branch-v1
         uses: actions/download-artifact@v3
@@ -110,7 +141,7 @@ jobs:
         run: ./gosop-branch-v2 version --extended
       # Run test suite
       - name: Prepare test configuration
-        run: ./.github/test-suite/prepare_config.sh $CONFIG_TEMPLATE $CONFIG_OUTPUT $GITHUB_WORKSPACE/gosop-branch-v1 $GITHUB_WORKSPACE/gosop-branch-v2 $GITHUB_WORKSPACE/gosop-main
+        run: ./.github/test-suite/prepare_config.sh $CONFIG_TEMPLATE $CONFIG_OUTPUT $GITHUB_WORKSPACE/gosop-branch-v1 $GITHUB_WORKSPACE/gosop-branch-v2 $GITHUB_WORKSPACE/gosop-main-v1 $GITHUB_WORKSPACE/gosop-main-v2
         env:
          CONFIG_TEMPLATE: .github/test-suite/config.json.template
          CONFIG_OUTPUT: .github/test-suite/config.json
@@ -151,13 +182,13 @@ jobs:
         with: 
           results: ${{ steps.download-test-results.outputs.download-path }}/test-suite-results.json
           output: baseline-comparison-v1.json
-          baseline: gosop-main
+          baseline: gosop-main-v1
           target: gosop-branch-v1
       - name: Compare with baseline v2
         uses: ProtonMail/openpgp-interop-test-analyzer@5d7f4b6868ebe3bfc909302828342c461f5f4940
         with: 
           results: ${{ steps.download-test-results.outputs.download-path }}/test-suite-results.json
           output: baseline-comparison-v2.json
-          baseline: gosop-main
+          baseline: gosop-main-v2
           target: gosop-branch-v2
 
