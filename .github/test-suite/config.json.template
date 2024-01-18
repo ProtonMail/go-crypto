@@ -9,8 +9,12 @@
         "path": "__GOSOP_BRANCH_V2__"
       },
       {
-        "id": "gosop-main",
-        "path": "__GOSOP_MAIN__"
+        "id": "gosop-main-v1",
+        "path": "__GOSOP_MAIN_V1__"
+      },
+        {
+        "id": "gosop-main-v2",
+        "path": "__GOSOP_MAIN_V2__"
       },
       {
         "path": "__SQOP__"
