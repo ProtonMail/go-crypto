@@ -1036,7 +1036,10 @@ func TestEncryptWithAEAD(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dec, err := ioutil.ReadAll(m.decrypted)
+	dec, err := io.ReadAll(m.decrypted)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if !bytes.Equal(dec, []byte(message)) {
 		t.Error("decrypted does not match original")
