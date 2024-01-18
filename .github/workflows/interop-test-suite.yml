@@ -42,7 +42,7 @@ jobs:
           path: ./gosop-${{ github.sha }}-v2
 
   build-gosop-main-v1:
-    name: Build gosop from main
+    name: Build gosop from main v1-api
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -60,7 +60,7 @@ jobs:
           path: ./gosop-main-v1
     
   build-gosop-main-v2:
-    name: Build gosop from main
+    name: Build gosop from main v2-api
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -69,7 +69,7 @@ jobs:
         uses: ./.github/actions/build-gosop
         with: 
           go-crypto-ref: main
-          binary-location: .gosop-main-v2
+          binary-location: ./gosop-main-v2
           branch-gosop: gosop-gopenpgp-v3
           gosop-build-path: build_gosop.sh
       # Upload as artifact
