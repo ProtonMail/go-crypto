@@ -9,7 +9,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"io"
-	"io/ioutil"
 	mathrand "math/rand"
 	"testing"
 )
@@ -31,7 +30,7 @@ func TestCompressed(t *testing.T) {
 		return
 	}
 
-	contents, err := ioutil.ReadAll(c.Body)
+	contents, err := io.ReadAll(c.Body)
 	if err != nil && err != io.EOF {
 		t.Error(err)
 		return
@@ -68,11 +67,14 @@ func TestCompressDecompressRandomizeFast(t *testing.T) {
 	wcomp.Close()
 	// Read the packet and decompress
 	p, err := Read(w)
+	if err != nil {
+		t.Fatal(err)
+	}
 	c, ok := p.(*Compressed)
 	if !ok {
 		t.Error("didn't find Compressed packet")
 	}
-	contents, err := ioutil.ReadAll(c.Body)
+	contents, err := io.ReadAll(c.Body)
 	if err != nil && err != io.EOF {
 		t.Error(err)
 	}

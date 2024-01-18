@@ -17,21 +17,23 @@ import (
 // This function produces random test vectors: generates keys according to the
 // given settings, associates a random message for each key. It returns the
 // test vectors.
-func generateFreshTestVectors() (vectors []testVector, err error) {
+func generateFreshTestVectors(num int) (vectors []testVector, err error) {
 	mathrand.Seed(time.Now().UTC().UnixNano())
-	for i := 0; i < 3; i++ {
+	for i := 0; i < num; i++ {
 		config := randConfig()
 		// Sample random email, comment, password and message
 		name, email, comment, password, message := randEntityData()
 
 		// Only for verbose display
 		v := "v4"
-		if config.V5Keys {
-			v = "v5"
+		if config.V6() {
+			v = "v6"
 		}
 		pkAlgoNames := map[packet.PublicKeyAlgorithm]string{
-			packet.PubKeyAlgoRSA:   "rsa_" + v,
-			packet.PubKeyAlgoEdDSA: "ed25519_" + v,
+			packet.PubKeyAlgoRSA:     "rsa_" + v,
+			packet.PubKeyAlgoEdDSA:   "EdDSA_" + v,
+			packet.PubKeyAlgoEd25519: "ed25519_" + v,
+			packet.PubKeyAlgoEd448:   "ed448_" + v,
 		}
 
 		newVector := testVector{
@@ -234,6 +236,8 @@ func randConfig() *packet.Config {
 	pkAlgos := []packet.PublicKeyAlgorithm{
 		packet.PubKeyAlgoRSA,
 		packet.PubKeyAlgoEdDSA,
+		packet.PubKeyAlgoEd25519,
+		packet.PubKeyAlgoEd448,
 	}
 	pkAlgo := pkAlgos[mathrand.Intn(len(pkAlgos))]
 
@@ -261,11 +265,14 @@ func randConfig() *packet.Config {
 	}
 
 	level := mathrand.Intn(11) - 1
-	compConf := &packet.CompressionConfig{level}
+	compConf := &packet.CompressionConfig{Level: level}
 
-	var v5 bool
+	var v6 bool
 	if mathrand.Int()%2 == 0 {
-		v5 = true
+		v6 = true
+		if pkAlgo == packet.PubKeyAlgoEdDSA {
+			pkAlgo = packet.PubKeyAlgoEd25519
+		}
 	}
 
 	var s2kConf *s2k.Config
@@ -282,7 +289,7 @@ func randConfig() *packet.Config {
 	}
 
 	return &packet.Config{
-		V5Keys:                 v5,
+		V6Keys:                 v6,
 		Rand:                   rand.Reader,
 		DefaultHash:            hash,
 		DefaultCipher:          ciph,

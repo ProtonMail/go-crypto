@@ -80,6 +80,9 @@ func TestAeadEmptyStream(t *testing.T) {
 	}
 	// decrypted plaintext can be read from 'rc'
 	rc, err := packet.decrypt(key)
+	if err != nil {
+		t.Error(err)
+	}
 
 	_, err = readDecryptedStream(rc)
 	if err != nil {
@@ -97,6 +100,9 @@ func TestAeadEmptyStream(t *testing.T) {
 	}
 	// decrypted plaintext can be read from 'rc'
 	rc, err = packet.decrypt(key)
+	if err != nil {
+		t.Error(err)
+	}
 
 	_, err = readDecryptedStream(rc)
 	if err == nil {
@@ -127,6 +133,9 @@ func TestAeadNilConfigStream(t *testing.T) {
 	}
 	// decrypted plaintext can be read from 'rc'
 	rc, err := packet.decrypt(key)
+	if err != nil {
+		t.Error(err)
+	}
 
 	got, err := readDecryptedStream(rc)
 	if err != nil {
@@ -161,6 +170,9 @@ func TestAeadStreamRandomizeSlow(t *testing.T) {
 	}
 	// decrypted plaintext can be read from 'rc'
 	rc, err := packet.decrypt(key)
+	if err != nil {
+		t.Error(err)
+	}
 
 	got, err := readDecryptedStream(rc)
 	if err != nil {
@@ -203,9 +215,13 @@ func TestAeadCorruptStreamRandomizeSlow(t *testing.T) {
 
 	if err = packet.parse(contentsReader); err != nil {
 		// Header was corrupted
+		t.Error(err)
 		return
 	}
 	rc, err := packet.decrypt(key)
+	if err != nil {
+		t.Error(err)
+	}
 	got, err := readDecryptedStream(rc)
 	if err == nil || err == io.EOF {
 		t.Errorf("No error raised when decrypting corrupt stream")
@@ -420,7 +436,7 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, config *Config) (io.WriteCl
 	// Sample nonce
 	nonceLen := aeadConf.Mode().IvLength()
 	nonce := make([]byte, nonceLen)
-	n, err = rand.Read(nonce)
+	_, err = rand.Read(nonce)
 	if err != nil {
 		panic("Could not sample random nonce")
 	}

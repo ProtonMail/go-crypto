@@ -5,15 +5,15 @@ package integrationtests
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/ProtonMail/go-crypto/openpgp"
-	"github.com/ProtonMail/go-crypto/openpgp/armor"
-	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	"io"
-	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/ProtonMail/go-crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp/armor"
+	"github.com/ProtonMail/go-crypto/openpgp/packet"
 )
 
 /////////////////////////////////////////////////////////////////////////////
@@ -41,7 +41,7 @@ func TestEndToEnd(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	raw, err := ioutil.ReadAll(file)
+	raw, err := io.ReadAll(file)
 	if err != nil {
 		panic(err)
 	}
@@ -56,7 +56,7 @@ func TestEndToEnd(t *testing.T) {
 	}
 
 	// Generate random test vectors
-	freshTestVectors, err := generateFreshTestVectors()
+	freshTestVectors, err := generateFreshTestVectors(20)
 	if err != nil {
 		t.Fatal("Cannot proceed without generated keys: " + err.Error())
 	}
@@ -117,7 +117,7 @@ func decryptionTest(t *testing.T, vector testVector, sk openpgp.EntityList) {
 		t.Fatal(err)
 	}
 
-	body, err := ioutil.ReadAll(md.UnverifiedBody)
+	body, err := io.ReadAll(md.UnverifiedBody)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,16 +202,22 @@ func encDecTest(t *testing.T, from testVector, testVectors []testVector) {
 			}
 			signKey, _ := signer.SigningKey(time.Now())
 			expectedKeyID := signKey.PublicKey.KeyId
-			if md.SignedByKeyId != expectedKeyID {
+			expectedFingerprint := signKey.PublicKey.Fingerprint
+			if signKey.PublicKey.Version != 6 && md.SignedByKeyId != expectedKeyID {
 				t.Fatalf(
 					"Message signed by wrong key id, got: %v, want: %v",
 					*md.SignedBy, expectedKeyID)
+			}
+			if signKey.PublicKey.Version == 6 && !bytes.Equal(md.SignedByFingerprint, expectedFingerprint) {
+				t.Fatalf(
+					"Message signed by wrong key id, got: %x, want: %x",
+					md.SignedByFingerprint, expectedFingerprint)
 			}
 			if md.SignedBy == nil {
 				t.Fatalf("Failed to find the signing Entity")
 			}
 
-			plaintext, err := ioutil.ReadAll(md.UnverifiedBody)
+			plaintext, err := io.ReadAll(md.UnverifiedBody)
 			if err != nil {
 				t.Fatalf("Error reading encrypted contents: %s", err)
 			}

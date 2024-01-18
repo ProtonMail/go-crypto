@@ -9,7 +9,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"io"
-	"io/ioutil"
 	mathrand "math/rand"
 	"testing"
 
@@ -42,11 +41,11 @@ func TestDecryptSymmetricKeyAndEncryptedDataPacket(t *testing.T) {
 		}
 		// Decrypt contents
 		var edp EncryptedDataPacket
-		switch packet.(type) {
+		switch p := packet.(type) {
 		case *SymmetricallyEncrypted:
-			edp, _ = packet.(*SymmetricallyEncrypted)
+			edp = p
 		case *AEADEncrypted:
-			edp, _ = packet.(*AEADEncrypted)
+			edp = p
 		default:
 			t.Fatal("no integrity protected packet")
 		}
@@ -55,7 +54,7 @@ func TestDecryptSymmetricKeyAndEncryptedDataPacket(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		contents, err := ioutil.ReadAll(r)
+		contents, err := io.ReadAll(r)
 		if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
 			t.Fatal(err)
 		}
@@ -67,7 +66,7 @@ func TestDecryptSymmetricKeyAndEncryptedDataPacket(t *testing.T) {
 	}
 }
 
-func TestSerializeSymmetricKeyEncryptedV5RandomizeSlow(t *testing.T) {
+func TestSerializeSymmetricKeyEncryptedV6RandomizeSlow(t *testing.T) {
 	ciphers := map[string]CipherFunction{
 		"AES128": CipherAES128,
 		"AES192": CipherAES192,
@@ -102,6 +101,9 @@ func TestSerializeSymmetricKeyEncryptedV5RandomizeSlow(t *testing.T) {
 							}
 
 							key, err := SerializeSymmetricKeyEncrypted(&buf, passphrase, config)
+							if err != nil {
+								t.Errorf("failed to serialize %s", err)
+							}
 							p, err := Read(&buf)
 							if err != nil {
 								t.Errorf("failed to reparse %s", err)
@@ -151,7 +153,7 @@ func TestSerializeSymmetricKeyEncryptedCiphersV4(t *testing.T) {
 					config := &Config{
 						DefaultCipher: cipher,
 						S2KConfig: &s2k.Config{
-							S2KMode: s2ktype,
+							S2KMode:                 s2ktype,
 							PassphraseIsHighEntropy: true,
 						},
 					}

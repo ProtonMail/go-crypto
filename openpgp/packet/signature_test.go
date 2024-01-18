@@ -315,7 +315,7 @@ func TestSignatureWithTrustAndRegex(t *testing.T) {
 	}
 
 	// ensure we fail if the regular expression is not null-terminated
-	packet, err = Read(readerFromHex(signatureWithBadTrustRegexHex))
+	_, err = Read(readerFromHex(signatureWithBadTrustRegexHex))
 	if err == nil {
 		t.Errorf("did not receive an error when expected")
 	}
