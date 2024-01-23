@@ -669,7 +669,6 @@ func VerifyDetachedSignature(keyring KeyRing, signed, signature io.Reader, confi
 // Once all data is read from md.UnverifiedBody the detached signature is verified.
 // If a verification error occurs it is stored in md.SignatureError
 // If the signer isn't known, ErrUnknownIssuer is returned.
-// if they match the signatures metadata or else return an error
 func VerifyDetachedSignatureReader(keyring KeyRing, signed, signature io.Reader, config *packet.Config) (md *MessageDetails, err error) {
 	return verifyDetachedSignatureReader(keyring, signed, signature, config)
 }
