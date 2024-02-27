@@ -23,6 +23,9 @@ import (
 // SignatureType is the armor type for a PGP signature.
 var SignatureType = "PGP SIGNATURE"
 
+// MessageType is the armor type for a PGP message.
+var MessageType = "PGP MESSAGE"
+
 // readArmored reads an armored block with the given type.
 func readArmored(r io.Reader, expectedType string) (body io.Reader, err error) {
 	block, err := armor.Decode(r)
