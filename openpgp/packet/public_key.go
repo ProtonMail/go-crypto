@@ -19,8 +19,8 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/mldsa_eddsa"
 	"github.com/ProtonMail/go-crypto/openpgp/slhdsa"
 	"github.com/cloudflare/circl/kem"
-	"github.com/cloudflare/circl/kem/kyber/kyber1024"
-	"github.com/cloudflare/circl/kem/kyber/kyber768"
+	"github.com/cloudflare/circl/kem/mlkem/mlkem1024"
+	"github.com/cloudflare/circl/kem/mlkem/mlkem768"
 	"github.com/cloudflare/circl/sign/dilithium"
 	"hash"
 	"io"
@@ -250,12 +250,12 @@ func NewMlkemEcdhPublicKey(creationTime time.Time, pub *mlkem_ecdh.PublicKey) *P
 	}
 
 	pk := &PublicKey{
-		Version:      5,
+		Version: 4,
 		CreationTime: creationTime,
-		PubKeyAlgo:   PublicKeyAlgorithm(pub.AlgId),
-		PublicKey:    pub,
-		p:            encoding.NewOctetArray(pub.PublicPoint),
-		q:            encoding.NewOctetArray(mlkemBin),
+		PubKeyAlgo: PublicKeyAlgorithm(pub.AlgId),
+		PublicKey: pub,
+		p: encoding.NewOctetArray(pub.PublicPoint),
+		q: encoding.NewOctetArray(mlkemBin),
 	}
 
 	pk.setFingerprintAndKeyId()
@@ -264,12 +264,12 @@ func NewMlkemEcdhPublicKey(creationTime time.Time, pub *mlkem_ecdh.PublicKey) *P
 
 func NewMldsaEcdsaPublicKey(creationTime time.Time, pub *mldsa_ecdsa.PublicKey) *PublicKey {
 	pk := &PublicKey{
-		Version:      5,
+		Version: 6,
 		CreationTime: creationTime,
-		PubKeyAlgo:   PublicKeyAlgorithm(pub.AlgId),
-		PublicKey:    pub,
-		p:            encoding.NewOctetArray(pub.MarshalPoint()),
-		q:            encoding.NewOctetArray(pub.PublicMldsa.Bytes()),
+		PubKeyAlgo: PublicKeyAlgorithm(pub.AlgId),
+		PublicKey: pub,
+		p: encoding.NewOctetArray(pub.MarshalPoint()),
+		q: encoding.NewOctetArray(pub.PublicMldsa.Bytes()),
 	}
 
 	pk.setFingerprintAndKeyId()
@@ -278,12 +278,12 @@ func NewMldsaEcdsaPublicKey(creationTime time.Time, pub *mldsa_ecdsa.PublicKey) 
 
 func NewMldsaEddsaPublicKey(creationTime time.Time, pub *mldsa_eddsa.PublicKey) *PublicKey {
 	pk := &PublicKey{
-		Version:      5,
+		Version: 6,
 		CreationTime: creationTime,
-		PubKeyAlgo:   PublicKeyAlgorithm(pub.AlgId),
-		PublicKey:    pub,
-		p:            encoding.NewOctetArray(pub.PublicPoint),
-		q:            encoding.NewOctetArray(pub.PublicMldsa.Bytes()),
+		PubKeyAlgo: PublicKeyAlgorithm(pub.AlgId),
+		PublicKey: pub,
+		p: encoding.NewOctetArray(pub.PublicPoint),
+		q: encoding.NewOctetArray(pub.PublicMldsa.Bytes()),
 	}
 
 	pk.setFingerprintAndKeyId()
@@ -299,7 +299,7 @@ func NewSlhdsaPublicKey(creationTime time.Time, pub *slhdsa.PublicKey) *PublicKe
 	}
 
 	pk = &PublicKey{
-		Version: 5,
+		Version: 6,
 		CreationTime: creationTime,
 		PubKeyAlgo: GetAlgIDFromSlhdsaMode(pub.Mode),
 		PublicKey: pub,
@@ -334,7 +334,7 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 	}
 	pk.CreationTime = time.Unix(int64(uint32(buf[1])<<24|uint32(buf[2])<<16|uint32(buf[3])<<8|uint32(buf[4])), 0)
 	pk.PubKeyAlgo = PublicKeyAlgorithm(buf[5])
-	// Ignore four-ocet length
+	// Ignore four-octet length
 	switch pk.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoRSASignOnly:
 		err = pk.parseRSA(r)
@@ -357,21 +357,21 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 	case PubKeyAlgoEd448:
 		err = pk.parseEd448(r)
 	case PubKeyAlgoMlkem768X25519:
-		err = pk.parseMlkemEcdh(r, 32, 1184)
+		err = pk.parseMlkemEcdh(r, 32, mlkem768.PublicKeySize)
 	case PubKeyAlgoMlkem1024X448:
-		err = pk.parseMlkemEcdh(r, 56, 1568)
+		err = pk.parseMlkemEcdh(r, 56, mlkem1024.PublicKeySize)
 	case PubKeyAlgoMlkem768P256, PubKeyAlgoMlkem768Brainpool256:
-		err = pk.parseMlkemEcdh(r, 65, 1184)
+		err = pk.parseMlkemEcdh(r, 65, mlkem768.PublicKeySize)
 	case PubKeyAlgoMlkem1024P384, PubKeyAlgoMlkem1024Brainpool384:
-		err = pk.parseMlkemEcdh(r, 97, 1568)
+		err = pk.parseMlkemEcdh(r, 97, mlkem1024.PublicKeySize)
 	case PubKeyAlgoMldsa65Ed25519:
-		err = pk.parseMldsaEddsa(r, 32, 1952)
+		err = pk.parseMldsaEddsa(r, 32, dilithium.MLDSA65.PublicKeySize())
 	case PubKeyAlgoMldsa87Ed448:
-		err = pk.parseMldsaEddsa(r, 57, 2592)
+		err = pk.parseMldsaEddsa(r, 57, dilithium.MLDSA87.PublicKeySize())
 	case PubKeyAlgoMldsa65p256, PubKeyAlgoMldsa65Brainpool256:
-		err = pk.parseMldsaEcdsa(r, 65, 1952)
+		err = pk.parseMldsaEcdsa(r, 65, dilithium.MLDSA65.PublicKeySize())
 	case PubKeyAlgoMldsa87p384, PubKeyAlgoMldsa87Brainpool384:
-		err = pk.parseMldsaEcdsa(r, 97, 2592)
+		err = pk.parseMldsaEcdsa(r, 97, dilithium.MLDSA87.PublicKeySize())
 	case PubKeyAlgoSlhdsaSha2:
 		err = pk.parseSlhdsa(r, slhdsa.ModeSimpleSHA2)
 	case PubKeyAlgoSlhdsaShake:
@@ -1346,9 +1346,9 @@ func GetMatchingMlkemKem(algId PublicKeyAlgorithm) (PublicKeyAlgorithm, error) {
 func GetMlkemFromAlgID(algId PublicKeyAlgorithm) (kem.Scheme, error) {
 	switch algId {
 	case PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem768P256, PubKeyAlgoMlkem768Brainpool256:
-		return kyber768.Scheme(), nil
+		return mlkem768.Scheme(), nil
 	case PubKeyAlgoMlkem1024X448, PubKeyAlgoMlkem1024P384, PubKeyAlgoMlkem1024Brainpool384:
-		return kyber1024.Scheme(), nil
+		return mlkem1024.Scheme(), nil
 	default:
 		return nil, goerrors.New("packet: unsupported ML-KEM public key algorithm")
 	}
@@ -1426,9 +1426,9 @@ func GetAlgIDFromSlhdsaMode(mode slhdsa.Mode) PublicKeyAlgorithm {
 func GetMldsaFromAlgID(algId PublicKeyAlgorithm) (dilithium.Mode, error) {
 	switch algId {
 	case PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa65p256, PubKeyAlgoMldsa65Brainpool256:
-		return dilithium.Mode3, nil
+		return dilithium.MLDSA65, nil
 	case PubKeyAlgoMldsa87Ed448, PubKeyAlgoMldsa87p384, PubKeyAlgoMldsa87Brainpool384:
-		return dilithium.Mode5, nil
+		return dilithium.MLDSA87, nil
 	default:
 		return nil, goerrors.New("packet: unsupported ML-DSA public key algorithm")
 	}

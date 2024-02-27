@@ -137,27 +137,27 @@ func (e *EncryptedKey) parse(r io.Reader) (err error) {
 			return
 		}
 	case PubKeyAlgoMlkem768X25519:
-		if cipherFunction, err = e.readMlkemEcdhKey(r, 32, 1088, e.Version == 6); err != nil {
+		if e.encryptedMPI1, e.encryptedMPI2, e.encryptedMPI3, cipherFunction, err = mlkem_ecdh.DecodeFields(r, 32, 1088, e.Version == 6); err != nil {
 			return err
 		}
 	case PubKeyAlgoMlkem1024X448:
-		if cipherFunction, err = e.readMlkemEcdhKey(r, 56, 1568, e.Version == 6); err != nil {
+		if e.encryptedMPI1, e.encryptedMPI2, e.encryptedMPI3, cipherFunction, err = mlkem_ecdh.DecodeFields(r, 56, 1568, e.Version == 6); err != nil {
 			return err
 		}
 	case PubKeyAlgoMlkem768P256:
-		if cipherFunction, err = e.readMlkemEcdhKey(r, 65, 1088, e.Version == 6); err != nil {
+		if e.encryptedMPI1, e.encryptedMPI2, e.encryptedMPI3, cipherFunction, err = mlkem_ecdh.DecodeFields(r, 65, 1088, e.Version == 6); err != nil {
 			return err
 		}
 	case PubKeyAlgoMlkem1024P384:
-		if cipherFunction, err = e.readMlkemEcdhKey(r, 97, 1568, e.Version == 6); err != nil {
+		if e.encryptedMPI1, e.encryptedMPI2, e.encryptedMPI3, cipherFunction, err = mlkem_ecdh.DecodeFields(r, 97, 1568, e.Version == 6); err != nil {
 			return err
 		}
 	case PubKeyAlgoMlkem768Brainpool256:
-		if cipherFunction, err = e.readMlkemEcdhKey(r, 65, 1088, e.Version == 6); err != nil {
+		if e.encryptedMPI1, e.encryptedMPI2, e.encryptedMPI3, cipherFunction, err = mlkem_ecdh.DecodeFields(r, 65, 1088, e.Version == 6); err != nil {
 			return err
 		}
 	case PubKeyAlgoMlkem1024Brainpool384:
-		if cipherFunction, err = e.readMlkemEcdhKey(r, 97, 1568, e.Version == 6); err != nil {
+		if e.encryptedMPI1, e.encryptedMPI2, e.encryptedMPI3, cipherFunction, err = mlkem_ecdh.DecodeFields(r, 97, 1568, e.Version == 6); err != nil {
 			return err
 		}
 	}
@@ -172,36 +172,6 @@ func (e *EncryptedKey) parse(r io.Reader) (err error) {
 	}
 
 	_, err = consumeAll(r)
-	return
-}
-
-// readMlkemEcdhKey reads ML-KEM + ECC PKESK as specified in
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-public-key-encrypted-sessio
-func (e *EncryptedKey) readMlkemEcdhKey(r io.Reader, lenEcc, lenMlkem int, v6 bool) (cipherFunction byte, err error) {
-	e.encryptedMPI1 = encoding.NewEmptyOctetArray(lenEcc)
-	if _, err = e.encryptedMPI1.ReadFrom(r); err != nil {
-		return
-	}
-
-	e.encryptedMPI2 = encoding.NewEmptyOctetArray(lenMlkem)
-	if _, err = e.encryptedMPI2.ReadFrom(r); err != nil {
-		return
-	}
-
-	if !v6 {
-		var buf [1]byte
-		_, err = io.ReadFull(r, buf[:])
-		if err != nil {
-			return
-		}
-		cipherFunction =  buf[0]
-	}
-
-	e.encryptedMPI3 = new(encoding.OID)
-	if _, err = e.encryptedMPI3.ReadFrom(r); err != nil {
-		return
-	}
-
 	return
 }
 
@@ -308,7 +278,7 @@ func (e *EncryptedKey) Serialize(w io.Writer) error {
 		encodedLength = x448.EncodedFieldsLength(e.encryptedSession, e.Version == 6)
 	case PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem1024X448, PubKeyAlgoMlkem768P256, PubKeyAlgoMlkem1024P384,
 		PubKeyAlgoMlkem768Brainpool256, PubKeyAlgoMlkem1024Brainpool384:
-		encodedLength = int(e.encryptedMPI1.EncodedLength()) + int(e.encryptedMPI2.EncodedLength()) + int(e.encryptedMPI3.EncodedLength())
+		encodedLength = int(e.encryptedMPI1.EncodedLength()) + int(e.encryptedMPI2.EncodedLength()) + int(e.encryptedMPI3.EncodedLength()) + 1
 		if e.Version < 6 {
 			encodedLength += 1
 		}
@@ -384,19 +354,7 @@ func (e *EncryptedKey) Serialize(w io.Writer) error {
 		return err
 	case PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem1024X448, PubKeyAlgoMlkem768P256, PubKeyAlgoMlkem1024P384,
 		PubKeyAlgoMlkem768Brainpool256, PubKeyAlgoMlkem1024Brainpool384:
-		if _, err := w.Write(e.encryptedMPI1.EncodedBytes()); err != nil {
-			return err
-		}
-		if _, err := w.Write(e.encryptedMPI2.EncodedBytes()); err != nil {
-			return err
-		}
-		if e.Version < 6 {
-			if _, err = w.Write([]byte{byte(e.CipherFunc)}); err != nil {
-				return err
-			}
-		}
-
-		_, err := w.Write(e.encryptedMPI3.EncodedBytes())
+		err := mlkem_ecdh.EncodeFields(w, e.encryptedMPI1.EncodedBytes(), e.encryptedMPI2.EncodedBytes(), e.encryptedMPI3.EncodedBytes(), byte(e.CipherFunc), e.Version == 6)
 		return err
 	default:
 		panic("internal error")
@@ -670,17 +628,17 @@ func encodeChecksumKey(buffer []byte, key []byte) {
 }
 
 func serializeEncryptedKeyMlkem(w io.Writer, rand io.Reader, header []byte, pub *mlkem_ecdh.PublicKey, keyBlock []byte, cipherFunc byte, version int) error {
-	kE, ecE, c, err := mlkem_ecdh.Encrypt(rand, pub, keyBlock)
+	mlE, ecE, c, err := mlkem_ecdh.Encrypt(rand, pub, keyBlock)
 	if err != nil {
 		return errors.InvalidArgumentError("ML-KEM + ECDH encryption failed: " + err.Error())
 	}
 
-	k := encoding.NewOctetArray(kE)
+	ml := encoding.NewOctetArray(mlE)
 	ec := encoding.NewOctetArray(ecE)
-	m := encoding.NewOID(c)
+	m := encoding.NewOctetArray(c)
 
 	packetLen := len(header) /* header length */
-	packetLen += int(ec.EncodedLength()) + int(k.EncodedLength()) + int(m.EncodedLength())
+	packetLen += int(ec.EncodedLength()) + int(ml.EncodedLength()) + int(m.EncodedLength()) + 1
 	if version < 6 {
 		packetLen += 1
 	}
@@ -694,17 +652,6 @@ func serializeEncryptedKeyMlkem(w io.Writer, rand io.Reader, header []byte, pub 
 	if err != nil {
 		return err
 	}
-	if _, err = w.Write(ec.EncodedBytes()); err != nil {
-		return err
-	}
-	if _, err = w.Write(k.EncodedBytes()); err != nil {
-		return err
-	}
-	if version < 6 {
-		if _, err = w.Write([]byte{cipherFunc}); err != nil {
-			return err
-		}
-	}
-	_, err = w.Write(m.EncodedBytes())
-	return err
+
+	return mlkem_ecdh.EncodeFields(w, ec.EncodedBytes(), ml.EncodedBytes(), m.EncodedBytes(), cipherFunc, version == 6)
 }

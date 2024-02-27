@@ -4,6 +4,8 @@ package mlkem_ecdh
 
 import (
 	goerrors "errors"
+	"fmt"
+	"github.com/ProtonMail/go-crypto/openpgp/internal/encoding"
 	"golang.org/x/crypto/sha3"
 	"io"
 
@@ -116,6 +118,8 @@ func Decrypt(priv *PrivateKey, kEphemeral, ecEphemeral, ciphertext []byte) (msg 
 
 	msg, err = keywrap.Unwrap(kek, ciphertext)
 
+	fmt.Printf("kek:%x\nsk:%x\n", kek, msg)
+
 	return msg, err
 }
 
@@ -143,6 +147,8 @@ func buildKey(pub *PublicKey, eccSecretPoint, eccEphemeral, eccPublicKey, kyberK
 	_, _ = k.Write(kyberEphemeral)
 	_, _ = k.Write([]byte{pub.AlgId})
 
+	fmt.Printf("ecc:%x\nkyber:%x\n", eccKeyShare, kyberKeyShare)
+
 	return k.Sum(nil), nil
 }
 
@@ -154,6 +160,76 @@ func Validate(priv *PrivateKey) (err error) {
 
 	if !priv.PublicKey.PublicMlkem.Equal(priv.SecretMlkem.Public()) {
 		return errors.KeyInvalidError("mlkem_ecdh: invalid public key")
+	}
+
+	return
+}
+
+// EncodeFields encodes an ML-KEM + ECDH session key encryption fields as
+// ephemeral ECDH public key | ML-KEM ciphertext | follow byte length | cipherFunction (v3 only) | encryptedSessionKey
+// and writes it to writer.
+func EncodeFields(w io.Writer, ec, ml, encryptedSessionKey []byte, cipherFunction byte, v6 bool) (err error) {
+	if _, err = w.Write(ec); err != nil {
+		return err
+	}
+
+	if _, err = w.Write(ml); err != nil {
+		return err
+	}
+
+	lenAlgorithm := 0
+	if !v6 {
+		lenAlgorithm = 1
+	}
+
+	if _, err = w.Write([]byte{byte(len(encryptedSessionKey) + lenAlgorithm)}); err != nil {
+		return err
+	}
+
+	if !v6 {
+		if _, err = w.Write([]byte{cipherFunction}); err != nil {
+			return err
+		}
+	}
+
+	_, err = w.Write(encryptedSessionKey)
+	return err
+}
+
+// DecodeFields decodes an ML-KEM + ECDH session key encryption fields as
+// ephemeral ECDH public key | ML-KEM ciphertext | follow byte length | cipherFunction (v3 only) | encryptedSessionKey.
+func DecodeFields(r io.Reader, lenEcc, lenMlkem int, v6 bool) (encryptedMPI1, encryptedMPI2, encryptedMPI3 encoding.Field, cipherFunction byte, err error) {
+	var buf [1]byte
+
+	encryptedMPI1 = encoding.NewEmptyOctetArray(lenEcc)
+	if _, err = encryptedMPI1.ReadFrom(r); err != nil {
+		return
+	}
+
+	encryptedMPI2 = encoding.NewEmptyOctetArray(lenMlkem)
+	if _, err = encryptedMPI2.ReadFrom(r); err != nil {
+		return
+	}
+
+	// A one-octet size of the following fields.
+	if _, err = io.ReadFull(r, buf[:]); err != nil {
+		return
+	}
+
+	followingLen := buf[0]
+	// The one-octet algorithm identifier, if it was passed (in the case of a v3 PKESK packet).
+	if !v6 {
+		if _, err = io.ReadFull(r, buf[:]); err != nil {
+			return
+		}
+		cipherFunction = buf[0]
+		followingLen -= 1
+	}
+
+	// The encrypted session key.
+	encryptedMPI3 = encoding.NewEmptyOctetArray(int(followingLen))
+	if _, err = encryptedMPI3.ReadFrom(r); err != nil {
+		return
 	}
 
 	return

@@ -511,21 +511,21 @@ const (
 	PubKeyAlgoRSASignOnly    PublicKeyAlgorithm = 3
 
 	// Experimental PQC KEM algorithms
-	PubKeyAlgoMlkem768X25519 = 29
-	PubKeyAlgoMlkem1024X448 = 30
+	PubKeyAlgoMlkem768X25519 = 105
+	PubKeyAlgoMlkem1024X448 = 106
 	PubKeyAlgoMlkem768P256 = 31
 	PubKeyAlgoMlkem1024P384 = 32
 	PubKeyAlgoMlkem768Brainpool256 = 33
 	PubKeyAlgoMlkem1024Brainpool384 = 34
 
 	// Experimental PQC DSA algorithms
-	PubKeyAlgoMldsa65Ed25519 = 35
-	PubKeyAlgoMldsa87Ed448 = 36
+	PubKeyAlgoMldsa65Ed25519 = 107
+	PubKeyAlgoMldsa87Ed448 = 108
 	PubKeyAlgoMldsa65p256 = 37
 	PubKeyAlgoMldsa87p384 = 38
 	PubKeyAlgoMldsa65Brainpool256 = 39
 	PubKeyAlgoMldsa87Brainpool384 = 40
-	PubKeyAlgoSlhdsaSha2  = 41
+	PubKeyAlgoSlhdsaSha2  = 109
 	PubKeyAlgoSlhdsaShake = 42
 )
 

@@ -212,12 +212,12 @@ func TestGeneratePqKey(t *testing.T) {
 	}
 
 	asymmAlgos := map[string] packet.PublicKeyAlgorithm{
-		"ML-DSA3_Ed25519": packet.PubKeyAlgoMldsa65Ed25519,
-		"ML-DSA5_Ed448": packet.PubKeyAlgoMldsa87Ed448,
-		"ML-DSA3_P256": packet.PubKeyAlgoMldsa65p256,
-		"ML-DSA5_P384":packet.PubKeyAlgoMldsa87p384,
-		"ML-DSA3_Brainpool256": packet.PubKeyAlgoMldsa65Brainpool256,
-		"ML-DSA5_Brainpool384":packet.PubKeyAlgoMldsa87Brainpool384,
+		"ML-DSA65_Ed25519": packet.PubKeyAlgoMldsa65Ed25519,
+		"ML-DSA87_Ed448": packet.PubKeyAlgoMldsa87Ed448,
+		"ML-DSA65_P256": packet.PubKeyAlgoMldsa65p256,
+		"ML-DSA87_P384":packet.PubKeyAlgoMldsa87p384,
+		"ML-DSA65_Brainpool256": packet.PubKeyAlgoMldsa65Brainpool256,
+		"ML-DSA87_Brainpool384":packet.PubKeyAlgoMldsa87Brainpool384,
 		"Slhdsa_simple_SHA2":packet.PubKeyAlgoSlhdsaSha2,
 		"Slhdsa_simple_SHAKE":packet.PubKeyAlgoSlhdsaShake,
 	}
@@ -228,6 +228,7 @@ func TestGeneratePqKey(t *testing.T) {
 				DefaultHash: crypto.SHA512,
 				Algorithm:   algo,
 				V6Keys:      true,
+				DefaultCipher: packet.CipherAES256,
 				AEADConfig: &packet.AEADConfig {
 					DefaultMode: packet.AEADModeOCB,
 				},
@@ -332,6 +333,10 @@ func TestAddV6MlkemSubkey(t *testing.T) {
 		DefaultHash: crypto.SHA512,
 		Algorithm:   packet.PubKeyAlgoEd25519,
 		V6Keys:      true,
+		DefaultCipher: packet.CipherAES256,
+		AEADConfig: &packet.AEADConfig {
+			DefaultMode: packet.AEADModeOCB,
+		},
 		Time: func() time.Time {
 			parsed, _ := time.Parse("2006-01-02", "2013-07-01")
 			return parsed

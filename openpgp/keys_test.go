@@ -1865,6 +1865,7 @@ func TestAddV4MlkemSubkey(t *testing.T) {
 		DefaultHash: crypto.SHA512,
 		Algorithm:   packet.PubKeyAlgoEdDSA,
 		V6Keys:      false,
+		DefaultCipher: packet.CipherAES256,
 		Time: func() time.Time {
 			parsed, _ := time.Parse("2006-01-02", "2013-07-01")
 			return parsed
@@ -1901,9 +1902,6 @@ func testAddMlkemSubkey(t *testing.T, entity *Entity, v6Keys bool) {
 				DefaultHash: crypto.SHA512,
 				Algorithm:   algo,
 				V6Keys:      v6Keys,
-				AEADConfig: &packet.AEADConfig{
-					DefaultMode: packet.AEADModeOCB,
-				},
 				Time: func() time.Time {
 					parsed, _ := time.Parse("2006-01-02", "2013-07-01")
 					return parsed
@@ -1922,6 +1920,11 @@ func testAddMlkemSubkey(t *testing.T, entity *Entity, v6Keys bool) {
 			if entity.Subkeys[0].PublicKey.PubKeyAlgo != algo {
 				t.Fatalf("Expected subkey algorithm: %v, got: %v", packet.PubKeyAlgoEdDSA,
 					entity.Subkeys[0].PublicKey.PubKeyAlgo)
+			}
+
+			if entity.Subkeys[0].PublicKey.Version != entity.PrivateKey.Version {
+				t.Fatalf("Expected subkey version: %d, got: %d", entity.PrivateKey.Version,
+					entity.Subkeys[0].PublicKey.Version)
 			}
 
 			serializedEntity := bytes.NewBuffer(nil)

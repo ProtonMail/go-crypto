@@ -12,6 +12,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/mldsa_ecdsa"
 	"github.com/ProtonMail/go-crypto/openpgp/mldsa_eddsa"
 	"github.com/ProtonMail/go-crypto/openpgp/slhdsa"
+	"github.com/cloudflare/circl/sign/dilithium"
 	"hash"
 	"io"
 	"strconv"
@@ -315,19 +316,19 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 			return
 		}
 	case PubKeyAlgoMldsa65Ed25519:
-		if err = sig.parseMldsaEddsaSignature(r, 64, 3293); err != nil {
+		if err = sig.parseMldsaEddsaSignature(r, 64, dilithium.MLDSA65.SignatureSize()); err != nil {
 			return
 		}
 	case PubKeyAlgoMldsa87Ed448:
-		if err = sig.parseMldsaEddsaSignature(r, 114, 4595); err != nil {
+		if err = sig.parseMldsaEddsaSignature(r, 114, dilithium.MLDSA87.SignatureSize()); err != nil {
 			return
 		}
 	case PubKeyAlgoMldsa65p256, PubKeyAlgoMldsa65Brainpool256:
-		if err = sig.parseMldsaEcdsaSignature(r, 32, 3293); err != nil {
+		if err = sig.parseMldsaEcdsaSignature(r, 32, dilithium.MLDSA65.SignatureSize()); err != nil {
 			return
 		}
 	case PubKeyAlgoMldsa87p384, PubKeyAlgoMldsa87Brainpool384:
-		if err = sig.parseMldsaEcdsaSignature(r, 48, 4595); err != nil {
+		if err = sig.parseMldsaEcdsaSignature(r, 48, dilithium.MLDSA87.SignatureSize()); err != nil {
 			return
 		}
 	case PubKeyAlgoSlhdsaSha2, PubKeyAlgoSlhdsaShake:

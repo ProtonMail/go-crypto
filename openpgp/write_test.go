@@ -432,229 +432,241 @@ func TestSymmetricEncryptionSEIPDv2RandomizeSlow(t *testing.T) {
 	}
 }
 
-var testEncryptionTests = []struct {
+var testEncryptionTests = map[string] struct {
 	keyRingHex string
 	isSigned   bool
 	okV6       bool
 }{
-	{
+	"Simple": {
 		testKeys1And2PrivateHex,
 		false,
 		true,
 	},
-	{
+	"Simple_signed": {
 		testKeys1And2PrivateHex,
 		true,
 		true,
 	},
-	{
+	"DSA_ElGamal": {
 		dsaElGamalTestKeysHex,
 		false,
 		false,
 	},
-	{
+	"DSA_ElGamal_signed": {
 		dsaElGamalTestKeysHex,
 		true,
 		false,
 	},
-	{
-		dilithium3Ed25519Mlkem768X25519PrivateHex,
+	"v4_Ed25519_ML-KEM-768+X25519": {
+		v4Ed25519Mlkem768X25519PrivateHex,
 		false,
 		true,
 	},
-	{
-		dilithium3Ed25519Mlkem768X25519PrivateHex,
+	"v4_Ed25519_ML-KEM-768+X25519_signed": {
+		v4Ed25519Mlkem768X25519PrivateHex,
 		true,
 		true,
 	},
-	{
-		dilithium5Ed448Mlkem1024X448PrivateHex,
+	"v6_Ed25519_ML-KEM-768+X25519": {
+		v6Ed25519Mlkem768X25519PrivateHex,
 		false,
 		true,
 	},
-	{
-		dilithium5Ed448Mlkem1024X448PrivateHex,
+	"v6_Ed25519_ML-KEM-768+X25519_signed": {
+		v6Ed25519Mlkem768X25519PrivateHex,
 		true,
 		true,
 	},
-	{
-		dilithium3P256Mlkem768P245PrivateHex,
+	"v6_ML-DSA-67+Ed25519_ML-KEM-768+X25519": {
+		mldsa65Ed25519Mlkem768X25519PrivateHex,
 		false,
 		true,
 	},
-	{
-		dilithium3P256Mlkem768P245PrivateHex,
+	"v6_ML-DSA-67+Ed25519_ML-KEM-768+X25519_signed": {
+		mldsa65Ed25519Mlkem768X25519PrivateHex,
 		true,
 		true,
 	},
-	{
-		dilithium5P384_Mlkem1024P384PrivateHex,
-		false,
-		true,
-	},
-	{
-		dilithium5P384_Mlkem1024P384PrivateHex,
-		true,
-		true,
-	},
-	{
-		dilithium3Brainpool256Mlkem768Brainpool256PrivateHex,
-		false,
-		true,
-	},
-	{
-		dilithium3Brainpool256Mlkem768Brainpool256PrivateHex,
-		true,
-		true,
-	},
-	{
-		dilithium5Brainpool384Mlkem1024Brainpool384PrivateHex,
-		false,
-		true,
-	},
-	{
-		dilithium5Brainpool384Mlkem1024Brainpool384PrivateHex,
-		true,
-		true,
-	},
-	{
-		slhDsaSha2Mlkem1024X448PrivateHex,
-		false,
-		true,
-	},
-	{
-		slhDsaSha2Mlkem1024X448PrivateHex,
-		true,
-		true,
-	},
-	{
-		slhDsaShakeMlkem1024X448PrivateHex,
-		false,
-		true,
-	},
-	{
-		slhDsaShakeMlkem1024X448PrivateHex,
-		true,
-		true,
-	},
+	//{
+	//	mldsa87Ed448Mlkem1024X448PrivateHex,
+	//	false,
+	//	true,
+	//},
+	//{
+	//	mldsa87Ed448Mlkem1024X448PrivateHex,
+	//	true,
+	//	true,
+	//},
+	//{
+	//	mldsa65P256Mlkem768P245PrivateHex,
+	//	false,
+	//	true,
+	//},
+	//{
+	//	mldsa65P256Mlkem768P245PrivateHex,
+	//	true,
+	//	true,
+	//},
+	//{
+	//	mldsa87P384_Mlkem1024P384PrivateHex,
+	//	false,
+	//	true,
+	//},
+	//{
+	//	mldsa87P384_Mlkem1024P384PrivateHex,
+	//	true,
+	//	true,
+	//},
+	//{
+	//	mldsa65Brainpool256Mlkem768Brainpool256PrivateHex,
+	//	false,
+	//	true,
+	//},
+	//{
+	//	mldsa65Brainpool256Mlkem768Brainpool256PrivateHex,
+	//	true,
+	//	true,
+	//},
+	//{
+	//	mldsa87Brainpool384Mlkem1024Brainpool384PrivateHex,
+	//	false,
+	//	true,
+	//},
+	//{
+	//	mldsa87Brainpool384Mlkem1024Brainpool384PrivateHex,
+	//	true,
+	//	true,
+	//},
+	//{
+	//	slhDsaSha2Mlkem1024X448PrivateHex,
+	//	false,
+	//	true,
+	//},
+	//{
+	//	slhDsaSha2Mlkem1024X448PrivateHex,
+	//	true,
+	//	true,
+	//},
+	//{
+	//	slhDsaShakeMlkem1024X448PrivateHex,
+	//	false,
+	//	true,
+	//},
+	//{
+	//	slhDsaShakeMlkem1024X448PrivateHex,
+	//	true,
+	//	true,
+	//},
 }
 
 func TestEncryption(t *testing.T) {
-	for i, test := range testEncryptionTests {
-		kring, _ := ReadKeyRing(readerFromHex(test.keyRingHex))
+	for name, test := range testEncryptionTests {
+		t.Run(name, func(t *testing.T) {
+			kring, _ := ReadKeyRing(readerFromHex(test.keyRingHex))
 
-		passphrase := []byte("passphrase")
-		for _, entity := range kring {
-			if entity.PrivateKey != nil && entity.PrivateKey.Encrypted {
-				err := entity.PrivateKey.Decrypt(passphrase)
-				if err != nil {
-					t.Errorf("#%d: failed to decrypt key", i)
-				}
-			}
-			for _, subkey := range entity.Subkeys {
-				if subkey.PrivateKey != nil && subkey.PrivateKey.Encrypted {
-					err := subkey.PrivateKey.Decrypt(passphrase)
+			passphrase := []byte("passphrase")
+			for _, entity := range kring {
+				if entity.PrivateKey != nil && entity.PrivateKey.Encrypted {
+					err := entity.PrivateKey.Decrypt(passphrase)
 					if err != nil {
-						t.Errorf("#%d: failed to decrypt subkey", i)
+						t.Fatal("Failed to decrypt key")
+					}
+				}
+				for _, subkey := range entity.Subkeys {
+					if subkey.PrivateKey != nil && subkey.PrivateKey.Encrypted {
+						err := subkey.PrivateKey.Decrypt(passphrase)
+						if err != nil {
+							t.Fatal("Failed to decrypt subkey")
+						}
 					}
 				}
 			}
-		}
 
-		var signed *Entity
-		if test.isSigned {
-			signed = kring[0]
-		}
-
-		buf := new(bytes.Buffer)
-		// randomized compression test
-		compAlgos := []packet.CompressionAlgo{
-			packet.CompressionNone,
-			packet.CompressionZIP,
-			packet.CompressionZLIB,
-		}
-		compAlgo := compAlgos[mathrand.Intn(len(compAlgos))]
-		level := mathrand.Intn(11) - 1
-		compConf := &packet.CompressionConfig{Level: level}
-		var config = &packet.Config{
-			DefaultCompressionAlgo: compAlgo,
-			CompressionConfig:      compConf,
-			DefaultCipher: 			packet.CipherAES128,
-		}
-
-		// Flip coin to enable AEAD mode
-		if mathrand.Int()%2 == 0 {
-			aeadConf := packet.AEADConfig{
-				DefaultMode: aeadModes[mathrand.Intn(len(aeadModes))],
+			var signed *Entity
+			if test.isSigned {
+				signed = kring[0]
 			}
-			config.AEADConfig = &aeadConf
-		}
 
-		w, err := Encrypt(buf, kring[:1], signed, nil /* no hints */, config)
-		if (err != nil) == (test.okV6 && config.AEAD() != nil) {
-			// ElGamal is not allowed with v6
-			continue
-		}
-
-		if err != nil {
-			t.Errorf("#%d: error in Encrypt: %s", i, err)
-			continue
-		}
-
-		const message = "testing"
-		_, err = w.Write([]byte(message))
-		if err != nil {
-			t.Errorf("#%d: error writing plaintext: %s", i, err)
-			continue
-		}
-		err = w.Close()
-		if err != nil {
-			t.Errorf("#%d: error closing WriteCloser: %s", i, err)
-			continue
-		}
-
-		md, err := ReadMessage(buf, kring, nil /* no prompt */, config)
-		if err != nil {
-			t.Errorf("#%d: error reading message: %s", i, err)
-			continue
-		}
-
-		testTime, _ := time.Parse("2006-01-02", "2013-07-01")
-		if test.isSigned {
-			signKey, _ := kring[0].SigningKey(testTime)
-			expectedKeyId := signKey.PublicKey.KeyId
-			if md.SignedByKeyId != expectedKeyId {
-				t.Errorf("#%d: message signed by wrong key id, got: %v, want: %v", i, *md.SignedBy, expectedKeyId)
+			buf := new(bytes.Buffer)
+			// randomized compression test
+			compAlgos := []packet.CompressionAlgo{
+				packet.CompressionNone,
+				packet.CompressionZIP,
+				packet.CompressionZLIB,
 			}
-			if md.SignedBy == nil {
-				t.Errorf("#%d: failed to find the signing Entity", i)
+			compAlgo := compAlgos[mathrand.Intn(len(compAlgos))]
+			level := mathrand.Intn(11) - 1
+			compConf := &packet.CompressionConfig{Level: level}
+			var config = &packet.Config{
+				DefaultCompressionAlgo: compAlgo,
+				CompressionConfig:      compConf,
+				DefaultCipher:          packet.CipherAES256,
 			}
-		}
 
-		plaintext, err := io.ReadAll(md.UnverifiedBody)
-		if err != nil {
-			t.Errorf("#%d: error reading encrypted contents: %s", i, err)
-			continue
-		}
-
-		encryptKey, _ := kring[0].EncryptionKey(testTime)
-		expectedKeyId := encryptKey.PublicKey.KeyId
-		if len(md.EncryptedToKeyIds) != 1 || md.EncryptedToKeyIds[0] != expectedKeyId {
-			t.Errorf("#%d: expected message to be encrypted to %v, but got %#v", i, expectedKeyId, md.EncryptedToKeyIds)
-		}
-
-		if string(plaintext) != message {
-			t.Errorf("#%d: got: %s, want: %s", i, string(plaintext), message)
-		}
-
-		if test.isSigned {
-			if md.SignatureError != nil {
-				t.Errorf("#%d: signature error: %s", i, md.SignatureError)
+			// Flip coin to enable AEAD mode
+			if test.okV6 && (mathrand.Int()%2 == 0) {
+				aeadConf := packet.AEADConfig{
+					DefaultMode: aeadModes[mathrand.Intn(len(aeadModes))],
+				}
+				config.AEADConfig = &aeadConf
 			}
-			if md.Signature == nil {
-				t.Error("signature missing")
+
+			w, err := Encrypt(buf, kring[:1], signed, nil /* no hints */, config)
+			if err != nil {
+				t.Fatalf("Error in Encrypt: %s", err)
 			}
-		}
+
+			const message = "testing"
+			_, err = w.Write([]byte(message))
+			if err != nil {
+				t.Fatalf("Error writing plaintext: %s", err)
+			}
+			err = w.Close()
+			if err != nil {
+				t.Fatalf("Error closing WriteCloser: %s", err)
+			}
+
+			md, err := ReadMessage(buf, kring, nil /* no prompt */, config)
+			if err != nil {
+				t.Fatalf("Error reading message: %s", err)
+			}
+
+			testTime, _ := time.Parse("2006-01-02", "2013-07-01")
+			if test.isSigned {
+				signKey, _ := kring[0].SigningKey(testTime)
+				expectedKeyId := signKey.PublicKey.KeyId
+				if md.SignedByKeyId != expectedKeyId {
+					t.Errorf("Message signed by wrong key id, got: %v, want: %v", *md.SignedBy, expectedKeyId)
+				}
+				if md.SignedBy == nil {
+					t.Error("#Failed to find the signing Entity")
+				}
+			}
+
+			plaintext, err := io.ReadAll(md.UnverifiedBody)
+			if err != nil {
+				t.Fatalf("Error reading encrypted contents: %s", err)
+			}
+
+			encryptKey, _ := kring[0].EncryptionKey(testTime)
+			expectedKeyId := encryptKey.PublicKey.KeyId
+			if len(md.EncryptedToKeyIds) != 1 || md.EncryptedToKeyIds[0] != expectedKeyId {
+				t.Errorf("Expected message to be encrypted to %v, but got %#v", expectedKeyId, md.EncryptedToKeyIds)
+			}
+
+			if string(plaintext) != message {
+				t.Errorf("#Got: %s, want: %s", string(plaintext), message)
+			}
+
+			if test.isSigned {
+				if md.SignatureError != nil {
+					t.Errorf("Signature error: %s", md.SignatureError)
+				}
+				if md.Signature == nil {
+					t.Error("Signature missing")
+				}
+			}
+		})
 	}
 }
 

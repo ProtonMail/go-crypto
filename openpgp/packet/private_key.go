@@ -18,6 +18,9 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/mldsa_ecdsa"
 	"github.com/ProtonMail/go-crypto/openpgp/mldsa_eddsa"
 	"github.com/ProtonMail/go-crypto/openpgp/slhdsa"
+	"github.com/cloudflare/circl/kem/mlkem/mlkem1024"
+	"github.com/cloudflare/circl/kem/mlkem/mlkem768"
+	"github.com/cloudflare/circl/sign/dilithium"
 	"io"
 	"math/big"
 	"strconv"
@@ -909,19 +912,19 @@ func (pk *PrivateKey) parsePrivateKey(data []byte) (err error) {
 	case PubKeyAlgoEd448:
 		return pk.parseEd448PrivateKey(data)
 	case PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem768P256, PubKeyAlgoMlkem768Brainpool256:
-		return pk.parseMlkemEcdhPrivateKey(data, 32, 2400)
+		return pk.parseMlkemEcdhPrivateKey(data, 32, mlkem768.PrivateKeySize)
 	case PubKeyAlgoMlkem1024X448:
-		return pk.parseMlkemEcdhPrivateKey(data, 56, 3168)
+		return pk.parseMlkemEcdhPrivateKey(data, 56, mlkem1024.PrivateKeySize)
 	case PubKeyAlgoMlkem1024P384, PubKeyAlgoMlkem1024Brainpool384:
-		return pk.parseMlkemEcdhPrivateKey(data, 48, 3168)
+		return pk.parseMlkemEcdhPrivateKey(data, 48, mlkem1024.PrivateKeySize)
 	case PubKeyAlgoMldsa65Ed25519:
-		return pk.parseMldsaEddsaPrivateKey(data, 32, 4000)
+		return pk.parseMldsaEddsaPrivateKey(data, 32, dilithium.MLDSA65.PrivateKeySize())
 	case PubKeyAlgoMldsa87Ed448:
-		return pk.parseMldsaEddsaPrivateKey(data, 57, 4864)
+		return pk.parseMldsaEddsaPrivateKey(data, 57, dilithium.MLDSA87.PrivateKeySize())
 	case PubKeyAlgoMldsa65p256, PubKeyAlgoMldsa65Brainpool256:
-		return pk.parseMldsaEcdsaPrivateKey(data, 32, 4000)
+		return pk.parseMldsaEcdsaPrivateKey(data, 32, dilithium.MLDSA65.PrivateKeySize())
 	case PubKeyAlgoMldsa87p384, PubKeyAlgoMldsa87Brainpool384:
-		return pk.parseMldsaEcdsaPrivateKey(data, 48, 4864)
+		return pk.parseMldsaEcdsaPrivateKey(data, 48, dilithium.MLDSA87.PrivateKeySize())
 	case PubKeyAlgoSlhdsaSha2, PubKeyAlgoSlhdsaShake:
 		return pk.parseSlhdsaPrivateKey(data)
 	default:

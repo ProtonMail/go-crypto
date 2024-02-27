@@ -643,6 +643,7 @@ func encrypt(
 		candidateHashes = []uint8{hashToHashId(crypto.SHA256)}
 	}
 	if len(candidateCipherSuites) == 0 {
+		// Todo: check PQC and use AES-256
 		// https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-07.html#section-9.6
 		candidateCipherSuites = [][2]uint8{{uint8(packet.CipherAES128), uint8(packet.AEADModeOCB)}}
 	}

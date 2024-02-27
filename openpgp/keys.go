@@ -143,8 +143,7 @@ func (e *Entity) EncryptionKey(now time.Time) (Key, bool) {
 			!subkey.PublicKey.KeyExpired(subkey.Sig, now) &&
 			!subkey.Sig.SigExpired(now) &&
 			!subkey.Revoked(now) &&
-			(maxTime.IsZero() || subkey.Sig.CreationTime.After(maxTime)) &&
-			(!isPQ || subkey.IsPQ()) {
+			(maxTime.IsZero() || subkey.Sig.CreationTime.After(maxTime) || (!isPQ && subkey.IsPQ())) {
 			candidateSubkey = i
 			maxTime = subkey.Sig.CreationTime
 			isPQ = subkey.IsPQ() // Prefer PQ keys
