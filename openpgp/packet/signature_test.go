@@ -324,7 +324,7 @@ func TestSignatureWithTrustAndRegex(t *testing.T) {
 	}
 }
 
-func TestSignatureWithRecoverableFlag(t *testing.T) {
+func TestSignatureWithExportableFlag(t *testing.T) {
 	packet, err := Read(readerFromHex(signatureWithExportableFlagHex))
 	if err != nil {
 		t.Error(err)
@@ -337,7 +337,7 @@ func TestSignatureWithRecoverableFlag(t *testing.T) {
 	}
 
 	if !*sig.Exportable {
-		t.Errorf("expected signature recoverable flag to be true")
+		t.Errorf("expected signature exportable flag to be true")
 	}
 
 	out := new(bytes.Buffer)
