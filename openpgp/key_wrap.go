@@ -15,10 +15,10 @@ import (
 	internaled25519 "github.com/ProtonMail/go-crypto/openpgp/ed25519"
 )
 
-// NewEntity returns an Entity that contains either a RSA or ECDSA keypair
-// passed by the user with a single identity composed of the given full name,
-// comment and email, any of which may be empty but must not contain any of
-// "()<>\x00". If config is nil, sensible defaults will be used. It is not
+// NewEntity returns an Entity that contains either a RSA, ECDSA or Ed25519
+// keypair passed by the user with a single identity composed of the given full
+// name, comment and email, any of which may be empty but must not contain any
+// of "()<>\x00". If config is nil, sensible defaults will be used. It is not
 // required to assign any of the key type parameters in the config (in fact,
 // they will be ignored); these will be set based on the passed key.
 //
