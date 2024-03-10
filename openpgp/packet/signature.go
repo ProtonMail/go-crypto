@@ -1270,8 +1270,8 @@ func (sig *Signature) buildSubpackets(issuer PublicKey) (subpackets []outputSubp
 		subpackets = append(subpackets, outputSubpacket{true, featuresSubpacket, false, []byte{features}})
 	}
 
-	if sig.Exportable != nil && *sig.Exportable {
-		subpackets = append(subpackets, outputSubpacket{true, exportableCertSubpacket, true, []byte{1}})
+	if sig.Exportable != nil && !*sig.Exportable {
+		subpackets = append(subpackets, outputSubpacket{true, exportableCertSubpacket, true, []byte{0}})
 	}
 
 	if sig.TrustLevel != 0 {
