@@ -3,6 +3,7 @@ package openpgp
 import (
 	"crypto"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rsa"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 
 	internalecdsa "github.com/ProtonMail/go-crypto/openpgp/ecdsa"
+	internaled25519 "github.com/ProtonMail/go-crypto/openpgp/ed25519"
 )
 
 // NewEntity returns an Entity that contains either a RSA or ECDSA keypair
@@ -19,6 +21,10 @@ import (
 // "()<>\x00". If config is nil, sensible defaults will be used. It is not
 // required to assign any of the key type parameters in the config (in fact,
 // they will be ignored); these will be set based on the passed key.
+//
+// The following key types are currently supported: *rsa.PrivateKey,
+// *ecdsa.PrivateKey and ed25519.PrivateKey (not a pointer).
+// Unsupported key types result in an error.
 func NewEntityFromKey(name, comment, email string, key crypto.PrivateKey, config *packet.Config) (*Entity, error) {
 	creationTime := config.Now()
 	keyLifetimeSecs := config.KeyLifetime()
@@ -95,6 +101,13 @@ func newSignerFromKey(key crypto.PrivateKey, config *packet.Config) (interface{}
 		)
 		priv.PublicKey.X, priv.PublicKey.Y, priv.D = key.X, key.Y, key.D
 		config.Algorithm = packet.PubKeyAlgoECDSA
+		return priv, nil
+	case ed25519.PrivateKey:
+		priv := internaled25519.NewPrivateKey(
+			*internaled25519.NewPublicKey(),
+		)
+		priv.Key = key.Seed()
+		config.Algorithm = packet.PubKeyAlgoEd25519
 		return priv, nil
 	default:
 		return nil, errors.InvalidArgumentError("unsupported public key algorithm")
