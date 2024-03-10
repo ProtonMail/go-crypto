@@ -87,12 +87,19 @@ func newSignerFromKey(key crypto.PrivateKey, config *packet.Config) (interface{}
 		case elliptic.P256():
 			c = ecc.NewGenericCurve(elliptic.P256())
 			config.Curve = packet.CurveNistP256
+			// The default hash SHA256 will serve here
 		case elliptic.P384():
 			c = ecc.NewGenericCurve(elliptic.P384())
 			config.Curve = packet.CurveNistP384
+			if config.DefaultHash == 0 {
+				config.DefaultHash = crypto.SHA384
+			}
 		case elliptic.P521():
 			c = ecc.NewGenericCurve(elliptic.P521())
 			config.Curve = packet.CurveNistP521
+			if config.DefaultHash == 0 {
+				config.DefaultHash = crypto.SHA512
+			}
 		default:
 			return nil, errors.InvalidArgumentError("unsupported elliptic curve")
 		}
