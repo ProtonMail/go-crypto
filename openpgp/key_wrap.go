@@ -7,25 +7,25 @@ import (
 	"crypto/elliptic"
 	"crypto/rsa"
 
+	"github.com/ProtonMail/go-crypto/openpgp/eddsa"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 
 	internalecdsa "github.com/ProtonMail/go-crypto/openpgp/ecdsa"
-	internaled25519 "github.com/ProtonMail/go-crypto/openpgp/ed25519"
 )
 
-// NewEntity returns an Entity that contains either a RSA, ECDSA or Ed25519
-// keypair passed by the user with a single identity composed of the given full
-// name, comment and email, any of which may be empty but must not contain any
-// of "()<>\x00". If config is nil, sensible defaults will be used. It is not
-// required to assign any of the key type parameters in the config (in fact,
-// they will be ignored); these will be set based on the passed key.
+// NewSigningEntityFromKey returns an Entity that contains either a RSA, ECDSA
+// or Ed25519 keypair passed by the user with a single identity composed of the
+// given full name, comment and email, any of which may be empty but must not
+// contain any of "()<>\x00". If config is nil, sensible defaults will be used.
+// It is not required to assign any of the key type parameters in the config
+// (in fact, they will be ignored); these will be set based on the passed key.
 //
 // The following key types are currently supported: *rsa.PrivateKey,
-// *ecdsa.PrivateKey and ed25519.PrivateKey (not a pointer).
-// Unsupported key types result in an error.
-func NewEntityFromKey(name, comment, email string, key crypto.PrivateKey, config *packet.Config) (*Entity, error) {
+// *ecdsa.PrivateKey and ed25519.PrivateKey (not a pointer). Unsupported key
+// types result in an error.
+func NewSigningEntityFromKey(name, comment, email string, key crypto.PrivateKey, config *packet.Config) (*Entity, error) {
 	creationTime := config.Now()
 	keyLifetimeSecs := config.KeyLifetime()
 
@@ -66,14 +66,47 @@ func NewEntityFromKey(name, comment, email string, key crypto.PrivateKey, config
 		return nil, err
 	}
 
-	// NOTE: No key expiry here, but we will not return this subkey in EncryptionKey()
-	// if the primary/master key has expired.
-	err = e.addEncryptionSubkey(config, creationTime, 0)
+	return e, nil
+}
+
+func (e *Entity) AddSigningSubkeyFromKey(key crypto.PrivateKey, config *packet.Config) error {
+	creationTime := config.Now()
+	keyLifetimeSecs := config.KeyLifetime()
+
+	subPrivRaw, err := newSignerFromKey(key, config)
 	if err != nil {
-		return nil, err
+		return err
+	}
+	sub := packet.NewSignerPrivateKey(creationTime, subPrivRaw)
+	sub.IsSubkey = true
+	if config.V6() {
+		sub.UpgradeToV6()
 	}
 
-	return e, nil
+	subkey := Subkey{
+		PublicKey:  &sub.PublicKey,
+		PrivateKey: sub,
+	}
+	subkey.Sig = createSignaturePacket(e.PrimaryKey, packet.SigTypeSubkeyBinding, config)
+	subkey.Sig.CreationTime = creationTime
+	subkey.Sig.KeyLifetimeSecs = &keyLifetimeSecs
+	subkey.Sig.FlagsValid = true
+	subkey.Sig.FlagSign = true
+	subkey.Sig.EmbeddedSignature = createSignaturePacket(subkey.PublicKey, packet.SigTypePrimaryKeyBinding, config)
+	subkey.Sig.EmbeddedSignature.CreationTime = creationTime
+
+	err = subkey.Sig.EmbeddedSignature.CrossSignKey(subkey.PublicKey, e.PrimaryKey, subkey.PrivateKey, config)
+	if err != nil {
+		return err
+	}
+
+	err = subkey.Sig.SignKey(subkey.PublicKey, e.PrivateKey, config)
+	if err != nil {
+		return err
+	}
+
+	e.Subkeys = append(e.Subkeys, subkey)
+	return nil
 }
 
 func newSignerFromKey(key crypto.PrivateKey, config *packet.Config) (interface{}, error) {
@@ -110,11 +143,19 @@ func newSignerFromKey(key crypto.PrivateKey, config *packet.Config) (interface{}
 		config.Algorithm = packet.PubKeyAlgoECDSA
 		return priv, nil
 	case ed25519.PrivateKey:
-		priv := internaled25519.NewPrivateKey(
-			*internaled25519.NewPublicKey(),
-		)
-		priv.Key = key.Seed()
-		config.Algorithm = packet.PubKeyAlgoEd25519
+		if config.V6() {
+			// Implementations MUST NOT accept or generate v6 key material
+			// using the deprecated OIDs.
+			return nil, errors.InvalidArgumentError("EdDSALegacy cannot be used for v6 keys")
+		}
+		curve := ecc.FindEdDSAByGenName(string(packet.Curve25519))
+		if curve == nil {
+			return nil, errors.InvalidArgumentError("unsupported curve")
+		}
+		priv := eddsa.NewPrivateKey(*eddsa.NewPublicKey(curve))
+		priv.PublicKey.X = key.Public().(ed25519.PublicKey)[:]
+		priv.D = key.Seed()
+		config.Algorithm = packet.PubKeyAlgoEdDSA
 		return priv, nil
 	default:
 		return nil, errors.InvalidArgumentError("unsupported public key algorithm")
