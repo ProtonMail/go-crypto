@@ -80,6 +80,10 @@ type Signature struct {
 	Notations                                               []*Notation
 	IntendedRecipients                                      []*Recipient
 
+	// Exportable is a flag to indicate whenether certification signature is exportable.
+	// See RFC 4880, section 5.2.3.11 for details.
+	Exportable *bool
+
 	// TrustLevel and TrustAmount can be set by the signer to assert that
 	// the key is not only valid but also trustworthy at the specified
 	// level.
@@ -331,6 +335,7 @@ type signatureSubpacketType uint8
 const (
 	creationTimeSubpacket        signatureSubpacketType = 2
 	signatureExpirationSubpacket signatureSubpacketType = 3
+	exportableCertSubpacket      signatureSubpacketType = 4
 	trustSubpacket               signatureSubpacketType = 5
 	regularExpressionSubpacket   signatureSubpacketType = 6
 	keyExpirationSubpacket       signatureSubpacketType = 9
@@ -418,6 +423,13 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		}
 		sig.SigLifetimeSecs = new(uint32)
 		*sig.SigLifetimeSecs = binary.BigEndian.Uint32(subpacket)
+	case exportableCertSubpacket:
+		if subpacket[0] == 0 {
+			err = errors.UnsupportedError("signature with non-exportable certification")
+			return
+		}
+		sig.Exportable = new(bool)
+		*sig.Exportable = true
 	case trustSubpacket:
 		if len(subpacket) != 2 {
 			err = errors.StructuralError("trust subpacket with bad length")
