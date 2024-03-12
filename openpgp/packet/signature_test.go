@@ -324,8 +324,8 @@ func TestSignatureWithTrustAndRegex(t *testing.T) {
 	}
 }
 
-func TestSignatureWithExportableFlag(t *testing.T) {
-	packet, err := Read(readerFromHex(signatureWithExportableFlagHex))
+func TestSignatureWithExportableCert(t *testing.T) {
+	packet, err := Read(readerFromHex(signatureWithExportableCertHex))
 	if err != nil {
 		t.Error(err)
 		return
@@ -339,17 +339,15 @@ func TestSignatureWithExportableFlag(t *testing.T) {
 	if !*sig.Exportable {
 		t.Errorf("expected signature exportable flag to be true")
 	}
+}
 
-	out := new(bytes.Buffer)
-	err = sig.Serialize(out)
-	if err != nil {
-		t.Errorf("error reserializing: %s", err)
-		return
+func TestSignatureWithNonExportableCert(t *testing.T) {
+	_, err := Read(readerFromHex(signatureWithNonExportableCertHex))
+	if err == nil {
+		t.Errorf("did not receive an error when expected")
 	}
-
-	expected, _ := hex.DecodeString(signatureWithExportableFlagHex)
-	if !bytes.Equal(expected, out.Bytes()) {
-		t.Errorf("output doesn't match input (got vs expected):\n%s\n%s", hex.Dump(out.Bytes()), hex.Dump(expected))
+	if err.Error() != "openpgp: unsupported feature: signature with non-exportable certification" {
+		t.Errorf("unexpected error while parsing: %v", err)
 	}
 }
 
@@ -365,4 +363,6 @@ const signatureWithBadTrustRegexHex = "c2bc0410010800300502886e09001621040f0bfb4
 
 const positiveCertSignatureDataHex = "c2c0b304130108005d050b0908070206150a09080b020416020301021e010217802418686b70733a2f2f686b70732e706f6f6c2e736b732d6b6579736572766572732e6e65741621045ef9b8a44d89b32f94f3e9333679666422d0f62605025b2cc122021b2f000a09103679666422d0f62668e1080098b71f59ce893769ccb603344290e89df8f12d6ea906cc1c2b166c61a02679070744565f8280712b4e6bdfd482b758ef935655f1674c8f3633ab173d27cbe31e46368a8255134ecc5249ad66324cc4f6a79f160459b326711cfdc35032aac0903657a934f80f79768786ddd6554aa8d385c03adbee17c4e3e2831752d4910077da3b1f5562d267a57540a1c2b0dd2d96ed055c06098599b2390d61cfa37c6d19d9d63749fb3c3cfe0036fd959ba616eb23486216563fed8fdd19f96f5da9943db1698705fb688c1354c379ef01de307c4a0ac016e6385324cb0a7b49cfeee8961a289c8fa4c81d0e24e00969039db223a9835e8b86a8d85df645175f8aa0f8f2"
 
-const signatureWithExportableFlagHex = "c2c07404130102001e050263fde196050903c3b880021b26030b0309021601041508090a028401000a09101bf1d93a68a8b208342b07ff6f59f5a882d148c481b877b434271b2e844e0dd783d9eb5534aac51170024382089cf07194a1835c72177d677a7ce04a614c1f85ccf5972d08ebabdfefefbe9d0f2b9f0a0a010c0889d9ab43ec99ccaddf76f7a96d91c49256ae23078a22469fd2a3d1d2ccfb30eb4f137e8c893731163e8f7aa18abb6a72ebfbab71ac8946f991d0a10d0293bc275183f67567c709bdd7e035d16c3cb2d14565b8baccaf721a3e1ed59385fc4b248648bdf7072a07ed693caf9179ea980fa8f89bef9c6819870c0074aa0419bf80e073863fe4cfe144a3083586d05f3ce8277d891dc11aa157dd133ac8d2dab4e8095affe6f3d3be673d2392c9177102374f51c56199dd3c05"
+const signatureWithExportableCertHex = "c2c07404130102001e050263fde196050903c3b880021b26030b0309021601041508090a028401000a09101bf1d93a68a8b208342b07ff6f59f5a882d148c481b877b434271b2e844e0dd783d9eb5534aac51170024382089cf07194a1835c72177d677a7ce04a614c1f85ccf5972d08ebabdfefefbe9d0f2b9f0a0a010c0889d9ab43ec99ccaddf76f7a96d91c49256ae23078a22469fd2a3d1d2ccfb30eb4f137e8c893731163e8f7aa18abb6a72ebfbab71ac8946f991d0a10d0293bc275183f67567c709bdd7e035d16c3cb2d14565b8baccaf721a3e1ed59385fc4b248648bdf7072a07ed693caf9179ea980fa8f89bef9c6819870c0074aa0419bf80e073863fe4cfe144a3083586d05f3ce8277d891dc11aa157dd133ac8d2dab4e8095affe6f3d3be673d2392c9177102374f51c56199dd3c05"
+
+const signatureWithNonExportableCertHex = "c2c07404130102001e050263fde196050903c3b880021b26030b0309021601041508090a028400000a09101bf1d93a68a8b208342b07ff6f59f5a882d148c481b877b434271b2e844e0dd783d9eb5534aac51170024382089cf07194a1835c72177d677a7ce04a614c1f85ccf5972d08ebabdfefefbe9d0f2b9f0a0a010c0889d9ab43ec99ccaddf76f7a96d91c49256ae23078a22469fd2a3d1d2ccfb30eb4f137e8c893731163e8f7aa18abb6a72ebfbab71ac8946f991d0a10d0293bc275183f67567c709bdd7e035d16c3cb2d14565b8baccaf721a3e1ed59385fc4b248648bdf7072a07ed693caf9179ea980fa8f89bef9c6819870c0074aa0419bf80e073863fe4cfe144a3083586d05f3ce8277d891dc11aa157dd133ac8d2dab4e8095affe6f3d3be673d2392c9177102374f51c56199dd3c05"

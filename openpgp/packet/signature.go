@@ -424,10 +424,12 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		sig.SigLifetimeSecs = new(uint32)
 		*sig.SigLifetimeSecs = binary.BigEndian.Uint32(subpacket)
 	case exportableCertSubpacket:
-		sig.Exportable = new(bool)
-		if subpacket[0] > 0 {
-			*sig.Exportable = true
+		if subpacket[0] == 0 {
+			err = errors.UnsupportedError("signature with non-exportable certification")
+			return
 		}
+		sig.Exportable = new(bool)
+		*sig.Exportable = true
 	case trustSubpacket:
 		if len(subpacket) != 2 {
 			err = errors.StructuralError("trust subpacket with bad length")
@@ -1268,10 +1270,6 @@ func (sig *Signature) buildSubpackets(issuer PublicKey) (subpackets []outputSubp
 
 	if features != 0x00 {
 		subpackets = append(subpackets, outputSubpacket{true, featuresSubpacket, false, []byte{features}})
-	}
-
-	if sig.Exportable != nil && !*sig.Exportable {
-		subpackets = append(subpackets, outputSubpacket{true, exportableCertSubpacket, true, []byte{0}})
 	}
 
 	if sig.TrustLevel != 0 {
