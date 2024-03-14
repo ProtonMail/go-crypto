@@ -439,7 +439,7 @@ func newDecrypter(config *packet.Config) (decrypter interface{}, err error) {
 		return x25519.GenerateKey(config.Random())
 	case packet.PubKeyAlgoEd448, packet.PubKeyAlgoX448: // When passing Ed448, we generate an x448 subkey
 		return x448.GenerateKey(config.Random())
-	case packet.ExperimentalPubKeyAlgoAEAD:
+	case packet.ExperimentalPubKeyAlgoHMAC, packet.ExperimentalPubKeyAlgoAEAD: // When passing HMAC, we generate an AEAD subkey
 		cipher := algorithm.CipherFunction(config.Cipher())
 		return symmetric.AEADGenerateKey(config.Random(), cipher)
 	default:
