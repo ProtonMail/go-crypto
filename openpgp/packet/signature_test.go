@@ -324,24 +324,20 @@ func TestSignatureWithTrustAndRegex(t *testing.T) {
 	}
 }
 
-func TestSignatureWithExportableCert(t *testing.T) {
+func TestCanParseSignatureWithExportableCert(t *testing.T) {
 	packet, err := Read(readerFromHex(signatureWithExportableCertHex))
 	if err != nil {
 		t.Error(err)
 		return
 	}
 
-	sig, ok := packet.(*Signature)
+	_, ok := packet.(*Signature)
 	if !ok {
 		t.Errorf("failed to parse, got: %#v", packet)
 	}
-
-	if !*sig.Exportable {
-		t.Errorf("expected signature exportable flag to be true")
-	}
 }
 
-func TestSignatureWithNonExportableCert(t *testing.T) {
+func TestCannotParseSignatureWithNonExportableCert(t *testing.T) {
 	_, err := Read(readerFromHex(signatureWithNonExportableCertHex))
 	if err == nil {
 		t.Errorf("did not receive an error when expected")
