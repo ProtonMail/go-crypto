@@ -331,6 +331,7 @@ type signatureSubpacketType uint8
 const (
 	creationTimeSubpacket        signatureSubpacketType = 2
 	signatureExpirationSubpacket signatureSubpacketType = 3
+	exportableCertSubpacket      signatureSubpacketType = 4
 	trustSubpacket               signatureSubpacketType = 5
 	regularExpressionSubpacket   signatureSubpacketType = 6
 	keyExpirationSubpacket       signatureSubpacketType = 9
@@ -418,6 +419,11 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		}
 		sig.SigLifetimeSecs = new(uint32)
 		*sig.SigLifetimeSecs = binary.BigEndian.Uint32(subpacket)
+	case exportableCertSubpacket:
+		if subpacket[0] == 0 {
+			err = errors.UnsupportedError("signature with non-exportable certification")
+			return
+		}
 	case trustSubpacket:
 		if len(subpacket) != 2 {
 			err = errors.StructuralError("trust subpacket with bad length")
