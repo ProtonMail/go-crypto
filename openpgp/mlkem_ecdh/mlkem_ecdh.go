@@ -9,10 +9,8 @@ import (
 	"golang.org/x/crypto/sha3"
 	"io"
 
-	"github.com/ProtonMail/go-crypto/internal/kmac"
 	"github.com/ProtonMail/go-crypto/openpgp/aes/keywrap"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
-	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
 	"github.com/cloudflare/circl/kem"
 )
@@ -84,7 +82,7 @@ func Encrypt(rand io.Reader, pub *PublicKey, msg []byte) (kEphemeral, ecEphemera
 		return nil, nil, nil, err
 	}
 
-	kek, err := buildKey(pub, ecSS, ecEphemeral, pub.PublicPoint, kSS, kEphemeral)
+	kek, err := buildKey(pub, ecSS, ecEphemeral, pub.PublicPoint, kSS, kEphemeral, pub.PublicMlkem)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -111,7 +109,7 @@ func Decrypt(priv *PrivateKey, kEphemeral, ecEphemeral, ciphertext []byte) (msg 
 		return nil, err
 	}
 
-	kek, err := buildKey(&priv.PublicKey, ecSS, ecEphemeral, priv.PublicPoint, kSS, kEphemeral)
+	kek, err := buildKey(&priv.PublicKey, ecSS, ecEphemeral, priv.PublicPoint, kSS, kEphemeral, priv.PublicMlkem)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +123,7 @@ func Decrypt(priv *PrivateKey, kEphemeral, ecEphemeral, ciphertext []byte) (msg 
 
 // buildKey implements the composite KDF as specified in
 // https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-key-combiner
-func buildKey(pub *PublicKey, eccSecretPoint, eccEphemeral, eccPublicKey, kyberKeyShare, kyberEphemeral []byte) ([]byte, error) {
+func buildKey(pub *PublicKey, eccSecretPoint, eccEphemeral, eccPublicKey, mlkemKeyShare, mlkemEphemeral []byte, mlkemPublicKey kem.PublicKey) ([]byte, error) {
 	h := sha3.New256()
 
 	// SHA3 never returns error
@@ -134,20 +132,28 @@ func buildKey(pub *PublicKey, eccSecretPoint, eccEphemeral, eccPublicKey, kyberK
 	_, _ = h.Write(eccPublicKey)
 	eccKeyShare := h.Sum(nil)
 
+	serializedMlkemKey, err := mlkemPublicKey.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+
 	// eccData = eccKeyShare || eccCipherText
 	// mlkemData = mlkemKeyShare || mlkemCipherText
 	// encData = counter || eccData || mlkemData || fixedInfo
-	k := kmac.NewKMAC256([]byte("OpenPGPCompositeKeyDerivationFunction"), algorithm.AES256.KeySize(), []byte("KDF"))
+	k := sha3.New256()
 
-	// KMAC never returns error
+	// SHA3 never returns error
 	_, _ = k.Write([]byte{0x00, 0x00, 0x00, 0x01})
 	_, _ = k.Write(eccKeyShare)
 	_, _ = k.Write(eccEphemeral)
-	_, _ = k.Write(kyberKeyShare)
-	_, _ = k.Write(kyberEphemeral)
+	_, _ = k.Write(eccPublicKey)
+	_, _ = k.Write(mlkemKeyShare)
+	_, _ = k.Write(mlkemEphemeral)
+	_, _ = k.Write(serializedMlkemKey)
 	_, _ = k.Write([]byte{pub.AlgId})
+	_, _ = k.Write([]byte("OpenPGPCompositeKDFv1"))
 
-	fmt.Printf("ecc:%x\nkyber:%x\n", eccKeyShare, kyberKeyShare)
+	fmt.Printf("ecc:%x\nkyber:%x\n", eccKeyShare, mlkemKeyShare)
 
 	return k.Sum(nil), nil
 }

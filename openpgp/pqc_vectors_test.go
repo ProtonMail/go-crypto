@@ -8,11 +8,10 @@ package openpgp
 
 import (
 	"bytes"
-	"crypto"
 	"github.com/ProtonMail/go-crypto/openpgp/armor"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
+	"strings"
 	"testing"
-	"time"
 )
 
 func dumpTestVector(t *testing.T, filename, vector string) {
@@ -87,39 +86,47 @@ func encryptPqcMessageVector(t *testing.T, filename string, entity *Entity, conf
 }
 
 func TestV4EddsaPqKey(t *testing.T) {
-	eddsaConfig := &packet.Config{
-		DefaultHash: crypto.SHA512,
-		Algorithm:   packet.PubKeyAlgoEdDSA,
-		V6Keys:      false,
-		DefaultCipher: packet.CipherAES256,
-		AEADConfig: &packet.AEADConfig {
-			DefaultMode: packet.AEADModeOCB,
-		},
-		Time: func() time.Time {
-			parsed, _ := time.Parse("2006-01-02", "2013-07-01")
-			return parsed
-		},
-	}
+	//eddsaConfig := &packet.Config{
+	//	DefaultHash: crypto.SHA512,
+	//	Algorithm:   packet.PubKeyAlgoEdDSA,
+	//	V6Keys:      false,
+	//	DefaultCipher: packet.CipherAES256,
+	//	AEADConfig: &packet.AEADConfig {
+	//		DefaultMode: packet.AEADModeOCB,
+	//	},
+	//	Time: func() time.Time {
+	//		parsed, _ := time.Parse("2006-01-02", "2013-07-01")
+	//		return parsed
+	//	},
+	//}
+	//
+	//entity, err := NewEntity("PQC user", "Test Key", "pqc-test-key@example.com", eddsaConfig)
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+	//
+	//kyberConfig := &packet.Config{
+	//	DefaultHash: crypto.SHA512,
+	//	Algorithm:   packet.PubKeyAlgoMlkem768X25519,
+	//	V6Keys:      false,
+	//	Time: func() time.Time {
+	//		parsed, _ := time.Parse("2006-01-02", "2013-07-01")
+	//		return parsed
+	//	},
+	//}
+	//
+	//err = entity.AddEncryptionSubkey(kyberConfig)
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
 
-	entity, err := NewEntity("PQC user", "Test Key", "pqc-test-key@example.com", eddsaConfig)
+	entities, err := ReadArmoredKeyRing(strings.NewReader(v4Ed25519Mlkem768X25519PrivateTestVector))
 	if err != nil {
-		t.Fatal(err)
+		t.Error(err)
+		return
 	}
 
-	kyberConfig := &packet.Config{
-		DefaultHash: crypto.SHA512,
-		Algorithm:   packet.PubKeyAlgoMlkem768X25519,
-		V6Keys:      false,
-		Time: func() time.Time {
-			parsed, _ := time.Parse("2006-01-02", "2013-07-01")
-			return parsed
-		},
-	}
-
-	err = entity.AddEncryptionSubkey(kyberConfig)
-	if err != nil {
-		t.Fatal(err)
-	}
+	entity := entities[0]
 
 	serializePqSkVector(t, "v4-eddsa-sample-pk.asc", entity, true)
 	serializePqPkVector(t, "v4-eddsa-sample-pk.asc", entity, true)
@@ -148,40 +155,48 @@ func TestV4EddsaPqKey(t *testing.T) {
 
 
 func TestV6EddsaPqKey(t *testing.T) {
-	eddsaConfig := &packet.Config{
-		DefaultHash: crypto.SHA512,
-		Algorithm:   packet.PubKeyAlgoEd25519,
-		V6Keys:      true,
-		DefaultCipher: packet.CipherAES256,
-		AEADConfig: &packet.AEADConfig {
-			DefaultMode: packet.AEADModeOCB,
-		},
-		Time: func() time.Time {
-			parsed, _ := time.Parse("2006-01-02", "2013-07-01")
-			return parsed
-		},
-	}
+	//eddsaConfig := &packet.Config{
+	//	DefaultHash: crypto.SHA512,
+	//	Algorithm:   packet.PubKeyAlgoEd25519,
+	//	V6Keys:      true,
+	//	DefaultCipher: packet.CipherAES256,
+	//	AEADConfig: &packet.AEADConfig {
+	//		DefaultMode: packet.AEADModeOCB,
+	//	},
+	//	Time: func() time.Time {
+	//		parsed, _ := time.Parse("2006-01-02", "2013-07-01")
+	//		return parsed
+	//	},
+	//}
+	//
+	//entity, err := NewEntity("PQC user", "Test Key", "pqc-test-key@example.com", eddsaConfig)
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
 
-	entity, err := NewEntity("PQC user", "Test Key", "pqc-test-key@example.com", eddsaConfig)
+	//kyberConfig := &packet.Config{
+	//	DefaultHash: crypto.SHA512,
+	//	Algorithm:   packet.PubKeyAlgoMlkem768X25519,
+	//	V6Keys:      true,
+	//	Time: func() time.Time {
+	//		parsed, _ := time.Parse("2006-01-02", "2013-07-01")
+	//		return parsed
+	//	},
+	//}
+	//
+	//entity.Subkeys = []Subkey{}
+	//err = entity.AddEncryptionSubkey(kyberConfig)
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+
+	entities, err := ReadArmoredKeyRing(strings.NewReader(v6Ed25519Mlkem768X25519PrivateTestVector))
 	if err != nil {
-		t.Fatal(err)
+		t.Error(err)
+		return
 	}
 
-	kyberConfig := &packet.Config{
-		DefaultHash: crypto.SHA512,
-		Algorithm:   packet.PubKeyAlgoMlkem768X25519,
-		V6Keys:      true,
-		Time: func() time.Time {
-			parsed, _ := time.Parse("2006-01-02", "2013-07-01")
-			return parsed
-		},
-	}
-
-	entity.Subkeys = []Subkey{}
-	err = entity.AddEncryptionSubkey(kyberConfig)
-	if err != nil {
-		t.Fatal(err)
-	}
+	entity := entities[0]
 
 	serializePqSkVector(t, "v6-eddsa-sample-pk.asc", entity, false)
 	serializePqPkVector(t, "v6-eddsa-sample-pk.asc", entity, false)
