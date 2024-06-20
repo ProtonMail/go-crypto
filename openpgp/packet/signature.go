@@ -35,6 +35,8 @@ const (
 	KeyFlagGroupKey
 )
 
+const SaltNotationName = "salt@openpgp.org"
+
 // Signature represents a signature. See RFC 4880, section 5.2.
 type Signature struct {
 	Version    int
@@ -882,6 +884,19 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 	}
 	sig.Version = priv.PublicKey.Version
 	sig.IssuerFingerprint = priv.PublicKey.Fingerprint
+	if priv.Version != 6 && config.RandomizeSignaturesViaNotation() {
+		salt, err := SignatureSaltForHash(sig.Hash, config.Random())
+		if err != nil {
+			return err
+		}
+		notation := Notation{
+			Name:            SaltNotationName,
+			Value:           salt,
+			IsCritical:      false,
+			IsHumanReadable: false,
+		}
+		sig.Notations = append(sig.Notations, &notation)
+	}
 	sig.outSubpackets, err = sig.buildSubpackets(priv.PublicKey)
 	if err != nil {
 		return err

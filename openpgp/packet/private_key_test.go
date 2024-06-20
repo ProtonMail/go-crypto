@@ -566,3 +566,43 @@ func TestElGamalValidation(t *testing.T) {
 	}
 	priv.Y = &y
 }
+
+func TestECDSASignerRandomizedNotation(t *testing.T) {
+	ecdsaPriv, err := ecdsa.GenerateKey(rand.Reader, ecc.NewGenericCurve(elliptic.P256()))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	priv := NewSignerPrivateKey(time.Now(), ecdsaPriv)
+	sig := &Signature{
+		Version:    4,
+		PubKeyAlgo: PubKeyAlgoECDSA,
+		Hash:       crypto.SHA256,
+	}
+	msg := make([]byte, mathrand.Intn(maxMessageLength))
+	rand.Read(msg)
+
+	h, err := populateHash(sig.Hash, msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := Config{
+		NonDeterministicSignaturesViaNotation: BoolPointer(true),
+	}
+	if err := sig.Sign(h, priv, &config); err != nil {
+		t.Fatal(err)
+	}
+
+	if h, err = populateHash(sig.Hash, msg); err != nil {
+		t.Fatal(err)
+	}
+	if err := priv.VerifySignature(h, sig); err != nil {
+		t.Fatal(err)
+	}
+	if len(sig.Notations) == 0 {
+		t.Fatalf("failed to find randomized notation")
+	}
+	if sig.Notations[0].Name != SaltNotationName {
+		t.Fatalf("failed to find randomized notation")
+	}
+}
