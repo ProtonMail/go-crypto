@@ -122,6 +122,10 @@ func writeKeyProperties(selfSignature *packet.Signature, creationTime time.Time,
 	selfSignature.PreferredCompression = []uint8{uint8(packet.CompressionNone)}
 	if config.Compression() != packet.CompressionNone {
 		selfSignature.PreferredCompression = append(selfSignature.PreferredCompression, uint8(config.Compression()))
+		if config.Compression() == packet.CompressionZLIB {
+			// If zlib is supported also add zip
+			selfSignature.PreferredCompression = append(selfSignature.PreferredCompression, uint8(packet.CompressionZIP))
+		}
 	}
 
 	// And for DefaultMode.
@@ -151,7 +155,7 @@ func (t *Entity) addUserId(name, comment, email string, config *packet.Config, c
 
 	primary := t.PrivateKey
 	isPrimaryId := len(t.Identities) == 0
-	selfSignature := createSignaturePacket(&primary.PublicKey, packet.SigTypePositiveCert, config)
+	selfSignature := createSignaturePacket(&primary.PublicKey, packet.SigTypeGenericCert, config)
 	if writeProperties {
 		err := writeKeyProperties(selfSignature, creationTime, keyLifetimeSecs, config)
 		if err != nil {
