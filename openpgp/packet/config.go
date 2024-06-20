@@ -375,7 +375,8 @@ func (c *Config) RandomizeSignaturesViaNotation() bool {
 	return *c.NonDeterministicSignaturesViaNotation
 }
 
-// Helper function to set a boolean pointer in the Config.
+// BoolPointer is a helper function to set a boolean pointer in the Config.
+// e.g., config.CheckPacketSequence = BoolPointer(true)
 func BoolPointer(value bool) *bool {
 	return &value
 }
