@@ -155,7 +155,7 @@ func (t *Entity) addUserId(name, comment, email string, config *packet.Config, c
 
 	primary := t.PrivateKey
 	isPrimaryId := len(t.Identities) == 0
-	selfSignature := createSignaturePacket(&primary.PublicKey, packet.SigTypeGenericCert, config)
+	selfSignature := createSignaturePacket(&primary.PublicKey, packet.SigTypePositiveCert, config)
 	if writeProperties {
 		err := writeKeyProperties(selfSignature, creationTime, keyLifetimeSecs, config)
 		if err != nil {
