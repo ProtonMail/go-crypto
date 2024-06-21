@@ -590,10 +590,7 @@ func (pk *PublicKey) SerializeSignaturePrefix(w io.Writer) error {
 			byte(pLength >> 8),
 			byte(pLength),
 		})
-		if err != nil {
-			return err
-		}
-		return nil
+		return err
 	}
 	if _, err := w.Write([]byte{0x99, byte(pLength >> 8), byte(pLength)}); err != nil {
 		return err
