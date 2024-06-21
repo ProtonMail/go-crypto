@@ -193,10 +193,6 @@ func writeKeyProperties(selfSignature *packet.Signature, selectedKeyProperties *
 	selfSignature.PreferredCompression = []uint8{uint8(packet.CompressionNone)}
 	if selectedKeyProperties.compression != packet.CompressionNone {
 		selfSignature.PreferredCompression = append(selfSignature.PreferredCompression, uint8(selectedKeyProperties.compression))
-		if selectedKeyProperties.compression == packet.CompressionZLIB {
-			// If zlib is supported also add zip
-			selfSignature.PreferredCompression = append(selfSignature.PreferredCompression, uint8(packet.CompressionZIP))
-		}
 	}
 
 	// And for DefaultMode.
