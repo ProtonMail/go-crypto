@@ -1234,7 +1234,7 @@ func (sig *Signature) buildSubpackets(issuer PublicKey) (subpackets []outputSubp
 	if len(sig.PreferredCompression) > 0 {
 		subpackets = append(subpackets, outputSubpacket{true, prefCompressionSubpacket, false, sig.PreferredCompression})
 	}
-	// 	Primary User ID
+	// Primary User ID
 	if sig.IsPrimaryId != nil && *sig.IsPrimaryId {
 		subpackets = append(subpackets, outputSubpacket{true, primaryUserIdSubpacket, false, []byte{1}})
 	}
