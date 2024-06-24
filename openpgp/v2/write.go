@@ -664,7 +664,12 @@ func encrypt(
 	}
 
 	if params.SessionKey == nil {
-		params.SessionKey = make([]byte, cipher.KeySize())
+		if aeadSupported {
+			params.SessionKey = make([]byte, aeadCipherSuite.Cipher.KeySize())
+		} else {
+			params.SessionKey = make([]byte, cipher.KeySize())
+		}
+
 		if _, err := io.ReadFull(config.Random(), params.SessionKey); err != nil {
 			return nil, err
 		}
