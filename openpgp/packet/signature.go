@@ -884,7 +884,7 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 	}
 	sig.Version = priv.PublicKey.Version
 	sig.IssuerFingerprint = priv.PublicKey.Fingerprint
-	if priv.Version != 6 && config.RandomizeSignaturesViaNotation() {
+	if sig.Version < 6 && config.RandomizeSignaturesViaNotation() {
 		sig.removeNotationsWithName(SaltNotationName)
 		salt, err := SignatureSaltForHash(sig.Hash, config.Random())
 		if err != nil {
