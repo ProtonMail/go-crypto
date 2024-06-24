@@ -849,7 +849,11 @@ func keySignatureHash(pk, signed signingKey, hashFunc hash.Hash) (h hash.Hash, e
 // VerifyKeyHashTag returns nil iff sig appears to be a plausible signature over this
 // primary key and subkey, based solely on its HashTag.
 func (pk *PublicKey) VerifyKeyHashTag(signed *PublicKey, sig *Signature) error {
-	h, err := keySignatureHash(pk, signed, sig.Hash)
+	preparedHash, err := sig.PrepareVerify()
+	if err != nil {
+		return err
+	}
+	h, err := keySignatureHash(pk, signed, preparedHash)
 	if err != nil {
 		return err
 	}
@@ -902,11 +906,15 @@ func keyRevocationHash(pk signingKey, hashFunc hash.Hash) (err error) {
 // VerifyRevocationHashTag returns nil iff sig appears to be a plausible signature
 // over this public key, based solely on its HashTag.
 func (pk *PublicKey) VerifyRevocationHashTag(sig *Signature) (err error) {
-	h, err := keyRevocationHash(pk, sig.Hash)
+	preparedHash, err := sig.PrepareVerify()
 	if err != nil {
 		return err
 	}
-	return VerifyHashTag(h, sig)
+	err = keyRevocationHash(pk, preparedHash)
+	if err != nil {
+		return err
+	}
+	return VerifyHashTag(preparedHash, sig)
 }
 
 // VerifyRevocationSignature returns nil iff sig is a valid signature, made by this
@@ -968,11 +976,15 @@ func directKeySignatureHash(pk *PublicKey, h hash.Hash) (err error) {
 // VerifyUserIdHashTag returns nil iff sig appears to be a plausible signature over this
 // public key and UserId, based solely on its HashTag
 func (pk *PublicKey) VerifyUserIdHashTag(id string, sig *Signature) (err error) {
-	h, err := userIdSignatureHash(id, pk, sig.Hash)
+	preparedHash, err := sig.PrepareVerify()
 	if err != nil {
 		return err
 	}
-	return VerifyHashTag(h, sig)
+	err = userIdSignatureHash(id, pk, preparedHash)
+	if err != nil {
+		return err
+	}
+	return VerifyHashTag(preparedHash, sig)
 }
 
 // VerifyUserIdSignature returns nil iff sig is a valid signature, made by this
