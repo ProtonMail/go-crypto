@@ -35,6 +35,8 @@ const (
 	KeyFlagGroupKey
 )
 
+const SaltNotationName = "salt@openpgp.org"
+
 // Signature represents a signature. See RFC 4880, section 5.2.
 type Signature struct {
 	Version    int
@@ -878,6 +880,20 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 	}
 	sig.Version = priv.PublicKey.Version
 	sig.IssuerFingerprint = priv.PublicKey.Fingerprint
+	if sig.Version < 6 && config.RandomizeSignaturesViaNotation() {
+		sig.removeNotationsWithName(SaltNotationName)
+		salt, err := SignatureSaltForHash(sig.Hash, config.Random())
+		if err != nil {
+			return err
+		}
+		notation := Notation{
+			Name:            SaltNotationName,
+			Value:           salt,
+			IsCritical:      false,
+			IsHumanReadable: false,
+		}
+		sig.Notations = append(sig.Notations, &notation)
+	}
 	sig.outSubpackets, err = sig.buildSubpackets(priv.PublicKey)
 	if err != nil {
 		return err
@@ -1404,4 +1420,18 @@ func SignatureSaltForHash(hash crypto.Hash, randReader io.Reader) ([]byte, error
 		return nil, err
 	}
 	return salt, nil
+}
+
+// removeNotationsWithName removes all notations in this signature with the given name.
+func (sig *Signature) removeNotationsWithName(name string) {
+	if sig == nil || sig.Notations == nil {
+		return
+	}
+	updatedNotations := make([]*Notation, 0, len(sig.Notations))
+	for _, notation := range sig.Notations {
+		if notation.Name != name {
+			updatedNotations = append(updatedNotations, notation)
+		}
+	}
+	sig.Notations = updatedNotations
 }
