@@ -910,8 +910,7 @@ func (pk *PublicKey) VerifyRevocationHashTag(sig *Signature) (err error) {
 	if err != nil {
 		return err
 	}
-	err = keyRevocationHash(pk, preparedHash)
-	if err != nil {
+	if err = keyRevocationHash(pk, preparedHash); err != nil {
 		return err
 	}
 	return VerifyHashTag(preparedHash, sig)
@@ -924,7 +923,7 @@ func (pk *PublicKey) VerifyRevocationSignature(sig *Signature) (err error) {
 	if err != nil {
 		return err
 	}
-	if keyRevocationHash(pk, preparedHash); err != nil {
+	if err = keyRevocationHash(pk, preparedHash); err != nil {
 		return err
 	}
 	return pk.VerifySignature(preparedHash, sig)

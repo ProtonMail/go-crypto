@@ -233,7 +233,7 @@ func (c *Config) S2K() *s2k.Config {
 		return nil
 	}
 	// for backwards compatibility
-	if c != nil && c.S2KCount > 0 && c.S2KConfig == nil {
+	if c.S2KCount > 0 && c.S2KConfig == nil {
 		return &s2k.Config{
 			S2KCount: c.S2KCount,
 		}
