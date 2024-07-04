@@ -144,6 +144,9 @@ func TestExternalPrivateKeyEncryptDecryptS2KModes(t *testing.T) {
 	sk2KeyTypes := []S2KType{S2KAEAD, S2KSHA1}
 	for _, s2kMode := range sk2Modes {
 		for _, sk2KeyType := range sk2KeyTypes {
+			if s2kMode == s2k.Argon2S2K && sk2KeyType == S2KSHA1 {
+				continue
+			}
 			t.Run(fmt.Sprintf("s2kMode:%d-s2kType:%d", s2kMode, sk2KeyType), func(t *testing.T) {
 				var configAEAD *AEADConfig
 				if sk2KeyType == S2KAEAD {

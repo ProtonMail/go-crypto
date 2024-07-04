@@ -1497,6 +1497,9 @@ func TestEncryptAndDecryptPrivateKeys(t *testing.T) {
 					S2KMode: mode,
 				},
 			}
+			if mode == s2k.Argon2S2K {
+				config.AEADConfig = &packet.AEADConfig{}
+			}
 			err = entity.EncryptPrivateKeys(passphrase, config)
 			if err != nil {
 				t.Fatal(err)
