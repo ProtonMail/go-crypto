@@ -29,6 +29,15 @@ var (
 	}
 )
 
+// A global feature flag to indicate v5 support.
+// Can be set via a build tag go test -tags v5.
+// If the build tag is missing config_build.go will set it to true.
+//
+// Disables parsing of v5 keys, v5 signatures and AEAD-encrypted data packets.
+// These are non-standard entities, which in the crypto-refresh have been superseded
+// by v6 keys, v6 signatures and SEIPDv2 encrypted data, respectively.
+var V5Disabled = false
+
 // Config collects a number of parameters along with sensible defaults.
 // A nil *Config is valid and results in all default values.
 type Config struct {

@@ -704,6 +704,9 @@ func TestSymmetricDecryptionArgon2(t *testing.T) {
 }
 
 func TestAsymmestricAeadOcbOpenPGPjsCompressedMessage(t *testing.T) {
+	if packet.V5Disabled {
+		t.Skip()
+	}
 	// Read key from file
 	armored, err := os.Open("../test_data/aead-ocb-asym-key.asc")
 	if err != nil {
@@ -750,6 +753,9 @@ func TestAsymmestricAeadOcbOpenPGPjsCompressedMessage(t *testing.T) {
 }
 
 func TestSymmetricAeadEaxOpenPGPJsMessage(t *testing.T) {
+	if packet.V5Disabled {
+		t.Skip()
+	}
 	key := []byte{79, 41, 206, 112, 224, 133, 140, 223, 27, 61, 227, 57, 114,
 		118, 64, 60, 177, 26, 42, 174, 151, 5, 186, 74, 226, 97, 214, 63, 114, 77,
 		215, 121}

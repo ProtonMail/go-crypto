@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+
+	"github.com/ProtonMail/go-crypto/openpgp/packet"
 )
 
 var foreignKeys = []string{
@@ -11,6 +13,9 @@ var foreignKeys = []string{
 }
 
 func TestReadPrivateForeignV5Key(t *testing.T) {
+	if packet.V5Disabled {
+		t.Skip()
+	}
 	for _, str := range foreignKeys {
 		kring, err := ReadArmoredKeyRing(strings.NewReader(str))
 		if err != nil {
@@ -21,6 +26,9 @@ func TestReadPrivateForeignV5Key(t *testing.T) {
 }
 
 func TestReadPrivateSerializeForeignV5Key(t *testing.T) {
+	if packet.V5Disabled {
+		t.Skip()
+	}
 	for _, str := range foreignKeys {
 		el, err := ReadArmoredKeyRing(strings.NewReader(str))
 		if err != nil {

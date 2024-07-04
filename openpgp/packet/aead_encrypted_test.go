@@ -21,6 +21,9 @@ var maxChunkSizeExp = 62
 const maxPlaintextLength = 1 << 18
 
 func TestAeadRFCParse(t *testing.T) {
+	if V5Disabled {
+		t.Skip()
+	}
 	for _, sample := range samplesAeadEncryptedDataPacket {
 		key, _ := hex.DecodeString(sample.cek)
 		packetBytes, _ := hex.DecodeString(sample.full)
@@ -55,6 +58,9 @@ func TestAeadRFCParse(t *testing.T) {
 // authentication tags: One for the empty chunk, and the final auth. tag. This
 // test also checks if it cannot decrypt a corrupt stream of empty plaintext.
 func TestAeadEmptyStream(t *testing.T) {
+	if V5Disabled {
+		t.Skip()
+	}
 	key := randomKey(16)
 	config := randomConfig()
 	raw, _, err := randomStream(key, 0, config)
@@ -112,6 +118,9 @@ func TestAeadEmptyStream(t *testing.T) {
 
 // Tests if encrypt/decrypt functions are callable and correct with a nil config
 func TestAeadNilConfigStream(t *testing.T) {
+	if V5Disabled {
+		t.Skip()
+	}
 	// Sample key
 	key := randomKey(16)
 	randomLength := mathrand.Intn(maxPlaintextLength) + 1
@@ -150,6 +159,9 @@ func TestAeadNilConfigStream(t *testing.T) {
 
 // Encrypts and decrypts a random stream, checking correctness and integrity
 func TestAeadStreamRandomizeSlow(t *testing.T) {
+	if V5Disabled {
+		t.Skip()
+	}
 	key := randomKey(16)
 	config := randomConfig()
 	randomLength := mathrand.Intn(maxPlaintextLength) + 1
@@ -190,6 +202,9 @@ func TestAeadStreamRandomizeSlow(t *testing.T) {
 
 // Encrypts a random stream, corrupt some bytes, and check if it fails
 func TestAeadCorruptStreamRandomizeSlow(t *testing.T) {
+	if V5Disabled {
+		t.Skip()
+	}
 	key := randomKey(16)
 	config := randomConfig()
 	randomLength := mathrand.Intn(maxPlaintextLength) + 1
@@ -233,6 +248,9 @@ func TestAeadCorruptStreamRandomizeSlow(t *testing.T) {
 
 // Encrypts a random stream, truncate the end, and check if it fails
 func TestAeadTruncatedStreamRandomizeSlow(t *testing.T) {
+	if V5Disabled {
+		t.Skip()
+	}
 	key := randomKey(16)
 	config := randomConfig()
 	randomLength := mathrand.Intn(maxPlaintextLength)
@@ -278,6 +296,9 @@ func TestAeadTruncatedStreamRandomizeSlow(t *testing.T) {
 
 // Encrypts a random stream, truncate the end, and check if it fails
 func TestAeadUnclosedStreamRandomizeSlow(t *testing.T) {
+	if V5Disabled {
+		t.Skip()
+	}
 	key := randomKey(16)
 	config := randomConfig()
 	ptLen := mathrand.Intn(maxPlaintextLength)

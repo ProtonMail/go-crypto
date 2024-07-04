@@ -45,6 +45,10 @@ func (ske *SymmetricKeyEncrypted) parse(r io.Reader) error {
 		return errors.UnsupportedError("unknown SymmetricKeyEncrypted version")
 	}
 
+	if V5Disabled && ske.Version == 5 {
+		return errors.UnsupportedError("Support for parsing v5 entities is disabled; change `config.V5Disabled` if needed")
+	}
+
 	if ske.Version > 5 {
 		// Scalar octet count
 		if _, err := readFull(r, buf[:]); err != nil {

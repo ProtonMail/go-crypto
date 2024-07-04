@@ -149,11 +149,16 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	if buf[0] != 4 && buf[0] != 5 && buf[0] != 6 {
+	sig.Version = int(buf[0])
+	if sig.Version != 4 && sig.Version != 5 && sig.Version != 6 {
 		err = errors.UnsupportedError("signature packet version " + strconv.Itoa(int(buf[0])))
 		return
 	}
-	sig.Version = int(buf[0])
+
+	if V5Disabled && sig.Version == 5 {
+		return errors.UnsupportedError("support for parsing v5 entities is disabled; change `config.V5Disabled` if needed")
+	}
+
 	if sig.Version == 6 {
 		_, err = readFull(r, buf[:7])
 	} else {

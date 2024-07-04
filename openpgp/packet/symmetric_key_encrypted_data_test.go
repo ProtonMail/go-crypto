@@ -9,7 +9,12 @@ type packetSequence struct {
 	contents string
 }
 
-var keyAndIpePackets = []*packetSequence{symEncTestv6, aeadEaxRFC, aeadOcbRFC}
+func keyAndIpePackets() []*packetSequence {
+	if V5Disabled {
+		return []*packetSequence{symEncTestv6}
+	}
+	return []*packetSequence{symEncTestv6, aeadEaxRFC, aeadOcbRFC}
+}
 
 // https://www.ietf.org/archive/id/draft-koch-openpgp-2015-rfc4880bis-00.html#name-complete-aead-eax-encrypted-
 var aeadEaxRFC = &packetSequence{
