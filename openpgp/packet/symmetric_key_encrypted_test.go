@@ -19,7 +19,7 @@ const maxPassLen = 64
 
 // Tests against RFC vectors
 func TestDecryptSymmetricKeyAndEncryptedDataPacket(t *testing.T) {
-	for _, testCase := range keyAndIpePackets {
+	for _, testCase := range keyAndIpePackets() {
 		// Key
 		buf := readerFromHex(testCase.packets)
 		packet, err := Read(buf)

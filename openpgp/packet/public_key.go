@@ -236,11 +236,16 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	if buf[0] != 4 && buf[0] != 5 && buf[0] != 6 {
+
+	pk.Version = int(buf[0])
+	if pk.Version != 4 && pk.Version != 5 && pk.Version != 6 {
 		return errors.UnsupportedError("public key version " + strconv.Itoa(int(buf[0])))
 	}
 
-	pk.Version = int(buf[0])
+	if V5Disabled && pk.Version == 5 {
+		return errors.UnsupportedError("support for parsing v5 entities is disabled; build with `-tags v5` if needed")
+	}
+
 	if pk.Version >= 5 {
 		// Read the four-octet scalar octet count
 		// The count is not used in this implementation
