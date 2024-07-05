@@ -23,9 +23,6 @@ type AEADEncrypted struct {
 const aeadEncryptedVersion = 1
 
 func (ae *AEADEncrypted) parse(buf io.Reader) error {
-	if V5Disabled {
-		return errors.UnsupportedError("support for parsing v5 entities is disabled; change `config.V5Disabled` if needed")
-	}
 	headerData := make([]byte, 4)
 	if n, err := io.ReadFull(buf, headerData); n < 4 {
 		return errors.AEADError("could not read aead header:" + err.Error())

@@ -46,7 +46,7 @@ func (ske *SymmetricKeyEncrypted) parse(r io.Reader) error {
 	}
 
 	if V5Disabled && ske.Version == 5 {
-		return errors.UnsupportedError("Support for parsing v5 entities is disabled; change `config.V5Disabled` if needed")
+		return errors.UnsupportedError("support for parsing v5 entities is disabled; build with `-tags v5` if needed")
 	}
 
 	if ske.Version > 5 {

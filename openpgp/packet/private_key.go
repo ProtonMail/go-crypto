@@ -203,7 +203,7 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 	v6 := pk.PublicKey.Version == 6
 
 	if V5Disabled && v5 {
-		return errors.UnsupportedError("support for parsing v5 entities is disabled; change `config.V5Disabled` if needed")
+		return errors.UnsupportedError("support for parsing v5 entities is disabled; build with `-tags v5` if needed")
 	}
 
 	var buf [1]byte
