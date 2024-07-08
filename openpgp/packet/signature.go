@@ -518,11 +518,10 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		}
 	case keyFlagsSubpacket:
 		// Key flags, section 5.2.3.21
+		sig.FlagsValid = true
 		if len(subpacket) == 0 {
-			err = errors.StructuralError("empty key flags subpacket")
 			return
 		}
-		sig.FlagsValid = true
 		if subpacket[0]&KeyFlagCertify != 0 {
 			sig.FlagCertify = true
 		}
