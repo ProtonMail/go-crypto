@@ -35,7 +35,7 @@ const (
 	KeyFlagGroupKey
 )
 
-const SaltNotationName = "salt@openpgp.org"
+const SaltNotationName = "salt@notations.openpgpjs.org"
 
 // Signature represents a signature. See RFC 4880, section 5.2.
 type Signature struct {
