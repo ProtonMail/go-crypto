@@ -89,6 +89,7 @@ func TestSignDetachedWithNotation(t *testing.T) {
 			IsHumanReadable: true,
 		},
 	}
+	config.NonDeterministicSignaturesViaNotation = packet.BoolPointer(false)
 	err := DetachSign(signature, kring[:1], message, &config)
 	if err != nil {
 		t.Error(err)
@@ -138,6 +139,7 @@ func TestSignDetachedWithCriticalNotation(t *testing.T) {
 			IsCritical:      true,
 		},
 	}
+	config.NonDeterministicSignaturesViaNotation = packet.BoolPointer(false)
 	err := DetachSign(signature, kring[:1], message, &config)
 	if err != nil {
 		t.Error(err)
@@ -209,8 +211,11 @@ func TestNewEntity(t *testing.T) {
 		t.Errorf("BitLength %v, expected %v", bl, cfg.RSABits)
 	}
 
+	keySerializeConfig := &packet.Config{
+		NonDeterministicSignaturesViaNotation: packet.BoolPointer(false),
+	}
 	w := bytes.NewBuffer(nil)
-	if err := e.SerializePrivate(w, nil); err != nil {
+	if err := e.SerializePrivate(w, keySerializeConfig); err != nil {
 		t.Errorf("failed to serialize entity: %s", err)
 		return
 	}
@@ -227,7 +232,7 @@ func TestNewEntity(t *testing.T) {
 	}
 
 	w = bytes.NewBuffer(nil)
-	if err := e.SerializePrivate(w, nil); err != nil {
+	if err := e.SerializePrivate(w, keySerializeConfig); err != nil {
 		t.Errorf("failed to serialize entity second time: %s", err)
 		return
 	}
@@ -245,7 +250,7 @@ func TestNewEntity(t *testing.T) {
 	}
 
 	w = bytes.NewBuffer(nil)
-	if err := e.SerializePrivate(w, nil); err != nil {
+	if err := e.SerializePrivate(w, keySerializeConfig); err != nil {
 		t.Errorf("failed to serialize after encryption round: %s", err)
 		return
 	}
