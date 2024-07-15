@@ -538,6 +538,14 @@ func (pk *PrivateKey) decrypt(decryptionKey []byte) error {
 	if !pk.Encrypted {
 		return nil
 	}
+
+	if pk.s2kParams.Mode() == s2k.Argon2S2K && pk.s2kType != S2KAEAD {
+		return errors.InvalidArgumentError("using Argon2 S2K without AEAD is not allowed")
+	}
+	if pk.Version == 6 && pk.s2kParams.Mode() == s2k.SimpleS2K {
+		return errors.InvalidArgumentError("using Simple S2K with a version 6 key is not allowed")
+	}
+
 	block := pk.cipher.new(decryptionKey)
 	var data []byte
 	switch pk.s2kType {
