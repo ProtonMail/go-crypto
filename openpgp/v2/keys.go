@@ -782,5 +782,5 @@ func isValidCertificationKey(signature *packet.Signature, algo packet.PublicKeyA
 func isValidEncryptionKey(signature *packet.Signature, algo packet.PublicKeyAlgorithm) bool {
 	return algo.CanEncrypt() &&
 		signature.FlagsValid &&
-		signature.FlagEncryptCommunications
+		(signature.FlagEncryptCommunications || signature.FlagEncryptStorage)
 }
