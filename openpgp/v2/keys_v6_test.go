@@ -191,7 +191,7 @@ func TestNewEntityWithDefaultHashV6(t *testing.T) {
 			continue
 		}
 		var zeroTime time.Time
-		selfSig, err := entity.PrimarySelfSignature(zeroTime)
+		selfSig, err := entity.PrimarySelfSignature(zeroTime, c)
 		if err != nil {
 			t.Fatal("self-signature should be found")
 		}
@@ -212,7 +212,7 @@ func TestKeyGenerationHighSecurityLevel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selfSig, err := entity.PrimarySelfSignature(time.Time{})
+	selfSig, err := entity.PrimarySelfSignature(time.Time{}, c)
 	if err != nil {
 		t.Fatal(err)
 	}

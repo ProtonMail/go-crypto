@@ -153,7 +153,7 @@ func detachSignWithWriter(w io.Writer, signers []*Entity, sigType packet.Signatu
 			hashToHashId(crypto.SHA3_512),
 		}
 		defaultHashes := candidateHashes[0:1]
-		primarySelfSignature, _ := signer.PrimarySelfSignature(config.Now())
+		primarySelfSignature, _ := signer.PrimarySelfSignature(config.Now(), config)
 		if primarySelfSignature == nil {
 			return nil, errors.StructuralError("signed entity has no valid self-signature")
 		}
@@ -310,7 +310,7 @@ func symmetricallyEncrypt(passphrase []byte, dataWriter io.Writer, params *Encry
 				hashToHashId(crypto.SHA3_512),
 			}
 			defaultHashes := candidateHashes[0:1]
-			primarySelfSignature, _ := signer.PrimarySelfSignature(params.Config.Now())
+			primarySelfSignature, _ := signer.PrimarySelfSignature(params.Config.Now(), params.Config)
 			if primarySelfSignature == nil {
 				return nil, errors.StructuralError("signed entity has no self-signature")
 			}
@@ -617,7 +617,7 @@ func encrypt(
 			return nil, errors.InvalidArgumentError("cannot encrypt a message to key id " + strconv.FormatUint(to[i].PrimaryKey.KeyId, 16) + " because it has no valid encryption keys")
 		}
 
-		primarySelfSignature, _ := recipient.PrimarySelfSignature(timeForEncryptionKey)
+		primarySelfSignature, _ := recipient.PrimarySelfSignature(timeForEncryptionKey, config)
 		if primarySelfSignature == nil {
 			return nil, errors.StructuralError("entity without a self-signature")
 		}
@@ -772,7 +772,7 @@ func SignWithParams(output io.Writer, signers []*Entity, params *SignParams) (in
 			hashToHashId(crypto.SHA3_512),
 		}
 		defaultHashes := candidateHashes[0:1]
-		primarySelfSignature, _ := signer.PrimarySelfSignature(params.Config.Now())
+		primarySelfSignature, _ := signer.PrimarySelfSignature(params.Config.Now(), params.Config)
 		if primarySelfSignature == nil {
 			return nil, errors.StructuralError("signed entity has no self-signature")
 		}

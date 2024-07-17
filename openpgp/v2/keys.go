@@ -56,11 +56,11 @@ type KeyRing interface {
 // PrimaryIdentity returns a valid non-revoked Identity while preferring
 // identities marked as primary, or the latest-created identity, in that order.
 // Returns an nil for both return values if there is no valid primary identity.
-func (e *Entity) PrimaryIdentity(date time.Time) (*packet.Signature, *Identity) {
+func (e *Entity) PrimaryIdentity(date time.Time, config *packet.Config) (*packet.Signature, *Identity) {
 	var primaryIdentityCandidates []*Identity
 	var primaryIdentityCandidatesSelfSigs []*packet.Signature
 	for _, identity := range e.Identities {
-		selfSig, err := identity.Verify(date) // identity must be valid at date
+		selfSig, err := identity.Verify(date, config) // identity must be valid at date
 		if err == nil {                       // verification is successful
 			primaryIdentityCandidates = append(primaryIdentityCandidates, identity)
 			primaryIdentityCandidatesSelfSigs = append(primaryIdentityCandidatesSelfSigs, selfSig)
@@ -98,7 +98,7 @@ func shouldPreferIdentity(existingId, potentialNewId *packet.Signature) bool {
 // given Entity.
 func (e *Entity) EncryptionKey(now time.Time, config *packet.Config) (Key, bool) {
 	// The primary key has to be valid at time now
-	primarySelfSignature, err := e.VerifyPrimaryKey(now)
+	primarySelfSignature, err := e.VerifyPrimaryKey(now, config)
 	if err != nil { // primary key is not valid
 		return Key{}, false
 	}
@@ -113,7 +113,7 @@ func (e *Entity) EncryptionKey(now time.Time, config *packet.Config) (Key, bool)
 	var maxTime time.Time
 	var selectedSubkeySelfSig *packet.Signature
 	for i, subkey := range e.Subkeys {
-		subkeySelfSig, err := subkey.Verify(now) // subkey has to be valid at time now
+		subkeySelfSig, err := subkey.Verify(now, config) // subkey has to be valid at time now
 		if err == nil &&
 			isValidEncryptionKey(subkeySelfSig, subkey.PublicKey.PubKeyAlgo) &&
 			checkKeyRequirements(subkey.PublicKey, config) == nil &&
@@ -155,13 +155,13 @@ func (e *Entity) EncryptionKey(now time.Time, config *packet.Config) (Key, bool)
 // which should be proffered to decrypt older messages.
 // If id is 0 all decryption keys are returned.
 // This is useful to retrieve keys for session key decryption.
-func (e *Entity) DecryptionKeys(id uint64, date time.Time) (keys []Key) {
-	primarySelfSignature, err := e.PrimarySelfSignature(date)
+func (e *Entity) DecryptionKeys(id uint64, date time.Time, config *packet.Config) (keys []Key) {
+	primarySelfSignature, err := e.PrimarySelfSignature(date, config)
 	if err != nil { // primary key is not valid
 		return
 	}
 	for _, subkey := range e.Subkeys {
-		subkeySelfSig, err := subkey.LatestValidBindingSignature(date)
+		subkeySelfSig, err := subkey.LatestValidBindingSignature(date, config)
 		if err == nil &&
 			isValidEncryptionKey(subkeySelfSig, subkey.PublicKey.PubKeyAlgo) &&
 			(id == 0 || subkey.PublicKey.KeyId == id) {
@@ -201,7 +201,7 @@ func (e *Entity) SigningKeyById(now time.Time, id uint64, config *packet.Config)
 }
 
 func (e *Entity) signingKeyByIdUsage(now time.Time, id uint64, flags int, config *packet.Config) (Key, error) {
-	primarySelfSignature, err := e.VerifyPrimaryKey(now)
+	primarySelfSignature, err := e.VerifyPrimaryKey(now, config)
 	if err != nil {
 		return Key{}, err
 	}
@@ -216,7 +216,7 @@ func (e *Entity) signingKeyByIdUsage(now time.Time, id uint64, flags int, config
 	var maxTime time.Time
 	var selectedSubkeySelfSig *packet.Signature
 	for idx, subkey := range e.Subkeys {
-		subkeySelfSig, err := subkey.Verify(now)
+		subkeySelfSig, err := subkey.Verify(now, config)
 		if err == nil &&
 			(flags&packet.KeyFlagCertify == 0 || isValidCertificationKey(subkeySelfSig, subkey.PublicKey.PubKeyAlgo)) &&
 			(flags&packet.KeyFlagSign == 0 || isValidSigningKey(subkeySelfSig, subkey.PublicKey.PubKeyAlgo)) &&
@@ -667,13 +667,16 @@ func (e *Entity) SignIdentity(identity string, signer *Entity, config *packet.Co
 }
 
 // LatestValidDirectSignature returns the latest valid direct key-signature of the entity.
-func (e *Entity) LatestValidDirectSignature(date time.Time) (selectedSig *packet.Signature, err error) {
+func (e *Entity) LatestValidDirectSignature(date time.Time, config *packet.Config) (selectedSig *packet.Signature, err error) {
 	for sigIdx := len(e.DirectSignatures) - 1; sigIdx >= 0; sigIdx-- {
 		sig := e.DirectSignatures[sigIdx]
 		if (date.IsZero() || date.Unix() >= sig.Packet.CreationTime.Unix()) &&
 			(selectedSig == nil || selectedSig.CreationTime.Unix() < sig.Packet.CreationTime.Unix()) {
 			if sig.Valid == nil {
 				err := e.PrimaryKey.VerifyDirectKeySignature(sig.Packet)
+				if err == nil {
+					err = checkSignatureDetails(e.PrimaryKey, sig.Packet, date, config)
+				}
 				valid := err == nil
 				sig.Valid = &valid
 			}
@@ -693,12 +696,12 @@ func (e *Entity) LatestValidDirectSignature(date time.Time) (selectedSig *packet
 // For V6 keys, returns the latest valid direct-key self-signature, and no identity (nil).
 // This self-signature is to be used to check the key expiration,
 // algorithm preferences, and so on.
-func (e *Entity) PrimarySelfSignature(date time.Time) (primarySig *packet.Signature, err error) {
+func (e *Entity) PrimarySelfSignature(date time.Time, config *packet.Config) (primarySig *packet.Signature, err error) {
 	if e.PrimaryKey.Version == 6 {
-		primarySig, err = e.LatestValidDirectSignature(date)
+		primarySig, err = e.LatestValidDirectSignature(date, config)
 		return
 	}
-	primarySig, _ = e.PrimaryIdentity(date)
+	primarySig, _ = e.PrimaryIdentity(date, config)
 	if primarySig == nil {
 		return nil, errors.StructuralError("no primary identity found")
 	}
@@ -710,8 +713,8 @@ func (e *Entity) PrimarySelfSignature(date time.Time) (primarySig *packet.Signat
 // - that there is valid non-expired self-signature,
 // - that the primary key is not expired given its self-signature.
 // If date is zero (i.e., date.IsZero() == true) the time checks are not performed.
-func (e *Entity) VerifyPrimaryKey(date time.Time) (*packet.Signature, error) {
-	primarySelfSignature, err := e.PrimarySelfSignature(date)
+func (e *Entity) VerifyPrimaryKey(date time.Time, config *packet.Config) (*packet.Signature, error) {
+	primarySelfSignature, err := e.PrimarySelfSignature(date, config)
 	if err != nil {
 		return nil, goerrors.New("no valid self signature found")
 	}
@@ -727,7 +730,7 @@ func (e *Entity) VerifyPrimaryKey(date time.Time) (*packet.Signature, error) {
 
 	if e.PrimaryKey.Version != 6 && len(e.DirectSignatures) > 0 {
 		// check for expiration time in direct signatures (for V6 keys, the above already did so)
-		primaryDirectKeySignature, _ := e.LatestValidDirectSignature(date)
+		primaryDirectKeySignature, _ := e.LatestValidDirectSignature(date, config)
 		if primaryDirectKeySignature != nil &&
 			(!date.IsZero() && e.PrimaryKey.KeyExpired(primaryDirectKeySignature, date)) {
 			return primarySelfSignature, errors.ErrKeyExpired
