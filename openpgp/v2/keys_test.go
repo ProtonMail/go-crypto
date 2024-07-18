@@ -262,7 +262,7 @@ func TestMissingCrossSignature(t *testing.T) {
 	// contain a cross-signature.
 	keys, _ := ReadArmoredKeyRing(bytes.NewBufferString(missingCrossSignatureKey))
 	var config *packet.Config
-	_, err := keys[0].Subkeys[0].Verify(config.Now())
+	_, err := keys[0].Subkeys[0].Verify(config.Now(), config)
 	if err == nil {
 		t.Fatal("Failed to detect error in keyring with missing cross signature")
 	}
@@ -282,7 +282,7 @@ func TestInvalidCrossSignature(t *testing.T) {
 	// not correctly validate over the primary and subkey.
 	keys, _ := ReadArmoredKeyRing(bytes.NewBufferString(invalidCrossSignatureKey))
 	var config *packet.Config
-	_, err := keys[0].Subkeys[0].Verify(config.Now())
+	_, err := keys[0].Subkeys[0].Verify(config.Now(), config)
 	if err == nil {
 		t.Fatal("Failed to detect error in keyring with an invalid cross signature")
 	}
@@ -341,11 +341,11 @@ func TestRevokedUserID(t *testing.T) {
 		t.Errorf("missing second identity")
 	}
 
-	if firstIdentity.Revoked(nil, time.Now()) {
+	if firstIdentity.Revoked(nil, time.Now(), &packet.Config{}) {
 		t.Errorf("expected first identity not to be revoked")
 	}
 
-	if !secondIdentity.Revoked(nil, time.Now()) {
+	if !secondIdentity.Revoked(nil, time.Now(), &packet.Config{}) {
 		t.Errorf("expected second identity to be revoked")
 	}
 
@@ -390,11 +390,11 @@ func TestFirstUserIDRevoked(t *testing.T) {
 		t.Errorf("missing second identity")
 	}
 
-	if !firstIdentity.Revoked(nil, time.Now()) {
+	if !firstIdentity.Revoked(nil, time.Now(), &packet.Config{}) {
 		t.Errorf("expected first identity to be revoked")
 	}
 
-	if secondIdentity.Revoked(nil, time.Now()) {
+	if secondIdentity.Revoked(nil, time.Now(), &packet.Config{}) {
 		t.Errorf("expected second identity not to be revoked")
 	}
 
@@ -432,7 +432,7 @@ func TestOnlyUserIDRevoked(t *testing.T) {
 		t.Errorf("missing identity")
 	}
 
-	if !identity.Revoked(nil, time.Now()) {
+	if !identity.Revoked(nil, time.Now(), &packet.Config{}) {
 		t.Errorf("expected identity to be revoked")
 	}
 
@@ -675,7 +675,8 @@ func TestKeyWithSubKeyAndBadSelfSigOrder(t *testing.T) {
 
 	subKey := key.Subkeys[0]
 	var zeroTime time.Time
-	selfSig, err := subKey.LatestValidBindingSignature(zeroTime)
+	var config *packet.Config
+	selfSig, err := subKey.LatestValidBindingSignature(zeroTime, config)
 	if err != nil {
 		t.Fatal("expected a self signature to be found")
 	}
@@ -759,7 +760,7 @@ func TestNewEntityWithDefaultHash(t *testing.T) {
 
 		for _, identity := range entity.Identities {
 			var zeroTime time.Time
-			selfSig, err := identity.LatestValidSelfCertification(zeroTime)
+			selfSig, err := identity.LatestValidSelfCertification(zeroTime, c)
 			if err != nil {
 				t.Fatal("expected a self signature to be found ")
 			}
@@ -783,7 +784,7 @@ func TestNewEntityNilConfigPreferredHash(t *testing.T) {
 
 	for _, identity := range entity.Identities {
 		var zeroTime time.Time
-		selfSig, err := identity.LatestValidSelfCertification(zeroTime)
+		selfSig, err := identity.LatestValidSelfCertification(zeroTime, &packet.Config{})
 		if err != nil {
 			t.Fatal("expected a self signature to be found ")
 		}
@@ -824,7 +825,7 @@ func TestNewEntityWithDefaultCipher(t *testing.T) {
 
 		for _, identity := range entity.Identities {
 			var zeroTime time.Time
-			selfSig, err := identity.LatestValidSelfCertification(zeroTime)
+			selfSig, err := identity.LatestValidSelfCertification(zeroTime, c)
 			if err != nil {
 				t.Fatal("expected a self signature to be found ")
 			}
@@ -847,7 +848,7 @@ func TestNewEntityNilConfigPreferredSymmetric(t *testing.T) {
 
 	for _, identity := range entity.Identities {
 		var zeroTime time.Time
-		selfSig, err := identity.LatestValidSelfCertification(zeroTime)
+		selfSig, err := identity.LatestValidSelfCertification(zeroTime, &packet.Config{})
 		if err != nil {
 			t.Fatal("expected a self signature to be found ")
 		}
@@ -872,7 +873,7 @@ func TestNewEntityWithDefaultAead(t *testing.T) {
 
 		for _, identity := range entity.Identities {
 			var zeroTime time.Time
-			selfSig, err := identity.LatestValidSelfCertification(zeroTime)
+			selfSig, err := identity.LatestValidSelfCertification(zeroTime, cfg)
 			if err != nil {
 				t.Fatal("expected a self signature to be found ")
 			}
@@ -1042,7 +1043,7 @@ func TestAddUserId(t *testing.T) {
 
 	for _, sk := range entity.Identities {
 		var zeroTime time.Time
-		selfSig, err := sk.LatestValidSelfCertification(zeroTime)
+		selfSig, err := sk.LatestValidSelfCertification(zeroTime, &packet.Config{})
 		if err != nil {
 			t.Fatal("expected a self signature to be found")
 		}
@@ -1084,7 +1085,8 @@ func TestAddSubkey(t *testing.T) {
 
 	for _, sk := range entity.Subkeys {
 		var zeroTime time.Time
-		selfSig, err := sk.LatestValidBindingSignature(zeroTime)
+		var config *packet.Config
+		selfSig, err := sk.LatestValidBindingSignature(zeroTime, config)
 		if err != nil {
 			t.Fatal("expected a self signature to be found")
 		}
@@ -1137,7 +1139,8 @@ func TestAddSubkeySerialized(t *testing.T) {
 
 	for _, sk := range entity.Subkeys {
 		var zeroTime time.Time
-		selfSig, err := sk.LatestValidBindingSignature(zeroTime)
+		var config *packet.Config
+		selfSig, err := sk.LatestValidBindingSignature(zeroTime, config)
 		if err != nil {
 			t.Fatal("expected a self signature to be found")
 		}
@@ -1183,7 +1186,8 @@ func TestAddSubkeyWithConfig(t *testing.T) {
 	}
 
 	var zeroTime time.Time
-	selfSig1, err := entity.Subkeys[1].LatestValidBindingSignature(zeroTime)
+	var config *packet.Config
+	selfSig1, err := entity.Subkeys[1].LatestValidBindingSignature(zeroTime, config)
 	if err != nil {
 		t.Fatal("expected a self signature to be found")
 	}
@@ -1200,7 +1204,7 @@ func TestAddSubkeyWithConfig(t *testing.T) {
 		t.Errorf("Invalid subkey signature: %v", err)
 	}
 
-	selfSig2, err := entity.Subkeys[2].LatestValidBindingSignature(zeroTime)
+	selfSig2, err := entity.Subkeys[2].LatestValidBindingSignature(zeroTime, config)
 	if err != nil {
 		t.Fatal("expected a self signature to be found")
 	}
@@ -1259,7 +1263,8 @@ func TestAddSubkeyWithConfigSerialized(t *testing.T) {
 	}
 
 	var zeroTime time.Time
-	selfSig1, err := entity.Subkeys[1].LatestValidBindingSignature(zeroTime)
+	var config *packet.Config
+	selfSig1, err := entity.Subkeys[1].LatestValidBindingSignature(zeroTime, config)
 	if err != nil {
 		t.Fatal("expected a self signature to be found")
 	}
@@ -1283,7 +1288,7 @@ func TestAddSubkeyWithConfigSerialized(t *testing.T) {
 			selfSig1.EmbeddedSignature.Hash)
 	}
 
-	selfSig2, err := entity.Subkeys[2].LatestValidBindingSignature(zeroTime)
+	selfSig2, err := entity.Subkeys[2].LatestValidBindingSignature(zeroTime, config)
 	if err != nil {
 		t.Fatal("expected a self signature to be found")
 	}
@@ -1904,7 +1909,7 @@ zaXZE2aAMQ==
 		t.Fatal(err)
 	}
 	var config *packet.Config
-	sig, _ := key[0].PrimaryIdentity(config.Now())
+	sig, _ := key[0].PrimaryIdentity(config.Now(), &packet.Config{})
 	if err != nil {
 		t.Fatal(err)
 	}

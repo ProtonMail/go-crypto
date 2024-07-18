@@ -98,11 +98,11 @@ func (i *Identity) Serialize(w io.Writer) error {
 // - that a valid self-certification exists and is not expired
 // - that user-id has not been revoked at the given point in time
 // If date is zero (i.e., date.IsZero() == true) the time checks are not performed.
-func (i *Identity) Verify(date time.Time) (selfSignature *packet.Signature, err error) {
-	if selfSignature, err = i.LatestValidSelfCertification(date); err != nil {
+func (i *Identity) Verify(date time.Time, config *packet.Config) (selfSignature *packet.Signature, err error) {
+	if selfSignature, err = i.LatestValidSelfCertification(date, config); err != nil {
 		return
 	}
-	if i.Revoked(selfSignature, date) {
+	if i.Revoked(selfSignature, date, config) {
 		return nil, errors.StructuralError("user-id is revoked")
 	}
 	return
@@ -110,7 +110,7 @@ func (i *Identity) Verify(date time.Time) (selfSignature *packet.Signature, err 
 
 // Revoked returns whether the identity has been revoked by a self-signature.
 // Note that third-party revocation signatures are not supported.
-func (i *Identity) Revoked(selfCertification *packet.Signature, date time.Time) bool {
+func (i *Identity) Revoked(selfCertification *packet.Signature, date time.Time, config *packet.Config) bool {
 	// Verify revocations first
 	for _, revocation := range i.Revocations {
 		if selfCertification == nil || // if there is not selfCertification verify revocation
@@ -120,6 +120,9 @@ func (i *Identity) Revoked(selfCertification *packet.Signature, date time.Time) 
 			if revocation.Valid == nil {
 				// Verify revocation signature (not verified yet).
 				err := i.Primary.PrimaryKey.VerifyUserIdSignature(i.Name, i.Primary.PrimaryKey, revocation.Packet)
+				if err == nil {
+					err = checkSignatureDetails(i.Primary.PrimaryKey, revocation.Packet, date, config)
+				}
 				valid := err == nil
 				revocation.Valid = &valid
 			}
@@ -138,7 +141,7 @@ func (i *Identity) Revoked(selfCertification *packet.Signature, date time.Time) 
 
 // ReSign resigns the latest valid self-certification with the given config.
 func (i *Identity) ReSign(config *packet.Config) error {
-	selectedSig, err := i.LatestValidSelfCertification(config.Now())
+	selectedSig, err := i.LatestValidSelfCertification(config.Now(), config)
 	if err != nil {
 		return err
 	}
@@ -194,7 +197,7 @@ func (ident *Identity) SignIdentity(signer *Entity, config *packet.Config) error
 // Does not consider signatures that are expired.
 // If date is zero (i.e., date.IsZero() == true) the expiration checks are not performed.
 // Returns a StructuralError if no valid self-certification is found.
-func (i *Identity) LatestValidSelfCertification(date time.Time) (selectedSig *packet.Signature, err error) {
+func (i *Identity) LatestValidSelfCertification(date time.Time, config *packet.Config) (selectedSig *packet.Signature, err error) {
 	for sigIdx := len(i.SelfCertifications) - 1; sigIdx >= 0; sigIdx-- {
 		sig := i.SelfCertifications[sigIdx]
 		if (date.IsZero() || date.Unix() >= sig.Packet.CreationTime.Unix()) && // SelfCertification must be older than date
@@ -202,6 +205,9 @@ func (i *Identity) LatestValidSelfCertification(date time.Time) (selectedSig *pa
 			if sig.Valid == nil {
 				// Verify revocation signature (not verified yet).
 				err = i.Primary.PrimaryKey.VerifyUserIdSignature(i.Name, i.Primary.PrimaryKey, sig.Packet)
+				if err == nil {
+					err = checkSignatureDetails(i.Primary.PrimaryKey, sig.Packet, date, config)
+				}
 				valid := err == nil
 				sig.Valid = &valid
 			}

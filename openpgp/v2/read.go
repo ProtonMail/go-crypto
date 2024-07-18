@@ -147,7 +147,7 @@ ParsePackets:
 				unverifiedEntities := keyring.EntitiesById(p.KeyId)
 				for _, unverifiedEntity := range unverifiedEntities {
 					// Do not check key expiration to allow decryption of old messages
-					keys := unverifiedEntity.DecryptionKeys(p.KeyId, time.Time{})
+					keys := unverifiedEntity.DecryptionKeys(p.KeyId, time.Time{}, config)
 					for _, key := range keys {
 						pubKeys = append(pubKeys, keyEnvelopePair{key, p})
 					}
@@ -574,7 +574,7 @@ func (scr *signatureCheckReader) Read(buf []byte) (int, error) {
 						}
 						signatureError := key.PublicKey.VerifySignature(candidate.Hash, sig)
 						if signatureError == nil {
-							signatureError = checkSignatureDetails(&key, sig, scr.config)
+							signatureError = checkMessageSignatureDetails(&key, sig, scr.config)
 						}
 						if !scr.md.IsSymmetricallyEncrypted && len(sig.IntendedRecipients) > 0 && scr.md.CheckRecipients && signatureError == nil {
 							if !scr.md.IsEncrypted {
@@ -740,43 +740,75 @@ func verifyDetachedSignatureReader(keyring KeyRing, signed, signature io.Reader,
 }
 
 // checkSignatureDetails verifies the metadata of the signature.
-// Checks the following:
-// - Hash function should not be invalid.
+// It checks the following:
+// - Hash function should not be invalid according to
+//   config.RejectHashAlgorithms.
 // - Verification key must be older than the signature creation time.
 // - Check signature notations.
-// - Signature is not expired.
-func checkSignatureDetails(verifiedKey *Key, signature *packet.Signature, config *packet.Config) error {
-	var collectedErrors []error
-	now := config.Now()
+// - Signature is not expired (unless a zero time is passed to
+//   explicitly ignore expiration).
+func checkSignatureDetails(pk *packet.PublicKey, signature *packet.Signature, now time.Time, config *packet.Config) error {
+	if config.RejectHashAlgorithm(signature.Hash) {
+		return errors.SignatureError("insecure hash algorithm: " + signature.Hash.String())
+	}
 
+	if pk.CreationTime.Unix() > signature.CreationTime.Unix() {
+		return errors.ErrSignatureOlderThanKey
+	}
+
+	for _, notation := range signature.Notations {
+		if notation.IsCritical && !config.KnownNotation(notation.Name) {
+			return errors.SignatureError("unknown critical notation: " + notation.Name)
+		}
+	}
+
+	if !now.IsZero() && signature.SigExpired(now) {
+		return errors.ErrSignatureExpired
+	}
+	return nil
+}
+
+// checkMessageSignatureDetails verifies the metadata of the signature.
+// It checks the criteria of checkSignatureDetails for the message
+// signature and all relevant binding signatures.
+// In addition, the message signature hash algorithm is checked against
+// config.RejectMessageHashAlgorithms.
+func checkMessageSignatureDetails(verifiedKey *Key, signature *packet.Signature, config *packet.Config) error {
 	if config.RejectMessageHashAlgorithm(signature.Hash) {
 		return errors.SignatureError("insecure message hash algorithm: " + signature.Hash.String())
 	}
 
-	if verifiedKey.PublicKey.CreationTime.Unix() > signature.CreationTime.Unix() {
-		collectedErrors = append(collectedErrors, errors.ErrSignatureOlderThanKey)
-	}
-
 	sigsToCheck := []*packet.Signature{signature, verifiedKey.PrimarySelfSignature}
-
 	if !verifiedKey.IsPrimary() {
 		sigsToCheck = append(sigsToCheck, verifiedKey.SelfSignature, verifiedKey.SelfSignature.EmbeddedSignature)
 	}
+	var errs []error
 	for _, sig := range sigsToCheck {
-		for _, notation := range sig.Notations {
-			if notation.IsCritical && !config.KnownNotation(notation.Name) {
-				return errors.SignatureError("unknown critical notation: " + notation.Name)
-			}
+		var pk *packet.PublicKey
+		if sig == verifiedKey.PrimarySelfSignature || sig == verifiedKey.SelfSignature {
+			pk = verifiedKey.Entity.PrimaryKey
+		} else {
+			pk = verifiedKey.PublicKey
+		}
+		var time time.Time
+		if sig == signature {
+			time = config.Now()
+		} else {
+			time = signature.CreationTime
+		}
+		if err := checkSignatureDetails(pk, sig, time, config); err != nil {
+			errs = append(errs, err)
 		}
 	}
 
-	if signature.SigExpired(now) {
-		return errors.ErrSignatureExpired
+	// Return errors.ErrSignatureExpired last as gopenpgp might ignore it.
+	for _, err := range errs {
+		if err != errors.ErrSignatureExpired {
+			return err
+		}
 	}
-
-	if len(collectedErrors) > 0 {
-		// TODO: Is there a better priority for errors?
-		return collectedErrors[len(collectedErrors)-1]
+	if len(errs) != 0 {
+		return errs[0]
 	}
 	return nil
 }

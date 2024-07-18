@@ -81,7 +81,7 @@ func (s *Subkey) Serialize(w io.Writer, includeSecrets bool) error {
 
 // ReSign resigns the latest valid subkey binding signature with the given config.
 func (s *Subkey) ReSign(config *packet.Config) error {
-	selectedSig, err := s.LatestValidBindingSignature(time.Time{})
+	selectedSig, err := s.LatestValidBindingSignature(time.Time{}, config)
 	if err != nil {
 		return err
 	}
@@ -104,8 +104,8 @@ func (s *Subkey) ReSign(config *packet.Config) error {
 // - that there is valid non-expired binding self-signature
 // - that the subkey is not expired
 // If date is zero (i.e., date.IsZero() == true) the time checks are not performed.
-func (s *Subkey) Verify(date time.Time) (selfSig *packet.Signature, err error) {
-	selfSig, err = s.LatestValidBindingSignature(date)
+func (s *Subkey) Verify(date time.Time, config *packet.Config) (selfSig *packet.Signature, err error) {
+	selfSig, err = s.LatestValidBindingSignature(date, config)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +156,7 @@ func (s *Subkey) Revoked(selfCertification *packet.Signature, date time.Time) bo
 // If config is nil, sensible defaults will be used.
 func (s *Subkey) Revoke(reason packet.ReasonForRevocation, reasonText string, config *packet.Config) error {
 	// Check that the subkey is valid (not considering expiration)
-	if _, err := s.Verify(time.Time{}); err != nil {
+	if _, err := s.Verify(time.Time{}, config); err != nil {
 		return err
 	}
 
@@ -179,13 +179,16 @@ func (s *Subkey) Revoke(reason packet.ReasonForRevocation, reasonText string, co
 // Does not consider signatures/embedded signatures that are expired.
 // If date is zero (i.e., date.IsZero() == true) the expiration checks are not performed.
 // Returns a StructuralError if no valid self-signature is found.
-func (s *Subkey) LatestValidBindingSignature(date time.Time) (selectedSig *packet.Signature, err error) {
+func (s *Subkey) LatestValidBindingSignature(date time.Time, config *packet.Config) (selectedSig *packet.Signature, err error) {
 	for sigIdx := len(s.Bindings) - 1; sigIdx >= 0; sigIdx-- {
 		sig := s.Bindings[sigIdx]
 		if (date.IsZero() || date.Unix() >= sig.Packet.CreationTime.Unix()) &&
 			(selectedSig == nil || selectedSig.CreationTime.Unix() < sig.Packet.CreationTime.Unix()) {
 			if sig.Valid == nil {
 				err := s.Primary.PrimaryKey.VerifyKeySignature(s.PublicKey, sig.Packet)
+				if err == nil {
+					err = checkSignatureDetails(s.PublicKey, sig.Packet, date, config)
+				}
 				valid := err == nil
 				sig.Valid = &valid
 			}
