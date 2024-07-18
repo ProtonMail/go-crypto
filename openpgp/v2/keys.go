@@ -698,8 +698,7 @@ func (e *Entity) LatestValidDirectSignature(date time.Time, config *packet.Confi
 // algorithm preferences, and so on.
 func (e *Entity) PrimarySelfSignature(date time.Time, config *packet.Config) (primarySig *packet.Signature, err error) {
 	if e.PrimaryKey.Version == 6 {
-		primarySig, err = e.LatestValidDirectSignature(date, config)
-		return
+		return e.LatestValidDirectSignature(date, config)
 	}
 	primarySig, _ = e.PrimaryIdentity(date, config)
 	if primarySig == nil {

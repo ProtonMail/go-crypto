@@ -796,8 +796,7 @@ func checkMessageSignatureDetails(verifiedKey *Key, signature *packet.Signature,
 		} else {
 			time = signature.CreationTime
 		}
-		err := checkSignatureDetails(pk, sig, time, config)
-		if err != nil {
+		if err := checkSignatureDetails(pk, sig, time, config); err != nil {
 			errs = append(errs, err)
 		}
 	}
