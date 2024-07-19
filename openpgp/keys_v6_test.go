@@ -12,7 +12,6 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/mldsa_ecdsa"
 	"github.com/ProtonMail/go-crypto/openpgp/mldsa_eddsa"
 	"github.com/ProtonMail/go-crypto/openpgp/mlkem_ecdh"
-	"github.com/ProtonMail/go-crypto/openpgp/slhdsa"
 
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 )
@@ -219,8 +218,6 @@ func TestGeneratePqKey(t *testing.T) {
 		"ML-DSA87_P384":         packet.PubKeyAlgoMldsa87p384,
 		"ML-DSA65_Brainpool256": packet.PubKeyAlgoMldsa65Brainpool256,
 		"ML-DSA87_Brainpool384": packet.PubKeyAlgoMldsa87Brainpool384,
-		"Slhdsa_simple_SHA2":    packet.PubKeyAlgoSlhdsaSha2,
-		"Slhdsa_simple_SHAKE":   packet.PubKeyAlgoSlhdsaShake,
 	}
 
 	for name, algo := range asymmAlgos {
@@ -282,10 +279,6 @@ func TestGeneratePqKey(t *testing.T) {
 				bin := pk.PublicMldsa.Bytes()
 				bin[5] ^= 1
 				pk.PublicMldsa = pk.Mldsa.PublicKeyFromBytes(bin)
-			}
-
-			if pk, ok := read.PrivateKey.PublicKey.PublicKey.(*slhdsa.PublicKey); ok {
-				pk.PublicData.PKseed[5] ^= 1
 			}
 
 			err = read.PrivateKey.Decrypt(randomPassword)

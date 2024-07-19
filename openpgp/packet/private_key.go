@@ -22,7 +22,6 @@ import (
 
 	"github.com/ProtonMail/go-crypto/openpgp/mldsa_ecdsa"
 	"github.com/ProtonMail/go-crypto/openpgp/mldsa_eddsa"
-	"github.com/ProtonMail/go-crypto/openpgp/slhdsa"
 	"github.com/cloudflare/circl/kem/mlkem/mlkem1024"
 	"github.com/cloudflare/circl/kem/mlkem/mlkem768"
 	"github.com/cloudflare/circl/sign/dilithium"
@@ -182,8 +181,6 @@ func NewSignerPrivateKey(creationTime time.Time, signer interface{}) *PrivateKey
 		pk.PublicKey = *NewMldsaEcdsaPublicKey(creationTime, &pubkey.PublicKey)
 	case *mldsa_eddsa.PrivateKey:
 		pk.PublicKey = *NewMldsaEddsaPublicKey(creationTime, &pubkey.PublicKey)
-	case *slhdsa.PrivateKey:
-		pk.PublicKey = *NewSlhdsaPublicKey(creationTime, &pubkey.PublicKey)
 	default:
 		panic("openpgp: unknown signer type in NewSignerPrivateKey")
 	}
@@ -604,18 +601,6 @@ func serializeMldsaEddsaPrivateKey(w io.Writer, priv *mldsa_eddsa.PrivateKey) er
 	return err
 }
 
-// serializeSlhdsaPrivateKey serializes a SLH-DSA private key according to
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-key-material-packets-3
-func serializeSlhdsaPrivateKey(w io.Writer, priv *slhdsa.PrivateKey) error {
-	privateData, err := priv.SerializePrivate()
-	if err != nil {
-		return err
-	}
-
-	_, err = w.Write(encoding.NewOctetArray(privateData).EncodedBytes())
-	return err
-}
-
 // decrypt decrypts an encrypted private key using a decryption key.
 func (pk *PrivateKey) decrypt(decryptionKey []byte) error {
 	if pk.Dummy() {
@@ -926,9 +911,6 @@ func (pk *PrivateKey) serializePrivateKey(w io.Writer) (err error) {
 		err = serializeMldsaEcdsaPrivateKey(w, priv)
 	case *mldsa_eddsa.PrivateKey:
 		err = serializeMldsaEddsaPrivateKey(w, priv)
-	case *slhdsa.PrivateKey:
-		err = serializeSlhdsaPrivateKey(w, priv)
-
 	default:
 		err = errors.InvalidArgumentError("unknown private key type")
 	}
@@ -975,8 +957,6 @@ func (pk *PrivateKey) parsePrivateKey(data []byte) (err error) {
 		return pk.parseMldsaEcdsaPrivateKey(data, 32, dilithium.MLDSA65.PrivateKeySize())
 	case PubKeyAlgoMldsa87p384, PubKeyAlgoMldsa87Brainpool384:
 		return pk.parseMldsaEcdsaPrivateKey(data, 48, dilithium.MLDSA87.PrivateKeySize())
-	case PubKeyAlgoSlhdsaSha2, PubKeyAlgoSlhdsaShake:
-		return pk.parseSlhdsaPrivateKey(data)
 	default:
 		err = errors.StructuralError("unknown private key type")
 		return
@@ -1390,31 +1370,6 @@ func (pk *PrivateKey) parseMlkemEcdhPrivateKey(data []byte, ecLen, kLen int) (er
 	}
 
 	if err := mlkem_ecdh.Validate(priv); err != nil {
-		return err
-	}
-	pk.PrivateKey = priv
-
-	return nil
-}
-
-// parseSlhdsaPrivateKey parses a SLH-DSA private key as specified in
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-key-material-packets-3
-func (pk *PrivateKey) parseSlhdsaPrivateKey(data []byte) (err error) {
-	if pk.Version != 6 {
-		return goerrors.New("openpgp: cannot parse non-v6 SLH-DSA key")
-	}
-	pub := pk.PublicKey.PublicKey.(*slhdsa.PublicKey)
-	priv := new(slhdsa.PrivateKey)
-	priv.PublicKey = *pub
-
-	buf := bytes.NewBuffer(data)
-	spx := encoding.NewEmptyOctetArray(priv.ParameterSetId.GetSkLen())
-	if _, err := spx.ReadFrom(buf); err != nil {
-		return err
-	}
-
-	priv.UnmarshalPrivate(spx.Bytes())
-	if err := slhdsa.Validate(priv); err != nil {
 		return err
 	}
 	pk.PrivateKey = priv

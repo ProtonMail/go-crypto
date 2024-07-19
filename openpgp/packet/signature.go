@@ -16,7 +16,6 @@ import (
 
 	"github.com/ProtonMail/go-crypto/openpgp/mldsa_ecdsa"
 	"github.com/ProtonMail/go-crypto/openpgp/mldsa_eddsa"
-	"github.com/ProtonMail/go-crypto/openpgp/slhdsa"
 	"github.com/cloudflare/circl/sign/dilithium"
 
 	"github.com/ProtonMail/go-crypto/openpgp/ecdsa"
@@ -73,9 +72,6 @@ type Signature struct {
 	EdSig                []byte
 	MldsaSig             encoding.Field
 	SlhdsaSig            encoding.Field
-
-	// slhDsaParameterSetId contains the parameter set ID for the SLH-DSA instantiation
-	slhDsaParameterSetId slhdsa.ParameterSetId
 
 	// rawSubpackets contains the unparsed subpackets, in order.
 	rawSubpackets []outputSubpacket
@@ -186,8 +182,7 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 	switch sig.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA, PubKeyAlgoEd25519,
 		PubKeyAlgoEd448, ExperimentalPubKeyAlgoHMAC, PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448, PubKeyAlgoMldsa65p256,
-		PubKeyAlgoMldsa87p384, PubKeyAlgoMldsa65Brainpool256, PubKeyAlgoMldsa87Brainpool384,
-		PubKeyAlgoSlhdsaSha2, PubKeyAlgoSlhdsaShake:
+		PubKeyAlgoMldsa87p384, PubKeyAlgoMldsa65Brainpool256, PubKeyAlgoMldsa87Brainpool384:
 	default:
 		err = errors.UnsupportedError("public key algorithm " + strconv.Itoa(int(sig.PubKeyAlgo)))
 		return
@@ -346,10 +341,6 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 		if err = sig.parseMldsaEcdsaSignature(r, 48, dilithium.MLDSA87.SignatureSize()); err != nil {
 			return
 		}
-	case PubKeyAlgoSlhdsaSha2, PubKeyAlgoSlhdsaShake:
-		if err = sig.parseSlhdsaSignature(r); err != nil {
-			return
-		}
 	default:
 		panic("unreachable")
 	}
@@ -384,23 +375,6 @@ func (sig *Signature) parseMldsaEcdsaSignature(r io.Reader, ecLen, dLen int) (er
 
 	sig.MldsaSig = encoding.NewEmptyOctetArray(dLen)
 	_, err = sig.MldsaSig.ReadFrom(r)
-	return
-}
-
-// parseSlhdsaSignature parses a SLH-DSA signature as specified in
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-signature-packet-tag-2-2
-func (sig *Signature) parseSlhdsaSignature(r io.Reader) (err error) {
-	var param [1]byte
-	if _, err = readFull(r, param[:]); err != nil {
-		return
-	}
-
-	if sig.slhDsaParameterSetId, err = slhdsa.ParseParameterSetID(param); err != nil {
-		return
-	}
-
-	sig.SlhdsaSig = encoding.NewEmptyOctetArray(sig.slhDsaParameterSetId.GetSigLen())
-	_, err = sig.SlhdsaSig.ReadFrom(r)
 	return
 }
 
@@ -1073,17 +1047,6 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 			sig.MldsaSig = encoding.NewOctetArray(dSig)
 			sig.EdDSASigR = encoding.NewOctetArray(ecSig)
 		}
-	case PubKeyAlgoSlhdsaSha2, PubKeyAlgoSlhdsaShake:
-		if sig.Version != 6 {
-			return errors.UnsupportedError("cannot use SLH-DSA on a non-v6 signature")
-		}
-		sk := priv.PrivateKey.(*slhdsa.PrivateKey)
-		spxSig, err := slhdsa.Sign(sk, digest)
-
-		if err == nil {
-			sig.slhDsaParameterSetId = sk.ParameterSetId
-			sig.SlhdsaSig = encoding.NewOctetArray(spxSig)
-		}
 	default:
 		err = errors.UnsupportedError("public key algorithm: " + strconv.Itoa(int(sig.PubKeyAlgo)))
 	}
@@ -1220,9 +1183,6 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 		sigLength = int(sig.ECDSASigR.EncodedLength())
 		sigLength += int(sig.ECDSASigS.EncodedLength())
 		sigLength += int(sig.MldsaSig.EncodedLength())
-	case PubKeyAlgoSlhdsaSha2, PubKeyAlgoSlhdsaShake:
-		sigLength = 1 // Parameter ID
-		sigLength += int(sig.SlhdsaSig.EncodedLength())
 	default:
 		panic("impossible")
 	}
@@ -1345,11 +1305,6 @@ func (sig *Signature) serializeBody(w io.Writer) (err error) {
 			return
 		}
 		_, err = w.Write(sig.MldsaSig.EncodedBytes())
-	case PubKeyAlgoSlhdsaSha2, PubKeyAlgoSlhdsaShake:
-		if _, err = w.Write(sig.slhDsaParameterSetId.EncodedBytes()); err != nil {
-			return
-		}
-		_, err = w.Write(sig.SlhdsaSig.EncodedBytes())
 	default:
 		panic("impossible")
 	}
