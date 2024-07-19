@@ -9,12 +9,12 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	goerrors "errors"
-	"github.com/ProtonMail/go-crypto/openpgp/mldsa_ecdsa"
-	"github.com/ProtonMail/go-crypto/openpgp/mldsa_eddsa"
-	"github.com/ProtonMail/go-crypto/openpgp/slhdsa"
 	"io"
 	"math/big"
 	"time"
+
+	"github.com/ProtonMail/go-crypto/openpgp/mldsa_ecdsa"
+	"github.com/ProtonMail/go-crypto/openpgp/mldsa_eddsa"
 
 	"github.com/ProtonMail/go-crypto/openpgp/ecdh"
 	"github.com/ProtonMail/go-crypto/openpgp/ecdsa"
@@ -343,18 +343,6 @@ func newSigner(config *packet.Config) (signer interface{}, err error) {
 		}
 
 		return mldsa_eddsa.GenerateKey(config.Random(), uint8(config.PublicKeyAlgorithm()), c, d)
-	case packet.PubKeyAlgoSlhdsaSha2, packet.PubKeyAlgoSlhdsaShake:
-		if !config.V6() {
-			return nil, goerrors.New("openpgp: cannot create a non-v6 SLH-DSA key")
-		}
-
-		mode, err := packet.GetSlhdsaModeFromAlgID(config.PublicKeyAlgorithm())
-		if err != nil {
-			return nil, err
-		}
-		parameter := config.SlhdsaParam()
-
-		return slhdsa.GenerateKey(config.Random(), mode, parameter)
 	default:
 		return nil, errors.InvalidArgumentError("unsupported public key algorithm")
 	}
@@ -400,7 +388,7 @@ func newDecrypter(config *packet.Config) (decrypter interface{}, err error) {
 		return x448.GenerateKey(config.Random())
 	case packet.PubKeyAlgoMldsa65Ed25519, packet.PubKeyAlgoMldsa87Ed448, packet.PubKeyAlgoMldsa65p256,
 		packet.PubKeyAlgoMldsa87p384, packet.PubKeyAlgoMldsa65Brainpool256,
-		packet.PubKeyAlgoMldsa87Brainpool384, packet.PubKeyAlgoSlhdsaSha2, packet.PubKeyAlgoSlhdsaShake:
+		packet.PubKeyAlgoMldsa87Brainpool384:
 		if pubKeyAlgo, err = packet.GetMatchingMlkemKem(config.PublicKeyAlgorithm()); err != nil {
 			return nil, err
 		}

@@ -12,22 +12,22 @@ import (
 
 const benchmarkMessageSize = 1024 // Signed / encrypted message size in bytes
 
-var benchmarkTestSet = map[string] *packet.Config {
+var benchmarkTestSet = map[string]*packet.Config{
 	"RSA_1024": {
 		Algorithm: packet.PubKeyAlgoRSA,
-		RSABits: 1024,
+		RSABits:   1024,
 	},
 	"RSA_2048": {
 		Algorithm: packet.PubKeyAlgoRSA,
-		RSABits: 2048,
+		RSABits:   2048,
 	},
 	"RSA_3072": {
 		Algorithm: packet.PubKeyAlgoRSA,
-		RSABits: 3072,
+		RSABits:   3072,
 	},
 	"RSA_4096": {
 		Algorithm: packet.PubKeyAlgoRSA,
-		RSABits: 4096,
+		RSABits:   4096,
 	},
 	"Ed25519_X25519": {
 		Algorithm: packet.PubKeyAlgoEd25519,
@@ -37,27 +37,27 @@ var benchmarkTestSet = map[string] *packet.Config {
 	},
 	"P256": {
 		Algorithm: packet.PubKeyAlgoECDSA,
-		Curve: packet.CurveNistP256,
+		Curve:     packet.CurveNistP256,
 	},
 	"P384": {
 		Algorithm: packet.PubKeyAlgoECDSA,
-		Curve: packet.CurveNistP384,
+		Curve:     packet.CurveNistP384,
 	},
 	"P521": {
 		Algorithm: packet.PubKeyAlgoECDSA,
-		Curve: packet.CurveNistP521,
+		Curve:     packet.CurveNistP521,
 	},
 	"Brainpool256": {
 		Algorithm: packet.PubKeyAlgoECDSA,
-		Curve: packet.CurveBrainpoolP256,
+		Curve:     packet.CurveBrainpoolP256,
 	},
 	"Brainpool384": {
 		Algorithm: packet.PubKeyAlgoECDSA,
-		Curve: packet.CurveBrainpoolP384,
+		Curve:     packet.CurveBrainpoolP384,
 	},
 	"Brainpool512": {
 		Algorithm: packet.PubKeyAlgoECDSA,
-		Curve: packet.CurveBrainpoolP512,
+		Curve:     packet.CurveBrainpoolP512,
 	},
 	"ML-DSA3Ed25519_ML-KEM768X25519": {
 		Algorithm: packet.PubKeyAlgoMldsa65Ed25519,
@@ -76,54 +76,6 @@ var benchmarkTestSet = map[string] *packet.Config {
 	},
 	"ML-DSA5Brainpool384_ML-KEM1024Brainpool384": {
 		Algorithm: packet.PubKeyAlgoMldsa87Brainpool384,
-	},
-	"SLH-DSA-SHA2_128s_ML-KEM1024X448": {
-		Algorithm: packet.PubKeyAlgoSlhdsaSha2,
-		SlhdsaParameterId: 1,
-	},
-	"SLH-DSA-SHA2_128f_ML-KEM1024X448": {
-		Algorithm: packet.PubKeyAlgoSlhdsaSha2,
-		SlhdsaParameterId: 2,
-	},
-	"SLH-DSA-SHA2_192s_ML-KEM1024X448": {
-		Algorithm: packet.PubKeyAlgoSlhdsaSha2,
-		SlhdsaParameterId: 3,
-	},
-	"SLH-DSA-SHA2_192f_ML-KEM1024X448": {
-		Algorithm: packet.PubKeyAlgoSlhdsaSha2,
-		SlhdsaParameterId: 4,
-	},
-	"SLH-DSA-SHA2_256s_ML-KEM1024X448": {
-		Algorithm: packet.PubKeyAlgoSlhdsaSha2,
-		SlhdsaParameterId: 5,
-	},
-	"SLH-DSA-SHA2_256f_ML-KEM1024X448": {
-		Algorithm: packet.PubKeyAlgoSlhdsaSha2,
-		SlhdsaParameterId: 6,
-	},
-	"SLH-DSA-SHAKE_128s_ML-KEM1024X448":{
-		Algorithm: packet.PubKeyAlgoSlhdsaShake,
-		SlhdsaParameterId: 1,
-	},
-	"SLH-DSA-SHAKE_128f_ML-KEM1024X448":{
-		Algorithm: packet.PubKeyAlgoSlhdsaShake,
-		SlhdsaParameterId: 2,
-	},
-	"SLH-DSA-SHAKE_192s_ML-KEM1024X448":{
-		Algorithm: packet.PubKeyAlgoSlhdsaShake,
-		SlhdsaParameterId: 3,
-	},
-	"SLH-DSA-SHAKE_192f_ML-KEM1024X448":{
-		Algorithm: packet.PubKeyAlgoSlhdsaShake,
-		SlhdsaParameterId: 4,
-	},
-	"SLH-DSA-SHAKE_256s_ML-KEM1024X448":{
-		Algorithm: packet.PubKeyAlgoSlhdsaShake,
-		SlhdsaParameterId: 5,
-	},
-	"SLH-DSA-SHAKE_256f_ML-KEM1024X448":{
-		Algorithm: packet.PubKeyAlgoSlhdsaShake,
-		SlhdsaParameterId: 6,
 	},
 }
 
@@ -192,10 +144,10 @@ func benchmarkEncrypt(b *testing.B, keys []*Entity, plaintext []byte, sign bool)
 
 		var signed *Entity
 		if sign {
-			signed = keys[n % len(keys)]
+			signed = keys[n%len(keys)]
 		}
 
-		w, err := Encrypt(buf, EntityList{keys[n % len(keys)]}, signed, nil, config)
+		w, err := Encrypt(buf, EntityList{keys[n%len(keys)]}, signed, nil, config)
 		if err != nil {
 			b.Errorf("Failed to initalize encryption: %s", err)
 			continue
@@ -222,8 +174,8 @@ func benchmarkEncrypt(b *testing.B, keys []*Entity, plaintext []byte, sign bool)
 func benchmarkDecrypt(b *testing.B, keys []*Entity, plaintext []byte, encryptedMessages [][]byte, verify bool) {
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		reader := bytes.NewReader(encryptedMessages[n % len(encryptedMessages)])
-		md, err := ReadMessage(reader, EntityList{keys[n % len(keys)]}, nil, nil)
+		reader := bytes.NewReader(encryptedMessages[n%len(encryptedMessages)])
+		md, err := ReadMessage(reader, EntityList{keys[n%len(keys)]}, nil, nil)
 		if err != nil {
 			b.Errorf("Error reading message: %s", err)
 			continue
@@ -257,7 +209,7 @@ func benchmarkSign(b *testing.B, keys []*Entity, plaintext []byte) [][]byte {
 	for n := 0; n < b.N; n++ {
 		buf := new(bytes.Buffer)
 
-		err := DetachSign(buf, keys[n % len(keys)], bytes.NewReader(plaintext), nil)
+		err := DetachSign(buf, keys[n%len(keys)], bytes.NewReader(plaintext), nil)
 		if err != nil {
 			b.Errorf("Failed to sign: %s", err)
 			continue
@@ -273,9 +225,9 @@ func benchmarkVerify(b *testing.B, keys []*Entity, plaintext []byte, signatures 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		signed := bytes.NewReader(plaintext)
-		signature := bytes.NewReader(signatures[n % len(signatures)])
+		signature := bytes.NewReader(signatures[n%len(signatures)])
 
-		parsedSignature, signer, signatureError := VerifyDetachedSignature(EntityList{keys[n % len(keys)]}, signed, signature,nil)
+		parsedSignature, signer, signatureError := VerifyDetachedSignature(EntityList{keys[n%len(keys)]}, signed, signature, nil)
 
 		if signatureError != nil {
 			b.Errorf("Signature error: %s", signatureError)
@@ -292,63 +244,63 @@ func benchmarkVerify(b *testing.B, keys []*Entity, plaintext []byte, signatures 
 }
 
 func BenchmarkV6Keys(b *testing.B) {
-	serializedKeys := make(map[string] [][]byte)
-	parsedKeys := make(map[string] []*Entity)
-	encryptedMessages := make(map[string] [][]byte)
-	encryptedSignedMessages := make(map[string] [][]byte)
-	signatures := make(map[string] [][]byte)
+	serializedKeys := make(map[string][][]byte)
+	parsedKeys := make(map[string][]*Entity)
+	encryptedMessages := make(map[string][][]byte)
+	encryptedSignedMessages := make(map[string][][]byte)
+	signatures := make(map[string][][]byte)
 
 	var plaintext [benchmarkMessageSize]byte
 	_, _ = rand.Read(plaintext[:])
 
 	for name, config := range benchmarkTestSet {
-		b.Run("Generate " + name, func(b *testing.B) {
+		b.Run("Generate "+name, func(b *testing.B) {
 			serializedKeys[name] = benchmarkGenerateKey(b, config)
 			b.Logf("Generate %s: %d bytes", name, len(serializedKeys[name][0]))
 		})
 	}
 
 	for name, keys := range serializedKeys {
-		b.Run("Parse_" + name, func(b *testing.B) {
+		b.Run("Parse_"+name, func(b *testing.B) {
 			parsedKeys[name] = benchmarkParse(b, keys)
 		})
 	}
 
 	for name, keys := range parsedKeys {
-		b.Run("Encrypt_" + name, func(b *testing.B) {
+		b.Run("Encrypt_"+name, func(b *testing.B) {
 			encryptedMessages[name] = benchmarkEncrypt(b, keys, plaintext[:], false)
 			b.Logf("Encrypt %s: %d bytes", name, len(encryptedMessages[name][0]))
 		})
 	}
 
 	for name, keys := range parsedKeys {
-		b.Run("Decrypt_" + name, func(b *testing.B) {
+		b.Run("Decrypt_"+name, func(b *testing.B) {
 			benchmarkDecrypt(b, keys, plaintext[:], encryptedMessages[name], false)
 		})
 	}
 
 	for name, keys := range parsedKeys {
-		b.Run("Encrypt_Sign_" + name, func(b *testing.B) {
+		b.Run("Encrypt_Sign_"+name, func(b *testing.B) {
 			encryptedSignedMessages[name] = benchmarkEncrypt(b, keys, plaintext[:], true)
 			b.Logf("Encrypt_Sign %s: %d bytes", name, len(encryptedSignedMessages[name][0]))
 		})
 	}
 
 	for name, keys := range parsedKeys {
-		b.Run("Decrypt_Verify_" + name, func(b *testing.B) {
+		b.Run("Decrypt_Verify_"+name, func(b *testing.B) {
 			benchmarkDecrypt(b, keys, plaintext[:], encryptedSignedMessages[name], true)
 		})
 	}
 
 	for name, keys := range parsedKeys {
-		b.Run("Sign_" + name, func(b *testing.B) {
+		b.Run("Sign_"+name, func(b *testing.B) {
 			signatures[name] = benchmarkSign(b, keys, plaintext[:])
 			b.Logf("Sign %s: %d bytes", name, len(signatures[name][0]))
 		})
 	}
 
 	for name, keys := range parsedKeys {
-		b.Run("Verify_" + name, func(b *testing.B) {
+		b.Run("Verify_"+name, func(b *testing.B) {
 			benchmarkVerify(b, keys, plaintext[:], signatures[name])
 		})
 	}

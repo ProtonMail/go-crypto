@@ -4,14 +4,14 @@ import (
 	"bytes"
 	"crypto"
 	"crypto/rand"
+	"strings"
+	"testing"
+	"time"
+
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/mldsa_ecdsa"
 	"github.com/ProtonMail/go-crypto/openpgp/mldsa_eddsa"
 	"github.com/ProtonMail/go-crypto/openpgp/mlkem_ecdh"
-	"github.com/ProtonMail/go-crypto/openpgp/slhdsa"
-	"strings"
-	"testing"
-	"time"
 
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 )
@@ -211,25 +211,23 @@ func TestGeneratePqKey(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	asymmAlgos := map[string] packet.PublicKeyAlgorithm{
-		"ML-DSA65_Ed25519": packet.PubKeyAlgoMldsa65Ed25519,
-		"ML-DSA87_Ed448": packet.PubKeyAlgoMldsa87Ed448,
-		"ML-DSA65_P256": packet.PubKeyAlgoMldsa65p256,
-		"ML-DSA87_P384":packet.PubKeyAlgoMldsa87p384,
+	asymmAlgos := map[string]packet.PublicKeyAlgorithm{
+		"ML-DSA65_Ed25519":      packet.PubKeyAlgoMldsa65Ed25519,
+		"ML-DSA87_Ed448":        packet.PubKeyAlgoMldsa87Ed448,
+		"ML-DSA65_P256":         packet.PubKeyAlgoMldsa65p256,
+		"ML-DSA87_P384":         packet.PubKeyAlgoMldsa87p384,
 		"ML-DSA65_Brainpool256": packet.PubKeyAlgoMldsa65Brainpool256,
-		"ML-DSA87_Brainpool384":packet.PubKeyAlgoMldsa87Brainpool384,
-		"Slhdsa_simple_SHA2":packet.PubKeyAlgoSlhdsaSha2,
-		"Slhdsa_simple_SHAKE":packet.PubKeyAlgoSlhdsaShake,
+		"ML-DSA87_Brainpool384": packet.PubKeyAlgoMldsa87Brainpool384,
 	}
 
 	for name, algo := range asymmAlgos {
 		t.Run(name, func(t *testing.T) {
 			config := &packet.Config{
-				DefaultHash: crypto.SHA512,
-				Algorithm:   algo,
-				V6Keys:      true,
+				DefaultHash:   crypto.SHA512,
+				Algorithm:     algo,
+				V6Keys:        true,
 				DefaultCipher: packet.CipherAES256,
-				AEADConfig: &packet.AEADConfig {
+				AEADConfig: &packet.AEADConfig{
 					DefaultMode: packet.AEADModeOCB,
 				},
 				Time: func() time.Time {
@@ -283,10 +281,6 @@ func TestGeneratePqKey(t *testing.T) {
 				pk.PublicMldsa = pk.Mldsa.PublicKeyFromBytes(bin)
 			}
 
-			if pk, ok := read.PrivateKey.PublicKey.PublicKey.(*slhdsa.PublicKey); ok {
-				pk.PublicData.PKseed[5] ^= 1
-			}
-
 			err = read.PrivateKey.Decrypt(randomPassword)
 			if _, ok := err.(errors.KeyInvalidError); !ok {
 				t.Fatal("Failed to detect invalid ML-DSA key")
@@ -330,11 +324,11 @@ func testMlkemSubkey(t *testing.T, subkey Subkey, randomPassword []byte) {
 
 func TestAddV6MlkemSubkey(t *testing.T) {
 	eddsaConfig := &packet.Config{
-		DefaultHash: crypto.SHA512,
-		Algorithm:   packet.PubKeyAlgoEd25519,
-		V6Keys:      true,
+		DefaultHash:   crypto.SHA512,
+		Algorithm:     packet.PubKeyAlgoEd25519,
+		V6Keys:        true,
 		DefaultCipher: packet.CipherAES256,
-		AEADConfig: &packet.AEADConfig {
+		AEADConfig: &packet.AEADConfig{
 			DefaultMode: packet.AEADModeOCB,
 		},
 		Time: func() time.Time {
