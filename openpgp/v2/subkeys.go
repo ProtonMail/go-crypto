@@ -208,3 +208,18 @@ func (s *Subkey) LatestValidBindingSignature(date time.Time, config *packet.Conf
 	}
 	return
 }
+
+// IsPQ returns true if the algorithm is Post-Quantum safe
+func (s *Subkey) IsPQ() bool {
+	switch s.PublicKey.PubKeyAlgo {
+	case packet.PubKeyAlgoMlkem768X25519, packet.PubKeyAlgoMlkem1024X448, packet.PubKeyAlgoMlkem768P256,
+		packet.PubKeyAlgoMlkem1024P384, packet.PubKeyAlgoMlkem768Brainpool256, packet.PubKeyAlgoMlkem1024Brainpool384,
+		packet.PubKeyAlgoMldsa65Ed25519, packet.PubKeyAlgoMldsa87Ed448, packet.PubKeyAlgoMldsa65p256,
+		packet.PubKeyAlgoMldsa87p384, packet.PubKeyAlgoMldsa65Brainpool256, packet.PubKeyAlgoMldsa87Brainpool384,
+		packet.PubKeyAlgoSlhdsaSha2, packet.PubKeyAlgoSlhdsaShake:
+		return true
+	default:
+		return false
+	}
+
+}

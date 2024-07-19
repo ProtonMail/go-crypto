@@ -26,6 +26,9 @@ import (
 // SignatureType is the armor type for a PGP signature.
 var SignatureType = "PGP SIGNATURE"
 
+// MessageType is the armor type for a PGP message.
+var MessageType = "PGP MESSAGE"
+
 // readArmored reads an armored block with the given type.
 func readArmored(r io.Reader, expectedType string) (body io.Reader, err error) {
 	block, err := armor.Decode(r)
@@ -136,9 +139,10 @@ ParsePackets:
 			// This packet contains the decryption key encrypted to a public key.
 			md.EncryptedToKeyIds = append(md.EncryptedToKeyIds, p.KeyId)
 			switch p.Algo {
-			case packet.PubKeyAlgoRSA, packet.PubKeyAlgoRSAEncryptOnly,
-				packet.PubKeyAlgoElGamal, packet.PubKeyAlgoECDH,
-				packet.PubKeyAlgoX25519, packet.PubKeyAlgoX448, packet.ExperimentalPubKeyAlgoAEAD:
+			case packet.PubKeyAlgoRSA, packet.PubKeyAlgoRSAEncryptOnly, packet.PubKeyAlgoElGamal, packet.PubKeyAlgoECDH,
+				packet.PubKeyAlgoX25519, packet.PubKeyAlgoX448, packet.ExperimentalPubKeyAlgoAEAD, packet.PubKeyAlgoMlkem768X25519,
+				packet.PubKeyAlgoMlkem1024X448, packet.PubKeyAlgoMlkem768P256, packet.PubKeyAlgoMlkem1024P384,
+				packet.PubKeyAlgoMlkem768Brainpool256, packet.PubKeyAlgoMlkem1024Brainpool384:
 				break
 			default:
 				continue
@@ -741,12 +745,12 @@ func verifyDetachedSignatureReader(keyring KeyRing, signed, signature io.Reader,
 
 // checkSignatureDetails verifies the metadata of the signature.
 // It checks the following:
-// - Hash function should not be invalid according to
-//   config.RejectHashAlgorithms.
-// - Verification key must be older than the signature creation time.
-// - Check signature notations.
-// - Signature is not expired (unless a zero time is passed to
-//   explicitly ignore expiration).
+//   - Hash function should not be invalid according to
+//     config.RejectHashAlgorithms.
+//   - Verification key must be older than the signature creation time.
+//   - Check signature notations.
+//   - Signature is not expired (unless a zero time is passed to
+//     explicitly ignore expiration).
 func checkSignatureDetails(pk *packet.PublicKey, signature *packet.Signature, now time.Time, config *packet.Config) error {
 	if config.RejectHashAlgorithm(signature.Hash) {
 		return errors.SignatureError("insecure hash algorithm: " + signature.Hash.String())
