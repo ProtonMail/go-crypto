@@ -874,6 +874,38 @@ func (sig *Signature) PrepareVerify() (hash.Hash, error) {
 	return hasher, nil
 }
 
+// CalcDigest calculates digest for signing
+func (sig *Signature) CalcDigest(h hash.Hash, pub *PublicKey, config *Config) (digest []byte, err error) {
+	sig.Version = pub.Version
+	sig.IssuerFingerprint = pub.Fingerprint
+	if sig.Version < 6 && config.RandomizeSignaturesViaNotation() {
+		sig.removeNotationsWithName(SaltNotationName)
+		salt, e := SignatureSaltForHash(sig.Hash, config.Random())
+		if e != nil {
+			err = e
+			return
+		}
+		notation := Notation{
+			Name:            SaltNotationName,
+			Value:           salt,
+			IsCritical:      false,
+			IsHumanReadable: false,
+		}
+		sig.Notations = append(sig.Notations, &notation)
+	}
+	sig.outSubpackets, err = sig.buildSubpackets(*pub)
+	if err != nil {
+		return
+	}
+	digest, err = sig.signPrepareHash(h)
+	return
+}
+
+// binding RSA signature
+func (sig *Signature) BindRSASignature(signature []byte) {
+	sig.RSASignature = encoding.NewMPI(signature)
+}
+
 // Sign signs a message with a private key. The hash, h, must contain
 // the hash of the message to be signed and will be mutated by this function.
 // On success, the signature is stored in sig. Call Serialize to write it out.
@@ -957,6 +989,19 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 		err = errors.UnsupportedError("public key algorithm: " + strconv.Itoa(int(sig.PubKeyAlgo)))
 	}
 
+	return
+}
+
+// Calculates digest for UserId packet
+func (sig *Signature) CalcUserIdDigest(id string, pub *PublicKey, config *Config) (digest []byte, err error) {
+	prepareHash, err := sig.PrepareSign(config)
+	if err != nil {
+		return
+	}
+	if err = userIdSignatureHash(id, pub, prepareHash); err != nil {
+		return
+	}
+	digest, err = sig.CalcDigest(prepareHash, pub, config)
 	return
 }
 
