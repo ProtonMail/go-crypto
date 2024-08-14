@@ -7,7 +7,7 @@
 //
 // Clearsigned messages are cryptographically signed, but the contents of the
 // message are kept in plaintext so that it can be read without special tools.
-package clearsign // import "github.com/ProtonMail/go-crypto/v2/openpgp/clearsign"
+package clearsign // import "github.com/ProtonMail/go-crypto/openpgp/clearsign"
 
 import (
 	"bufio"
