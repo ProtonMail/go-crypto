@@ -15,6 +15,7 @@ jobs:
         uses: ./.github/actions/build-gosop
         with: 
           binary-location: ./gosop-${{ github.sha }}-v1
+          branch-gosop: gosop-gopenpgp-v2
       # Upload as artifact
       - name: Upload gosop artifact
         uses: actions/upload-artifact@v3
