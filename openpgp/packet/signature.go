@@ -5,9 +5,11 @@
 package packet
 
 import (
+	"math/big"
 	"bytes"
 	"crypto"
 	"crypto/dsa"
+	"encoding/asn1"
 	"encoding/binary"
 	"hash"
 	"io"
@@ -927,8 +929,16 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 			sig.DSASigS = new(encoding.MPI).SetBig(s)
 		}
 	case PubKeyAlgoECDSA:
-		sk := priv.PrivateKey.(*ecdsa.PrivateKey)
-		r, s, err := ecdsa.Sign(config.Random(), sk, digest)
+		var r, s *big.Int
+		if sk, ok := priv.PrivateKey.(*ecdsa.PrivateKey); ok {
+			r, s, err = ecdsa.Sign(config.Random(), sk, digest)
+		} else {
+			var b []byte
+			b, err = priv.PrivateKey.(crypto.Signer).Sign(config.Random(), digest, sig.Hash)
+			if err == nil {
+				r, s, err = unwrapECDSASig(b)
+			}
+		}
 
 		if err == nil {
 			sig.ECDSASigR = new(encoding.MPI).SetBig(r)
@@ -958,6 +968,18 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 	}
 
 	return
+}
+
+// unwrapECDSASig parses the two integer components of an ASN.1-encoded ECDSA signature.
+func unwrapECDSASig(b []byte) (r, s *big.Int, err error) {
+	var ecsdaSig struct {
+		R, S *big.Int
+	}
+	_, err = asn1.Unmarshal(b, &ecsdaSig)
+	if err != nil {
+		return
+	}
+	return ecsdaSig.R, ecsdaSig.S, nil
 }
 
 // SignUserId computes a signature from priv, asserting that pub is a valid
