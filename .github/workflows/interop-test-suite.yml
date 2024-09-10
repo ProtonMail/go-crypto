@@ -52,6 +52,7 @@ jobs:
         uses: ./.github/actions/build-gosop
         with: 
           go-crypto-ref: main
+          branch-gosop: gosop-gopenpgp-v2
           binary-location: ./gosop-main-v1
       # Upload as artifact
       - name: Upload gosop-main artifact
