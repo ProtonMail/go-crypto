@@ -4,20 +4,17 @@ package mlkem_ecdh_test
 import (
 	"bytes"
 	"crypto/rand"
+	"testing"
+
 	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
 	"github.com/ProtonMail/go-crypto/openpgp/mlkem_ecdh"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
-	"testing"
 )
 
 func TestEncryptDecrypt(t *testing.T) {
 	asymmAlgos := map[string]packet.PublicKeyAlgorithm{
-		"Mlkem768_X25519":        packet.PubKeyAlgoMlkem768X25519,
-		"Mlkem1024_X448":         packet.PubKeyAlgoMlkem1024X448,
-		"Mlkem768_P256":          packet.PubKeyAlgoMlkem768P256,
-		"Mlkem1024_P384":         packet.PubKeyAlgoMlkem1024P384,
-		"Mlkem768_Brainpool256":  packet.PubKeyAlgoMlkem768Brainpool256,
-		"Mlkem1024_Brainpool384": packet.PubKeyAlgoMlkem1024Brainpool384,
+		"Mlkem768_X25519": packet.PubKeyAlgoMlkem768X25519,
+		"Mlkem1024_X448":  packet.PubKeyAlgoMlkem1024X448,
 	}
 
 	symmAlgos := map[string]algorithm.Cipher{

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
-	"github.com/ProtonMail/go-crypto/openpgp/mldsa_ecdsa"
 	"github.com/ProtonMail/go-crypto/openpgp/mldsa_eddsa"
 	"github.com/ProtonMail/go-crypto/openpgp/mlkem_ecdh"
 
@@ -212,12 +211,8 @@ func TestGeneratePqKey(t *testing.T) {
 	}
 
 	asymmAlgos := map[string]packet.PublicKeyAlgorithm{
-		"ML-DSA65_Ed25519":      packet.PubKeyAlgoMldsa65Ed25519,
-		"ML-DSA87_Ed448":        packet.PubKeyAlgoMldsa87Ed448,
-		"ML-DSA65_P256":         packet.PubKeyAlgoMldsa65p256,
-		"ML-DSA87_P384":         packet.PubKeyAlgoMldsa87p384,
-		"ML-DSA65_Brainpool256": packet.PubKeyAlgoMldsa65Brainpool256,
-		"ML-DSA87_Brainpool384": packet.PubKeyAlgoMldsa87Brainpool384,
+		"ML-DSA65_Ed25519": packet.PubKeyAlgoMldsa65Ed25519,
+		"ML-DSA87_Ed448":   packet.PubKeyAlgoMldsa87Ed448,
 	}
 
 	for name, algo := range asymmAlgos {
@@ -266,13 +261,6 @@ func TestGeneratePqKey(t *testing.T) {
 
 			if err = read.PrivateKey.Encrypt(randomPassword); err != nil {
 				t.Fatal(err)
-			}
-
-			// Corrupt public ML-DSA in primary key
-			if pk, ok := read.PrivateKey.PublicKey.PublicKey.(*mldsa_ecdsa.PublicKey); ok {
-				bin := pk.PublicMldsa.Bytes()
-				bin[5] ^= 1
-				pk.PublicMldsa = pk.Mldsa.PublicKeyFromBytes(bin)
 			}
 
 			if pk, ok := read.PrivateKey.PublicKey.PublicKey.(*mldsa_eddsa.PublicKey); ok {

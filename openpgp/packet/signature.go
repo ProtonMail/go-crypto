@@ -14,7 +14,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ProtonMail/go-crypto/openpgp/mldsa_ecdsa"
 	"github.com/ProtonMail/go-crypto/openpgp/mldsa_eddsa"
 	"github.com/cloudflare/circl/sign/dilithium"
 
@@ -181,8 +180,7 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 	sig.PubKeyAlgo = PublicKeyAlgorithm(buf[1])
 	switch sig.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA, PubKeyAlgoEd25519,
-		PubKeyAlgoEd448, ExperimentalPubKeyAlgoHMAC, PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448, PubKeyAlgoMldsa65p256,
-		PubKeyAlgoMldsa87p384, PubKeyAlgoMldsa65Brainpool256, PubKeyAlgoMldsa87Brainpool384:
+		PubKeyAlgoEd448, ExperimentalPubKeyAlgoHMAC, PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
 	default:
 		err = errors.UnsupportedError("public key algorithm " + strconv.Itoa(int(sig.PubKeyAlgo)))
 		return
@@ -333,14 +331,6 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 		if err = sig.parseMldsaEddsaSignature(r, 114, dilithium.MLDSA87.SignatureSize()); err != nil {
 			return
 		}
-	case PubKeyAlgoMldsa65p256, PubKeyAlgoMldsa65Brainpool256:
-		if err = sig.parseMldsaEcdsaSignature(r, 32, dilithium.MLDSA65.SignatureSize()); err != nil {
-			return
-		}
-	case PubKeyAlgoMldsa87p384, PubKeyAlgoMldsa87Brainpool384:
-		if err = sig.parseMldsaEcdsaSignature(r, 48, dilithium.MLDSA87.SignatureSize()); err != nil {
-			return
-		}
 	default:
 		panic("unreachable")
 	}
@@ -352,24 +342,6 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 func (sig *Signature) parseMldsaEddsaSignature(r io.Reader, ecLen, dLen int) (err error) {
 	sig.EdDSASigR = encoding.NewEmptyOctetArray(ecLen)
 	if _, err = sig.EdDSASigR.ReadFrom(r); err != nil {
-		return
-	}
-
-	sig.MldsaSig = encoding.NewEmptyOctetArray(dLen)
-	_, err = sig.MldsaSig.ReadFrom(r)
-	return
-}
-
-// parseMldsaEcdsaSignature parses a ML-DSA + ECDSA signature as specified in
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-signature-packet-tag-2
-func (sig *Signature) parseMldsaEcdsaSignature(r io.Reader, ecLen, dLen int) (err error) {
-	sig.ECDSASigR = encoding.NewEmptyOctetArray(ecLen)
-	if _, err = sig.ECDSASigR.ReadFrom(r); err != nil {
-		return
-	}
-
-	sig.ECDSASigS = encoding.NewEmptyOctetArray(ecLen)
-	if _, err = sig.ECDSASigS.ReadFrom(r); err != nil {
 		return
 	}
 
@@ -1023,19 +995,6 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 		if err == nil {
 			sig.HMAC = encoding.NewShortByteString(sigdata)
 		}
-	case PubKeyAlgoMldsa65p256, PubKeyAlgoMldsa87p384, PubKeyAlgoMldsa65Brainpool256,
-		PubKeyAlgoMldsa87Brainpool384:
-		if sig.Version != 6 {
-			return errors.UnsupportedError("cannot use mldsa_ecdsa on a non-v6 signature")
-		}
-		sk := priv.PrivateKey.(*mldsa_ecdsa.PrivateKey)
-		dSig, ecR, ecS, err := mldsa_ecdsa.Sign(config.Random(), sk, digest)
-
-		if err == nil {
-			sig.MldsaSig = encoding.NewOctetArray(dSig)
-			sig.ECDSASigR = encoding.NewOctetArray(ecR)
-			sig.ECDSASigS = encoding.NewOctetArray(ecS)
-		}
 	case PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
 		if sig.Version != 6 {
 			return errors.UnsupportedError("cannot use mldsa_eddsa on a non-v6 signature")
@@ -1178,11 +1137,6 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 	case PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
 		sigLength = int(sig.EdDSASigR.EncodedLength())
 		sigLength += int(sig.MldsaSig.EncodedLength())
-	case PubKeyAlgoMldsa65p256, PubKeyAlgoMldsa87p384, PubKeyAlgoMldsa65Brainpool256,
-		PubKeyAlgoMldsa87Brainpool384:
-		sigLength = int(sig.ECDSASigR.EncodedLength())
-		sigLength += int(sig.ECDSASigS.EncodedLength())
-		sigLength += int(sig.MldsaSig.EncodedLength())
 	default:
 		panic("impossible")
 	}
@@ -1293,15 +1247,6 @@ func (sig *Signature) serializeBody(w io.Writer) (err error) {
 		_, err = w.Write(sig.HMAC.EncodedBytes())
 	case PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
 		if _, err = w.Write(sig.EdDSASigR.EncodedBytes()); err != nil {
-			return
-		}
-		_, err = w.Write(sig.MldsaSig.EncodedBytes())
-	case PubKeyAlgoMldsa65p256, PubKeyAlgoMldsa87p384, PubKeyAlgoMldsa65Brainpool256,
-		PubKeyAlgoMldsa87Brainpool384:
-		if _, err = w.Write(sig.ECDSASigR.EncodedBytes()); err != nil {
-			return
-		}
-		if _, err = w.Write(sig.ECDSASigS.EncodedBytes()); err != nil {
 			return
 		}
 		_, err = w.Write(sig.MldsaSig.EncodedBytes())

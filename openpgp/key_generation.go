@@ -13,7 +13,6 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ProtonMail/go-crypto/openpgp/mldsa_ecdsa"
 	"github.com/ProtonMail/go-crypto/openpgp/mldsa_eddsa"
 
 	"github.com/ProtonMail/go-crypto/openpgp/ecdh"
@@ -316,22 +315,6 @@ func newSigner(config *packet.Config) (signer interface{}, err error) {
 	case packet.ExperimentalPubKeyAlgoHMAC:
 		hash := algorithm.HashById[hashToHashId(config.Hash())]
 		return symmetric.HMACGenerateKey(config.Random(), hash)
-	case packet.PubKeyAlgoMldsa65p256, packet.PubKeyAlgoMldsa87p384, packet.PubKeyAlgoMldsa65Brainpool256,
-		packet.PubKeyAlgoMldsa87Brainpool384:
-		if !config.V6() {
-			return nil, goerrors.New("openpgp: cannot create a non-v6 ML-DSA + ECDSA key")
-		}
-
-		c, err := packet.GetEcdsaCurveFromAlgID(config.PublicKeyAlgorithm())
-		if err != nil {
-			return nil, err
-		}
-		d, err := packet.GetMldsaFromAlgID(config.PublicKeyAlgorithm())
-		if err != nil {
-			return nil, err
-		}
-
-		return mldsa_ecdsa.GenerateKey(config.Random(), uint8(config.PublicKeyAlgorithm()), c, d)
 	case packet.PubKeyAlgoMldsa65Ed25519, packet.PubKeyAlgoMldsa87Ed448:
 		if !config.V6() {
 			return nil, goerrors.New("openpgp: cannot create a non-v6 mldsa_eddsa key")
@@ -393,15 +376,12 @@ func newDecrypter(config *packet.Config) (decrypter interface{}, err error) {
 	case packet.ExperimentalPubKeyAlgoAEAD:
 		cipher := algorithm.CipherFunction(config.Cipher())
 		return symmetric.AEADGenerateKey(config.Random(), cipher)
-	case packet.PubKeyAlgoMldsa65Ed25519, packet.PubKeyAlgoMldsa87Ed448, packet.PubKeyAlgoMldsa65p256,
-		packet.PubKeyAlgoMldsa87p384, packet.PubKeyAlgoMldsa65Brainpool256,
-		packet.PubKeyAlgoMldsa87Brainpool384:
+	case packet.PubKeyAlgoMldsa65Ed25519, packet.PubKeyAlgoMldsa87Ed448:
 		if pubKeyAlgo, err = packet.GetMatchingMlkemKem(config.PublicKeyAlgorithm()); err != nil {
 			return nil, err
 		}
 		fallthrough // When passing ML-DSA + EdDSA or ECDSA, we generate a ML-KEM + ECDH subkey
-	case packet.PubKeyAlgoMlkem768X25519, packet.PubKeyAlgoMlkem1024X448, packet.PubKeyAlgoMlkem768P256,
-		packet.PubKeyAlgoMlkem1024P384, packet.PubKeyAlgoMlkem768Brainpool256, packet.PubKeyAlgoMlkem1024Brainpool384:
+	case packet.PubKeyAlgoMlkem768X25519, packet.PubKeyAlgoMlkem1024X448:
 
 		c, err := packet.GetECDHCurveFromAlgID(pubKeyAlgo)
 		if err != nil {

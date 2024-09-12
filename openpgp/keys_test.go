@@ -2109,12 +2109,8 @@ func testAddMlkemSubkey(t *testing.T, entity *Entity, v6Keys bool) {
 	var err error
 
 	asymmAlgos := map[string]packet.PublicKeyAlgorithm{
-		"Mlkem768_X25519":        packet.PubKeyAlgoMlkem768X25519,
-		"Mlkem1024_X448":         packet.PubKeyAlgoMlkem1024X448,
-		"Mlkem768_P256":          packet.PubKeyAlgoMlkem768P256,
-		"Mlkem1024_P384":         packet.PubKeyAlgoMlkem1024P384,
-		"Mlkem768_Brainpool256":  packet.PubKeyAlgoMlkem768Brainpool256,
-		"Mlkem1024_Brainpool384": packet.PubKeyAlgoMlkem1024Brainpool384,
+		"Mlkem768_X25519": packet.PubKeyAlgoMlkem768X25519,
+		"Mlkem1024_X448":  packet.PubKeyAlgoMlkem1024X448,
 	}
 
 	for name, algo := range asymmAlgos {

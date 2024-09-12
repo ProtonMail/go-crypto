@@ -7,7 +7,6 @@ package packet
 import (
 	"bytes"
 	"crypto/dsa"
-	"crypto/elliptic"
 	"crypto/rsa"
 	"crypto/sha1"
 	"crypto/sha256"
@@ -21,8 +20,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ProtonMail/go-crypto/brainpool"
-	"github.com/ProtonMail/go-crypto/openpgp/mldsa_ecdsa"
 	"github.com/ProtonMail/go-crypto/openpgp/mldsa_eddsa"
 	"github.com/cloudflare/circl/kem"
 	"github.com/cloudflare/circl/kem/mlkem/mlkem1024"
@@ -303,20 +300,6 @@ func NewMlkemEcdhPublicKey(creationTime time.Time, pub *mlkem_ecdh.PublicKey) *P
 	return pk
 }
 
-func NewMldsaEcdsaPublicKey(creationTime time.Time, pub *mldsa_ecdsa.PublicKey) *PublicKey {
-	pk := &PublicKey{
-		Version:      6,
-		CreationTime: creationTime,
-		PubKeyAlgo:   PublicKeyAlgorithm(pub.AlgId),
-		PublicKey:    pub,
-		p:            encoding.NewOctetArray(pub.MarshalPoint()),
-		q:            encoding.NewOctetArray(pub.PublicMldsa.Bytes()),
-	}
-
-	pk.setFingerprintAndKeyId()
-	return pk
-}
-
 func NewMldsaEddsaPublicKey(creationTime time.Time, pub *mldsa_eddsa.PublicKey) *PublicKey {
 	pk := &PublicKey{
 		Version:      6,
@@ -389,18 +372,10 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 		err = pk.parseMlkemEcdh(r, 32, mlkem768.PublicKeySize)
 	case PubKeyAlgoMlkem1024X448:
 		err = pk.parseMlkemEcdh(r, 56, mlkem1024.PublicKeySize)
-	case PubKeyAlgoMlkem768P256, PubKeyAlgoMlkem768Brainpool256:
-		err = pk.parseMlkemEcdh(r, 65, mlkem768.PublicKeySize)
-	case PubKeyAlgoMlkem1024P384, PubKeyAlgoMlkem1024Brainpool384:
-		err = pk.parseMlkemEcdh(r, 97, mlkem1024.PublicKeySize)
 	case PubKeyAlgoMldsa65Ed25519:
 		err = pk.parseMldsaEddsa(r, 32, dilithium.MLDSA65.PublicKeySize())
 	case PubKeyAlgoMldsa87Ed448:
 		err = pk.parseMldsaEddsa(r, 57, dilithium.MLDSA87.PublicKeySize())
-	case PubKeyAlgoMldsa65p256, PubKeyAlgoMldsa65Brainpool256:
-		err = pk.parseMldsaEcdsa(r, 65, dilithium.MLDSA65.PublicKeySize())
-	case PubKeyAlgoMldsa87p384, PubKeyAlgoMldsa87Brainpool384:
-		err = pk.parseMldsaEcdsa(r, 97, dilithium.MLDSA87.PublicKeySize())
 	default:
 		err = errors.UnsupportedError("public key type: " + strconv.Itoa(int(pk.PubKeyAlgo)))
 	}
@@ -790,42 +765,6 @@ func readBindingHash(r io.Reader) (bindingHash [32]byte, err error) {
 	return bindingHash, err
 }
 
-// parseMldsaEcdsa parses a ML-DSA + ECDSA public key as specified in
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-key-material-packets-2
-func (pk *PublicKey) parseMldsaEcdsa(r io.Reader, ecLen, dLen int) (err error) {
-	pk.p = encoding.NewEmptyOctetArray(ecLen)
-	if _, err = pk.p.ReadFrom(r); err != nil {
-		return
-	}
-
-	pk.q = encoding.NewEmptyOctetArray(dLen)
-	if _, err = pk.q.ReadFrom(r); err != nil {
-		return
-	}
-
-	pub := &mldsa_ecdsa.PublicKey{
-		AlgId: uint8(pk.PubKeyAlgo),
-	}
-
-	if pub.Curve, err = GetEcdsaCurveFromAlgID(pk.PubKeyAlgo); err != nil {
-		return err
-	}
-
-	if pub.Mldsa, err = GetMldsaFromAlgID(pk.PubKeyAlgo); err != nil {
-		return err
-	}
-
-	if err := pub.UnmarshalPoint(pk.p.Bytes()); err != nil {
-		return err
-	}
-
-	pub.PublicMldsa = pub.Mldsa.PublicKeyFromBytes(pk.q.Bytes())
-
-	pk.PublicKey = pub
-
-	return
-}
-
 // parseMldsaEddsa parses a ML-DSA + EdDSA public key as specified in
 // https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-key-material-packets-2
 func (pk *PublicKey) parseMldsaEddsa(r io.Reader, ecLen, dLen int) (err error) {
@@ -948,10 +887,8 @@ func (pk *PublicKey) algorithmSpecificByteCount() uint32 {
 	case ExperimentalPubKeyAlgoAEAD, ExperimentalPubKeyAlgoHMAC:
 		length += 1  // Hash octet
 		length += 32 // Binding hash
-	case PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem1024X448, PubKeyAlgoMlkem768P256, PubKeyAlgoMlkem1024P384,
-		PubKeyAlgoMlkem768Brainpool256, PubKeyAlgoMlkem1024Brainpool384, PubKeyAlgoMldsa65Ed25519,
-		PubKeyAlgoMldsa87Ed448, PubKeyAlgoMldsa65p256, PubKeyAlgoMldsa87p384,
-		PubKeyAlgoMldsa65Brainpool256, PubKeyAlgoMldsa87Brainpool384:
+	case PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem1024X448, PubKeyAlgoMldsa65Ed25519,
+		PubKeyAlgoMldsa87Ed448:
 		length += uint32(pk.p.EncodedLength())
 		length += uint32(pk.q.EncodedLength())
 	default:
@@ -1062,10 +999,8 @@ func (pk *PublicKey) serializeWithoutHeaders(w io.Writer) (err error) {
 		}
 		_, err = w.Write(symmKey.BindingHash[:])
 		return
-	case PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem1024X448, PubKeyAlgoMlkem768P256, PubKeyAlgoMlkem1024P384,
-		PubKeyAlgoMlkem768Brainpool256, PubKeyAlgoMlkem1024Brainpool384, PubKeyAlgoMldsa65Ed25519,
-		PubKeyAlgoMldsa87Ed448, PubKeyAlgoMldsa65p256, PubKeyAlgoMldsa87p384,
-		PubKeyAlgoMldsa65Brainpool256, PubKeyAlgoMldsa87Brainpool384:
+	case PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem1024X448, PubKeyAlgoMldsa65Ed25519,
+		PubKeyAlgoMldsa87Ed448:
 		if _, err = w.Write(pk.p.EncodedBytes()); err != nil {
 			return
 		}
@@ -1172,13 +1107,6 @@ func (pk *PublicKey) VerifySignature(signed hash.Hash, sig *Signature) (err erro
 		mldsaEddsaPublicKey := pk.PublicKey.(*mldsa_eddsa.PublicKey)
 		if !mldsa_eddsa.Verify(mldsaEddsaPublicKey, hashBytes, sig.MldsaSig.Bytes(), sig.EdDSASigR.Bytes()) {
 			return errors.SignatureError("mldsa_eddsa verification failure")
-		}
-		return nil
-	case PubKeyAlgoMldsa65p256, PubKeyAlgoMldsa87p384, PubKeyAlgoMldsa65Brainpool256,
-		PubKeyAlgoMldsa87Brainpool384:
-		mldsaEcdsaPublicKey := pk.PublicKey.(*mldsa_ecdsa.PublicKey)
-		if !mldsa_ecdsa.Verify(mldsaEcdsaPublicKey, hashBytes, sig.MldsaSig.Bytes(), sig.ECDSASigR.Bytes(), sig.ECDSASigS.Bytes()) {
-			return errors.SignatureError("mldsa_ecdsa verification failure")
 		}
 		return nil
 	default:
@@ -1411,10 +1339,8 @@ func (pk *PublicKey) BitLength() (bitLength uint16, err error) {
 		bitLength = ed448.PublicKeySize * 8
 	case ExperimentalPubKeyAlgoAEAD:
 		bitLength = 32
-	case PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem1024X448, PubKeyAlgoMlkem768P256, PubKeyAlgoMlkem1024P384,
-		PubKeyAlgoMlkem768Brainpool256, PubKeyAlgoMlkem1024Brainpool384, PubKeyAlgoMldsa65Ed25519,
-		PubKeyAlgoMldsa87Ed448, PubKeyAlgoMldsa65p256, PubKeyAlgoMldsa87p384,
-		PubKeyAlgoMldsa65Brainpool256, PubKeyAlgoMldsa87Brainpool384:
+	case PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem1024X448, PubKeyAlgoMldsa65Ed25519,
+		PubKeyAlgoMldsa87Ed448:
 		bitLength = pk.q.BitLength() // Very questionable
 	default:
 		err = errors.InvalidArgumentError("bad public-key algorithm")
@@ -1461,14 +1387,6 @@ func GetMatchingMlkemKem(algId PublicKeyAlgorithm) (PublicKeyAlgorithm, error) {
 		return PubKeyAlgoMlkem768X25519, nil
 	case PubKeyAlgoMldsa87Ed448:
 		return PubKeyAlgoMlkem1024X448, nil
-	case PubKeyAlgoMldsa65p256:
-		return PubKeyAlgoMlkem768P256, nil
-	case PubKeyAlgoMldsa87p384:
-		return PubKeyAlgoMlkem1024P384, nil
-	case PubKeyAlgoMldsa65Brainpool256:
-		return PubKeyAlgoMlkem768Brainpool256, nil
-	case PubKeyAlgoMldsa87Brainpool384:
-		return PubKeyAlgoMlkem1024Brainpool384, nil
 	default:
 		return 0, goerrors.New("packet: unsupported pq public key algorithm")
 	}
@@ -1477,9 +1395,9 @@ func GetMatchingMlkemKem(algId PublicKeyAlgorithm) (PublicKeyAlgorithm, error) {
 // GetMlkemFromAlgID returns the ML-KEM instance from the matching KEM
 func GetMlkemFromAlgID(algId PublicKeyAlgorithm) (kem.Scheme, error) {
 	switch algId {
-	case PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem768P256, PubKeyAlgoMlkem768Brainpool256:
+	case PubKeyAlgoMlkem768X25519:
 		return mlkem768.Scheme(), nil
-	case PubKeyAlgoMlkem1024X448, PubKeyAlgoMlkem1024P384, PubKeyAlgoMlkem1024Brainpool384:
+	case PubKeyAlgoMlkem1024X448:
 		return mlkem1024.Scheme(), nil
 	default:
 		return nil, goerrors.New("packet: unsupported ML-KEM public key algorithm")
@@ -1493,31 +1411,8 @@ func GetECDHCurveFromAlgID(algId PublicKeyAlgorithm) (ecc.ECDHCurve, error) {
 		return ecc.NewCurve25519(), nil
 	case PubKeyAlgoMlkem1024X448:
 		return ecc.NewX448(), nil
-	case PubKeyAlgoMlkem768P256:
-		return ecc.NewGenericCurve(elliptic.P256()), nil
-	case PubKeyAlgoMlkem1024P384:
-		return ecc.NewGenericCurve(elliptic.P384()), nil
-	case PubKeyAlgoMlkem768Brainpool256:
-		return ecc.NewGenericCurve(brainpool.P256r1()), nil
-	case PubKeyAlgoMlkem1024Brainpool384:
-		return ecc.NewGenericCurve(brainpool.P384r1()), nil
 	default:
 		return nil, goerrors.New("packet: unsupported ECDH public key algorithm")
-	}
-}
-
-func GetEcdsaCurveFromAlgID(algId PublicKeyAlgorithm) (ecc.ECDSACurve, error) {
-	switch algId {
-	case PubKeyAlgoMldsa65p256:
-		return ecc.NewGenericCurve(elliptic.P256()), nil
-	case PubKeyAlgoMldsa87p384:
-		return ecc.NewGenericCurve(elliptic.P384()), nil
-	case PubKeyAlgoMldsa65Brainpool256:
-		return ecc.NewGenericCurve(brainpool.P256r1()), nil
-	case PubKeyAlgoMldsa87Brainpool384:
-		return ecc.NewGenericCurve(brainpool.P384r1()), nil
-	default:
-		return nil, goerrors.New("packet: unsupported ECDSA public key algorithm")
 	}
 }
 
@@ -1534,9 +1429,9 @@ func GetEdDSACurveFromAlgID(algId PublicKeyAlgorithm) (ecc.EdDSACurve, error) {
 
 func GetMldsaFromAlgID(algId PublicKeyAlgorithm) (dilithium.Mode, error) {
 	switch algId {
-	case PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa65p256, PubKeyAlgoMldsa65Brainpool256:
+	case PubKeyAlgoMldsa65Ed25519:
 		return dilithium.MLDSA65, nil
-	case PubKeyAlgoMldsa87Ed448, PubKeyAlgoMldsa87p384, PubKeyAlgoMldsa87Brainpool384:
+	case PubKeyAlgoMldsa87Ed448:
 		return dilithium.MLDSA87, nil
 	default:
 		return nil, goerrors.New("packet: unsupported ML-DSA public key algorithm")

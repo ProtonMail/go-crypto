@@ -65,18 +65,6 @@ var benchmarkTestSet = map[string]*packet.Config{
 	"ML-DSA5Ed448_ML-KEM1024X448": {
 		Algorithm: packet.PubKeyAlgoMldsa87Ed448,
 	},
-	"ML-DSA3P256_ML-KEM768P256": {
-		Algorithm: packet.PubKeyAlgoMldsa65p256,
-	},
-	"ML-DSA5P384_ML-KEM1024P384": {
-		Algorithm: packet.PubKeyAlgoMldsa87p384,
-	},
-	"ML-DSA3Brainpool256_ML-KEM768Brainpool256": {
-		Algorithm: packet.PubKeyAlgoMldsa65Brainpool256,
-	},
-	"ML-DSA5Brainpool384_ML-KEM1024Brainpool384": {
-		Algorithm: packet.PubKeyAlgoMldsa87Brainpool384,
-	},
 }
 
 func benchmarkGenerateKey(b *testing.B, config *packet.Config) [][]byte {

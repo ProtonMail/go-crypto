@@ -123,8 +123,7 @@ ParsePackets:
 			switch p.Algo {
 			case packet.PubKeyAlgoRSA, packet.PubKeyAlgoRSAEncryptOnly, packet.PubKeyAlgoElGamal, packet.PubKeyAlgoECDH,
 				packet.PubKeyAlgoX25519, packet.PubKeyAlgoX448, packet.ExperimentalPubKeyAlgoAEAD, packet.PubKeyAlgoMlkem768X25519,
-				packet.PubKeyAlgoMlkem1024X448, packet.PubKeyAlgoMlkem768P256, packet.PubKeyAlgoMlkem1024P384,
-				packet.PubKeyAlgoMlkem768Brainpool256, packet.PubKeyAlgoMlkem1024Brainpool384:
+				packet.PubKeyAlgoMlkem1024X448:
 				break
 			default:
 				continue

@@ -20,7 +20,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ProtonMail/go-crypto/openpgp/mldsa_ecdsa"
 	"github.com/ProtonMail/go-crypto/openpgp/mldsa_eddsa"
 	"github.com/cloudflare/circl/kem/mlkem/mlkem1024"
 	"github.com/cloudflare/circl/kem/mlkem/mlkem768"
@@ -177,8 +176,6 @@ func NewSignerPrivateKey(creationTime time.Time, signer interface{}) *PrivateKey
 		pk.PublicKey = *NewEd448PublicKey(creationTime, &pubkey.PublicKey)
 	case *symmetric.HMACPrivateKey:
 		pk.PublicKey = *NewHMACPublicKey(creationTime, &pubkey.PublicKey)
-	case *mldsa_ecdsa.PrivateKey:
-		pk.PublicKey = *NewMldsaEcdsaPublicKey(creationTime, &pubkey.PublicKey)
 	case *mldsa_eddsa.PrivateKey:
 		pk.PublicKey = *NewMldsaEddsaPublicKey(creationTime, &pubkey.PublicKey)
 	default:
@@ -581,16 +578,6 @@ func serializeMlkemPrivateKey(w io.Writer, priv *mlkem_ecdh.PrivateKey) (err err
 	return err
 }
 
-// serializeMldsaEcdsaPrivateKey serializes a ML-DSA + ECDSA private key according to
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-key-material-packets-2
-func serializeMldsaEcdsaPrivateKey(w io.Writer, priv *mldsa_ecdsa.PrivateKey) error {
-	if _, err := w.Write(encoding.NewOctetArray(priv.MarshalIntegerSecret()).EncodedBytes()); err != nil {
-		return err
-	}
-	_, err := w.Write(encoding.NewOctetArray(priv.SecretMldsa.Bytes()).EncodedBytes())
-	return err
-}
-
 // serializeMldsaEddsaPrivateKey serializes a ML-DSA + EdDSA private key according to
 // https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-key-material-packets-2
 func serializeMldsaEddsaPrivateKey(w io.Writer, priv *mldsa_eddsa.PrivateKey) error {
@@ -907,8 +894,6 @@ func (pk *PrivateKey) serializePrivateKey(w io.Writer) (err error) {
 		err = serializeHMACPrivateKey(w, priv)
 	case *mlkem_ecdh.PrivateKey:
 		err = serializeMlkemPrivateKey(w, priv)
-	case *mldsa_ecdsa.PrivateKey:
-		err = serializeMldsaEcdsaPrivateKey(w, priv)
 	case *mldsa_eddsa.PrivateKey:
 		err = serializeMldsaEddsaPrivateKey(w, priv)
 	default:
@@ -943,20 +928,14 @@ func (pk *PrivateKey) parsePrivateKey(data []byte) (err error) {
 		return pk.parseAEADPrivateKey(data)
 	case ExperimentalPubKeyAlgoHMAC:
 		return pk.parseHMACPrivateKey(data)
-	case PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem768P256, PubKeyAlgoMlkem768Brainpool256:
+	case PubKeyAlgoMlkem768X25519:
 		return pk.parseMlkemEcdhPrivateKey(data, 32, mlkem768.PrivateKeySize)
 	case PubKeyAlgoMlkem1024X448:
 		return pk.parseMlkemEcdhPrivateKey(data, 56, mlkem1024.PrivateKeySize)
-	case PubKeyAlgoMlkem1024P384, PubKeyAlgoMlkem1024Brainpool384:
-		return pk.parseMlkemEcdhPrivateKey(data, 48, mlkem1024.PrivateKeySize)
 	case PubKeyAlgoMldsa65Ed25519:
 		return pk.parseMldsaEddsaPrivateKey(data, 32, dilithium.MLDSA65.PrivateKeySize())
 	case PubKeyAlgoMldsa87Ed448:
 		return pk.parseMldsaEddsaPrivateKey(data, 57, dilithium.MLDSA87.PrivateKeySize())
-	case PubKeyAlgoMldsa65p256, PubKeyAlgoMldsa65Brainpool256:
-		return pk.parseMldsaEcdsaPrivateKey(data, 32, dilithium.MLDSA65.PrivateKeySize())
-	case PubKeyAlgoMldsa87p384, PubKeyAlgoMldsa87Brainpool384:
-		return pk.parseMldsaEcdsaPrivateKey(data, 48, dilithium.MLDSA87.PrivateKeySize())
 	default:
 		err = errors.StructuralError("unknown private key type")
 		return
@@ -1277,41 +1256,6 @@ func validateCommonSymmetric(seed [32]byte, bindingHash [32]byte) error {
 	if !bytes.Equal(expectedBindingHash, bindingHash[:]) {
 		return errors.KeyInvalidError("symmetric: wrong binding hash")
 	}
-	return nil
-}
-
-// parseMldsaEcdsaPrivateKey parses a ML-DSA + ECDSA private key as specified in
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-key-material-packets-2
-func (pk *PrivateKey) parseMldsaEcdsaPrivateKey(data []byte, ecLen, dLen int) (err error) {
-	if pk.Version != 6 {
-		return goerrors.New("openpgp: cannot parse non-v6 ML-DSA + ECDSA key")
-	}
-	pub := pk.PublicKey.PublicKey.(*mldsa_ecdsa.PublicKey)
-	priv := new(mldsa_ecdsa.PrivateKey)
-	priv.PublicKey = *pub
-
-	buf := bytes.NewBuffer(data)
-	ec := encoding.NewEmptyOctetArray(ecLen)
-	if _, err := ec.ReadFrom(buf); err != nil {
-		return err
-	}
-
-	d := encoding.NewEmptyOctetArray(dLen)
-	if _, err := d.ReadFrom(buf); err != nil {
-		return err
-	}
-
-	err = priv.UnmarshalIntegerSecret(ec.Bytes())
-	if err != nil {
-		return err
-	}
-
-	priv.SecretMldsa = priv.Mldsa.PrivateKeyFromBytes(d.Bytes())
-	if err := mldsa_ecdsa.Validate(priv); err != nil {
-		return err
-	}
-	pk.PrivateKey = priv
-
 	return nil
 }
 

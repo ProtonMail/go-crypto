@@ -514,20 +514,12 @@ const (
 	PubKeyAlgoRSASignOnly    PublicKeyAlgorithm = 3
 
 	// Experimental PQC KEM algorithms
-	PubKeyAlgoMlkem768X25519        = 105
-	PubKeyAlgoMlkem1024X448         = 106
-	PubKeyAlgoMlkem768P256          = 31
-	PubKeyAlgoMlkem1024P384         = 32
-	PubKeyAlgoMlkem768Brainpool256  = 33
-	PubKeyAlgoMlkem1024Brainpool384 = 34
+	PubKeyAlgoMlkem768X25519 = 105
+	PubKeyAlgoMlkem1024X448  = 106
 
 	// Experimental PQC DSA algorithms
-	PubKeyAlgoMldsa65Ed25519      = 107
-	PubKeyAlgoMldsa87Ed448        = 108
-	PubKeyAlgoMldsa65p256         = 37
-	PubKeyAlgoMldsa87p384         = 38
-	PubKeyAlgoMldsa65Brainpool256 = 39
-	PubKeyAlgoMldsa87Brainpool384 = 40
+	PubKeyAlgoMldsa65Ed25519 = 107
+	PubKeyAlgoMldsa87Ed448   = 108
 )
 
 // CanEncrypt returns true if it's possible to encrypt a message to a public
@@ -535,8 +527,7 @@ const (
 func (pka PublicKeyAlgorithm) CanEncrypt() bool {
 	switch pka {
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoElGamal, PubKeyAlgoECDH, PubKeyAlgoX25519, PubKeyAlgoX448, ExperimentalPubKeyAlgoAEAD,
-		PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem1024X448, PubKeyAlgoMlkem768P256, PubKeyAlgoMlkem1024P384,
-		PubKeyAlgoMlkem768Brainpool256, PubKeyAlgoMlkem1024Brainpool384:
+		PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem1024X448:
 		return true
 	}
 	return false
@@ -547,8 +538,7 @@ func (pka PublicKeyAlgorithm) CanEncrypt() bool {
 func (pka PublicKeyAlgorithm) CanSign() bool {
 	switch pka {
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA, PubKeyAlgoEd25519,
-		PubKeyAlgoEd448, ExperimentalPubKeyAlgoHMAC, PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448, PubKeyAlgoMldsa65p256,
-		PubKeyAlgoMldsa87p384, PubKeyAlgoMldsa65Brainpool256, PubKeyAlgoMldsa87Brainpool384:
+		PubKeyAlgoEd448, ExperimentalPubKeyAlgoHMAC, PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
 		return true
 	}
 	return false
