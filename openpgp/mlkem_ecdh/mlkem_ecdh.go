@@ -1,5 +1,5 @@
 // Package mlkem_ecdh implements hybrid ML-KEM + ECDH encryption, suitable for OpenPGP, experimental.
-// It follows the spec https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-composite-kem-schemes
+// It follows the spec https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-04.html#name-composite-kem-schemes
 package mlkem_ecdh
 
 import (
@@ -30,7 +30,7 @@ type PrivateKey struct {
 }
 
 // GenerateKey implements ML-KEM + ECC key generation as specified in
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-key-generation-procedure
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-04.html#name-key-generation-procedure
 func GenerateKey(rand io.Reader, algId uint8, c ecc.ECDHCurve, k kem.Scheme) (priv *PrivateKey, err error) {
 	priv = new(PrivateKey)
 
@@ -44,8 +44,8 @@ func GenerateKey(rand io.Reader, algId uint8, c ecc.ECDHCurve, k kem.Scheme) (pr
 	}
 
 	kyberSeed := make([]byte, k.SeedSize())
-	_, err = rand.Read(kyberSeed)
-	if err != nil {
+
+	if _, err = rand.Read(kyberSeed); err != nil {
 		return nil, err
 	}
 
@@ -54,7 +54,7 @@ func GenerateKey(rand io.Reader, algId uint8, c ecc.ECDHCurve, k kem.Scheme) (pr
 }
 
 // Encrypt implements ML-KEM + ECC encryption as specified in
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-encryption-procedure
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-04.html#name-encryption-procedure
 func Encrypt(rand io.Reader, pub *PublicKey, msg []byte) (kEphemeral, ecEphemeral, ciphertext []byte, err error) {
 	if len(msg) > 64 {
 		return nil, nil, nil, goerrors.New("mlkem_ecdh: session key too long")
@@ -95,7 +95,7 @@ func Encrypt(rand io.Reader, pub *PublicKey, msg []byte) (kEphemeral, ecEphemera
 }
 
 // Decrypt implements ML-KEM + ECC decryption as specified in
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-decryption-procedure
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-04.html#name-decryption-procedure
 func Decrypt(priv *PrivateKey, kEphemeral, ecEphemeral, ciphertext []byte) (msg []byte, err error) {
 	// EC shared secret derivation
 	ecSS, err := priv.PublicKey.Curve.Decaps(ecEphemeral, priv.SecretEc)
@@ -118,7 +118,7 @@ func Decrypt(priv *PrivateKey, kEphemeral, ecEphemeral, ciphertext []byte) (msg 
 }
 
 // buildKey implements the composite KDF as specified in
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-key-combiner
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-04.html#name-key-combiner
 func buildKey(pub *PublicKey, eccSecretPoint, eccEphemeral, eccPublicKey, mlkemKeyShare, mlkemEphemeral []byte, mlkemPublicKey kem.PublicKey) ([]byte, error) {
 	h := sha3.New256()
 
@@ -192,8 +192,11 @@ func EncodeFields(w io.Writer, ec, ml, encryptedSessionKey []byte, cipherFunctio
 		}
 	}
 
-	_, err = w.Write(encryptedSessionKey)
-	return err
+	if _, err = w.Write(encryptedSessionKey); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // DecodeFields decodes an ML-KEM + ECDH session key encryption fields as

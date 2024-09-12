@@ -586,7 +586,7 @@ func (pk *PublicKey) parseECDH(r io.Reader) (err error) {
 }
 
 // parseMlkemEcdh parses a ML-KEM + ECC public key as specified in
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-key-material-packets
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-04.html#name-key-material-packets
 func (pk *PublicKey) parseMlkemEcdh(r io.Reader, ecLen, kLen int) (err error) {
 	pk.p = encoding.NewEmptyOctetArray(ecLen)
 	if _, err = pk.p.ReadFrom(r); err != nil {
@@ -766,7 +766,7 @@ func readBindingHash(r io.Reader) (bindingHash [32]byte, err error) {
 }
 
 // parseMldsaEddsa parses a ML-DSA + EdDSA public key as specified in
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-key-material-packets-2
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-04.html#name-key-material-packets-2
 func (pk *PublicKey) parseMldsaEddsa(r io.Reader, ecLen, dLen int) (err error) {
 	pk.p = encoding.NewEmptyOctetArray(ecLen)
 	if _, err = pk.p.ReadFrom(r); err != nil {

@@ -1,5 +1,5 @@
 // Package mldsa_eddsa implements hybrid ML-DSA + EdDSA encryption, suitable for OpenPGP, experimental.
-// It follows the specs https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-composite-signature-schemes
+// It follows the specs https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-04.html#name-composite-signature-schemes
 package mldsa_eddsa
 
 import (
@@ -27,7 +27,7 @@ type PrivateKey struct {
 }
 
 // GenerateKey generates a ML-DSA + EdDSA composite key as specified in
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-key-generation-procedure-2
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-04.html#name-key-generation-procedure-2
 func GenerateKey(rand io.Reader, algId uint8, c ecc.EdDSACurve, d dilithium.Mode) (priv *PrivateKey, err error) {
 	priv = new(PrivateKey)
 
@@ -41,11 +41,14 @@ func GenerateKey(rand io.Reader, algId uint8, c ecc.EdDSACurve, d dilithium.Mode
 	}
 
 	priv.PublicKey.PublicMldsa, priv.SecretMldsa, err = priv.PublicKey.Mldsa.GenerateKey(rand)
-	return
+	if err != nil {
+		return nil, err
+	}
+	return priv, nil
 }
 
 // Sign generates a ML-DSA + EdDSA composite signature as specified in
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-signature-generation
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-04.html#name-signature-generation
 func Sign(priv *PrivateKey, message []byte) (dSig, ecSig []byte, err error) {
 	ecSig, err = priv.PublicKey.Curve.Sign(priv.PublicKey.PublicPoint, priv.SecretEc, message)
 	if err != nil {
@@ -57,11 +60,11 @@ func Sign(priv *PrivateKey, message []byte) (dSig, ecSig []byte, err error) {
 		return nil, nil, goerrors.New("mldsa_eddsa: unable to sign with ML-DSA")
 	}
 
-	return
+	return dSig, ecSig, nil
 }
 
 // Verify verifies a ML-DSA + EdDSA composite signature as specified in
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-signature-verification
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-04.html#name-signature-verification
 func Verify(pub *PublicKey, message, dSig, ecSig []byte) bool {
 	return pub.Curve.Verify(pub.PublicPoint, message, ecSig) && pub.Mldsa.Verify(pub.PublicMldsa, message, dSig)
 }
@@ -81,5 +84,5 @@ func Validate(priv *PrivateKey) (err error) {
 	if subtle.ConstantTimeCompare(priv.PublicMldsa.Bytes(), casted.Bytes()) == 0 {
 		return errors.KeyInvalidError("mldsa_eddsa: invalid public key")
 	}
-	return
+	return nil
 }

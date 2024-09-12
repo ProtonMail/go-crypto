@@ -565,7 +565,7 @@ func serializeHMACPrivateKey(w io.Writer, priv *symmetric.HMACPrivateKey) (err e
 }
 
 // serializeMlkemPrivateKey serializes a ML-KEM + ECC private key according to
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-key-material-packets
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-04.html#name-key-material-packets
 func serializeMlkemPrivateKey(w io.Writer, priv *mlkem_ecdh.PrivateKey) (err error) {
 	var kyberBin []byte
 	if kyberBin, err = priv.SecretMlkem.MarshalBinary(); err != nil {
@@ -579,7 +579,7 @@ func serializeMlkemPrivateKey(w io.Writer, priv *mlkem_ecdh.PrivateKey) (err err
 }
 
 // serializeMldsaEddsaPrivateKey serializes a ML-DSA + EdDSA private key according to
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-key-material-packets-2
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-04.html#name-key-material-packets-2
 func serializeMldsaEddsaPrivateKey(w io.Writer, priv *mldsa_eddsa.PrivateKey) error {
 	if _, err := w.Write(encoding.NewOctetArray(priv.SecretEc).EncodedBytes()); err != nil {
 		return err
@@ -1260,7 +1260,7 @@ func validateCommonSymmetric(seed [32]byte, bindingHash [32]byte) error {
 }
 
 // parseMldsaEddsaPrivateKey parses a ML-DSA + EdDSA private key as specified in
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-key-material-packets-2
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-04.html#name-key-material-packets-2
 func (pk *PrivateKey) parseMldsaEddsaPrivateKey(data []byte, ecLen, dLen int) (err error) {
 	if pk.Version != 6 {
 		return goerrors.New("openpgp: cannot parse non-v6 ML-DSA + EdDSA key")
@@ -1291,7 +1291,7 @@ func (pk *PrivateKey) parseMldsaEddsaPrivateKey(data []byte, ecLen, dLen int) (e
 }
 
 // parseMlkemEcdhPrivateKey parses a ML-KEM + ECC private key as specified in
-// https://www.ietf.org/archive/id/draft-wussler-openpgp-pqc-03.html#name-key-material-packets
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-04.html#name-key-material-packets
 func (pk *PrivateKey) parseMlkemEcdhPrivateKey(data []byte, ecLen, kLen int) (err error) {
 	pub := pk.PublicKey.PublicKey.(*mlkem_ecdh.PublicKey)
 	priv := new(mlkem_ecdh.PrivateKey)
