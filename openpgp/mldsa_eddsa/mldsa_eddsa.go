@@ -39,10 +39,13 @@ func GenerateKey(rand io.Reader, algId uint8, c ecc.EdDSACurve, d sign.Scheme) (
 		return nil, err
 	}
 
-	priv.PublicKey.PublicMldsa, priv.SecretMldsa, err = priv.PublicKey.Mldsa.GenerateKey()
-	if err != nil {
+	keySeed := make([]byte, d.SeedSize())
+	if _, err = rand.Read(keySeed); err != nil {
 		return nil, err
 	}
+
+	priv.PublicKey.PublicMldsa, priv.SecretMldsa = priv.PublicKey.Mldsa.DeriveKey(keySeed)
+
 	return priv, nil
 }
 
