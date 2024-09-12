@@ -3,32 +3,31 @@
 package mldsa_eddsa
 
 import (
-	"crypto/subtle"
 	goerrors "errors"
 	"io"
 
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
-	"github.com/cloudflare/circl/sign/dilithium"
+	"github.com/cloudflare/circl/sign"
 )
 
 type PublicKey struct {
 	AlgId       uint8
 	Curve       ecc.EdDSACurve
-	Mldsa       dilithium.Mode
+	Mldsa       sign.Scheme
 	PublicPoint []byte
-	PublicMldsa dilithium.PublicKey
+	PublicMldsa sign.PublicKey
 }
 
 type PrivateKey struct {
 	PublicKey
 	SecretEc    []byte
-	SecretMldsa dilithium.PrivateKey
+	SecretMldsa sign.PrivateKey
 }
 
 // GenerateKey generates a ML-DSA + EdDSA composite key as specified in
 // https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-04.html#name-key-generation-procedure-2
-func GenerateKey(rand io.Reader, algId uint8, c ecc.EdDSACurve, d dilithium.Mode) (priv *PrivateKey, err error) {
+func GenerateKey(rand io.Reader, algId uint8, c ecc.EdDSACurve, d sign.Scheme) (priv *PrivateKey, err error) {
 	priv = new(PrivateKey)
 
 	priv.PublicKey.AlgId = algId
@@ -40,7 +39,7 @@ func GenerateKey(rand io.Reader, algId uint8, c ecc.EdDSACurve, d dilithium.Mode
 		return nil, err
 	}
 
-	priv.PublicKey.PublicMldsa, priv.SecretMldsa, err = priv.PublicKey.Mldsa.GenerateKey(rand)
+	priv.PublicKey.PublicMldsa, priv.SecretMldsa, err = priv.PublicKey.Mldsa.GenerateKey()
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +54,7 @@ func Sign(priv *PrivateKey, message []byte) (dSig, ecSig []byte, err error) {
 		return nil, nil, err
 	}
 
-	dSig = priv.PublicKey.Mldsa.Sign(priv.SecretMldsa, message)
+	dSig = priv.PublicKey.Mldsa.Sign(priv.SecretMldsa, message, nil)
 	if dSig == nil {
 		return nil, nil, goerrors.New("mldsa_eddsa: unable to sign with ML-DSA")
 	}
@@ -66,7 +65,7 @@ func Sign(priv *PrivateKey, message []byte) (dSig, ecSig []byte, err error) {
 // Verify verifies a ML-DSA + EdDSA composite signature as specified in
 // https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-04.html#name-signature-verification
 func Verify(pub *PublicKey, message, dSig, ecSig []byte) bool {
-	return pub.Curve.Verify(pub.PublicPoint, message, ecSig) && pub.Mldsa.Verify(pub.PublicMldsa, message, dSig)
+	return pub.Curve.Verify(pub.PublicPoint, message, ecSig) && pub.Mldsa.Verify(pub.PublicMldsa, message, dSig, nil)
 }
 
 // Validate checks that the public key corresponds to the private key
@@ -75,14 +74,9 @@ func Validate(priv *PrivateKey) (err error) {
 		return err
 	}
 
-	pub := priv.SecretMldsa.Public()
-	casted, ok := pub.(dilithium.PublicKey)
-	if !ok {
+	if !priv.PublicMldsa.Equal(priv.SecretMldsa.Public()) {
 		return errors.KeyInvalidError("mldsa_eddsa: invalid public key")
 	}
 
-	if subtle.ConstantTimeCompare(priv.PublicMldsa.Bytes(), casted.Bytes()) == 0 {
-		return errors.KeyInvalidError("mldsa_eddsa: invalid public key")
-	}
 	return nil
 }

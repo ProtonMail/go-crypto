@@ -24,7 +24,9 @@ import (
 	"github.com/cloudflare/circl/kem"
 	"github.com/cloudflare/circl/kem/mlkem/mlkem1024"
 	"github.com/cloudflare/circl/kem/mlkem/mlkem768"
-	"github.com/cloudflare/circl/sign/dilithium"
+	"github.com/cloudflare/circl/sign"
+	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
+	"github.com/cloudflare/circl/sign/mldsa/mldsa87"
 
 	"github.com/ProtonMail/go-crypto/openpgp/ecdh"
 	"github.com/ProtonMail/go-crypto/openpgp/ecdsa"
@@ -301,13 +303,17 @@ func NewMlkemEcdhPublicKey(creationTime time.Time, pub *mlkem_ecdh.PublicKey) *P
 }
 
 func NewMldsaEddsaPublicKey(creationTime time.Time, pub *mldsa_eddsa.PublicKey) *PublicKey {
+	publicKeyBytes, err := pub.PublicMldsa.MarshalBinary()
+	if err != nil {
+		panic(err)
+	}
 	pk := &PublicKey{
 		Version:      6,
 		CreationTime: creationTime,
 		PubKeyAlgo:   PublicKeyAlgorithm(pub.AlgId),
 		PublicKey:    pub,
 		p:            encoding.NewOctetArray(pub.PublicPoint),
-		q:            encoding.NewOctetArray(pub.PublicMldsa.Bytes()),
+		q:            encoding.NewOctetArray(publicKeyBytes),
 	}
 
 	pk.setFingerprintAndKeyId()
@@ -373,9 +379,9 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 	case PubKeyAlgoMlkem1024X448:
 		err = pk.parseMlkemEcdh(r, 56, mlkem1024.PublicKeySize)
 	case PubKeyAlgoMldsa65Ed25519:
-		err = pk.parseMldsaEddsa(r, 32, dilithium.MLDSA65.PublicKeySize())
+		err = pk.parseMldsaEddsa(r, 32, mldsa65.PublicKeySize)
 	case PubKeyAlgoMldsa87Ed448:
-		err = pk.parseMldsaEddsa(r, 57, dilithium.MLDSA87.PublicKeySize())
+		err = pk.parseMldsaEddsa(r, 57, mldsa87.PublicKeySize)
 	default:
 		err = errors.UnsupportedError("public key type: " + strconv.Itoa(int(pk.PubKeyAlgo)))
 	}
@@ -791,7 +797,9 @@ func (pk *PublicKey) parseMldsaEddsa(r io.Reader, ecLen, dLen int) (err error) {
 		return err
 	}
 
-	pub.PublicMldsa = pub.Mldsa.PublicKeyFromBytes(pk.q.Bytes())
+	if pub.PublicMldsa, err = pub.Mldsa.UnmarshalBinaryPublicKey(pk.q.Bytes()); err != nil {
+		return err
+	}
 
 	pk.PublicKey = pub
 	return
@@ -1427,12 +1435,12 @@ func GetEdDSACurveFromAlgID(algId PublicKeyAlgorithm) (ecc.EdDSACurve, error) {
 	}
 }
 
-func GetMldsaFromAlgID(algId PublicKeyAlgorithm) (dilithium.Mode, error) {
+func GetMldsaFromAlgID(algId PublicKeyAlgorithm) (sign.Scheme, error) {
 	switch algId {
 	case PubKeyAlgoMldsa65Ed25519:
-		return dilithium.MLDSA65, nil
+		return mldsa65.Scheme(), nil
 	case PubKeyAlgoMldsa87Ed448:
-		return dilithium.MLDSA87, nil
+		return mldsa87.Scheme(), nil
 	default:
 		return nil, goerrors.New("packet: unsupported ML-DSA public key algorithm")
 	}

@@ -15,7 +15,8 @@ import (
 	"time"
 
 	"github.com/ProtonMail/go-crypto/openpgp/mldsa_eddsa"
-	"github.com/cloudflare/circl/sign/dilithium"
+	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
+	"github.com/cloudflare/circl/sign/mldsa/mldsa87"
 
 	"github.com/ProtonMail/go-crypto/openpgp/ecdsa"
 	"github.com/ProtonMail/go-crypto/openpgp/ed25519"
@@ -324,11 +325,11 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 			return
 		}
 	case PubKeyAlgoMldsa65Ed25519:
-		if err = sig.parseMldsaEddsaSignature(r, 64, dilithium.MLDSA65.SignatureSize()); err != nil {
+		if err = sig.parseMldsaEddsaSignature(r, 64, mldsa65.SignatureSize); err != nil {
 			return
 		}
 	case PubKeyAlgoMldsa87Ed448:
-		if err = sig.parseMldsaEddsaSignature(r, 114, dilithium.MLDSA87.SignatureSize()); err != nil {
+		if err = sig.parseMldsaEddsaSignature(r, 114, mldsa87.SignatureSize); err != nil {
 			return
 		}
 	default:

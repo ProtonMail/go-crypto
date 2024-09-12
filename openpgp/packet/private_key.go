@@ -23,7 +23,8 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/mldsa_eddsa"
 	"github.com/cloudflare/circl/kem/mlkem/mlkem1024"
 	"github.com/cloudflare/circl/kem/mlkem/mlkem768"
-	"github.com/cloudflare/circl/sign/dilithium"
+	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
+	"github.com/cloudflare/circl/sign/mldsa/mldsa87"
 
 	"github.com/ProtonMail/go-crypto/openpgp/ecdh"
 	"github.com/ProtonMail/go-crypto/openpgp/ecdsa"
@@ -584,8 +585,14 @@ func serializeMldsaEddsaPrivateKey(w io.Writer, priv *mldsa_eddsa.PrivateKey) er
 	if _, err := w.Write(encoding.NewOctetArray(priv.SecretEc).EncodedBytes()); err != nil {
 		return err
 	}
-	_, err := w.Write(encoding.NewOctetArray(priv.SecretMldsa.Bytes()).EncodedBytes())
-	return err
+	bin, err := priv.SecretMldsa.MarshalBinary()
+	if err != nil {
+		return err
+	}
+	if _, err = w.Write(encoding.NewOctetArray(bin).EncodedBytes()); err != nil {
+		return err
+	}
+	return nil
 }
 
 // decrypt decrypts an encrypted private key using a decryption key.
@@ -933,9 +940,9 @@ func (pk *PrivateKey) parsePrivateKey(data []byte) (err error) {
 	case PubKeyAlgoMlkem1024X448:
 		return pk.parseMlkemEcdhPrivateKey(data, 56, mlkem1024.PrivateKeySize)
 	case PubKeyAlgoMldsa65Ed25519:
-		return pk.parseMldsaEddsaPrivateKey(data, 32, dilithium.MLDSA65.PrivateKeySize())
+		return pk.parseMldsaEddsaPrivateKey(data, 32, mldsa65.PrivateKeySize)
 	case PubKeyAlgoMldsa87Ed448:
-		return pk.parseMldsaEddsaPrivateKey(data, 57, dilithium.MLDSA87.PrivateKeySize())
+		return pk.parseMldsaEddsaPrivateKey(data, 57, mldsa87.PrivateKeySize)
 	default:
 		err = errors.StructuralError("unknown private key type")
 		return
@@ -1281,7 +1288,10 @@ func (pk *PrivateKey) parseMldsaEddsaPrivateKey(data []byte, ecLen, dLen int) (e
 	}
 
 	priv.SecretEc = ec.Bytes()
-	priv.SecretMldsa = priv.Mldsa.PrivateKeyFromBytes(d.Bytes())
+	priv.SecretMldsa, err = priv.Mldsa.UnmarshalBinaryPrivateKey(d.Bytes())
+	if err != nil {
+		return err
+	}
 	if err := mldsa_eddsa.Validate(priv); err != nil {
 		return err
 	}

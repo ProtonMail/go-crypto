@@ -264,9 +264,14 @@ func TestGeneratePqKey(t *testing.T) {
 			}
 
 			if pk, ok := read.PrivateKey.PublicKey.PublicKey.(*mldsa_eddsa.PublicKey); ok {
-				bin := pk.PublicMldsa.Bytes()
+				bin, err := pk.PublicMldsa.MarshalBinary()
+				if err != nil {
+					t.Fatal(err)
+				}
 				bin[5] ^= 1
-				pk.PublicMldsa = pk.Mldsa.PublicKeyFromBytes(bin)
+				if pk.PublicMldsa, err = pk.Mldsa.UnmarshalBinaryPublicKey(bin); err != nil {
+					t.Fatal(err)
+				}
 			}
 
 			err = read.PrivateKey.Decrypt(randomPassword)

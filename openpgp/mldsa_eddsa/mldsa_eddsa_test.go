@@ -31,9 +31,15 @@ func testvalidateAlgo(t *testing.T, algId packet.PublicKeyAlgorithm) {
 		t.Fatalf("valid key marked as invalid: %s", err)
 	}
 
-	bin := key.PublicMldsa.Bytes()
+	bin, err := key.PublicMldsa.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
 	bin[5] ^= 1
-	key.PublicMldsa = key.Mldsa.PublicKeyFromBytes(bin)
+	key.PublicMldsa, err = key.Mldsa.UnmarshalBinaryPublicKey(bin) //PublicKeyFromBytes(bin)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if err := mldsa_eddsa.Validate(key); err == nil {
 		t.Fatalf("failed to detect invalid key")

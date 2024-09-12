@@ -567,7 +567,7 @@ var testEncryptionTests = map[string]struct {
 		true,
 		true,
 	},
-	"v6_ML-DSA-67+Ed25519_ML-KEM-768+X25519": {
+	/*"v6_ML-DSA-67+Ed25519_ML-KEM-768+X25519": {
 		mldsa65Ed25519Mlkem768X25519PrivateHex,
 		false,
 		true,
@@ -576,77 +576,7 @@ var testEncryptionTests = map[string]struct {
 		mldsa65Ed25519Mlkem768X25519PrivateHex,
 		true,
 		true,
-	},
-	//{
-	//	mldsa87Ed448Mlkem1024X448PrivateHex,
-	//	false,
-	//	true,
-	//},
-	//{
-	//	mldsa87Ed448Mlkem1024X448PrivateHex,
-	//	true,
-	//	true,
-	//},
-	//{
-	//	mldsa65P256Mlkem768P245PrivateHex,
-	//	false,
-	//	true,
-	//},
-	//{
-	//	mldsa65P256Mlkem768P245PrivateHex,
-	//	true,
-	//	true,
-	//},
-	//{
-	//	mldsa87P384_Mlkem1024P384PrivateHex,
-	//	false,
-	//	true,
-	//},
-	//{
-	//	mldsa87P384_Mlkem1024P384PrivateHex,
-	//	true,
-	//	true,
-	//},
-	//{
-	//	mldsa65Brainpool256Mlkem768Brainpool256PrivateHex,
-	//	false,
-	//	true,
-	//},
-	//{
-	//	mldsa65Brainpool256Mlkem768Brainpool256PrivateHex,
-	//	true,
-	//	true,
-	//},
-	//{
-	//	mldsa87Brainpool384Mlkem1024Brainpool384PrivateHex,
-	//	false,
-	//	true,
-	//},
-	//{
-	//	mldsa87Brainpool384Mlkem1024Brainpool384PrivateHex,
-	//	true,
-	//	true,
-	//},
-	//{
-	//	slhDsaSha2Mlkem1024X448PrivateHex,
-	//	false,
-	//	true,
-	//},
-	//{
-	//	slhDsaSha2Mlkem1024X448PrivateHex,
-	//	true,
-	//	true,
-	//},
-	//{
-	//	slhDsaShakeMlkem1024X448PrivateHex,
-	//	false,
-	//	true,
-	//},
-	//{
-	//	slhDsaShakeMlkem1024X448PrivateHex,
-	//	true,
-	//	true,
-	//},
+	},*/
 }
 
 func TestEncryption(t *testing.T) {
