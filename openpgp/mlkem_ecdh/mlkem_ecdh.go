@@ -4,10 +4,10 @@ package mlkem_ecdh
 
 import (
 	goerrors "errors"
-	"fmt"
+	"io"
+
 	"github.com/ProtonMail/go-crypto/openpgp/internal/encoding"
 	"golang.org/x/crypto/sha3"
-	"io"
 
 	"github.com/ProtonMail/go-crypto/openpgp/aes/keywrap"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
@@ -16,9 +16,9 @@ import (
 )
 
 type PublicKey struct {
-	AlgId uint8
-	Curve ecc.ECDHCurve
-	Mlkem kem.Scheme
+	AlgId       uint8
+	Curve       ecc.ECDHCurve
+	Mlkem       kem.Scheme
 	PublicMlkem kem.PublicKey
 	PublicPoint []byte
 }
@@ -60,7 +60,7 @@ func Encrypt(rand io.Reader, pub *PublicKey, msg []byte) (kEphemeral, ecEphemera
 		return nil, nil, nil, goerrors.New("mlkem_ecdh: session key too long")
 	}
 
-	if len(msg) % 8 != 0 {
+	if len(msg)%8 != 0 {
 		return nil, nil, nil, goerrors.New("mlkem_ecdh: session key not a multiple of 8")
 	}
 
@@ -114,11 +114,7 @@ func Decrypt(priv *PrivateKey, kEphemeral, ecEphemeral, ciphertext []byte) (msg 
 		return nil, err
 	}
 
-	msg, err = keywrap.Unwrap(kek, ciphertext)
-
-	fmt.Printf("kek:%x\nsk:%x\n", kek, msg)
-
-	return msg, err
+	return keywrap.Unwrap(kek, ciphertext)
 }
 
 // buildKey implements the composite KDF as specified in
@@ -152,8 +148,6 @@ func buildKey(pub *PublicKey, eccSecretPoint, eccEphemeral, eccPublicKey, mlkemK
 	_, _ = k.Write(serializedMlkemKey)
 	_, _ = k.Write([]byte{pub.AlgId})
 	_, _ = k.Write([]byte("OpenPGPCompositeKDFv1"))
-
-	fmt.Printf("ecc:%x\nkyber:%x\n", eccKeyShare, mlkemKeyShare)
 
 	return k.Sum(nil), nil
 }
