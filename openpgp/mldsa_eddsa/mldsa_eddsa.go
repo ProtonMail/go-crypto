@@ -13,7 +13,7 @@ import (
 )
 
 type PublicKey struct {
-	AlgId uint8
+	AlgId       uint8
 	Curve       ecc.EdDSACurve
 	Mldsa       dilithium.Mode
 	PublicPoint []byte
@@ -22,7 +22,7 @@ type PublicKey struct {
 
 type PrivateKey struct {
 	PublicKey
-	SecretEc []byte
+	SecretEc    []byte
 	SecretMldsa dilithium.PrivateKey
 }
 

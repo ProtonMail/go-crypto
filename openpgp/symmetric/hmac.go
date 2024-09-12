@@ -11,7 +11,7 @@ import (
 )
 
 type HMACPublicKey struct {
-	Hash algorithm.Hash
+	Hash        algorithm.Hash
 	BindingHash [32]byte
 	// While this is a "public" key, the symmetric key needs to be present here.
 	// Symmetric cryptographic operations use the same key material for
@@ -23,8 +23,8 @@ type HMACPublicKey struct {
 
 type HMACPrivateKey struct {
 	PublicKey HMACPublicKey
-	HashSeed [32]byte
-	Key []byte
+	HashSeed  [32]byte
+	Key       []byte
 }
 
 func HMACGenerateKey(rand io.Reader, hash algorithm.Hash) (priv *HMACPrivateKey, err error) {
@@ -39,7 +39,7 @@ func HMACGenerateKey(rand io.Reader, hash algorithm.Hash) (priv *HMACPrivateKey,
 
 func generatePrivatePartHMAC(rand io.Reader, hash algorithm.Hash) (priv *HMACPrivateKey, err error) {
 	priv = new(HMACPrivateKey)
-	var seed [32] byte
+	var seed [32]byte
 	_, err = rand.Read(seed[:])
 	if err != nil {
 		return

@@ -57,7 +57,7 @@ func (c *genericCurve) UnmarshalIntegerSecret(d []byte) *big.Int {
 }
 
 func (c *genericCurve) MarshalFieldInteger(i *big.Int) (b []byte) {
-	b = make([]byte, (c.Curve.Params().BitSize + 7) / 8)
+	b = make([]byte, (c.Curve.Params().BitSize+7)/8)
 	return i.FillBytes(b)
 }
 

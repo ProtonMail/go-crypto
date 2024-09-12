@@ -6,15 +6,15 @@ import (
 )
 
 type AEADPublicKey struct {
-	Cipher algorithm.CipherFunction
+	Cipher      algorithm.CipherFunction
 	BindingHash [32]byte
-	Key []byte
+	Key         []byte
 }
 
 type AEADPrivateKey struct {
 	PublicKey AEADPublicKey
-	HashSeed [32]byte
-	Key []byte
+	HashSeed  [32]byte
+	Key       []byte
 }
 
 func AEADGenerateKey(rand io.Reader, cipher algorithm.CipherFunction) (priv *AEADPrivateKey, err error) {
@@ -29,7 +29,7 @@ func AEADGenerateKey(rand io.Reader, cipher algorithm.CipherFunction) (priv *AEA
 
 func generatePrivatePartAEAD(rand io.Reader, cipher algorithm.CipherFunction) (priv *AEADPrivateKey, err error) {
 	priv = new(AEADPrivateKey)
-	var seed [32] byte
+	var seed [32]byte
 	_, err = rand.Read(seed[:])
 	if err != nil {
 		return
@@ -73,4 +73,3 @@ func (priv *AEADPrivateKey) Decrypt(nonce []byte, ciphertext []byte, mode algori
 	message, err = aead.Open(nil, nonce, ciphertext, nil)
 	return
 }
-

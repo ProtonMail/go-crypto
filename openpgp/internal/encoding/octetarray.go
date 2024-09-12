@@ -11,21 +11,21 @@ import (
 // OctetArray is used to store a fixed-length field
 type OctetArray struct {
 	length int
-	bytes []byte
+	bytes  []byte
 }
 
 // NewOctetArray returns a OID initialized with bytes.
 func NewOctetArray(bytes []byte) *OctetArray {
 	return &OctetArray{
 		length: len(bytes),
-		bytes: bytes,
+		bytes:  bytes,
 	}
 }
 
 func NewEmptyOctetArray(length int) *OctetArray {
 	return &OctetArray{
 		length: length,
-		bytes: nil,
+		bytes:  nil,
 	}
 }
 

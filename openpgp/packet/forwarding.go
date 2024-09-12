@@ -4,7 +4,7 @@ import "encoding/binary"
 
 // ForwardingInstance represents a single forwarding instance (mapping IDs to a Proxy Param)
 type ForwardingInstance struct {
-	KeyVersion int
+	KeyVersion           int
 	ForwarderFingerprint []byte
 	ForwardeeFingerprint []byte
 	ProxyParameter       []byte

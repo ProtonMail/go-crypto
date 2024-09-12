@@ -12,9 +12,9 @@ import (
 )
 
 func TestSignVerify(t *testing.T) {
-	asymmAlgos := map[string] packet.PublicKeyAlgorithm {
-		"ML-DSA3_P256": packet.PubKeyAlgoMldsa65p256,
-		"ML-DSA5_P384": packet.PubKeyAlgoMldsa87p384,
+	asymmAlgos := map[string]packet.PublicKeyAlgorithm{
+		"ML-DSA3_P256":         packet.PubKeyAlgoMldsa65p256,
+		"ML-DSA5_P384":         packet.PubKeyAlgoMldsa87p384,
 		"ML-DSA3_Brainpool256": packet.PubKeyAlgoMldsa65Brainpool256,
 		"ML-DSA5_Brainpool384": packet.PubKeyAlgoMldsa87Brainpool384,
 	}
@@ -72,7 +72,6 @@ func testGenerateKeyAlgo(t *testing.T, algId packet.PublicKeyAlgorithm) *mldsa_e
 
 	return priv
 }
-
 
 func testSignVerifyAlgo(t *testing.T, priv *mldsa_ecdsa.PrivateKey) {
 	digest := make([]byte, 32)

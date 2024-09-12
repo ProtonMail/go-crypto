@@ -11,16 +11,16 @@ import (
 )
 
 func TestEncryptDecrypt(t *testing.T) {
-	asymmAlgos := map[string] packet.PublicKeyAlgorithm {
-		"Mlkem768_X25519": packet.PubKeyAlgoMlkem768X25519,
-		"Mlkem1024_X448": packet.PubKeyAlgoMlkem1024X448,
-		"Mlkem768_P256": packet.PubKeyAlgoMlkem768P256,
-		"Mlkem1024_P384":packet.PubKeyAlgoMlkem1024P384,
-		"Mlkem768_Brainpool256": packet.PubKeyAlgoMlkem768Brainpool256,
-		"Mlkem1024_Brainpool384":packet.PubKeyAlgoMlkem1024Brainpool384,
+	asymmAlgos := map[string]packet.PublicKeyAlgorithm{
+		"Mlkem768_X25519":        packet.PubKeyAlgoMlkem768X25519,
+		"Mlkem1024_X448":         packet.PubKeyAlgoMlkem1024X448,
+		"Mlkem768_P256":          packet.PubKeyAlgoMlkem768P256,
+		"Mlkem1024_P384":         packet.PubKeyAlgoMlkem1024P384,
+		"Mlkem768_Brainpool256":  packet.PubKeyAlgoMlkem768Brainpool256,
+		"Mlkem1024_Brainpool384": packet.PubKeyAlgoMlkem1024Brainpool384,
 	}
 
-	symmAlgos := map[string] algorithm.Cipher {
+	symmAlgos := map[string]algorithm.Cipher{
 		"AES-128": algorithm.AES128,
 		"AES-192": algorithm.AES192,
 		"AES-256": algorithm.AES256,
@@ -62,7 +62,7 @@ func testvalidateAlgo(t *testing.T, algId packet.PublicKeyAlgorithm) {
 	if err := mlkem_ecdh.Validate(key); err != nil {
 		t.Fatalf("valid key marked as invalid: %s", err)
 	}
-	
+
 	key.PublicPoint[5] ^= 1
 	if err := mlkem_ecdh.Validate(key); err == nil {
 		t.Fatalf("failed to detect invalid key")
@@ -84,7 +84,7 @@ func testGenerateKeyAlgo(t *testing.T, algId packet.PublicKeyAlgorithm) *mlkem_e
 	if err != nil {
 		t.Fatal(err)
 	}
-	
+
 	return priv
 }
 

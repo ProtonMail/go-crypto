@@ -2087,9 +2087,9 @@ TxGVotQ4A/0u0VbOMEUfnrI8Fms=
 }
 func TestAddV4MlkemSubkey(t *testing.T) {
 	eddsaConfig := &packet.Config{
-		DefaultHash: crypto.SHA512,
-		Algorithm:   packet.PubKeyAlgoEdDSA,
-		V6Keys:      false,
+		DefaultHash:   crypto.SHA512,
+		Algorithm:     packet.PubKeyAlgoEdDSA,
+		V6Keys:        false,
 		DefaultCipher: packet.CipherAES256,
 		Time: func() time.Time {
 			parsed, _ := time.Parse("2006-01-02", "2013-07-01")

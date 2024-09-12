@@ -14,16 +14,16 @@ import (
 )
 
 type PublicKey struct {
-	AlgId uint8
-	Curve ecc.ECDSACurve
-	Mldsa dilithium.Mode
-	X, Y  *big.Int
+	AlgId       uint8
+	Curve       ecc.ECDSACurve
+	Mldsa       dilithium.Mode
+	X, Y        *big.Int
 	PublicMldsa dilithium.PublicKey
 }
 
 type PrivateKey struct {
 	PublicKey
-	SecretEc *big.Int
+	SecretEc    *big.Int
 	SecretMldsa dilithium.PrivateKey
 }
 

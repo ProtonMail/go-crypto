@@ -941,13 +941,12 @@ func TestReadV5Messages(t *testing.T) {
 	}
 }
 
-
 var pqcDraftVectors = map[string]struct {
 	armoredPrivateKey string
-	armoredPublicKey string
-	fingerprints []string
-	armoredMessages []string
-	v6 bool
+	armoredPublicKey  string
+	fingerprints      []string
+	armoredMessages   []string
+	v6                bool
 }{
 	"v4_Ed25519_ML-KEM-768+X25519": {
 		v4Ed25519Mlkem768X25519PrivateTestVector,
@@ -955,7 +954,6 @@ var pqcDraftVectors = map[string]struct {
 		[]string{"b2e9b532d55bd6287ec79e17c62adc0ddd1edd73", "95bed3c63f295e7b980b6a2b93b3233faf28c9d2", "bd67d98388813e88bf3490f3e440cfbaffd6f357"},
 		[]string{v4Ed25519Mlkem768X25519PrivateV1MessageTestVector, v4Ed25519Mlkem768X25519PrivateV2MessageTestVector},
 		false,
-
 	},
 	"v6_Ed25519_ML-KEM-768+X25519": {
 		v6Ed25519Mlkem768X25519PrivateTestVector,
@@ -979,8 +977,8 @@ func TestPqcDraftVectors(t *testing.T) {
 				t.Errorf("Expected 1 entity, found %d", len(secretKey))
 			}
 
-			if len(secretKey[0].Subkeys) != len(test.fingerprints) - 1 {
-				t.Errorf("Expected %d subkey, found %d", len(test.fingerprints) - 1, len(secretKey[0].Subkeys))
+			if len(secretKey[0].Subkeys) != len(test.fingerprints)-1 {
+				t.Errorf("Expected %d subkey, found %d", len(test.fingerprints)-1, len(secretKey[0].Subkeys))
 			}
 
 			if hex.EncodeToString(secretKey[0].PrimaryKey.Fingerprint) != test.fingerprints[0] {
@@ -988,7 +986,7 @@ func TestPqcDraftVectors(t *testing.T) {
 			}
 
 			for i, subkey := range secretKey[0].Subkeys {
-				if hex.EncodeToString(subkey.PublicKey.Fingerprint) != test.fingerprints[i+1]{
+				if hex.EncodeToString(subkey.PublicKey.Fingerprint) != test.fingerprints[i+1] {
 					t.Errorf("Expected subkey %d fingerprint %s, got %x", i, test.fingerprints[i+1], subkey.PublicKey.Fingerprint)
 				}
 			}
@@ -1012,7 +1010,7 @@ func TestPqcDraftVectors(t *testing.T) {
 			}
 
 			for i, armoredMessage := range test.armoredMessages {
-				t.Run("Decrypt_message_" + strconv.Itoa(i), func(t *testing.T) {
+				t.Run("Decrypt_message_"+strconv.Itoa(i), func(t *testing.T) {
 					msgReader, err := armor.Decode(strings.NewReader(armoredMessage))
 					if err != nil {
 						t.Error(err)

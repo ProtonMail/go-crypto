@@ -522,7 +522,7 @@ func TestSymmetricEncryptionSEIPDv2RandomizeSlow(t *testing.T) {
 	}
 }
 
-var testEncryptionTests = map[string] struct {
+var testEncryptionTests = map[string]struct {
 	keyRingHex string
 	isSigned   bool
 	okV6       bool

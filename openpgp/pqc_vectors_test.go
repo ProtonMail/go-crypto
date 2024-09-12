@@ -61,7 +61,7 @@ func encryptPqcMessageVector(t *testing.T, filename string, entity *Entity, conf
 		t.Fatalf("Failed to init armoring: %s", err)
 	}
 
-	w, err := Encrypt(serializedMessage, []*Entity{entity},nil, nil /* no hints */, config)
+	w, err := Encrypt(serializedMessage, []*Entity{entity}, nil, nil /* no hints */, config)
 	if err != nil {
 		t.Fatalf("Error in Encrypt: %s", err)
 	}
@@ -138,10 +138,10 @@ func TestV4EddsaPqKey(t *testing.T) {
 
 	var configV1 = &packet.Config{
 		DefaultCipher: packet.CipherAES256,
-		AEADConfig: nil,
+		AEADConfig:    nil,
 	}
 
-	encryptPqcMessageVector(t, "v4-eddsa-sample-message-v1.asc", entity, configV1,true)
+	encryptPqcMessageVector(t, "v4-eddsa-sample-message-v1.asc", entity, configV1, true)
 
 	var configV2 = &packet.Config{
 		DefaultCipher: packet.CipherAES256,
@@ -150,9 +150,8 @@ func TestV4EddsaPqKey(t *testing.T) {
 		},
 	}
 
-	encryptPqcMessageVector(t, "v4-eddsa-sample-message-v2.asc", entity, configV2,false)
+	encryptPqcMessageVector(t, "v4-eddsa-sample-message-v2.asc", entity, configV2, false)
 }
-
 
 func TestV6EddsaPqKey(t *testing.T) {
 	//eddsaConfig := &packet.Config{
@@ -213,5 +212,5 @@ func TestV6EddsaPqKey(t *testing.T) {
 		},
 	}
 
-	encryptPqcMessageVector(t, "v6-eddsa-sample-message-v2.asc", entity, configV2,false)
+	encryptPqcMessageVector(t, "v6-eddsa-sample-message-v2.asc", entity, configV2, false)
 }
