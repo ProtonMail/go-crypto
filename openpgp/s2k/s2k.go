@@ -199,8 +199,8 @@ func Generate(rand io.Reader, c *Config) (*Params, error) {
 		}
 
 		params = &Params{
-			mode:      SaltedS2K,
-			hashId:    hashId,
+			mode:   SaltedS2K,
+			hashId: hashId,
 		}
 	} else { // Enforce IteratedSaltedS2K method otherwise
 		hashId, ok := algorithm.HashToHashId(c.hash())

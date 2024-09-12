@@ -741,12 +741,12 @@ func verifyDetachedSignatureReader(keyring KeyRing, signed, signature io.Reader,
 
 // checkSignatureDetails verifies the metadata of the signature.
 // It checks the following:
-// - Hash function should not be invalid according to
-//   config.RejectHashAlgorithms.
-// - Verification key must be older than the signature creation time.
-// - Check signature notations.
-// - Signature is not expired (unless a zero time is passed to
-//   explicitly ignore expiration).
+//   - Hash function should not be invalid according to
+//     config.RejectHashAlgorithms.
+//   - Verification key must be older than the signature creation time.
+//   - Check signature notations.
+//   - Signature is not expired (unless a zero time is passed to
+//     explicitly ignore expiration).
 func checkSignatureDetails(pk *packet.PublicKey, signature *packet.Signature, now time.Time, config *packet.Config) error {
 	if config.RejectHashAlgorithm(signature.Hash) {
 		return errors.SignatureError("insecure hash algorithm: " + signature.Hash.String())
