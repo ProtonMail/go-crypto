@@ -215,6 +215,71 @@ func TestSignatureWithLifetime(t *testing.T) {
 	}
 }
 
+func TestSignatureWithPrefKeyserver(t *testing.T) {
+	testKeyserver := "hkps://example.com"
+	sig := &Signature{
+		SigType:               SigTypeGenericCert,
+		PubKeyAlgo:            PubKeyAlgoRSA,
+		Hash:                  crypto.SHA256,
+		PreferredKeyserver:    testKeyserver,
+		KeyserverPrefsValid:   true,
+		KeyserverPrefNoModify: true,
+	}
+
+	packet, err := Read(readerFromHex(rsaPkDataHex))
+	if err != nil {
+		t.Fatalf("failed to deserialize public key: %v", err)
+	}
+	pubKey := packet.(*PublicKey)
+
+	packet, err = Read(readerFromHex(privKeyRSAHex))
+	if err != nil {
+		t.Fatalf("failed to deserialize private key: %v", err)
+	}
+	privKey := packet.(*PrivateKey)
+
+	err = privKey.Decrypt([]byte("testing"))
+	if err != nil {
+		t.Fatalf("failed to decrypt private key: %v", err)
+	}
+
+	err = sig.SignUserId("", pubKey, privKey, nil)
+	if err != nil {
+		t.Errorf("failed to sign user id: %v", err)
+	}
+
+	buf := bytes.NewBuffer([]byte{})
+	err = sig.Serialize(buf)
+	if err != nil {
+		t.Errorf("failed to serialize signature: %v", err)
+	}
+
+	packet, _ = Read(bytes.NewReader(buf.Bytes()))
+	sig = packet.(*Signature)
+	if sig.PreferredKeyserver != testKeyserver {
+		t.Errorf("preferred keyserver is wrong: %s instead of %s", sig.PreferredKeyserver, testKeyserver)
+	}
+	if sig.KeyserverPrefsValid != true {
+		t.Errorf("keyserver preferences is not true")
+	}
+	if sig.KeyserverPrefNoModify != true {
+		t.Errorf("keyserverNoModify is not true")
+	}
+
+	for _, subPacket := range sig.rawSubpackets {
+		if subPacket.subpacketType == prefKeyserverSubpacket {
+			if subPacket.isCritical {
+				t.Errorf("preferred keyserver subpacket is marked as critical")
+			}
+		}
+		if subPacket.subpacketType == keyserverPrefsSubpacket {
+			if subPacket.isCritical {
+				t.Errorf("keyserver preferences subpacket is marked as critical")
+			}
+		}
+	}
+}
+
 func TestSignatureWithPolicyURI(t *testing.T) {
 	testPolicy := "This is a test policy"
 	sig := &Signature{

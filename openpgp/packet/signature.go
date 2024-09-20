@@ -93,7 +93,7 @@ type Signature struct {
 	PreferredCipherSuites                                   [][2]uint8
 	IssuerKeyId                                             *uint64
 	IssuerFingerprint                                       []byte
-	SignerUserId, PreferredKeyserver                        *string
+	SignerUserId                                            *string
 	IsPrimaryId                                             *bool
 	Notations                                               []*Notation
 	IntendedRecipients                                      []*Recipient
@@ -110,6 +110,16 @@ type Signature struct {
 	// See RFC 9580, section 5.2.3.22 for details.
 	TrustRegularExpression *string
 
+	// KeyserverPrefsValid is set if any keyserver preferences were given. See RFC 9580, section
+	// 5.2.3.25 for details.
+	KeyserverPrefsValid   bool
+	KeyserverPrefNoModify bool
+
+	// PreferredKeyserver can be set to a URI where the latest version of the
+	// key that this signature is made over can be found. See RFC 9580, section
+	// 5.2.3.26 for details.
+	PreferredKeyserver string
+
 	// PolicyURI can be set to the URI of a document that describes the
 	// policy under which the signature was issued. See RFC 9580, section
 	// 5.2.3.28 for details.
@@ -119,11 +129,6 @@ type Signature struct {
 	// 5.2.3.29 for details.
 	FlagsValid                                                                                                         bool
 	FlagCertify, FlagSign, FlagEncryptCommunications, FlagEncryptStorage, FlagSplitKey, FlagAuthenticate, FlagGroupKey bool
-
-	// KeyserverPrefsValid is set if any keyserver preferences were given. See RFC 9580, section
-	// 5.2.3.25 for details.
-	KeyserverPrefsValid   bool
-	KeyserverPrefNoModify bool
 
 	// RevocationReason is set if this signature has been revoked.
 	// See RFC 9580, section 5.2.3.31 for details.
@@ -542,8 +547,7 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		}
 	case prefKeyserverSubpacket:
 		// Preferred keyserver, section 5.2.3.26
-		preferredKeyserver := string(subpacket)
-		sig.PreferredKeyserver = &preferredKeyserver
+		sig.PreferredKeyserver = string(subpacket)
 	case primaryUserIdSubpacket:
 		// Primary User ID, section 5.2.3.27
 		if len(subpacket) != 1 {
@@ -642,8 +646,7 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 			*sig.IssuerKeyId = binary.BigEndian.Uint64(subpacket[13:21])
 		}
 	case intendedRecipientSubpacket:
-		// Intended Recipient Fingerprint
-		// https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-crypto-refresh#name-intended-recipient-fingerpr
+		// Intended Recipient Fingerprint, section 5.2.3.36
 		if len(subpacket) < 1 {
 			return nil, errors.StructuralError("invalid intended recipient fingerpring length")
 		}
@@ -655,8 +658,7 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		copy(fingerprint, subpacket[1:])
 		sig.IntendedRecipients = append(sig.IntendedRecipients, &Recipient{int(version), fingerprint})
 	case prefCipherSuitesSubpacket:
-		// Preferred AEAD cipher suites
-		// See https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-07.html#name-preferred-aead-ciphersuites
+		// Preferred AEAD cipher suites, section 5.2.3.15
 		if len(subpacket)%2 != 0 {
 			err = errors.StructuralError("invalid aead cipher suite length")
 			return
@@ -1306,6 +1308,19 @@ func (sig *Signature) buildSubpackets(issuer PublicKey) (subpackets []outputSubp
 	// Preferred Compression Algorithms
 	if len(sig.PreferredCompression) > 0 {
 		subpackets = append(subpackets, outputSubpacket{true, prefCompressionSubpacket, false, sig.PreferredCompression})
+	}
+	// Keyserver Preferences
+	// Keyserver preferences may only appear in self-signatures or certification signatures.
+	if sig.KeyserverPrefsValid {
+		var prefs byte
+		if sig.KeyserverPrefNoModify {
+			prefs |= KeyserverPrefNoModify
+		}
+		subpackets = append(subpackets, outputSubpacket{true, keyserverPrefsSubpacket, false, []byte{prefs}})
+	}
+	// Preferred Keyserver
+	if len(sig.PreferredKeyserver) > 0 {
+		subpackets = append(subpackets, outputSubpacket{true, prefKeyserverSubpacket, false, []uint8(sig.PreferredKeyserver)})
 	}
 	// Primary User ID
 	if sig.IsPrimaryId != nil && *sig.IsPrimaryId {
