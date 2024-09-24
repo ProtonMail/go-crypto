@@ -310,16 +310,9 @@ func (s *Subkey) Revoked(now time.Time) bool {
 	return revoked(s.Revocations, now)
 }
 
-// IsPQ returns true if the algorithm is Post-Quantum safe
+// IsPQ returns true if the algorithm is Post-Quantum safe.
 func (s *Subkey) IsPQ() bool {
-	switch s.PublicKey.PubKeyAlgo {
-	case packet.PubKeyAlgoMlkem768X25519, packet.PubKeyAlgoMlkem1024X448,
-		packet.PubKeyAlgoMldsa65Ed25519, packet.PubKeyAlgoMldsa87Ed448:
-		return true
-	default:
-		return false
-	}
-
+	return s.PublicKey.IsPQ()
 }
 
 // Revoked returns whether the key or subkey has been revoked by a self-signature.

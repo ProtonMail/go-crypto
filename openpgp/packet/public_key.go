@@ -1389,6 +1389,17 @@ func (pk *PublicKey) KeyExpired(sig *Signature, currentTime time.Time) bool {
 	return currentTime.Unix() > expiry.Unix()
 }
 
+// IsPQ returns true if the algorithm of this public key is Post-Quantum safe.
+func (pg *PublicKey) IsPQ() bool {
+	switch pg.PubKeyAlgo {
+	case PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem1024X448,
+		PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
+		return true
+	default:
+		return false
+	}
+}
+
 func GetMatchingMlkemKem(algId PublicKeyAlgorithm) (PublicKeyAlgorithm, error) {
 	switch algId {
 	case PubKeyAlgoMldsa65Ed25519:

@@ -610,11 +610,17 @@ func encrypt(
 		// Override the time to select the encryption key with the provided one.
 		timeForEncryptionKey = *params.EncryptionTime
 	}
+
+	allPQ := len(encryptKeys) > 0
 	for i, recipient := range append(to, toHidden...) {
 		var ok bool
 		encryptKeys[i], ok = recipient.EncryptionKey(timeForEncryptionKey, config)
 		if !ok {
 			return nil, errors.InvalidArgumentError("cannot encrypt a message to key id " + strconv.FormatUint(to[i].PrimaryKey.KeyId, 16) + " because it has no valid encryption keys")
+		}
+
+		if !encryptKeys[i].PublicKey.IsPQ() {
+			allPQ = false
 		}
 
 		primarySelfSignature, _ := recipient.PrimarySelfSignature(timeForEncryptionKey, config)
@@ -643,9 +649,12 @@ func encrypt(
 		candidateHashes = []uint8{hashToHashId(crypto.SHA256)}
 	}
 	if len(candidateCipherSuites) == 0 {
-		// Todo: check PQC and use AES-256
-		// https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-07.html#section-9.6
-		candidateCipherSuites = [][2]uint8{{uint8(packet.CipherAES128), uint8(packet.AEADModeOCB)}}
+		if allPQ {
+			candidateCipherSuites = [][2]uint8{{uint8(packet.CipherAES256), uint8(packet.AEADModeOCB)}}
+		} else {
+			// https://www.ietf.org/archive/id/draft-ietf-openpgp-crypto-refresh-07.html#section-9.6
+			candidateCipherSuites = [][2]uint8{{uint8(packet.CipherAES128), uint8(packet.AEADModeOCB)}}
+		}
 	}
 
 	cipher := packet.CipherFunction(candidateCiphers[0])
