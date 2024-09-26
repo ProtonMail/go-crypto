@@ -166,9 +166,6 @@ func buildKey(pub *PublicKey, zb []byte, curveOID, fingerprint []byte, stripLead
 	if _, err := param.Write(fingerprint[:]); err != nil {
 		return nil, err
 	}
-	if param.Len()-len(curveOID) != 45 {
-		return nil, errors.New("ecdh: malformed KDF Param")
-	}
 
 	// MB = Hash ( 00 || 00 || 00 || 01 || ZB || Param );
 	h := pub.KDF.Hash.New()
