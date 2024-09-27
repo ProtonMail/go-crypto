@@ -2085,25 +2085,6 @@ TxGVotQ4A/0u0VbOMEUfnrI8Fms=
 		t.Errorf("Expected AEAD subkey")
 	}
 }
-func TestAddV4MlkemSubkey(t *testing.T) {
-	eddsaConfig := &packet.Config{
-		DefaultHash:   crypto.SHA512,
-		Algorithm:     packet.PubKeyAlgoEdDSA,
-		V6Keys:        false,
-		DefaultCipher: packet.CipherAES256,
-		Time: func() time.Time {
-			parsed, _ := time.Parse("2006-01-02", "2013-07-01")
-			return parsed
-		},
-	}
-
-	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", eddsaConfig)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	testAddMlkemSubkey(t, entity, false)
-}
 
 func testAddMlkemSubkey(t *testing.T, entity *Entity, v6Keys bool) {
 	var err error

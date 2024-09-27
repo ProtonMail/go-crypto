@@ -20,14 +20,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ProtonMail/go-crypto/openpgp/mldsa_eddsa"
-	"github.com/cloudflare/circl/kem"
-	"github.com/cloudflare/circl/kem/mlkem/mlkem1024"
-	"github.com/cloudflare/circl/kem/mlkem/mlkem768"
-	"github.com/cloudflare/circl/sign"
-	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
-	"github.com/cloudflare/circl/sign/mldsa/mldsa87"
-
 	"github.com/ProtonMail/go-crypto/openpgp/ecdh"
 	"github.com/ProtonMail/go-crypto/openpgp/ecdsa"
 	"github.com/ProtonMail/go-crypto/openpgp/ed25519"
@@ -38,10 +30,17 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/encoding"
+	"github.com/ProtonMail/go-crypto/openpgp/mldsa_eddsa"
 	"github.com/ProtonMail/go-crypto/openpgp/mlkem_ecdh"
 	"github.com/ProtonMail/go-crypto/openpgp/symmetric"
 	"github.com/ProtonMail/go-crypto/openpgp/x25519"
 	"github.com/ProtonMail/go-crypto/openpgp/x448"
+	"github.com/cloudflare/circl/kem"
+	"github.com/cloudflare/circl/kem/mlkem/mlkem1024"
+	"github.com/cloudflare/circl/kem/mlkem/mlkem768"
+	"github.com/cloudflare/circl/sign"
+	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
+	"github.com/cloudflare/circl/sign/mldsa/mldsa87"
 )
 
 // PublicKey represents an OpenPGP public key. See RFC 4880, section 5.5.2.
@@ -290,7 +289,7 @@ func NewMlkemEcdhPublicKey(creationTime time.Time, pub *mlkem_ecdh.PublicKey) *P
 	}
 
 	pk := &PublicKey{
-		Version:      4,
+		Version:      6,
 		CreationTime: creationTime,
 		PubKeyAlgo:   PublicKeyAlgorithm(pub.AlgId),
 		PublicKey:    pub,
@@ -1349,7 +1348,7 @@ func (pk *PublicKey) BitLength() (bitLength uint16, err error) {
 		bitLength = 32
 	case PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem1024X448, PubKeyAlgoMldsa65Ed25519,
 		PubKeyAlgoMldsa87Ed448:
-		bitLength = pk.q.BitLength() // Very questionable
+		bitLength = pk.q.BitLength() // TODO: Discuss if this makes sense.
 	default:
 		err = errors.InvalidArgumentError("bad public-key algorithm")
 	}
@@ -1400,7 +1399,7 @@ func (pg *PublicKey) IsPQ() bool {
 	}
 }
 
-func GetMatchingMlkemKem(algId PublicKeyAlgorithm) (PublicKeyAlgorithm, error) {
+func GetMatchingMlkem(algId PublicKeyAlgorithm) (PublicKeyAlgorithm, error) {
 	switch algId {
 	case PubKeyAlgoMldsa65Ed25519:
 		return PubKeyAlgoMlkem768X25519, nil
