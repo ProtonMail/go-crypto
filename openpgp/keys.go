@@ -134,6 +134,7 @@ func (e *Entity) EncryptionKey(now time.Time) (Key, bool) {
 
 	// Iterate the keys to find the newest, unexpired one
 	candidateSubkey := -1
+	isPQ := false
 	var maxTime time.Time
 	for i, subkey := range e.Subkeys {
 		if subkey.Sig.FlagsValid &&
@@ -142,9 +143,10 @@ func (e *Entity) EncryptionKey(now time.Time) (Key, bool) {
 			!subkey.PublicKey.KeyExpired(subkey.Sig, now) &&
 			!subkey.Sig.SigExpired(now) &&
 			!subkey.Revoked(now) &&
-			(maxTime.IsZero() || subkey.Sig.CreationTime.After(maxTime)) {
+			(maxTime.IsZero() || subkey.Sig.CreationTime.After(maxTime) || (!isPQ && subkey.IsPQ())) {
 			candidateSubkey = i
 			maxTime = subkey.Sig.CreationTime
+			isPQ = subkey.IsPQ() // Prefer PQ keys
 		}
 	}
 
@@ -201,6 +203,7 @@ func (e *Entity) signingKeyByIdUsage(now time.Time, id uint64, flags int) (Key, 
 	// Iterate the keys to find the newest, unexpired one
 	candidateSubkey := -1
 	var maxTime time.Time
+	isPQ := false
 	for idx, subkey := range e.Subkeys {
 		if subkey.Sig.FlagsValid &&
 			(flags&packet.KeyFlagCertify == 0 || subkey.Sig.FlagCertify) &&
@@ -210,9 +213,11 @@ func (e *Entity) signingKeyByIdUsage(now time.Time, id uint64, flags int) (Key, 
 			!subkey.Sig.SigExpired(now) &&
 			!subkey.Revoked(now) &&
 			(maxTime.IsZero() || subkey.Sig.CreationTime.After(maxTime)) &&
-			(id == 0 || subkey.PublicKey.KeyId == id) {
+			(id == 0 || subkey.PublicKey.KeyId == id) &&
+			(!isPQ || subkey.IsPQ()) {
 			candidateSubkey = idx
 			maxTime = subkey.Sig.CreationTime
+			isPQ = subkey.IsPQ()
 		}
 	}
 
@@ -303,6 +308,11 @@ func (i *Identity) Revoked(now time.Time) bool {
 // Note that third-party revocation signatures are not supported.
 func (s *Subkey) Revoked(now time.Time) bool {
 	return revoked(s.Revocations, now)
+}
+
+// IsPQ returns true if the algorithm is Post-Quantum safe.
+func (s *Subkey) IsPQ() bool {
+	return s.PublicKey.IsPQ()
 }
 
 // Revoked returns whether the key or subkey has been revoked by a self-signature.

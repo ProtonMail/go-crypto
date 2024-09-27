@@ -8,12 +8,12 @@ import (
 )
 
 const (
-	hexBobSecret = "5989216365053dcf9e35a04b2a1fc19b83328426be6bb7d0a2ae78105e2e3188"
-	hexCharlesSecret = "684da6225bcd44d880168fc5bec7d2f746217f014c8019005f144cc148f16a00"
+	hexBobSecret          = "5989216365053dcf9e35a04b2a1fc19b83328426be6bb7d0a2ae78105e2e3188"
+	hexCharlesSecret      = "684da6225bcd44d880168fc5bec7d2f746217f014c8019005f144cc148f16a00"
 	hexExpectedProxyParam = "e89786987c3a3ec761a679bc372cd11a425eda72bd5265d78ad0f5f32ee64f02"
 
-	hexMessagePoint = "aaea7b3bb92f5f545d023ccb15b50f84ba1bdd53be7f5cfadcfb0106859bf77e"
-	hexInputProxyParam = "83c57cbe645a132477af55d5020281305860201608e81a1de43ff83f245fb302"
+	hexMessagePoint             = "aaea7b3bb92f5f545d023ccb15b50f84ba1bdd53be7f5cfadcfb0106859bf77e"
+	hexInputProxyParam          = "83c57cbe645a132477af55d5020281305860201608e81a1de43ff83f245fb302"
 	hexExpectedTransformedPoint = "ec31bb937d7ef08c451d516be1d7976179aa7171eea598370661d1152b85005a"
 
 	hexSmallSubgroupPoint = "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f"

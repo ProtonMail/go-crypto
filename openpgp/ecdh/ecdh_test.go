@@ -42,7 +42,7 @@ func TestCurves(t *testing.T) {
 }
 
 func testGenerate(t *testing.T, curve ecc.ECDHCurve) *PrivateKey {
-	kdf := KDF {
+	kdf := KDF{
 		Hash:   algorithm.SHA512,
 		Cipher: algorithm.AES256,
 	}

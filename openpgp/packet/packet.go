@@ -512,13 +512,22 @@ const (
 	// Deprecated in RFC 4880, Section 13.5. Use key flags instead.
 	PubKeyAlgoRSAEncryptOnly PublicKeyAlgorithm = 2
 	PubKeyAlgoRSASignOnly    PublicKeyAlgorithm = 3
+
+	// Experimental PQC KEM algorithms
+	PubKeyAlgoMlkem768X25519 = 105
+	PubKeyAlgoMlkem1024X448  = 106
+
+	// Experimental PQC DSA algorithms
+	PubKeyAlgoMldsa65Ed25519 = 107
+	PubKeyAlgoMldsa87Ed448   = 108
 )
 
 // CanEncrypt returns true if it's possible to encrypt a message to a public
 // key of the given type.
 func (pka PublicKeyAlgorithm) CanEncrypt() bool {
 	switch pka {
-	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoElGamal, PubKeyAlgoECDH, PubKeyAlgoX25519, PubKeyAlgoX448, ExperimentalPubKeyAlgoAEAD:
+	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoElGamal, PubKeyAlgoECDH, PubKeyAlgoX25519, PubKeyAlgoX448, ExperimentalPubKeyAlgoAEAD,
+		PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem1024X448:
 		return true
 	}
 	return false
@@ -528,7 +537,8 @@ func (pka PublicKeyAlgorithm) CanEncrypt() bool {
 // sign a message.
 func (pka PublicKeyAlgorithm) CanSign() bool {
 	switch pka {
-	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA, PubKeyAlgoEd25519, PubKeyAlgoEd448, ExperimentalPubKeyAlgoHMAC:
+	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA, PubKeyAlgoEd25519,
+		PubKeyAlgoEd448, ExperimentalPubKeyAlgoHMAC, PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
 		return true
 	}
 	return false

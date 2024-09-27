@@ -1,18 +1,18 @@
 package encoding
 
 import (
-	"testing"
 	"bytes"
+	"testing"
 )
 
 var octetStreamTests = []struct {
 	data []byte
-} {
+}{
 	{
 		data: []byte{0x0, 0x0, 0x0},
 	},
 	{
-		data: []byte {0x1, 0x2, 0x03},
+		data: []byte{0x1, 0x2, 0x03},
 	},
 	{
 		data: make([]byte, 255),
@@ -56,6 +56,6 @@ func TestShortByteString(t *testing.T) {
 	}
 }
 
-func checkEquality (left *ShortByteString, right *ShortByteString) bool {
+func checkEquality(left *ShortByteString, right *ShortByteString) bool {
 	return (left.length == right.length) && (bytes.Equal(left.data, right.data))
 }
