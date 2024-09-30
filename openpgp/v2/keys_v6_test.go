@@ -224,3 +224,21 @@ func TestKeyGenerationHighSecurityLevel(t *testing.T) {
 	}
 
 }
+
+func TestKeyGenLegacyECC(t *testing.T) {
+	c := &packet.Config{
+		V6Keys:    true,
+		Algorithm: packet.PubKeyAlgoEdDSA,
+	}
+	_, err := NewEntity("V6 Key Owner", "V6 Key", "v6@pm.me", c)
+	if err == nil {
+		t.Fatal("should not be able to generate v6 keys with legacy OIDs")
+	}
+}
+
+func TestReadLegacyECC(t *testing.T) {
+	_, err := ReadArmoredKeyRing(strings.NewReader(LegacyECCKeyV6))
+	if err == nil {
+		t.Fatal("should not be able to read v6 legacy ECC key")
+	}
+}
