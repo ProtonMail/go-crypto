@@ -34,7 +34,7 @@ const (
 	KeyFlagEncryptStorage
 	KeyFlagSplitKey
 	KeyFlagAuthenticate
-	_
+	KeyFlagForward
 	KeyFlagGroupKey
 )
 
@@ -81,6 +81,7 @@ type Signature struct {
 	ECDSASigR, ECDSASigS encoding.Field
 	EdDSASigR, EdDSASigS encoding.Field
 	EdSig                []byte
+	HMAC                 encoding.Field
 
 	// rawSubpackets contains the unparsed subpackets, in order.
 	rawSubpackets []outputSubpacket
@@ -127,8 +128,8 @@ type Signature struct {
 
 	// FlagsValid is set if any flags were given. See RFC 9580, section
 	// 5.2.3.29 for details.
-	FlagsValid                                                                                                         bool
-	FlagCertify, FlagSign, FlagEncryptCommunications, FlagEncryptStorage, FlagSplitKey, FlagAuthenticate, FlagGroupKey bool
+	FlagsValid                                                                                                                      bool
+	FlagCertify, FlagSign, FlagEncryptCommunications, FlagEncryptStorage, FlagSplitKey, FlagAuthenticate, FlagGroupKey, FlagForward bool
 
 	// RevocationReason is set if this signature has been revoked.
 	// See RFC 9580, section 5.2.3.31 for details.
@@ -198,7 +199,7 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 	sig.SigType = SignatureType(buf[0])
 	sig.PubKeyAlgo = PublicKeyAlgorithm(buf[1])
 	switch sig.PubKeyAlgo {
-	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA, PubKeyAlgoEd25519, PubKeyAlgoEd448:
+	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA, PubKeyAlgoEd25519, PubKeyAlgoEd448, ExperimentalPubKeyAlgoHMAC:
 	default:
 		err = errors.UnsupportedError("public key algorithm " + strconv.Itoa(int(sig.PubKeyAlgo)))
 		return
@@ -334,6 +335,11 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 	case PubKeyAlgoEd448:
 		sig.EdSig, err = ed448.ReadSignature(r)
 		if err != nil {
+			return
+		}
+	case ExperimentalPubKeyAlgoHMAC:
+		sig.HMAC = new(encoding.ShortByteString)
+		if _, err = sig.HMAC.ReadFrom(r); err != nil {
 			return
 		}
 	default:
@@ -581,6 +587,9 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		}
 		if subpacket[0]&KeyFlagAuthenticate != 0 {
 			sig.FlagAuthenticate = true
+		}
+		if subpacket[0]&KeyFlagForward != 0 {
+			sig.FlagForward = true
 		}
 		if subpacket[0]&KeyFlagGroupKey != 0 {
 			sig.FlagGroupKey = true
@@ -996,6 +1005,11 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 		if err == nil {
 			sig.EdSig = signature
 		}
+	case ExperimentalPubKeyAlgoHMAC:
+		sigdata, err := priv.PrivateKey.(crypto.Signer).Sign(config.Random(), digest, nil)
+		if err == nil {
+			sig.HMAC = encoding.NewShortByteString(sigdata)
+		}
 	default:
 		err = errors.UnsupportedError("public key algorithm: " + strconv.Itoa(int(sig.PubKeyAlgo)))
 	}
@@ -1113,7 +1127,7 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 	if len(sig.outSubpackets) == 0 {
 		sig.outSubpackets = sig.rawSubpackets
 	}
-	if sig.RSASignature == nil && sig.DSASigR == nil && sig.ECDSASigR == nil && sig.EdDSASigR == nil && sig.EdSig == nil {
+	if sig.RSASignature == nil && sig.DSASigR == nil && sig.ECDSASigR == nil && sig.EdDSASigR == nil && sig.EdSig == nil && sig.HMAC == nil {
 		return errors.InvalidArgumentError("Signature: need to call Sign, SignUserId or SignKey before Serialize")
 	}
 
@@ -1134,6 +1148,8 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 		sigLength = ed25519.SignatureSize
 	case PubKeyAlgoEd448:
 		sigLength = ed448.SignatureSize
+	case ExperimentalPubKeyAlgoHMAC:
+		sigLength = int(sig.HMAC.EncodedLength())
 	default:
 		panic("impossible")
 	}
@@ -1240,6 +1256,8 @@ func (sig *Signature) serializeBody(w io.Writer) (err error) {
 		err = ed25519.WriteSignature(w, sig.EdSig)
 	case PubKeyAlgoEd448:
 		err = ed448.WriteSignature(w, sig.EdSig)
+	case ExperimentalPubKeyAlgoHMAC:
+		_, err = w.Write(sig.HMAC.EncodedBytes())
 	default:
 		panic("impossible")
 	}
@@ -1351,6 +1369,9 @@ func (sig *Signature) buildSubpackets(issuer PublicKey) (subpackets []outputSubp
 		}
 		if sig.FlagAuthenticate {
 			flags |= KeyFlagAuthenticate
+		}
+		if sig.FlagForward {
+			flags |= KeyFlagForward
 		}
 		if sig.FlagGroupKey {
 			flags |= KeyFlagGroupKey
