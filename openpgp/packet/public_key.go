@@ -326,7 +326,7 @@ func (pk *PublicKey) checkV6Compatibility() error {
 			return errors.StructuralError("cannot generate v6 key with deprecated OID: Curve25519Legacy")
 		}
 	case PubKeyAlgoEdDSA:
-		return errors.StructuralError("cannot generate v6 key with deprecated OID: Ed25519Legacy")
+		return errors.StructuralError("cannot generate v6 key with deprecated algorithm: EdDSALegacy")
 	}
 	return nil
 }
@@ -499,7 +499,7 @@ func (pk *PublicKey) parseECDH(r io.Reader) (err error) {
 func (pk *PublicKey) parseEdDSA(r io.Reader) (err error) {
 	if pk.Version == 6 {
 		// Implementations MUST NOT accept or generate version 6 key material using the deprecated OIDs.
-		return errors.StructuralError("cannot generate v6 key with deprecated OID: Ed25519Legacy")
+		return errors.StructuralError("cannot generate v6 key with deprecated algorithm: EdDSALegacy")
 	}
 
 	pk.oid = new(encoding.OID)
