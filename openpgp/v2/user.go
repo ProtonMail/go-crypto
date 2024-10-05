@@ -19,6 +19,15 @@ type Identity struct {
 	Revocations         []*packet.VerifiableSignature
 }
 
+// Attribute represents a user attribute (such as an image) claimed by an
+// Entity and zero or more assertions by other entities about that claim.
+type Attribute struct {
+	UserAttribute *packet.UserAttribute
+	SelfSignature *packet.Signature
+	Revocations   []*packet.Signature
+	Signatures    []*packet.Signature // all (potentially unverified) self-signatures, revocations, and third-party signatures
+}
+
 func readUser(e *Entity, packets *packet.Reader, pkt *packet.UserId) error {
 	identity := Identity{
 		Primary: e,
