@@ -1045,6 +1045,46 @@ func (pk *PublicKey) VerifyDirectKeySignature(sig *Signature) (err error) {
 	return pk.VerifySignature(h, sig)
 }
 
+// VerifyUserAttributeSignature returns nil iff sig is a valid signature, made by this
+// public key, that uat is an attribute of pub.
+func (pk *PublicKey) VerifyUserAttributeSignature(pkt *UserAttribute, pub *PublicKey, sig *Signature) (err error) {
+	h, err := sig.PrepareVerify()
+	if err != nil {
+		return err
+	}
+	err = userAttributeSignatureHash(pkt, pub, h)
+	if err != nil {
+		return err
+	}
+	return pk.VerifySignature(h, sig)
+}
+
+// userAttributeSignatureHash returns a Hash of the message that needs to be signed
+// to assert that pk is a valid key for uat.
+func userAttributeSignatureHash(uat *UserAttribute, pk *PublicKey, h hash.Hash) (err error) {
+
+	// RFC 4880, section 5.2.4
+	if err := pk.SerializeSignaturePrefix(h); err != nil {
+		return err
+	}
+	if err := pk.serializeWithoutHeaders(h); err != nil {
+		return err
+	}
+
+	data := uat.data()
+
+	var buf [5]byte
+	buf[0] = 0xd1
+	buf[1] = byte(len(data) >> 24)
+	buf[2] = byte(len(data) >> 16)
+	buf[3] = byte(len(data) >> 8)
+	buf[4] = byte(len(data))
+	h.Write(buf[:])
+	h.Write(data)
+
+	return
+}
+
 // KeyIdString returns the public key's fingerprint in capital hex
 // (e.g. "6C7EE1B8621CC013").
 func (pk *PublicKey) KeyIdString() string {
