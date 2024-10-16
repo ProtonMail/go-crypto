@@ -9,6 +9,8 @@ import (
 	"image"
 	"image/jpeg"
 	"io"
+
+	"github.com/ProtonMail/go-crypto/openpgp/errors"
 )
 
 const UserAttrImageSubpacket = 1
@@ -24,6 +26,29 @@ type UserAttribute struct {
 // NewUserAttributePhoto creates a user attribute packet
 // containing the given images.
 func NewUserAttributePhoto(photos ...image.Image) (uat *UserAttribute, err error) {
+	var imgBytes [][]byte
+	for _, photo := range photos {
+		var buf bytes.Buffer
+		if err = jpeg.Encode(&buf, photo, nil); err != nil {
+			return
+		}
+		imgBytes = append(imgBytes, buf.Bytes())
+	}
+	return newUserAttributePhotoBytes(imgBytes)
+}
+
+func NewUserAttributePhotoBytes(photos [][]byte) (uat *UserAttribute, err error) {
+	for _, photo := range photos {
+		//check jpeg
+		_, err = jpeg.Decode(bytes.NewBuffer(photo))
+		if err != nil {
+			return nil, errors.InvalidArgumentError("jpeg data err")
+		}
+	}
+	return newUserAttributePhotoBytes(photos)
+}
+
+func newUserAttributePhotoBytes(photos [][]byte) (uat *UserAttribute, err error) {
 	uat = new(UserAttribute)
 	for _, photo := range photos {
 		var buf bytes.Buffer
@@ -38,17 +63,15 @@ func NewUserAttributePhoto(photos ...image.Image) (uat *UserAttribute, err error
 		if _, err = buf.Write(data); err != nil {
 			return
 		}
-		if err = jpeg.Encode(&buf, photo, nil); err != nil {
-			return
-		}
+		buf.Write(photo)
 
-		lengthBuf := make([]byte, 5)
-		n := serializeSubpacketLength(lengthBuf, len(buf.Bytes())+1)
-		lengthBuf = lengthBuf[:n]
+		encodedLength := make([]byte, 5)
+		n := serializeSubpacketLength(encodedLength, len(buf.Bytes())+1)
+		encodedLength = encodedLength[:n]
 
 		uat.Contents = append(uat.Contents, &OpaqueSubpacket{
 			SubType:       UserAttrImageSubpacket,
-			EncodedLength: lengthBuf,
+			EncodedLength: encodedLength,
 			Contents:      buf.Bytes(),
 		})
 	}
@@ -58,6 +81,14 @@ func NewUserAttributePhoto(photos ...image.Image) (uat *UserAttribute, err error
 // NewUserAttribute creates a new user attribute packet containing the given subpackets.
 func NewUserAttribute(contents ...*OpaqueSubpacket) *UserAttribute {
 	return &UserAttribute{Contents: contents}
+}
+
+func (uat *UserAttribute) data() []byte {
+	buf := bytes.NewBuffer(nil)
+	for _, osp := range uat.Contents {
+		osp.Serialize(buf)
+	}
+	return buf.Bytes()
 }
 
 func (uat *UserAttribute) parse(r io.Reader) (err error) {
