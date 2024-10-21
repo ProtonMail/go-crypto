@@ -157,33 +157,33 @@ func buildKey(pub *PublicKey, eccSecretPoint, eccEphemeral, eccPublicKey, mlkemK
 		return nil, err
 	}
 
-	//   eccKeyShare     - the ECDH key share encoded as an octet string
-	//   eccEphemeral    - the ECDH ciphertext encoded as an octet string
-	//   eccPublicKey    - The ECDH public key of the recipient as an octet string
 	//   mlkemKeyShare   - the ML-KEM key share encoded as an octet string
 	//   mlkemEphemeral  - the ML-KEM ciphertext encoded as an octet string
 	//   mlkemPublicKey  - The ML-KEM public key of the recipient as an octet string
 	//   algId           - the OpenPGP algorithm ID of the public-key encryption algorithm
 	//   domainSeparator – the UTF-8 encoding of the string "OpenPGPCompositeKDFv1"
+	//   eccKeyShare     - the ECDH key share encoded as an octet string
+	//   eccEphemeral    - the ECDH ciphertext encoded as an octet string
+	//   eccPublicKey    - The ECDH public key of the recipient as an octet string
 
 	// KEK = KMAC256(
-	//           eccKeyShare || mlkemKeyShare,
-	//           eccEphemeral || mlkemEphemeral || ecdhPublicKey || mlkemPublicKey || algId,
+	//           mlkemKeyShare || eccKeyShare,
+	//           mlkemEphemeral || eccEphemeral || mlkemPublicKey || ecdhPublicKey || algId,
 	//           256 (32 bytes),
 	//           domainSeparator
 	//       )
 
-	kMacKeyBuffer := bytes.NewBuffer(make([]byte, len(eccKeyShare)+len(mlkemKeyShare)))
-	_, _ = kMacKeyBuffer.Write(eccKeyShare)
+	kMacKeyBuffer := bytes.NewBuffer(make([]byte, len(mlkemKeyShare)+len(eccKeyShare)))
 	_, _ = kMacKeyBuffer.Write(mlkemKeyShare)
+	_, _ = kMacKeyBuffer.Write(eccKeyShare)
 
 	k := kmac.NewKMAC256(kMacKeyBuffer.Bytes(), 32, []byte(domainSeparator))
 
 	// kmac hash never returns an error
-	_, _ = k.Write(eccEphemeral)
 	_, _ = k.Write(mlkemEphemeral)
-	_, _ = k.Write(eccPublicKey)
+	_, _ = k.Write(eccEphemeral)
 	_, _ = k.Write(serializedMlkemPublicKey)
+	_, _ = k.Write(eccPublicKey)
 	_, _ = k.Write([]byte{pub.AlgId})
 
 	return k.Sum(nil), nil
