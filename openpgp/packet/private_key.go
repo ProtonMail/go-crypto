@@ -34,8 +34,6 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/symmetric"
 	"github.com/ProtonMail/go-crypto/openpgp/x25519"
 	"github.com/ProtonMail/go-crypto/openpgp/x448"
-	"github.com/cloudflare/circl/kem/mlkem/mlkem1024"
-	"github.com/cloudflare/circl/kem/mlkem/mlkem768"
 	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
 	"github.com/cloudflare/circl/sign/mldsa/mldsa87"
 	"golang.org/x/crypto/hkdf"
@@ -567,14 +565,10 @@ func serializeHMACPrivateKey(w io.Writer, priv *symmetric.HMACPrivateKey) (err e
 // serializeMlkemPrivateKey serializes a ML-KEM + ECC private key according to
 // https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-04.html#name-key-material-packets
 func serializeMlkemPrivateKey(w io.Writer, priv *mlkem_ecdh.PrivateKey) (err error) {
-	var kyberBin []byte
-	if kyberBin, err = priv.SecretMlkem.MarshalBinary(); err != nil {
-		return err
-	}
 	if _, err = w.Write(encoding.NewOctetArray(priv.SecretEc).EncodedBytes()); err != nil {
 		return err
 	}
-	_, err = w.Write(encoding.NewOctetArray(kyberBin).EncodedBytes())
+	_, err = w.Write(encoding.NewOctetArray(priv.SecretMlkemSeed).EncodedBytes())
 	return err
 }
 
@@ -935,9 +929,9 @@ func (pk *PrivateKey) parsePrivateKey(data []byte) (err error) {
 	case ExperimentalPubKeyAlgoHMAC:
 		return pk.parseHMACPrivateKey(data)
 	case PubKeyAlgoMlkem768X25519:
-		return pk.parseMlkemEcdhPrivateKey(data, 32, mlkem768.PrivateKeySize)
+		return pk.parseMlkemEcdhPrivateKey(data, 32, mlkem_ecdh.MlKemSeedLen)
 	case PubKeyAlgoMlkem1024X448:
-		return pk.parseMlkemEcdhPrivateKey(data, 56, mlkem1024.PrivateKeySize)
+		return pk.parseMlkemEcdhPrivateKey(data, 56, mlkem_ecdh.MlKemSeedLen)
 	case PubKeyAlgoMldsa65Ed25519:
 		return pk.parseMldsaEddsaPrivateKey(data, 32, mldsa65.PrivateKeySize)
 	case PubKeyAlgoMldsa87Ed448:
@@ -1301,7 +1295,7 @@ func (pk *PrivateKey) parseMldsaEddsaPrivateKey(data []byte, ecLen, dLen int) (e
 
 // parseMlkemEcdhPrivateKey parses a ML-KEM + ECC private key as specified in
 // https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-04.html#name-key-material-packets
-func (pk *PrivateKey) parseMlkemEcdhPrivateKey(data []byte, ecLen, kLen int) (err error) {
+func (pk *PrivateKey) parseMlkemEcdhPrivateKey(data []byte, ecLen, seedLen int) (err error) {
 	if pk.Version != 6 {
 		return goerrors.New("openpgp: cannot parse non-v6 ML-KEM + ECDH key")
 	}
@@ -1314,14 +1308,13 @@ func (pk *PrivateKey) parseMlkemEcdhPrivateKey(data []byte, ecLen, kLen int) (er
 	if _, err := ec.ReadFrom(buf); err != nil {
 		return err
 	}
+	priv.SecretEc = ec.Bytes()
 
-	k := encoding.NewEmptyOctetArray(kLen)
-	if _, err := k.ReadFrom(buf); err != nil {
+	seed := encoding.NewEmptyOctetArray(seedLen)
+	if _, err := seed.ReadFrom(buf); err != nil {
 		return err
 	}
-
-	priv.SecretEc = ec.Bytes()
-	if priv.SecretMlkem, err = priv.PublicKey.Mlkem.UnmarshalBinaryPrivateKey(k.Bytes()); err != nil {
+	if err = priv.DeriveMlKemKeys(seed.Bytes(), false); err != nil {
 		return err
 	}
 

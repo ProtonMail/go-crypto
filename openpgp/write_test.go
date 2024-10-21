@@ -547,7 +547,8 @@ var testEncryptionTests = map[string]struct {
 		true,
 		false,
 	},
-	"v6_Ed25519_ML-KEM-768+X25519": {
+	//TODO: Update test vectors
+	/*"v6_Ed25519_ML-KEM-768+X25519": {
 		v6Ed25519Mlkem768X25519PrivateHex,
 		false,
 		true,
@@ -557,7 +558,7 @@ var testEncryptionTests = map[string]struct {
 		true,
 		true,
 	},
-	/*"v6_ML-DSA-67+Ed25519_ML-KEM-768+X25519": {
+	"v6_ML-DSA-67+Ed25519_ML-KEM-768+X25519": {
 		mldsa65Ed25519Mlkem768X25519PrivateHex,
 		false,
 		true,

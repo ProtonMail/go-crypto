@@ -21,6 +21,7 @@ import (
 const (
 	maxSessionKeyLength = 64
 	domainSeparator     = "OpenPGPCompositeKDFv1"
+	MlKemSeedLen        = 64
 )
 
 type PublicKey struct {
@@ -33,8 +34,9 @@ type PublicKey struct {
 
 type PrivateKey struct {
 	PublicKey
-	SecretEc    []byte
-	SecretMlkem kem.PrivateKey
+	SecretEc        []byte
+	SecretMlkem     kem.PrivateKey
+	SecretMlkemSeed []byte
 }
 
 // GenerateKey implements ML-KEM + ECC key generation as specified in
@@ -51,13 +53,29 @@ func GenerateKey(rand io.Reader, algId uint8, c ecc.ECDHCurve, k kem.Scheme) (pr
 		return nil, err
 	}
 
-	kyberSeed, err := generateRandomSeed(rand, k.SeedSize())
+	seed, err := generateRandomSeed(rand, MlKemSeedLen)
 	if err != nil {
 		return nil, err
 	}
 
-	priv.PublicKey.PublicMlkem, priv.SecretMlkem = priv.PublicKey.Mlkem.DeriveKeyPair(kyberSeed)
-	return
+	if err := priv.DeriveMlKemKeys(seed, true); err != nil {
+		return nil, err
+	}
+	return priv, nil
+}
+
+// DeriveMlKemKeys derives the ML-KEM keys from the provided seed and stores them inside priv.
+func (priv *PrivateKey) DeriveMlKemKeys(seed []byte, overridePublicKey bool) (err error) {
+	if len(seed) != MlKemSeedLen {
+		return goerrors.New("mlkem_ecdh: ml-kem secret seed has the wrong length")
+	}
+	priv.SecretMlkemSeed = seed
+	publicKey, privateKey := priv.PublicKey.Mlkem.DeriveKeyPair(priv.SecretMlkemSeed)
+	if overridePublicKey {
+		priv.PublicKey.PublicMlkem = publicKey
+	}
+	priv.SecretMlkem = privateKey
+	return nil
 }
 
 // Encrypt implements ML-KEM + ECC encryption as specified in
