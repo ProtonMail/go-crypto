@@ -673,16 +673,6 @@ var testEncryptionTests = map[string]struct {
 		true,
 		false,
 	},
-	"v4_Ed25519_ML-KEM-768+X25519": {
-		v4Ed25519Mlkem768X25519PrivateHex,
-		false,
-		true,
-	},
-	"v4_Ed25519_ML-KEM-768+X25519_signed": {
-		v4Ed25519Mlkem768X25519PrivateHex,
-		true,
-		true,
-	},
 	"v6_Ed25519_ML-KEM-768+X25519": {
 		v6Ed25519Mlkem768X25519PrivateHex,
 		false,

@@ -1302,6 +1302,9 @@ func (pk *PrivateKey) parseMldsaEddsaPrivateKey(data []byte, ecLen, dLen int) (e
 // parseMlkemEcdhPrivateKey parses a ML-KEM + ECC private key as specified in
 // https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-04.html#name-key-material-packets
 func (pk *PrivateKey) parseMlkemEcdhPrivateKey(data []byte, ecLen, kLen int) (err error) {
+	if pk.Version != 6 {
+		return goerrors.New("openpgp: cannot parse non-v6 ML-KEM + ECDH key")
+	}
 	pub := pk.PublicKey.PublicKey.(*mlkem_ecdh.PublicKey)
 	priv := new(mlkem_ecdh.PrivateKey)
 	priv.PublicKey = *pub
