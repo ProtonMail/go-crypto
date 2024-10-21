@@ -1,5 +1,5 @@
 // Package mlkem_ecdh implements hybrid ML-KEM + ECDH encryption, suitable for OpenPGP, experimental.
-// It follows the spec https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-04.html#name-composite-kem-schemes
+// It follows the spec https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-05.html#name-composite-kem-schemes
 package mlkem_ecdh
 
 import (
@@ -40,7 +40,7 @@ type PrivateKey struct {
 }
 
 // GenerateKey implements ML-KEM + ECC key generation as specified in
-// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-04.html#name-key-generation-procedure
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-05.html#name-key-generation-procedure
 func GenerateKey(rand io.Reader, algId uint8, c ecc.ECDHCurve, k kem.Scheme) (priv *PrivateKey, err error) {
 	priv = new(PrivateKey)
 
@@ -79,7 +79,7 @@ func (priv *PrivateKey) DeriveMlKemKeys(seed []byte, overridePublicKey bool) (er
 }
 
 // Encrypt implements ML-KEM + ECC encryption as specified in
-// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-04.html#name-encryption-procedure
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-05.html#name-encryption-procedure
 func Encrypt(rand io.Reader, pub *PublicKey, msg []byte) (kEphemeral, ecEphemeral, ciphertext []byte, err error) {
 	if len(msg) > maxSessionKeyLength {
 		return nil, nil, nil, goerrors.New("mlkem_ecdh: session key too long")
@@ -119,7 +119,7 @@ func Encrypt(rand io.Reader, pub *PublicKey, msg []byte) (kEphemeral, ecEphemera
 }
 
 // Decrypt implements ML-KEM + ECC decryption as specified in
-// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-04.html#name-decryption-procedure
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-05.html#name-decryption-procedure
 func Decrypt(priv *PrivateKey, kEphemeral, ecEphemeral, ciphertext []byte) (msg []byte, err error) {
 	// EC shared secret derivation
 	ecSS, err := priv.PublicKey.Curve.Decaps(ecEphemeral, priv.SecretEc)
