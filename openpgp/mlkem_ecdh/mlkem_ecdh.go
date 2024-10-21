@@ -177,7 +177,10 @@ func buildKey(pub *PublicKey, eccSecretPoint, eccEphemeral, eccPublicKey, mlkemK
 	_, _ = kMacKeyBuffer.Write(mlkemKeyShare)
 	_, _ = kMacKeyBuffer.Write(eccKeyShare)
 
-	k := kmac.NewKMAC256(kMacKeyBuffer.Bytes(), 32, []byte(domainSeparator))
+	k, err := kmac.NewKMAC256(kMacKeyBuffer.Bytes(), 32, []byte(domainSeparator))
+	if err != nil {
+		return nil, err
+	}
 
 	// kmac hash never returns an error
 	_, _ = k.Write(mlkemEphemeral)

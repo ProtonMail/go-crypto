@@ -77,9 +77,12 @@ func TestKMAC(t *testing.T) {
 		}
 		var mac hash.Hash
 		if test.security == 128 {
-			mac = kmac.NewKMAC128(key, len(tag), []byte(test.customization))
+			mac, err = kmac.NewKMAC128(key, len(tag), []byte(test.customization))
 		} else {
-			mac = kmac.NewKMAC256(key, len(tag), []byte(test.customization))
+			mac, err = kmac.NewKMAC256(key, len(tag), []byte(test.customization))
+		}
+		if err != nil {
+			t.Fatal(err)
 		}
 		data, err := hex.DecodeString(test.data)
 		if err != nil {
@@ -118,12 +121,18 @@ func ExampleNewKMAC256() {
 	tag := make([]byte, 16)
 	msg := []byte("The quick brown fox jumps over the lazy dog")
 	// Example 1: Simple KMAC
-	k := kmac.NewKMAC256(key, len(tag), []byte("Partition1"))
+	k, err := kmac.NewKMAC256(key, len(tag), []byte("Partition1"))
+	if err != nil {
+		panic(err)
+	}
 	k.Write(msg)
 	k.Sum(tag[:0])
 	fmt.Println(hex.EncodeToString(tag))
 	// Example 2: Different customization string produces different digest
-	k = kmac.NewKMAC256(key, 16, []byte("Partition2"))
+	k, err = kmac.NewKMAC256(key, 16, []byte("Partition2"))
+	if err != nil {
+		panic(err)
+	}
 	k.Write(msg)
 	k.Sum(tag[:0])
 	fmt.Println(hex.EncodeToString(tag))

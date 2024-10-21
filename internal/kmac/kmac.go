@@ -12,6 +12,7 @@ package kmac
 
 import (
 	"encoding/binary"
+	"fmt"
 	"hash"
 
 	"golang.org/x/crypto/sha3"
@@ -47,12 +48,13 @@ type kmac struct {
 // Note that unlike other hash implementations in the standard library,
 // the returned Hash does not implement encoding.BinaryMarshaler
 // or encoding.BinaryUnmarshaler.
-func NewKMAC128(key []byte, tagSize int, customizationString []byte) hash.Hash {
-	if len(key) < 16 {
-		panic("Key must not be smaller than security strength")
-	}
+func NewKMAC128(key []byte, tagSize int, customizationString []byte) (h hash.Hash, err error) {
 	c := sha3.NewCShake128([]byte("KMAC"), customizationString)
-	return newKMAC(key, tagSize, c, rate128)
+	h = newKMAC(key, tagSize, c, rate128)
+	if len(key) < 16 {
+		return h, fmt.Errorf("kmac: key is too short with %d bytes: should be at least %d", len(key), 16)
+	}
+	return h, nil
 }
 
 // NewKMAC256 returns a new KMAC hash providing 256 bits of security using
@@ -61,13 +63,13 @@ func NewKMAC128(key []byte, tagSize int, customizationString []byte) hash.Hash {
 // Note that unlike other hash implementations in the standard library,
 // the returned Hash does not implement encoding.BinaryMarshaler
 // or encoding.BinaryUnmarshaler.
-
-func NewKMAC256(key []byte, tagSize int, customizationString []byte) hash.Hash {
-	if len(key) < 32 {
-		panic("Key must not be smaller than security strength")
-	}
+func NewKMAC256(key []byte, tagSize int, customizationString []byte) (h hash.Hash, err error) {
 	c := sha3.NewCShake256([]byte("KMAC"), customizationString)
-	return newKMAC(key, tagSize, c, rate256)
+	h = newKMAC(key, tagSize, c, rate256)
+	if len(key) < 32 {
+		return h, fmt.Errorf("kmac: key is too short with %d bytes: should be at least %d", len(key), 32)
+	}
+	return h, nil
 }
 
 func newKMAC(key []byte, tagSize int, c sha3.ShakeHash, rate int) hash.Hash {
