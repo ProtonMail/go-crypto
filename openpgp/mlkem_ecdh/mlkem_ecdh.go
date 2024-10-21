@@ -3,7 +3,6 @@
 package mlkem_ecdh
 
 import (
-	"bytes"
 	goerrors "errors"
 	"fmt"
 	"io"
@@ -173,11 +172,11 @@ func buildKey(pub *PublicKey, eccSecretPoint, eccEphemeral, eccPublicKey, mlkemK
 	//           domainSeparator
 	//       )
 
-	kMacKeyBuffer := bytes.NewBuffer(make([]byte, len(mlkemKeyShare)+len(eccKeyShare)))
-	_, _ = kMacKeyBuffer.Write(mlkemKeyShare)
-	_, _ = kMacKeyBuffer.Write(eccKeyShare)
+	kMacKeyBuffer := make([]byte, len(mlkemKeyShare)+len(eccKeyShare))
+	copy(kMacKeyBuffer[:len(mlkemKeyShare)], mlkemKeyShare)
+	copy(kMacKeyBuffer[len(mlkemKeyShare):], eccKeyShare)
 
-	k, err := kmac.NewKMAC256(kMacKeyBuffer.Bytes(), 32, []byte(domainSeparator))
+	k, err := kmac.NewKMAC256(kMacKeyBuffer, 32, []byte(domainSeparator))
 	if err != nil {
 		return nil, err
 	}
