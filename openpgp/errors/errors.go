@@ -9,12 +9,48 @@ import (
 	"strconv"
 )
 
+const (
+	// GenericParsingErrorMessage is a generic error message for parsing errors
+	// to reduce the risk of oracle attacks.
+	GenericParsingErrorMessage = "parsing error"
+)
+
+var (
+	// ErrAEADTagVerification is returned if one of the tag verifications in SEIPDv2 fails
+	ErrAEADTagVerification error = DecryptWithSessionKeyError("AEAD tag verification failed")
+	// ErrMDCHashMismatch is returned if the final tag verification in SEIPDv1 fails
+	ErrMDCHashMismatch error = DecryptWithSessionKeyError("MDC hash mismatch")
+	// ErrMDCMissing is returned if the final tag in SEIPDv1 is missing
+	ErrMDCMissing error = DecryptWithSessionKeyError("MDC packet not found")
+)
+
 // A StructuralError is returned when OpenPGP data is found to be syntactically
 // invalid.
 type StructuralError string
 
 func (s StructuralError) Error() string {
 	return "openpgp: invalid data: " + string(s)
+}
+
+// A DecryptWithSessionKeyError is returned when a failure occurs when reading from symmetrically decrypted data or
+// an authentication tag verification fails.
+// Such an error indicates that the supplied session key is likely wrong or the data got corrupted.
+type DecryptWithSessionKeyError string
+
+func (s DecryptWithSessionKeyError) Error() string {
+	return "openpgp: decryption with session key failed: " + string(s)
+}
+
+// HandleDecryptionSensitiveParsingError handles symmetric decryption errors.
+// The function makes parsing errors generic to reduce the risk of oracle attacks.
+func HandleDecryptionSensitiveParsingError(err error) error {
+	if decError, ok := err.(*DecryptWithSessionKeyError); ok {
+		return decError
+	}
+	if decError, ok := err.(DecryptWithSessionKeyError); ok {
+		return decError
+	}
+	return DecryptWithSessionKeyError(GenericParsingErrorMessage)
 }
 
 // UnsupportedError indicates that, although the OpenPGP data is valid, it
@@ -40,9 +76,6 @@ type SignatureError string
 func (b SignatureError) Error() string {
 	return "openpgp: invalid signature: " + string(b)
 }
-
-var ErrMDCHashMismatch error = SignatureError("MDC hash mismatch")
-var ErrMDCMissing error = SignatureError("MDC packet not found")
 
 type signatureExpiredError int
 

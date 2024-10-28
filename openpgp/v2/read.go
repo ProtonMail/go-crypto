@@ -268,7 +268,10 @@ FindKey:
 	}
 	mdFinal, sensitiveParsingErr := readSignedMessage(packets, md, keyring, config)
 	if sensitiveParsingErr != nil {
-		return nil, errors.StructuralError("parsing error")
+		if md.decrypted != nil {
+			return nil, errors.HandleDecryptionSensitiveParsingError(sensitiveParsingErr)
+		}
+		return nil, errors.StructuralError(errors.GenericParsingErrorMessage)
 	}
 	return mdFinal, nil
 }
@@ -489,7 +492,7 @@ func (cr *checkReader) Read(buf []byte) (int, error) {
 		return n, io.EOF
 	}
 	if sensitiveParsingError != nil {
-		return n, errors.StructuralError("parsing error")
+		return n, errors.HandleDecryptionSensitiveParsingError(sensitiveParsingError)
 	}
 	return n, nil
 }
@@ -524,7 +527,7 @@ func (scr *signatureCheckReader) Read(buf []byte) (int, error) {
 				break
 			}
 			if err != nil {
-				return n, errors.StructuralError("parsing error")
+				return n, errors.StructuralError(errors.GenericParsingErrorMessage)
 			}
 			if sig, ok := p.(*packet.Signature); ok {
 				if sig.Version == 5 && scr.md.LiteralData != nil && (sig.SigType == 0x00 || sig.SigType == 0x01) {
@@ -632,7 +635,7 @@ func (scr *signatureCheckReader) Read(buf []byte) (int, error) {
 				break
 			}
 			if err != nil {
-				return 0, errors.StructuralError("parsing error")
+				return 0, errors.StructuralError(errors.GenericParsingErrorMessage)
 			}
 
 		}
@@ -650,7 +653,10 @@ func (scr *signatureCheckReader) Read(buf []byte) (int, error) {
 	}
 
 	if sensitiveParsingError != nil {
-		return n, errors.StructuralError("parsing error")
+		if scr.md.decrypted != nil {
+			return n, errors.HandleDecryptionSensitiveParsingError(sensitiveParsingError)
+		}
+		return n, errors.StructuralError(errors.GenericParsingErrorMessage)
 	}
 
 	return n, nil
@@ -741,12 +747,12 @@ func verifyDetachedSignatureReader(keyring KeyRing, signed, signature io.Reader,
 
 // checkSignatureDetails verifies the metadata of the signature.
 // It checks the following:
-// - Hash function should not be invalid according to
-//   config.RejectHashAlgorithms.
-// - Verification key must be older than the signature creation time.
-// - Check signature notations.
-// - Signature is not expired (unless a zero time is passed to
-//   explicitly ignore expiration).
+//   - Hash function should not be invalid according to
+//     config.RejectHashAlgorithms.
+//   - Verification key must be older than the signature creation time.
+//   - Check signature notations.
+//   - Signature is not expired (unless a zero time is passed to
+//     explicitly ignore expiration).
 func checkSignatureDetails(pk *packet.PublicKey, signature *packet.Signature, now time.Time, config *packet.Config) error {
 	if config.RejectHashAlgorithm(signature.Hash) {
 		return errors.SignatureError("insecure hash algorithm: " + signature.Hash.String())
