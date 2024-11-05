@@ -3,7 +3,6 @@ package symmetric
 import (
 	"crypto"
 	"crypto/hmac"
-	"crypto/sha256"
 	"io"
 
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
@@ -11,8 +10,8 @@ import (
 )
 
 type HMACPublicKey struct {
-	Hash        algorithm.Hash
-	BindingHash [32]byte
+	Hash   algorithm.Hash
+	FpSeed [32]byte
 	// While this is a "public" key, the symmetric key needs to be present here.
 	// Symmetric cryptographic operations use the same key material for
 	// signing and verifying, and go-crypto assumes that a public key type will
@@ -23,7 +22,6 @@ type HMACPublicKey struct {
 
 type HMACPrivateKey struct {
 	PublicKey HMACPublicKey
-	HashSeed  [32]byte
 	Key       []byte
 }
 
@@ -33,17 +31,12 @@ func HMACGenerateKey(rand io.Reader, hash algorithm.Hash) (priv *HMACPrivateKey,
 		return
 	}
 
-	priv.generatePublicPartHMAC(hash)
+	priv.generatePublicPartHMAC(rand, hash)
 	return
 }
 
 func generatePrivatePartHMAC(rand io.Reader, hash algorithm.Hash) (priv *HMACPrivateKey, err error) {
 	priv = new(HMACPrivateKey)
-	var seed [32]byte
-	_, err = rand.Read(seed[:])
-	if err != nil {
-		return
-	}
 
 	key := make([]byte, hash.Size())
 	_, err = rand.Read(key)
@@ -51,27 +44,23 @@ func generatePrivatePartHMAC(rand io.Reader, hash algorithm.Hash) (priv *HMACPri
 		return
 	}
 
-	priv.HashSeed = seed
 	priv.Key = key
 	return
 }
 
-func (priv *HMACPrivateKey) generatePublicPartHMAC(hash algorithm.Hash) (err error) {
+func (priv *HMACPrivateKey) generatePublicPartHMAC(rand io.Reader, hash algorithm.Hash) (err error) {
 	priv.PublicKey.Hash = hash
 
-	bindingHash := ComputeBindingHash(priv.HashSeed)
-	copy(priv.PublicKey.BindingHash[:], bindingHash)
+	var seed [32]byte
+	_, err = rand.Read(seed[:])
+	if err != nil {
+		return
+	}
+	copy(priv.PublicKey.FpSeed[:], seed[:])
 
 	priv.PublicKey.Key = make([]byte, len(priv.Key))
 	copy(priv.PublicKey.Key, priv.Key)
 	return
-}
-
-func ComputeBindingHash(seed [32]byte) []byte {
-	bindingHash := sha256.New()
-	bindingHash.Write(seed[:])
-
-	return bindingHash.Sum(nil)
 }
 
 func (priv *HMACPrivateKey) Public() crypto.PublicKey {
