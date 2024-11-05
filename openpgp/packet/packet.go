@@ -507,8 +507,8 @@ const (
 	PubKeyAlgoEd25519 PublicKeyAlgorithm = 27
 	PubKeyAlgoEd448   PublicKeyAlgorithm = 28
 
-	ExperimentalPubKeyAlgoAEAD PublicKeyAlgorithm = 100
-	ExperimentalPubKeyAlgoHMAC PublicKeyAlgorithm = 101
+	ExperimentalPubKeyAlgoAEAD PublicKeyAlgorithm = 128
+	ExperimentalPubKeyAlgoHMAC PublicKeyAlgorithm = 129
 
 	// Deprecated in RFC 4880, Section 13.5. Use key flags instead.
 	PubKeyAlgoRSAEncryptOnly PublicKeyAlgorithm = 2
