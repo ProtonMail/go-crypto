@@ -173,6 +173,7 @@ func Decode(data []byte) (b *Block, rest []byte) {
 		b.Plaintext = append(b.Plaintext, line...)
 		b.Plaintext = append(b.Plaintext, lf)
 	}
+	b.Plaintext = b.Plaintext[:len(b.Plaintext)-1]
 
 	// We want to find the extent of the armored data (including any newlines at
 	// the end).
