@@ -58,8 +58,8 @@ func testParse(t *testing.T, input []byte, expected, expectedPlaintext string) {
 }
 
 func TestParse(t *testing.T) {
-	testParse(t, clearsignInput, "Hello world\r\nline 2", "Hello world\nline 2\n")
-	testParse(t, clearsignInput2, "\r\n\r\n(This message has a couple of blank lines at the start and end.)\r\n\r\n", "\n\n(This message has a couple of blank lines at the start and end.)\n\n\n")
+	testParse(t, clearsignInput, "Hello world\r\nline 2", "Hello world\nline 2")
+	testParse(t, clearsignInput2, "\r\n\r\n(This message has a couple of blank lines at the start and end.)\r\n\r\n", "\n\n(This message has a couple of blank lines at the start and end.)\n\n")
 }
 
 func TestParseWithNoNewlineAtEnd(t *testing.T) {
@@ -77,21 +77,21 @@ func TestParseWithNoNewlineAtEnd(t *testing.T) {
 var signingTests = []struct {
 	in, signed, plaintext string
 }{
-	{"", "", "\n"},
-	{"a", "a", "a\n"},
-	{"a\n", "a\r\n", "a\n\n"},
-	{"-a\n", "-a\r\n", "-a\n\n"},
-	{"--a\nb", "--a\r\nb", "--a\nb\n"},
+	{"", "", ""},
+	{"a", "a", "a"},
+	{"a\n", "a\r\n", "a\n"},
+	{"-a\n", "-a\r\n", "-a\n"},
+	{"--a\nb", "--a\r\nb", "--a\nb"},
 	// leading whitespace
-	{" a\n", " a\r\n", " a\n\n"},
-	{"  a\n", "  a\r\n", "  a\n\n"},
+	{" a\n", " a\r\n", " a\n"},
+	{"  a\n", "  a\r\n", "  a\n"},
 	// trailing whitespace (should be stripped)
-	{"a \n", "a\r\n", "a\n\n"},
-	{"a ", "a", "a\n"},
-	{"  \n", "\r\n", "\n\n"},
-	{"  ", "", "\n"},
-	{"a\n  \n  \nb\n", "a\r\n\r\n\r\nb\r\n", "a\n\n\nb\n\n"},
-	{"a\n  \n  \nb\n", "a\r\n\r\n\r\nb\r\n", "a\n\n\nb\n\n"},
+	{"a \n", "a\r\n", "a\n"},
+	{"a ", "a", "a"},
+	{"  \n", "\r\n", "\n"},
+	{"  ", "", ""},
+	{"a\n  \n  \nb\n", "a\r\n\r\n\r\nb\r\n", "a\n\n\nb\n"},
+	{"a\n  \n  \nb\n", "a\r\n\r\n\r\nb\r\n", "a\n\n\nb\n"},
 }
 
 func TestVerifyV6(t *testing.T) {
