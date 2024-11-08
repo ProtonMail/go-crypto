@@ -114,7 +114,7 @@ func TestSigning(t *testing.T) {
 	for i, test := range signingTests {
 		var buf bytes.Buffer
 
-		plaintext, err := Encode(&buf, keyring[0].PrivateKey, allowAllAlgorithmsConfig, nil)
+		plaintext, err := Encode(&buf, keyring[0].PrivateKey, allowAllAlgorithmsConfig)
 		if err != nil {
 			t.Errorf("#%d: error from Encode: %s", i, err)
 			continue
@@ -155,7 +155,7 @@ func TestSigningInterop(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	plaintext, err := Encode(&buf, keyring[0].PrivateKey, nil, nil)
+	plaintext, err := Encode(&buf, keyring[0].PrivateKey, nil)
 	if err != nil {
 		t.Errorf("error from Encode")
 	}
