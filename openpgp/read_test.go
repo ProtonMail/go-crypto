@@ -800,7 +800,7 @@ func TestSymmetricAeadEaxOpenPGPJsMessage(t *testing.T) {
 func TestCorruptedMessageInvalidSigHeader(t *testing.T) {
 	// Decrypt message with corrupted MDC and invalid one-pass-signature header
 	// Expect parsing errors over unverified decrypted data to be opaque
-	var expectedErr string = errors.DecryptWithSessionKeyError(errors.GenericParsingErrorMessage).Error()
+	var expectedErr string = "openpgp: decryption with session key failed: parsing error"
 	passphrase := []byte("password")
 	file, err := os.Open("test_data/sym-corrupted-message-invalid-sig-header.asc")
 	if err != nil {
@@ -829,7 +829,7 @@ func TestCorruptedMessageInvalidSigHeader(t *testing.T) {
 func TestCorruptedMessageWrongLength(t *testing.T) {
 	// Decrypt message with wrong length in Literal packet header (length too long)
 	// Expect parsing errors over unverified decrypted data to be opaque
-	var expectedErr string = errors.DecryptWithSessionKeyError(errors.GenericParsingErrorMessage).Error()
+	var expectedErr string = "openpgp: decryption with session key failed: parsing error"
 	passphrase := []byte("password")
 	promptFunc := func(keys []Key, symmetric bool) ([]byte, error) {
 		return passphrase, nil
