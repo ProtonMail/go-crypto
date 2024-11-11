@@ -129,6 +129,9 @@ func checkIntegrityError(t *testing.T, packet Packet, cipherFunc CipherFunction,
 		}
 
 		_, err = io.ReadAll(data)
+		if err == nil {
+			err = data.Close()
+		}
 		if err != nil {
 			if edp.Version == 1 && err != errors.ErrMDCHashMismatch {
 				t.Fatalf("no integrity error (expected MDC hash mismatch)")
