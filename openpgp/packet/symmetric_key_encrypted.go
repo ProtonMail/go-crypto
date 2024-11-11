@@ -26,7 +26,7 @@ type SymmetricKeyEncrypted struct {
 	Version      int
 	CipherFunc   CipherFunction
 	Mode         AEADMode
-	s2k          func(out, in []byte) error
+	s2k          func(out, in []byte)
 	iv           []byte
 	encryptedKey []byte // Contains also the authentication tag for AEAD
 }
@@ -121,9 +121,7 @@ func (ske *SymmetricKeyEncrypted) parse(r io.Reader) error {
 // packet.
 func (ske *SymmetricKeyEncrypted) Decrypt(passphrase []byte) ([]byte, CipherFunction, error) {
 	key := make([]byte, ske.CipherFunc.KeySize())
-	if err := ske.s2k(key, passphrase); err != nil {
-		return nil, ske.CipherFunc, err
-	}
+	ske.s2k(key, passphrase)
 	if len(ske.encryptedKey) == 0 {
 		return key, ske.CipherFunc, nil
 	}

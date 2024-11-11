@@ -40,7 +40,7 @@ type PrivateKey struct {
 	Encrypted     bool // if true then the private key is unavailable until Decrypt has been called.
 	encryptedData []byte
 	cipher        CipherFunction
-	s2k           func(out, in []byte) error
+	s2k           func(out, in []byte)
 	aead          AEADMode // only relevant if S2KAEAD is enabled
 	// An *{rsa|dsa|elgamal|ecdh|ecdsa|ed25519|ed448}.PrivateKey or
 	// crypto.Signer/crypto.Decrypter (Decryptor RSA only).
@@ -629,9 +629,7 @@ func (pk *PrivateKey) Decrypt(passphrase []byte) error {
 	}
 
 	key := make([]byte, pk.cipher.KeySize())
-	if err := pk.s2k(key, passphrase); err != nil {
-		return err
-	}
+	pk.s2k(key, passphrase)
 	if pk.s2kType == S2KAEAD {
 		key = pk.applyHKDF(key)
 	}

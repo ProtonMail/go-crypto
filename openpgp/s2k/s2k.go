@@ -226,7 +226,7 @@ func Generate(rand io.Reader, c *Config) (*Params, error) {
 // and returns a function which performs that transform. If the S2K is a special
 // GNU extension that indicates that the private key is missing, then the error
 // returned is errors.ErrDummyPrivateKey.
-func Parse(r io.Reader) (f func(out, in []byte) error, err error) {
+func Parse(r io.Reader) (f func(out, in []byte), err error) {
 	params, err := ParseIntoParams(r)
 	if err != nil {
 		return nil, err
@@ -283,6 +283,9 @@ func ParseIntoParams(r io.Reader) (params *Params, err error) {
 		params.passes = buf[Argon2SaltSize]
 		params.parallelism = buf[Argon2SaltSize+1]
 		params.memoryExp = buf[Argon2SaltSize+2]
+		if err := validateArgon2Params(params); err != nil {
+			return nil, err
+		}
 		return params, nil
 	case GnuS2K:
 		// This is a GNU extension. See
@@ -319,7 +322,7 @@ func (params *Params) salt() []byte {
 	}
 }
 
-func (params *Params) Function() (f func(out, in []byte) error, err error) {
+func (params *Params) Function() (f func(out, in []byte), err error) {
 	if params.Dummy() {
 		return nil, errors.ErrDummyPrivateKey("dummy key found")
 	}
@@ -337,33 +340,26 @@ func (params *Params) Function() (f func(out, in []byte) error, err error) {
 
 	switch params.mode {
 	case SimpleS2K:
-		f := func(out, in []byte) error {
+		f := func(out, in []byte) {
 			Simple(out, hashObj.New(), in)
-			return nil
 		}
 
 		return f, nil
 	case SaltedS2K:
-		f := func(out, in []byte) error {
+		f := func(out, in []byte) {
 			Salted(out, hashObj.New(), in, params.salt())
-			return nil
 		}
 
 		return f, nil
 	case IteratedSaltedS2K:
-		f := func(out, in []byte) error {
+		f := func(out, in []byte) {
 			Iterated(out, hashObj.New(), in, params.salt(), decodeCount(params.countByte))
-			return nil
 		}
 
 		return f, nil
 	case Argon2S2K:
-		f := func(out, in []byte) error {
-			if err := validateArgon2Params(params); err != nil {
-				return err
-			}
+		f := func(out, in []byte) {
 			Argon2(out, in, params.salt(), params.passes, params.parallelism, params.memoryExp)
-			return nil
 		}
 		return f, nil
 	}
