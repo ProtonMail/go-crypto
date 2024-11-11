@@ -668,29 +668,36 @@ func TestReadV6Messages(t *testing.T) {
 }
 
 func TestSymmetricDecryptionArgon2(t *testing.T) {
-	// Appendix IETF OpenPGP crypto refresh draft v08 A.8.1
-	passphrase := []byte("password")
-	var armoredEncryptedMessage []byte
 	if bits.UintSize == 32 {
-		// Alternative for 32-bit platforms (cannot allocate 2GiB of RAM)
-		armoredEncryptedMessage = []byte(`-----BEGIN PGP MESSAGE-----
+		// 32-bit platforms cannot allocate 2GiB of RAM
+		// required by the test vector.
+		t.Skip()
+	}
+	// Appendix IETF OpenPGP crypto refresh draft v08 A.8.1
+	file, err := os.Open("test_data/argon2-sym-message.asc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	armoredEncryptedMessage, err := io.ReadAll(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testSymmetricDecryptionArgon2Run(t, armoredEncryptedMessage)
+}
+
+func TestSymmetricDecryptionArgon2LessMemory(t *testing.T) {
+	armoredEncryptedMessage := []byte(`-----BEGIN PGP MESSAGE-----
 
 w0gGJgcCFATa3KMW/4/9RsPME+un+MBqAwQQljCpv3dPfmVTFJAcqn+YRcIFrbY4
 iiVOkxM5uAKScyYn/T2su2j2fu+uPl/HpgLSWQIHAgx/1caHYWvwl7tyjJ/tSYwK
 m8OMKQHidSWi7UM88mN17ltnLCV/Wa3bLDIyAgJr9XKubHXeUK6/FqmtPxepd4y/
 SXkqZq0XEafMIbynK2gH6JHjctFX
 -----END PGP MESSAGE-----`)
-	} else {
-		file, err := os.Open("../test_data/argon2-sym-message.asc")
-		if err != nil {
-			t.Fatal(err)
-		}
-		armoredEncryptedMessage, err = io.ReadAll(file)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
+	testSymmetricDecryptionArgon2Run(t, armoredEncryptedMessage)
+}
 
+func testSymmetricDecryptionArgon2Run(t *testing.T, armoredEncryptedMessage []byte) {
+	passphrase := []byte("password")
 	// Unarmor string
 	raw, err := armor.Decode(strings.NewReader(string(armoredEncryptedMessage)))
 	if err != nil {
