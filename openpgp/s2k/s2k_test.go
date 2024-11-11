@@ -276,3 +276,49 @@ func testSerializeConfigOK(t *testing.T, c *Config) *Params {
 
 	return params
 }
+
+func TestValidateArgon2Params(t *testing.T) {
+	tests := []struct {
+		params  Params
+		wantErr bool
+	}{
+		{
+			params:  Params{parallelism: 4, passes: 3, memoryExp: 6},
+			wantErr: false,
+		},
+		{
+			params:  Params{parallelism: 0, passes: 3, memoryExp: 6},
+			wantErr: true,
+		},
+		{
+			params:  Params{parallelism: 4, passes: 0, memoryExp: 6},
+			wantErr: true,
+		},
+		{
+			params:  Params{parallelism: 4, passes: 3, memoryExp: 4},
+			wantErr: true,
+		},
+		{
+			params:  Params{parallelism: 4, passes: 3, memoryExp: 32},
+			wantErr: true,
+		},
+		{
+			params:  Params{parallelism: 4, passes: 3, memoryExp: 5},
+			wantErr: false,
+		},
+		{
+			params:  Params{parallelism: 4, passes: 3, memoryExp: 31},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		err := validateArgon2Params(&tt.params)
+		if tt.wantErr && err == nil {
+			t.Errorf("validateArgon2Params: expected an error")
+		}
+		if !tt.wantErr && err != nil {
+			t.Error("validateArgon2Params: expected no error")
+		}
+	}
+}
