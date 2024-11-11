@@ -674,7 +674,7 @@ func TestSymmetricDecryptionArgon2(t *testing.T) {
 		t.Skip()
 	}
 	// Appendix IETF OpenPGP crypto refresh draft v08 A.8.1
-	file, err := os.Open("test_data/argon2-sym-message.asc")
+	file, err := os.Open("../test_data/argon2-sym-message.asc")
 	if err != nil {
 		t.Fatal(err)
 	}
