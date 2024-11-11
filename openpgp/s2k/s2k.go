@@ -199,8 +199,8 @@ func Generate(rand io.Reader, c *Config) (*Params, error) {
 		}
 
 		params = &Params{
-			mode:      SaltedS2K,
-			hashId:    hashId,
+			mode:   SaltedS2K,
+			hashId: hashId,
 		}
 	} else { // Enforce IteratedSaltedS2K method otherwise
 		hashId, ok := algorithm.HashToHashId(c.hash())
@@ -226,7 +226,7 @@ func Generate(rand io.Reader, c *Config) (*Params, error) {
 // and returns a function which performs that transform. If the S2K is a special
 // GNU extension that indicates that the private key is missing, then the error
 // returned is errors.ErrDummyPrivateKey.
-func Parse(r io.Reader) (f func(out, in []byte), err error) {
+func Parse(r io.Reader) (f func(out, in []byte) error, err error) {
 	params, err := ParseIntoParams(r)
 	if err != nil {
 		return nil, err
@@ -319,7 +319,7 @@ func (params *Params) salt() []byte {
 	}
 }
 
-func (params *Params) Function() (f func(out, in []byte), err error) {
+func (params *Params) Function() (f func(out, in []byte) error, err error) {
 	if params.Dummy() {
 		return nil, errors.ErrDummyPrivateKey("dummy key found")
 	}
@@ -337,26 +337,33 @@ func (params *Params) Function() (f func(out, in []byte), err error) {
 
 	switch params.mode {
 	case SimpleS2K:
-		f := func(out, in []byte) {
+		f := func(out, in []byte) error {
 			Simple(out, hashObj.New(), in)
+			return nil
 		}
 
 		return f, nil
 	case SaltedS2K:
-		f := func(out, in []byte) {
+		f := func(out, in []byte) error {
 			Salted(out, hashObj.New(), in, params.salt())
+			return nil
 		}
 
 		return f, nil
 	case IteratedSaltedS2K:
-		f := func(out, in []byte) {
+		f := func(out, in []byte) error {
 			Iterated(out, hashObj.New(), in, params.salt(), decodeCount(params.countByte))
+			return nil
 		}
 
 		return f, nil
 	case Argon2S2K:
-		f := func(out, in []byte) {
+		f := func(out, in []byte) error {
+			if err := validateArgon2Params(params); err != nil {
+				return err
+			}
 			Argon2(out, in, params.salt(), params.passes, params.parallelism, params.memoryExp)
+			return nil
 		}
 		return f, nil
 	}
@@ -410,5 +417,32 @@ func Serialize(w io.Writer, key []byte, rand io.Reader, passphrase []byte, c *Co
 		return err
 	}
 	f(key, passphrase)
+	return nil
+}
+
+// validateArgon2Params checks that the argon2 parameters are valid according to RFC9580.
+func validateArgon2Params(params *Params) error {
+	// The number of passes t and the degree of parallelism p MUST be non-zero.
+	if params.parallelism == 0 {
+		return errors.StructuralError("invalid argon2 params: parallelism is 0")
+	}
+	if params.passes == 0 {
+		return errors.StructuralError("invalid argon2 params: iterations is 0")
+	}
+
+	// The encoded memory size MUST be a value from 3+ceil(log2(p)) to 31.
+	p := params.parallelism
+	ceiledLogarithm := byte(0)
+	for p > 1 {
+		p /= 2
+		ceiledLogarithm += 1
+	}
+	if byte(1)<<ceiledLogarithm != params.parallelism {
+		ceiledLogarithm += 1
+	}
+	if params.memoryExp < 3+ceiledLogarithm || params.memoryExp > 31 {
+		return errors.StructuralError("invalid argon2 params: memory is out of bounds")
+	}
+
 	return nil
 }
