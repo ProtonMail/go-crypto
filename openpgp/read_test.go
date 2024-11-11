@@ -800,7 +800,6 @@ func TestSymmetricAeadEaxOpenPGPJsMessage(t *testing.T) {
 func TestCorruptedMessageInvalidSigHeader(t *testing.T) {
 	// Decrypt message with corrupted MDC and invalid one-pass-signature header
 	// Expect parsing errors over unverified decrypted data to be opaque
-	var expectedErr string = "openpgp: decryption with session key failed: parsing error"
 	passphrase := []byte("password")
 	file, err := os.Open("test_data/sym-corrupted-message-invalid-sig-header.asc")
 	if err != nil {
@@ -820,6 +819,7 @@ func TestCorruptedMessageInvalidSigHeader(t *testing.T) {
 	promptFunc := func(keys []Key, symmetric bool) ([]byte, error) {
 		return passphrase, nil
 	}
+	const expectedErr string = "openpgp: decryption with session key failed: parsing error"
 	_, observedErr := ReadMessage(raw.Body, nil, promptFunc, nil)
 	if observedErr.Error() != expectedErr {
 		t.Errorf("Expected error '%s', but got error '%s'", expectedErr, observedErr)
@@ -829,11 +829,11 @@ func TestCorruptedMessageInvalidSigHeader(t *testing.T) {
 func TestCorruptedMessageWrongLength(t *testing.T) {
 	// Decrypt message with wrong length in Literal packet header (length too long)
 	// Expect parsing errors over unverified decrypted data to be opaque
-	var expectedErr string = "openpgp: decryption with session key failed: parsing error"
 	passphrase := []byte("password")
 	promptFunc := func(keys []Key, symmetric bool) ([]byte, error) {
 		return passphrase, nil
 	}
+	const expectedErr string = "openpgp: decryption with session key failed: parsing error"
 
 	file, err := os.Open("test_data/sym-corrupted-message-long-length.asc")
 	if err != nil {
