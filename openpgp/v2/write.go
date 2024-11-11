@@ -691,7 +691,7 @@ func encrypt(
 	}
 
 	for _, password := range params.Passwords {
-		if err = packet.SerializeSymmetricKeyEncryptedReuseKey(params.KeyWriter, params.SessionKey, password, params.Config); err != nil {
+		if err = packet.SerializeSymmetricKeyEncryptedAEADReuseKey(params.KeyWriter, params.SessionKey, password, aeadSupported, params.Config); err != nil {
 			return nil, err
 		}
 	}

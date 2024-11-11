@@ -196,8 +196,17 @@ func SerializeSymmetricKeyEncrypted(w io.Writer, passphrase []byte, config *Conf
 // SerializeSymmetricallyEncrypted.
 // If config is nil, sensible defaults will be used.
 func SerializeSymmetricKeyEncryptedReuseKey(w io.Writer, sessionKey []byte, passphrase []byte, config *Config) (err error) {
+	return SerializeSymmetricKeyEncryptedAEADReuseKey(w, sessionKey, passphrase, config.AEAD() != nil, config)
+}
+
+// SerializeSymmetricKeyEncryptedAEADReuseKey serializes a symmetric key packet to w.
+// The packet contains the given session key, encrypted by a key derived from
+// the given passphrase. The returned session key must be passed to
+// SerializeSymmetricallyEncrypted.
+// If config is nil, sensible defaults will be used.
+func SerializeSymmetricKeyEncryptedAEADReuseKey(w io.Writer, sessionKey []byte, passphrase []byte, aeadSupported bool, config *Config) (err error) {
 	var version int
-	if config.AEAD() != nil {
+	if aeadSupported {
 		version = 6
 	} else {
 		version = 4
