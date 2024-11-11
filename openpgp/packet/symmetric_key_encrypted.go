@@ -195,6 +195,7 @@ func SerializeSymmetricKeyEncrypted(w io.Writer, passphrase []byte, config *Conf
 // the given passphrase. The returned session key must be passed to
 // SerializeSymmetricallyEncrypted.
 // If config is nil, sensible defaults will be used.
+// Deprecated: Use SerializeSymmetricKeyEncryptedAEADReuseKey instead.
 func SerializeSymmetricKeyEncryptedReuseKey(w io.Writer, sessionKey []byte, passphrase []byte, config *Config) (err error) {
 	return SerializeSymmetricKeyEncryptedAEADReuseKey(w, sessionKey, passphrase, config.AEAD() != nil, config)
 }
