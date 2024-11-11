@@ -426,17 +426,9 @@ func validateArgon2Params(params *Params) error {
 		return errors.StructuralError("invalid argon2 params: iterations is 0")
 	}
 
-	// The encoded memory size MUST be a value from 3+ceil(log2(p)) to 31.
-	p := params.parallelism
-	ceiledLogarithm := byte(0)
-	for p > 1 {
-		p /= 2
-		ceiledLogarithm += 1
-	}
-	if byte(1)<<ceiledLogarithm != params.parallelism {
-		ceiledLogarithm += 1
-	}
-	if params.memoryExp < 3+ceiledLogarithm || params.memoryExp > 31 {
+	// The encoded memory size MUST be a value from 3+ceil(log2(p)) to 31,
+	// such that the decoded memory size m is a value from 8*p to 2^31.
+	if params.memoryExp > 31 || decodeMemory(params.memoryExp) < 8*uint32(params.parallelism) {
 		return errors.StructuralError("invalid argon2 params: memory is out of bounds")
 	}
 
