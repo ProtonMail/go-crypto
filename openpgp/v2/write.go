@@ -594,8 +594,8 @@ func encrypt(
 	encryptKeys := make([]Key, len(to)+len(toHidden))
 
 	config := params.Config
-	// AEAD is used if every key supports it
-	aeadSupported := true
+	// AEAD is used only if config enables it and every key supports it
+	aeadSupported := config.AEAD() != nil
 
 	var intendedRecipients []*packet.Recipient
 	// Intended Recipient Fingerprint subpacket SHOULD be used when creating a signed and encrypted message
