@@ -147,13 +147,15 @@ func (t *Entity) AddDirectKeySignature(selectedKeyProperties *keyProperties, con
 }
 
 func writeKeyProperties(selfSignature *packet.Signature, selectedKeyProperties *keyProperties) error {
+	advertiseAead := selectedKeyProperties.aead != nil
+
 	selfSignature.CreationTime = selectedKeyProperties.creationTime
 	selfSignature.KeyLifetimeSecs = &selectedKeyProperties.keyLifetimeSecs
 	selfSignature.FlagsValid = true
 	selfSignature.FlagSign = true
 	selfSignature.FlagCertify = true
 	selfSignature.SEIPDv1 = true // true by default, see 5.8 vs. 5.14
-	selfSignature.SEIPDv2 = selectedKeyProperties.aead != nil
+	selfSignature.SEIPDv2 = advertiseAead
 
 	// Set the PreferredHash for the SelfSignature from the packet.Config.
 	// If it is not the must-implement algorithm from rfc4880bis, append that.
@@ -197,18 +199,21 @@ func writeKeyProperties(selfSignature *packet.Signature, selectedKeyProperties *
 		selfSignature.PreferredCompression = append(selfSignature.PreferredCompression, uint8(selectedKeyProperties.compression))
 	}
 
-	// And for DefaultMode.
-	modes := []uint8{uint8(selectedKeyProperties.aead.Mode())}
-	if selectedKeyProperties.aead.Mode() != packet.AEADModeOCB {
-		modes = append(modes, uint8(packet.AEADModeOCB))
-	}
+	if advertiseAead {
+		// And for DefaultMode.
+		modes := []uint8{uint8(selectedKeyProperties.aead.Mode())}
+		if selectedKeyProperties.aead.Mode() != packet.AEADModeOCB {
+			modes = append(modes, uint8(packet.AEADModeOCB))
+		}
 
-	// For preferred (AES256, GCM), we'll generate (AES256, GCM), (AES256, OCB), (AES128, GCM), (AES128, OCB)
-	for _, cipher := range selfSignature.PreferredSymmetric {
-		for _, mode := range modes {
-			selfSignature.PreferredCipherSuites = append(selfSignature.PreferredCipherSuites, [2]uint8{cipher, mode})
+		// For preferred (AES256, GCM), we'll generate (AES256, GCM), (AES256, OCB), (AES128, GCM), (AES128, OCB)
+		for _, cipher := range selfSignature.PreferredSymmetric {
+			for _, mode := range modes {
+				selfSignature.PreferredCipherSuites = append(selfSignature.PreferredCipherSuites, [2]uint8{cipher, mode})
+			}
 		}
 	}
+
 	return nil
 }
 
