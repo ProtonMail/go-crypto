@@ -73,6 +73,16 @@ func TestTagVerificationError(t *testing.T) {
 		packet = readSymmetricallyEncrypted(t, dataPacket)
 		// Decrypt contents and check integrity
 		checkIntegrityError(t, packet, cipherFunc, key)
+
+		if len(testCase.faultyDataPacket) > 0 {
+			dataPacket, err := hex.DecodeString(testCase.faultyDataPacket)
+			if err != nil {
+				t.Fatal(err)
+			}
+			packet = readSymmetricallyEncrypted(t, dataPacket)
+			// Decrypt contents and check integrity
+			checkIntegrityError(t, packet, cipherFunc, key)
+		}
 	}
 }
 
