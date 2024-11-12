@@ -200,7 +200,8 @@ func writeKeyProperties(selfSignature *packet.Signature, selectedKeyProperties *
 	}
 
 	if advertiseAead {
-		// And for DefaultMode.
+		// Get the preferred AEAD mode from the packet.Config.
+		// If it is not the must-implement algorithm from rfc9580, append that.
 		modes := []uint8{uint8(selectedKeyProperties.aead.Mode())}
 		if selectedKeyProperties.aead.Mode() != packet.AEADModeOCB {
 			modes = append(modes, uint8(packet.AEADModeOCB))
