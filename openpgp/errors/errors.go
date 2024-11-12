@@ -20,8 +20,10 @@ var (
 	ErrAEADTagVerification error = DecryptWithSessionKeyError("AEAD tag verification failed")
 	// ErrMDCHashMismatch is returned if the final tag verification in SEIPDv1 fails
 	ErrMDCHashMismatch error = DecryptWithSessionKeyError("MDC hash mismatch")
-	// ErrMDCMissing is returned if the final tag in SEIPDv1 is missing
-	ErrMDCMissing error = DecryptWithSessionKeyError("MDC packet not found")
+	// ErrMDCMissing is deprecated and is no longer returned.
+	// Instead, if the MDC tag is missing, an ErrMDCHashMismatch error will be returned.
+	// Reduces the risk of decryption oracles.
+	ErrMDCMissing error = SignatureError("MDC packet not found")
 )
 
 // A StructuralError is returned when OpenPGP data is found to be syntactically
