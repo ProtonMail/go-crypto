@@ -12,11 +12,6 @@ import (
 // operation.
 type AEADMode uint8
 
-// Id returns the algorithm ID, as a byte, of mode.
-func (mode AEADMode) Id() uint8 {
-	return uint8(mode)
-}
-
 // Supported modes of operation (see RFC4880bis [EAX] and RFC7253)
 const (
 	AEADModeEAX = AEADMode(1)

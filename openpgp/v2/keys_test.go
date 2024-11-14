@@ -2068,12 +2068,15 @@ func TestAddHMACSubkey(t *testing.T) {
 		t.Error("generated Public and Private Key differ")
 	}
 
-	if !bytes.Equal(parsedPublicKey.FpSeed[:], generatedPublicKey.FpSeed[:]) {
+	if !bytes.Equal(parsedPrivateKey.HashSeed[:], generatedPrivateKey.HashSeed[:]) {
 		t.Error("parsed wrong hash seed")
 	}
 
 	if parsedPrivateKey.PublicKey.Hash != generatedPrivateKey.PublicKey.Hash {
 		t.Error("parsed wrong cipher id")
+	}
+	if !bytes.Equal(parsedPrivateKey.PublicKey.BindingHash[:], generatedPrivateKey.PublicKey.BindingHash[:]) {
+		t.Error("parsed wrong binding hash")
 	}
 }
 
@@ -2086,13 +2089,13 @@ func TestSerializeSymmetricSubkeyError(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
 	w, _ := armor.Encode(buf, "PGP PRIVATE KEY BLOCK", nil)
 
-	entity.PrimaryKey.PubKeyAlgo = 128
+	entity.PrimaryKey.PubKeyAlgo = 100
 	err = entity.Serialize(w)
 	if err == nil {
 		t.Fatal(err)
 	}
 
-	entity.PrimaryKey.PubKeyAlgo = 129
+	entity.PrimaryKey.PubKeyAlgo = 101
 	err = entity.Serialize(w)
 	if err == nil {
 		t.Fatal(err)
@@ -2143,15 +2146,15 @@ func TestAddAEADSubkey(t *testing.T) {
 		t.Error("generated Public and Private Key differ")
 	}
 
-	if !bytes.Equal(parsedPublicKey.FpSeed[:], generatedPublicKey.FpSeed[:]) {
+	if !bytes.Equal(parsedPrivateKey.HashSeed[:], generatedPrivateKey.HashSeed[:]) {
 		t.Error("parsed wrong hash seed")
 	}
 
 	if parsedPrivateKey.PublicKey.Cipher.Id() != generatedPrivateKey.PublicKey.Cipher.Id() {
 		t.Error("parsed wrong cipher id")
 	}
-	if parsedPrivateKey.PublicKey.AEADMode.Id() != generatedPrivateKey.PublicKey.AEADMode.Id() {
-		t.Error("parsed wrong aead mode")
+	if !bytes.Equal(parsedPrivateKey.PublicKey.BindingHash[:], generatedPrivateKey.PublicKey.BindingHash[:]) {
+		t.Error("parsed wrong binding hash")
 	}
 }
 
@@ -2195,11 +2198,11 @@ func TestNoSymmetricKeySerialized(t *testing.T) {
 		t.Error("Private key was serialized with public")
 	}
 
-	firstFpSeed := entity.Subkeys[1].PublicKey.PublicKey.(*symmetric.AEADPublicKey).FpSeed
-	i = bytes.Index(w.Bytes(), firstFpSeed[:])
+	firstBindingHash := entity.Subkeys[1].PublicKey.PublicKey.(*symmetric.AEADPublicKey).BindingHash
+	i = bytes.Index(w.Bytes(), firstBindingHash[:])
 
-	secondFpSeed := entity.Subkeys[2].PublicKey.PublicKey.(*symmetric.HMACPublicKey).FpSeed
-	k = bytes.Index(w.Bytes(), secondFpSeed[:])
+	secondBindingHash := entity.Subkeys[2].PublicKey.PublicKey.(*symmetric.HMACPublicKey).BindingHash
+	k = bytes.Index(w.Bytes(), secondBindingHash[:])
 	if (i > 0) || (k > 0) {
 		t.Errorf("Symmetric public key metadata exported %d %d", i, k)
 	}
@@ -2208,20 +2211,18 @@ func TestNoSymmetricKeySerialized(t *testing.T) {
 
 func TestSymmetricKeys(t *testing.T) {
 	data := `-----BEGIN PGP PRIVATE KEY BLOCK-----
-
-xUoEZyoQrIEImuGs5gaOTekO00WQx6MDnyBPvxmpMiOgeVse7+aqarsAc8F5
-NFm3pVkFDZxX0MqRCPqCwsa/BXJGlrEdMAwSNckOV80xUGVyc2lzdGVudCBT
-eW1tZXRyaWMgS2V5IDxwZXJzaXN0ZW50QGV4YW1wbGUub3JnPsKvBBOBCgCF
-BYJnKhCsAwsJBwmQDqlD7wlMH9dFFAAAAAAAHAAgc2FsdEBub3RhdGlvbnMu
-b3BlbnBncGpzLm9yZ4pMjYSZvCHJsWo5/hQJ3qfDMVMnetCsdS4ZSR6oeO7l
-BRUKCAwOBBYAAgECGQECmwMCHgEWIQSbMhUPoVGIuE9u9GAOqUPvCUwf1wAA
-QXxcTdhWEMhv+uYj8lUjGbDiqMHc7oGQSattlK89H9KT18dLBGcqEKyACQPs
-AUFGawprheOyMQEYmVQUCoTdw4SVAxPk3Wkdbd7YtQATgtwB+JTCDy4de8F+
-yKpsXCJEFrVCsVnFyyY3gH5Wgw5PwpoEGIEKAHAFgmcqEKwJkA6pQ+8JTB/X
-RRQAAAAAABwAIHNhbHRAbm90YXRpb25zLm9wZW5wZ3Bqcy5vcmdwNnP67WFb
-3vwFQkTQHsuFKLqvtvpQdnDs9RmvPxLZUwKbDBYhBJsyFQ+hUYi4T270YA6p
-Q+8JTB/XAAC0o7OPSjaqMfpfYDUewr7Ehi5kFRCDBwbxLWFryAiICULT
-=ywfD
+	
+xWoEYs7w5mUIcFvlmkuricX26x138uvHGlwIaxWIbRnx1+ggPcveTcwA4zSZ
+n6XcD0Q5aLe6dTEBwCyfUecZ/nA0W8Pl9xBHfjIjQuxcUBnIqxZ061RZPjef
+D/XIQga1ftLDelhylQwL7R3TzQ1TeW1tZXRyaWMgS2V5wmkEEGUIAB0FAmLO
+8OYECwkHCAMVCAoEFgACAQIZAQIbAwIeAQAhCRCRTKq2ObiQKxYhBMHTTXXF
+ULQ2M2bYNJFMqrY5uJArIawgJ+5RSsN8VNuZTKJbG88TIedU05wwKjW3wqvT
+X6Z7yfbHagRizvDmZAluL/kJo6hZ1kFENpQkWD/Kfv1vAG3nbxhsVEzBQ6a1
+OAD24BaKJz6gWgj4lASUNK5OuXnLc3J79Bt1iRGkSbiPzRs/bplB4TwbILeC
+ZLeDy9kngZDosgsIk5sBgGEqS9y5HiHCVQQYZQgACQUCYs7w5gIbDAAhCRCR
+TKq2ObiQKxYhBMHTTXXFULQ2M2bYNJFMqrY5uJArENkgL0Bc+OI/1na0XWqB
+TxGVotQ4A/0u0VbOMEUfnrI8Fms=
+=RdCW
 -----END PGP PRIVATE KEY BLOCK-----
 `
 	keys, err := ReadArmoredKeyRing(strings.NewReader(data))
