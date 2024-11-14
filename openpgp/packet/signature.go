@@ -345,11 +345,10 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 			return
 		}
 	case ExperimentalPubKeyAlgoHMAC:
-		hmac, err := io.ReadAll(r)
-		if err != nil {
-			return err
+		sig.HMAC = new(encoding.ShortByteString)
+		if _, err = sig.HMAC.ReadFrom(r); err != nil {
+			return
 		}
-		sig.HMAC = encoding.NewOctetArray(hmac)
 	case PubKeyAlgoMldsa65Ed25519:
 		if err = sig.parseMldsaEddsaSignature(r, 64, mldsa65.SignatureSize); err != nil {
 			return
@@ -1034,7 +1033,7 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 	case ExperimentalPubKeyAlgoHMAC:
 		sigdata, err := priv.PrivateKey.(crypto.Signer).Sign(config.Random(), digest, nil)
 		if err == nil {
-			sig.HMAC = encoding.NewOctetArray(sigdata)
+			sig.HMAC = encoding.NewShortByteString(sigdata)
 		}
 	case PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
 		if sig.Version != 6 {
