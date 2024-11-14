@@ -233,14 +233,7 @@ FindKey:
 	}
 	mdFinal, sensitiveParsingErr := readSignedMessage(packets, md, keyring, config)
 	if sensitiveParsingErr != nil {
-		if md.decrypted != nil {
-			// The data is read from a stream that decrypts using a session key;
-			// therefore, we need to handle parsing errors appropriately.
-			// It's essential to mitigate the risk of oracle attacks.
-			return nil, errors.HandleDecryptionSensitiveParsingError(sensitiveParsingErr)
-		}
-		// Data was not encrypted and is directly read in plaintext.
-		return nil, errors.StructuralError(errors.GenericParsingErrorMessage)
+		return nil, errors.HandleSensitiveParsingError(sensitiveParsingErr, md.decrypted != nil)
 	}
 	return mdFinal, nil
 }
@@ -375,7 +368,7 @@ func (cr *checkReader) Read(buf []byte) (int, error) {
 	}
 
 	if sensitiveParsingError != nil {
-		return n, errors.HandleDecryptionSensitiveParsingError(sensitiveParsingError)
+		return n, errors.HandleSensitiveParsingError(sensitiveParsingError, true)
 	}
 
 	return n, nil
@@ -399,6 +392,7 @@ func (scr *signatureCheckReader) Read(buf []byte) (int, error) {
 		scr.wrappedHash.Write(buf[:n])
 	}
 
+	readsDecryptedData := scr.md.decrypted != nil
 	if sensitiveParsingError == io.EOF {
 		var p packet.Packet
 		var readError error
@@ -441,23 +435,15 @@ func (scr *signatureCheckReader) Read(buf []byte) (int, error) {
 		// unsigned hash of its own. In order to check this we need to
 		// close that Reader.
 		if scr.md.decrypted != nil {
-			mdcErr := scr.md.decrypted.Close()
-			if mdcErr != nil {
-				return n, mdcErr
+			if sensitiveParsingError := scr.md.decrypted.Close(); sensitiveParsingError != nil {
+				return n, errors.HandleSensitiveParsingError(sensitiveParsingError, true)
 			}
 		}
 		return n, io.EOF
 	}
 
 	if sensitiveParsingError != nil {
-		if scr.md.decrypted != nil {
-			// The data is read from a stream that decrypts using a session key;
-			// therefore, we need to handle parsing errors appropriately.
-			// This is essential to mitigate the risk of oracle attacks.
-			return n, errors.HandleDecryptionSensitiveParsingError(sensitiveParsingError)
-		}
-		// Data was not encrypted and is directly read in plaintext.
-		return n, errors.StructuralError(errors.GenericParsingErrorMessage)
+		return n, errors.HandleSensitiveParsingError(sensitiveParsingError, readsDecryptedData)
 	}
 
 	return n, nil

@@ -268,14 +268,7 @@ FindKey:
 	}
 	mdFinal, sensitiveParsingErr := readSignedMessage(packets, md, keyring, config)
 	if sensitiveParsingErr != nil {
-		if md.decrypted != nil {
-			// The data is read from a stream that decrypts using a session key;
-			// therefore, we need to handle parsing errors appropriately.
-			// This is essential to mitigate the risk of oracle attacks.
-			return nil, errors.HandleDecryptionSensitiveParsingError(sensitiveParsingErr)
-		}
-		// Data was not encrypted and is directly read in plaintext.
-		return nil, errors.StructuralError(errors.GenericParsingErrorMessage)
+		return nil, errors.HandleSensitiveParsingError(sensitiveParsingErr, md.decrypted != nil)
 	}
 	return mdFinal, nil
 }
@@ -488,15 +481,15 @@ func (cr *checkReader) Read(buf []byte) (int, error) {
 			}
 		}
 		if cr.md.decrypted != nil {
-			if mdcErr := cr.md.decrypted.Close(); mdcErr != nil {
-				return n, mdcErr
+			if sensitiveParsingError := cr.md.decrypted.Close(); sensitiveParsingError != nil {
+				return n, errors.HandleSensitiveParsingError(sensitiveParsingError, true)
 			}
 		}
 		cr.checked = true
 		return n, io.EOF
 	}
 	if sensitiveParsingError != nil {
-		return n, errors.HandleDecryptionSensitiveParsingError(sensitiveParsingError)
+		return n, errors.HandleSensitiveParsingError(sensitiveParsingError, true)
 	}
 	return n, nil
 }
@@ -520,18 +513,19 @@ func (scr *signatureCheckReader) Read(buf []byte) (int, error) {
 		}
 	}
 
+	readsDecryptedData := scr.md.decrypted != nil
 	if sensitiveParsingError == io.EOF {
+
 		var signatures []*packet.Signature
 
-		// Read all signature packets.
-
+		// Read all signature packets and discard others.
 		for {
-			p, err := scr.packets.Next()
-			if err == io.EOF {
+			p, sensitiveParsingErrorPacket := scr.packets.Next()
+			if sensitiveParsingErrorPacket == io.EOF {
 				break
 			}
-			if err != nil {
-				return n, errors.StructuralError(errors.GenericParsingErrorMessage)
+			if sensitiveParsingErrorPacket != nil {
+				return n, errors.HandleSensitiveParsingError(sensitiveParsingErrorPacket, readsDecryptedData)
 			}
 			if sig, ok := p.(*packet.Signature); ok {
 				if sig.Version == 5 && scr.md.LiteralData != nil && (sig.SigType == 0x00 || sig.SigType == 0x01) {
@@ -540,6 +534,15 @@ func (scr *signatureCheckReader) Read(buf []byte) (int, error) {
 				signatures = append(signatures, sig)
 			}
 		}
+
+		// Verify the integrity of the decrypted data before verifying the signatures.
+		if scr.md.decrypted != nil {
+			sensitiveParsingErrorPacket := scr.md.decrypted.Close()
+			if sensitiveParsingErrorPacket != nil {
+				return n, errors.HandleSensitiveParsingError(sensitiveParsingErrorPacket, true)
+			}
+		}
+
 		numberOfOpsSignatures := 0
 		for _, candidate := range scr.md.SignatureCandidates {
 			if candidate.CorrespondingSig == nil {
@@ -632,39 +635,11 @@ func (scr *signatureCheckReader) Read(buf []byte) (int, error) {
 		}
 
 		scr.md.IsVerified = true
-
-		for {
-			_, err := scr.packets.Next()
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				return 0, errors.StructuralError(errors.GenericParsingErrorMessage)
-			}
-
-		}
-
-		// The SymmetricallyEncrypted packet, if any, might have an
-		// unsigned hash of its own. In order to check this we need to
-		// close that Reader.
-		if scr.md.decrypted != nil {
-			mdcErr := scr.md.decrypted.Close()
-			if mdcErr != nil {
-				return n, mdcErr
-			}
-		}
 		return n, io.EOF
 	}
 
 	if sensitiveParsingError != nil {
-		if scr.md.decrypted != nil {
-			// The data is read from a stream that decrypts using a session key;
-			// therefore, we need to handle parsing errors appropriately.
-			// This is essential to mitigate the risk of oracle attacks.
-			return n, errors.HandleDecryptionSensitiveParsingError(sensitiveParsingError)
-		}
-		// Data was not encrypted and is directly read in plaintext.
-		return n, errors.StructuralError(errors.GenericParsingErrorMessage)
+		return n, errors.HandleSensitiveParsingError(sensitiveParsingError, readsDecryptedData)
 	}
 
 	return n, nil

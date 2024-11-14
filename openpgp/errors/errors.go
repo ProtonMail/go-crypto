@@ -9,20 +9,15 @@ import (
 	"strconv"
 )
 
-const (
-	// GenericParsingErrorMessage is a generic error message for parsing errors
-	// to reduce the risk of oracle attacks.
-	GenericParsingErrorMessage = "parsing error"
-)
-
 var (
+	// ErrDecryptSessionKeyParsing is a generic error message for parsing errors in decrypted data
+	// to reduce the risk of oracle attacks.
+	ErrDecryptSessionKeyParsing = DecryptWithSessionKeyError("parsing error")
 	// ErrAEADTagVerification is returned if one of the tag verifications in SEIPDv2 fails
 	ErrAEADTagVerification error = DecryptWithSessionKeyError("AEAD tag verification failed")
-	// ErrMDCHashMismatch is returned if the final tag verification in SEIPDv1 fails
-	ErrMDCHashMismatch error = DecryptWithSessionKeyError("MDC hash mismatch")
-	// ErrMDCMissing is deprecated and is no longer returned.
-	// Instead, if the MDC tag is missing, an ErrMDCHashMismatch error will be returned.
-	// Reduces the risk of decryption oracles.
+	// ErrMDCHashMismatch
+	ErrMDCHashMismatch error = SignatureError("MDC hash mismatch")
+	// ErrMDCMissing
 	ErrMDCMissing error = SignatureError("MDC packet not found")
 )
 
@@ -43,16 +38,23 @@ func (s DecryptWithSessionKeyError) Error() string {
 	return "openpgp: decryption with session key failed: " + string(s)
 }
 
-// HandleDecryptionSensitiveParsingError handles symmetric decryption errors.
-// The function makes parsing errors generic to reduce the risk of oracle attacks.
-func HandleDecryptionSensitiveParsingError(err error) error {
+// HandleSensitiveParsingError handles parsing errors when reading data from potentially decrypted data.
+// The function makes parsing errors generic to reduce the risk of oracle attacks in SEIPDv1.
+func HandleSensitiveParsingError(err error, decrypted bool) error {
+	if !decrypted {
+		// Data was not encrypted so we return the inner error.
+		return err
+	}
+	// The data is read from a stream that decrypts using a session key;
+	// therefore, we need to handle parsing errors appropriately.
+	// This is essential to mitigate the risk of oracle attacks.
 	if decError, ok := err.(*DecryptWithSessionKeyError); ok {
 		return decError
 	}
 	if decError, ok := err.(DecryptWithSessionKeyError); ok {
 		return decError
 	}
-	return DecryptWithSessionKeyError(GenericParsingErrorMessage)
+	return ErrDecryptSessionKeyParsing
 }
 
 // UnsupportedError indicates that, although the OpenPGP data is valid, it
