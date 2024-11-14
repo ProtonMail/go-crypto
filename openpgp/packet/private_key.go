@@ -543,11 +543,19 @@ func serializeEd448PrivateKey(w io.Writer, priv *ed448.PrivateKey) error {
 }
 
 func serializeAEADPrivateKey(w io.Writer, priv *symmetric.AEADPrivateKey) (err error) {
+	_, err = w.Write(priv.HashSeed[:])
+	if err != nil {
+		return
+	}
 	_, err = w.Write(priv.Key)
 	return
 }
 
 func serializeHMACPrivateKey(w io.Writer, priv *symmetric.HMACPrivateKey) (err error) {
+	_, err = w.Write(priv.HashSeed[:])
+	if err != nil {
+		return
+	}
 	_, err = w.Write(priv.Key)
 	return err
 }
@@ -1191,10 +1199,16 @@ func (pk *PrivateKey) parseAEADPrivateKey(data []byte) (err error) {
 	aeadPriv := new(symmetric.AEADPrivateKey)
 	aeadPriv.PublicKey = *pubKey
 
+	copy(aeadPriv.HashSeed[:], data[:32])
+
 	priv := make([]byte, pubKey.Cipher.KeySize())
-	copy(priv, data[:])
+	copy(priv, data[32:])
 	aeadPriv.Key = priv
 	aeadPriv.PublicKey.Key = aeadPriv.Key
+
+	if err = validateAEADParameters(aeadPriv); err != nil {
+		return
+	}
 
 	pk.PrivateKey = aeadPriv
 	pk.PublicKey.PublicKey = &aeadPriv.PublicKey
@@ -1207,14 +1221,36 @@ func (pk *PrivateKey) parseHMACPrivateKey(data []byte) (err error) {
 	hmacPriv := new(symmetric.HMACPrivateKey)
 	hmacPriv.PublicKey = *pubKey
 
+	copy(hmacPriv.HashSeed[:], data[:32])
+
 	priv := make([]byte, pubKey.Hash.Size())
-	copy(priv, data[:])
-	hmacPriv.Key = priv[:]
+	copy(priv, data[32:])
+	hmacPriv.Key = data[32:]
 	hmacPriv.PublicKey.Key = hmacPriv.Key
+
+	if err = validateHMACParameters(hmacPriv); err != nil {
+		return
+	}
 
 	pk.PrivateKey = hmacPriv
 	pk.PublicKey.PublicKey = &hmacPriv.PublicKey
 	return
+}
+
+func validateAEADParameters(priv *symmetric.AEADPrivateKey) error {
+	return validateCommonSymmetric(priv.HashSeed, priv.PublicKey.BindingHash)
+}
+
+func validateHMACParameters(priv *symmetric.HMACPrivateKey) error {
+	return validateCommonSymmetric(priv.HashSeed, priv.PublicKey.BindingHash)
+}
+
+func validateCommonSymmetric(seed [32]byte, bindingHash [32]byte) error {
+	expectedBindingHash := symmetric.ComputeBindingHash(seed)
+	if !bytes.Equal(expectedBindingHash, bindingHash[:]) {
+		return errors.KeyInvalidError("symmetric: wrong binding hash")
+	}
+	return nil
 }
 
 // parseMldsaEddsaPrivateKey parses a ML-DSA + EdDSA private key as specified in
