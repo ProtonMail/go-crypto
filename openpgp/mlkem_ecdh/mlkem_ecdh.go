@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/ProtonMail/go-crypto/internal/kmac"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/encoding"
 	"golang.org/x/crypto/sha3"
 
@@ -19,8 +18,8 @@ import (
 
 const (
 	maxSessionKeyLength = 64
-	domainSeparator     = "OpenPGPCompositeKDFv1"
 	MlKemSeedLen        = 64
+	kdfContext          = "OpenPGPCompositeKDFv1"
 )
 
 type PublicKey struct {
@@ -140,16 +139,11 @@ func Decrypt(priv *PrivateKey, kEphemeral, ecEphemeral, ciphertext []byte) (msg 
 	return keywrap.Unwrap(kek, ciphertext)
 }
 
-// buildKey implements the composite KDF as specified in
-// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-05.html#name-key-combiner
+// buildKey implements the composite KDF from
+// https://github.com/openpgp-pqc/draft-openpgp-pqc/pull/161
 func buildKey(pub *PublicKey, eccSecretPoint, eccEphemeral, eccPublicKey, mlkemKeyShare, mlkemEphemeral []byte, mlkemPublicKey kem.PublicKey) ([]byte, error) {
-	h := sha3.New256()
-
-	// SHA3 never returns error
-	_, _ = h.Write(eccSecretPoint)
-	_, _ = h.Write(eccEphemeral)
-	_, _ = h.Write(eccPublicKey)
-	eccKeyShare := h.Sum(nil)
+	/// Set the output `ecdhKeyShare` to `eccSecretPoint`
+	eccKeyShare := eccSecretPoint
 
 	serializedMlkemPublicKey, err := mlkemPublicKey.MarshalBinary()
 	if err != nil {
@@ -160,35 +154,22 @@ func buildKey(pub *PublicKey, eccSecretPoint, eccEphemeral, eccPublicKey, mlkemK
 	//   mlkemEphemeral  - the ML-KEM ciphertext encoded as an octet string
 	//   mlkemPublicKey  - The ML-KEM public key of the recipient as an octet string
 	//   algId           - the OpenPGP algorithm ID of the public-key encryption algorithm
-	//   domainSeparator – the UTF-8 encoding of the string "OpenPGPCompositeKDFv1"
 	//   eccKeyShare     - the ECDH key share encoded as an octet string
 	//   eccEphemeral    - the ECDH ciphertext encoded as an octet string
 	//   eccPublicKey    - The ECDH public key of the recipient as an octet string
 
-	// KEK = KMAC256(
-	//           mlkemKeyShare || eccKeyShare,
-	//           mlkemEphemeral || eccEphemeral || mlkemPublicKey || ecdhPublicKey || algId,
-	//           256 (32 bytes),
-	//           domainSeparator
-	//       )
-
-	kMacKeyBuffer := make([]byte, len(mlkemKeyShare)+len(eccKeyShare))
-	copy(kMacKeyBuffer[:len(mlkemKeyShare)], mlkemKeyShare)
-	copy(kMacKeyBuffer[len(mlkemKeyShare):], eccKeyShare)
-
-	k, err := kmac.NewKMAC256(kMacKeyBuffer, 32, []byte(domainSeparator))
-	if err != nil {
-		return nil, err
-	}
-
-	// kmac hash never returns an error
-	_, _ = k.Write(mlkemEphemeral)
-	_, _ = k.Write(eccEphemeral)
-	_, _ = k.Write(serializedMlkemPublicKey)
-	_, _ = k.Write(eccPublicKey)
-	_, _ = k.Write([]byte{pub.AlgId})
-
-	return k.Sum(nil), nil
+	// SHA3-256(mlkemKeyShare || eccKeyShare || eccEphemeral || eccPublicKey ||
+	//          mlkemEphemeral || mlkemPublicKey || algId || "OpenPGPCompositeKDFv1")
+	h := sha3.New256()
+	_, _ = h.Write(mlkemKeyShare)
+	_, _ = h.Write(eccKeyShare)
+	_, _ = h.Write(eccEphemeral)
+	_, _ = h.Write(eccPublicKey)
+	_, _ = h.Write(mlkemEphemeral)
+	_, _ = h.Write(serializedMlkemPublicKey)
+	_, _ = h.Write([]byte{pub.AlgId})
+	_, _ = h.Write([]byte(kdfContext))
+	return h.Sum(nil), nil
 }
 
 // Validate checks that the public key corresponds to the private key
