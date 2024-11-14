@@ -234,8 +234,12 @@ FindKey:
 	mdFinal, sensitiveParsingErr := readSignedMessage(packets, md, keyring, config)
 	if sensitiveParsingErr != nil {
 		if md.decrypted != nil {
+			// The data is read from a stream that decrypts using a session key;
+			// therefore, we need to handle parsing errors appropriately.
+			// It's essential to mitigate the risk of oracle attacks.
 			return nil, errors.HandleDecryptionSensitiveParsingError(sensitiveParsingErr)
 		}
+		// Data was not encrypted and is directly read in plaintext.
 		return nil, errors.StructuralError(errors.GenericParsingErrorMessage)
 	}
 	return mdFinal, nil
@@ -447,8 +451,12 @@ func (scr *signatureCheckReader) Read(buf []byte) (int, error) {
 
 	if sensitiveParsingError != nil {
 		if scr.md.decrypted != nil {
+			// The data is read from a stream that decrypts using a session key;
+			// therefore, we need to handle parsing errors appropriately.
+			// This is essential to mitigate the risk of oracle attacks.
 			return n, errors.HandleDecryptionSensitiveParsingError(sensitiveParsingError)
 		}
+		// Data was not encrypted and is directly read in plaintext.
 		return n, errors.StructuralError(errors.GenericParsingErrorMessage)
 	}
 
