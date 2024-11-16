@@ -1033,6 +1033,25 @@ func (sig *Signature) SignUserId(id string, pub *PublicKey, priv *PrivateKey, co
 	return sig.Sign(prepareHash, priv, config)
 }
 
+// SignUserAttribute computes a signature from priv, asserting that pub has
+// user attribute uat.  On success, the signature is stored in sig. Call
+// Serialize to write it out.
+// If config is nil, sensible defaults will be used.
+func (sig *Signature) SignUserAttribute(uat *UserAttribute, pub *PublicKey, priv *PrivateKey, config *Config) error {
+	if priv.Dummy() {
+		return errors.ErrDummyPrivateKey("dummy key found")
+	}
+	prepareHash, err := sig.PrepareSign(config)
+	if err != nil {
+		return err
+	}
+	err = userAttributeSignatureHash(uat, pub, prepareHash)
+	if err != nil {
+		return err
+	}
+	return sig.Sign(prepareHash, priv, config)
+}
+
 // SignDirectKeyBinding computes a signature from priv
 // On success, the signature is stored in sig.
 // Call Serialize to write it out.

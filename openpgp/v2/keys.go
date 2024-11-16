@@ -31,6 +31,7 @@ type Entity struct {
 	Revocations      []*packet.VerifiableSignature
 	DirectSignatures []*packet.VerifiableSignature // Direct-key self signature of the PrimaryKey (contains primary key properties in v6)}
 	Subkeys          []Subkey
+	Attributes       []*Attribute
 }
 
 // A Key identifies a specific public key in an Entity. This is either the
@@ -504,6 +505,10 @@ EachPacket:
 			if err != nil {
 				return nil, err
 			}
+		case *packet.UserAttribute:
+			if err := addUserAttribute(e, packets, pkt); err != nil {
+				return nil, err
+			}
 		case *packet.Signature:
 			if pkt.SigType == packet.SigTypeKeyRevocation {
 				e.Revocations = append(e.Revocations, packet.NewVerifiableSig(pkt))
@@ -593,6 +598,27 @@ func (e *Entity) serializePrivate(w io.Writer, config *packet.Config, reSign boo
 			return err
 		}
 	}
+	for _, attr := range e.Attributes {
+		if reSign {
+			if attr.SelfSignature == nil {
+				return goerrors.New("openpgp: can't re-sign user attribute without valid self-signature")
+			}
+			err = attr.SelfSignature.SignUserAttribute(attr.UserAttribute, e.PrimaryKey, e.PrivateKey, config)
+			if err != nil {
+				return
+			}
+		}
+		err = attr.UserAttribute.Serialize(w)
+		if err != nil {
+			return
+		}
+		for _, sig := range attr.Signatures {
+			err = sig.Serialize(w)
+			if err != nil {
+				return err
+			}
+		}
+	}
 	for _, subkey := range e.Subkeys {
 		if reSign {
 			if err := subkey.ReSign(config); err != nil {
@@ -626,6 +652,18 @@ func (e *Entity) Serialize(w io.Writer) error {
 	for _, ident := range e.Identities {
 		if err := ident.Serialize(w); err != nil {
 			return err
+		}
+	}
+	for _, uat := range e.Attributes {
+		err := uat.UserAttribute.Serialize(w)
+		if err != nil {
+			return err
+		}
+		for _, sig := range uat.Signatures {
+			err = sig.Serialize(w)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	for _, subkey := range e.Subkeys {
