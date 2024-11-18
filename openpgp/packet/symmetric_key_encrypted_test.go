@@ -12,6 +12,7 @@ import (
 	mathrand "math/rand"
 	"testing"
 
+	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/s2k"
 )
 
@@ -20,25 +21,12 @@ const maxPassLen = 64
 // Tests against RFC vectors
 func TestDecryptSymmetricKeyAndEncryptedDataPacket(t *testing.T) {
 	for _, testCase := range keyAndIpePackets() {
-		// Key
-		buf := readerFromHex(testCase.packets)
-		packet, err := Read(buf)
-		if err != nil {
-			t.Fatalf("failed to read SymmetricKeyEncrypted: %s", err)
-		}
-		ske, ok := packet.(*SymmetricKeyEncrypted)
-		if !ok {
-			t.Fatal("didn't find SymmetricKeyEncrypted packet")
-		}
-		// Decrypt key
-		key, cipherFunc, err := ske.Decrypt([]byte(testCase.password))
-		if err != nil {
-			t.Fatal(err)
-		}
-		packet, err = Read(buf)
-		if err != nil {
-			t.Fatalf("failed to read SymmetricallyEncrypted: %s", err)
-		}
+		// Read and verify the key packet
+		ske, dataPacket := readSymmetricKeyEncrypted(t, testCase.packets)
+		key, cipherFunc := decryptSymmetricKey(t, ske, []byte(testCase.password))
+
+		packet := readSymmetricallyEncrypted(t, dataPacket)
+
 		// Decrypt contents
 		var edp EncryptedDataPacket
 		switch p := packet.(type) {
@@ -49,6 +37,7 @@ func TestDecryptSymmetricKeyAndEncryptedDataPacket(t *testing.T) {
 		default:
 			t.Fatal("no integrity protected packet")
 		}
+
 		r, err := edp.Decrypt(cipherFunc, key)
 		if err != nil {
 			t.Fatal(err)
@@ -63,6 +52,110 @@ func TestDecryptSymmetricKeyAndEncryptedDataPacket(t *testing.T) {
 		if !bytes.Equal(expectedContents, contents) {
 			t.Errorf("bad contents got:%x want:%x", contents, expectedContents)
 		}
+	}
+}
+
+func TestTagVerificationError(t *testing.T) {
+	for _, testCase := range keyAndIpePackets() {
+		ske, dataPacket := readSymmetricKeyEncrypted(t, testCase.packets)
+		key, cipherFunc := decryptSymmetricKey(t, ske, []byte(testCase.password))
+
+		// Corrupt chunk
+		tmp := make([]byte, len(dataPacket))
+		copy(tmp, dataPacket)
+		tmp[38] += 1
+		packet := readSymmetricallyEncrypted(t, tmp)
+		// Decrypt contents and check integrity
+		checkIntegrityError(t, packet, cipherFunc, key)
+
+		// Corrupt final tag or mdc
+		dataPacket[len(dataPacket)-1] += 1
+		packet = readSymmetricallyEncrypted(t, dataPacket)
+		// Decrypt contents and check integrity
+		checkIntegrityError(t, packet, cipherFunc, key)
+
+		if len(testCase.faultyDataPacket) > 0 {
+			dataPacket, err := hex.DecodeString(testCase.faultyDataPacket)
+			if err != nil {
+				t.Fatal(err)
+			}
+			packet = readSymmetricallyEncrypted(t, dataPacket)
+			// Decrypt contents and check integrity
+			checkIntegrityError(t, packet, cipherFunc, key)
+		}
+	}
+}
+
+func readSymmetricKeyEncrypted(t *testing.T, packetHex string) (*SymmetricKeyEncrypted, []byte) {
+	t.Helper()
+
+	buf := readerFromHex(packetHex)
+	packet, err := Read(buf)
+	if err != nil {
+		t.Fatalf("failed to read SymmetricKeyEncrypted: %s", err)
+	}
+
+	ske, ok := packet.(*SymmetricKeyEncrypted)
+	if !ok {
+		t.Fatal("didn't find SymmetricKeyEncrypted packet")
+	}
+
+	dataPacket, err := io.ReadAll(buf)
+	if err != nil {
+		t.Fatalf("failed to read data packet: %s", err)
+	}
+	return ske, dataPacket
+}
+
+func decryptSymmetricKey(t *testing.T, ske *SymmetricKeyEncrypted, password []byte) ([]byte, CipherFunction) {
+	t.Helper()
+
+	key, cipherFunc, err := ske.Decrypt(password)
+	if err != nil {
+		t.Fatalf("failed to decrypt symmetric key: %s", err)
+	}
+
+	return key, cipherFunc
+}
+
+func readSymmetricallyEncrypted(t *testing.T, dataPacket []byte) Packet {
+	t.Helper()
+	packet, err := Read(bytes.NewReader(dataPacket))
+	if err != nil {
+		t.Fatalf("failed to read SymmetricallyEncrypted: %s", err)
+	}
+	return packet
+}
+
+func checkIntegrityError(t *testing.T, packet Packet, cipherFunc CipherFunction, key []byte) {
+	t.Helper()
+
+	switch p := packet.(type) {
+	case *SymmetricallyEncrypted:
+		edp := p
+		data, err := edp.Decrypt(cipherFunc, key)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, err = io.ReadAll(data)
+		if err == nil {
+			err = data.Close()
+		}
+		if err != nil {
+			if edp.Version == 1 && err != errors.ErrMDCHashMismatch {
+				t.Fatalf("no integrity error (expected MDC hash mismatch)")
+			}
+			if edp.Version == 2 && err != errors.ErrAEADTagVerification {
+				t.Fatalf("no integrity error (expected AEAD tag verification failure)")
+			}
+		} else {
+			t.Fatalf("no error (expected integrity check failure)")
+		}
+	case *AEADEncrypted:
+		return
+	default:
+		t.Fatal("no integrity protected packet found")
 	}
 }
 
