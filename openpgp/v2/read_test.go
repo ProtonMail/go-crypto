@@ -1024,6 +1024,63 @@ func testMalformedMessage(t *testing.T, keyring EntityList, message string) {
 	}
 }
 
+func TestReadMessageWithReformattedKey(t *testing.T) {
+	config := packet.Config{
+		InsecureAllowVerificationWithReformattedKeys: true,
+	}
+	key, err := ReadArmoredKeyRing(strings.NewReader(armoredReformattedKey))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	msgReader, err := armor.Decode(strings.NewReader(armoredMessageWithReformattedKey))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	md, err := ReadMessage(msgReader.Body, key, nil, &config)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	_, err = io.ReadAll(md.UnverifiedBody)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	if !md.IsVerified {
+		t.Errorf("not verified despite all data read")
+	}
+	if md.SignatureError != nil {
+		t.Error("expected no signature error, got:", md.SignatureError)
+	}
+
+	msgReader, err = armor.Decode(strings.NewReader(armoredMessageWithReformattedKey))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	// Fail
+	md, err = ReadMessage(msgReader.Body, key, nil, nil)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	_, err = io.ReadAll(md.UnverifiedBody)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	if !md.IsVerified {
+		t.Errorf("not verified despite all data read")
+	}
+	if md.SignatureError == nil {
+		t.Fatal("signature verification must fail")
+	}
+}
+
 func TestReadMessageWithSignOnly(t *testing.T) {
 	config := packet.Config{
 		InsecureAllowDecryptionWithSigningKeys: true,

@@ -671,6 +671,9 @@ func (e *Entity) SignIdentity(identity string, signer *Entity, config *packet.Co
 func (e *Entity) LatestValidDirectSignature(date time.Time, config *packet.Config) (selectedSig *packet.Signature, err error) {
 	for sigIdx := len(e.DirectSignatures) - 1; sigIdx >= 0; sigIdx-- {
 		sig := e.DirectSignatures[sigIdx]
+		if config.AllowVerificationWithReformattedKeys() && date.Unix() < sig.Packet.CreationTime.Unix() {
+			date = sig.Packet.CreationTime
+		}
 		if (date.IsZero() || date.Unix() >= sig.Packet.CreationTime.Unix()) &&
 			(selectedSig == nil || selectedSig.CreationTime.Unix() < sig.Packet.CreationTime.Unix()) {
 			if sig.Valid == nil {
@@ -718,6 +721,11 @@ func (e *Entity) VerifyPrimaryKey(date time.Time, config *packet.Config) (*packe
 	if err != nil {
 		return nil, goerrors.New("no valid self signature found")
 	}
+
+	if config.AllowVerificationWithReformattedKeys() && primarySelfSignature.CreationTime.Unix() > date.Unix() {
+		date = primarySelfSignature.CreationTime
+	}
+
 	// check for key revocation signatures
 	if e.Revoked(date) {
 		return nil, errors.ErrKeyRevoked
