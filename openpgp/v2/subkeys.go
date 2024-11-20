@@ -109,6 +109,11 @@ func (s *Subkey) Verify(date time.Time, config *packet.Config) (selfSig *packet.
 	if err != nil {
 		return nil, err
 	}
+
+	if config.AllowVerificationWithReformattedKeys() && selfSig.CreationTime.Unix() > date.Unix() {
+		date = selfSig.CreationTime
+	}
+
 	if s.Revoked(selfSig, date) {
 		return nil, errors.ErrKeyRevoked
 	}
@@ -182,6 +187,9 @@ func (s *Subkey) Revoke(reason packet.ReasonForRevocation, reasonText string, co
 func (s *Subkey) LatestValidBindingSignature(date time.Time, config *packet.Config) (selectedSig *packet.Signature, err error) {
 	for sigIdx := len(s.Bindings) - 1; sigIdx >= 0; sigIdx-- {
 		sig := s.Bindings[sigIdx]
+		if config.AllowVerificationWithReformattedKeys() && date.Unix() < sig.Packet.CreationTime.Unix() {
+			date = sig.Packet.CreationTime
+		}
 		if (date.IsZero() || date.Unix() >= sig.Packet.CreationTime.Unix()) &&
 			(selectedSig == nil || selectedSig.CreationTime.Unix() < sig.Packet.CreationTime.Unix()) {
 			if sig.Valid == nil {

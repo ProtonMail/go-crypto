@@ -144,6 +144,15 @@ type Config struct {
 	// ignored key flags when selecting a key for encryption.
 	// Not relevant for the v1 API, as all keys were allowed in decryption.
 	InsecureAllowDecryptionWithSigningKeys bool
+	// InsecureAllowVerificationWithReformattedKeys enables signature verification
+	// for scenarios where the signing key is newer than the message being verified (v2 API).
+	// This situation can occur if a key was reformatted, resulting in its self-signatures
+	// having timestamps in the future relative to the message signature, which would
+	// typically render the key invalid at the time of signing.
+	// Enabling this setting bypasses the timestamp validation, allowing such messages
+	// to be verified successfully.
+	// Note: This option is not applicable to the v1 API.
+	InsecureAllowVerificationWithReformattedKeys bool
 	// KnownNotations is a map of Notation Data names to bools, which controls
 	// the notation names that are allowed to be present in critical Notation Data
 	// signature subpackets.
@@ -294,6 +303,13 @@ func (c *Config) AllowUnauthenticatedMessages() bool {
 		return false
 	}
 	return c.InsecureAllowUnauthenticatedMessages
+}
+
+func (c *Config) AllowVerificationWithReformattedKeys() bool {
+	if c == nil {
+		return false
+	}
+	return c.InsecureAllowVerificationWithReformattedKeys
 }
 
 func (c *Config) AllowDecryptionWithSigningKeys() bool {

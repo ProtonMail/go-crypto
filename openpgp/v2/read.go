@@ -577,7 +577,6 @@ func (scr *signatureCheckReader) Read(buf []byte) (int, error) {
 						// Verify and retrieve signing key at signature creation time
 						key, err := candidate.SignedByEntity.signingKeyByIdUsage(sig.CreationTime, candidate.IssuerKeyId, packet.KeyFlagSign, scr.config)
 						if err != nil {
-							candidate.SignatureError = err
 							continue
 						} else {
 							candidate.SignedBy = &key
@@ -783,7 +782,11 @@ func checkMessageSignatureDetails(verifiedKey *Key, signature *packet.Signature,
 		if sig == signature {
 			time = config.Now()
 		} else {
-			time = signature.CreationTime
+			if config.AllowVerificationWithReformattedKeys() && signature.CreationTime.Unix() < sig.CreationTime.Unix() {
+				time = sig.CreationTime
+			} else {
+				time = signature.CreationTime
+			}
 		}
 		if err := checkSignatureDetails(pk, sig, time, config); err != nil {
 			errs = append(errs, err)

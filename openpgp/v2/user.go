@@ -200,6 +200,9 @@ func (ident *Identity) SignIdentity(signer *Entity, config *packet.Config) error
 func (i *Identity) LatestValidSelfCertification(date time.Time, config *packet.Config) (selectedSig *packet.Signature, err error) {
 	for sigIdx := len(i.SelfCertifications) - 1; sigIdx >= 0; sigIdx-- {
 		sig := i.SelfCertifications[sigIdx]
+		if config.AllowVerificationWithReformattedKeys() && date.Unix() < sig.Packet.CreationTime.Unix() {
+			date = sig.Packet.CreationTime
+		}
 		if (date.IsZero() || date.Unix() >= sig.Packet.CreationTime.Unix()) && // SelfCertification must be older than date
 			(selectedSig == nil || selectedSig.CreationTime.Unix() < sig.Packet.CreationTime.Unix()) { // Newer ones are preferred
 			if sig.Valid == nil {
