@@ -1023,3 +1023,41 @@ func testMalformedMessage(t *testing.T, keyring EntityList, message string) {
 		return
 	}
 }
+
+func TestReadMessageWithSignOnly(t *testing.T) {
+	config := packet.Config{
+		InsecureAllowDecryptionWithSigningKeys: true,
+	}
+	key, err := ReadArmoredKeyRing(strings.NewReader(rsaSignOnly))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	// Success
+	msgReader, err := armor.Decode(strings.NewReader(armoredMessageRsaSignOnly))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	md, err := ReadMessage(msgReader.Body, key, nil, &config)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	_, err = io.ReadAll(md.UnverifiedBody)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	// Fail
+	msgReader, err = armor.Decode(strings.NewReader(armoredMessageRsaSignOnly))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	md, err = ReadMessage(msgReader.Body, key, nil, nil)
+	if err == nil {
+		t.Fatal("Should not decrypt")
+	}
+}
