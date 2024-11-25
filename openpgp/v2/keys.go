@@ -164,12 +164,12 @@ func (e *Entity) DecryptionKeys(id uint64, date time.Time, config *packet.Config
 	for _, subkey := range e.Subkeys {
 		subkeySelfSig, err := subkey.LatestValidBindingSignature(date, config)
 		if err == nil &&
-			isValidEncryptionKey(subkeySelfSig, subkey.PublicKey.PubKeyAlgo) &&
+			(config.AllowDecryptionWithSigningKeys() || isValidEncryptionKey(subkeySelfSig, subkey.PublicKey.PubKeyAlgo)) &&
 			(id == 0 || subkey.PublicKey.KeyId == id) {
 			keys = append(keys, Key{subkey.Primary, primarySelfSignature, subkey.PublicKey, subkey.PrivateKey, subkeySelfSig})
 		}
 	}
-	if isValidEncryptionKey(primarySelfSignature, e.PrimaryKey.PubKeyAlgo) {
+	if config.AllowDecryptionWithSigningKeys() || isValidEncryptionKey(primarySelfSignature, e.PrimaryKey.PubKeyAlgo) {
 		keys = append(keys, Key{e, primarySelfSignature, e.PrimaryKey, e.PrivateKey, primarySelfSignature})
 	}
 	return
