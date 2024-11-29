@@ -967,13 +967,12 @@ var pqcDraftVectors = map[string]struct {
 	fingerprints      []string
 	armoredMessages   []string
 }{
-	// Update with fresh vectors
-	//"v6_Ed25519_ML-KEM-768+X25519": {
-	//	v6Ed25519Mlkem768X25519PrivateTestVector,
-	//	v6Ed25519Mlkem768X25519PublicTestVector,
-	//	[]string{"52343242345254050219ceff286e9c8e479ec88757f95354388984a02d7d0b59", "263e34b69938e753dc67ca8ee37652795135e0e16e48887103c11d7307df40ed"},
-	//	[]string{v6Ed25519Mlkem768X25519PrivateMessageTestVector},
-	//},
+	"v6_Ed25519_ML-KEM-768+X25519": {
+		v6Ed25519Mlkem768X25519PrivateTestVector,
+		v6Ed25519Mlkem768X25519PublicTestVector,
+		[]string{"bf262b24177002ac8ae5dc6da47c056d22ab9906d47d07952b75c358021901ca", "48b94bce2f9771788f5feb74122d599989c400cc0f49108bc98e0ea7945e4838"},
+		[]string{v6Ed25519Mlkem768X25519PrivateMessageTestVector},
+	},
 }
 
 func TestPqcDraftVectors(t *testing.T) {
@@ -1040,7 +1039,7 @@ func TestPqcDraftVectors(t *testing.T) {
 						return
 					}
 
-					if string(contents) != "Testing\n" {
+					if string(contents) != "Testing\r\n" {
 						t.Fatalf("Decrypted message is wrong: %s", contents)
 					}
 				})
