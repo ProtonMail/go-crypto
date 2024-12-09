@@ -70,8 +70,10 @@ func (se *SymmetricallyEncrypted) decryptAead(inputKey []byte) (io.ReadCloser, e
 
 	aead, nonce := getSymmetricallyEncryptedAeadInstance(se.Cipher, se.Mode, inputKey, se.Salt[:], se.associatedData())
 	// Carry the first tagLen bytes
+	chunkSize := decodeAEADChunkSize(se.ChunkSizeByte)
 	tagLen := se.Mode.TagLength()
-	peekedBytes := make([]byte, tagLen)
+	chunkBytes := make([]byte, chunkSize+tagLen*2)
+	peekedBytes := chunkBytes[chunkSize+tagLen:]
 	n, err := io.ReadFull(se.Contents, peekedBytes)
 	if n < tagLen || (err != nil && err != io.EOF) {
 		return nil, errors.StructuralError("not enough data to decrypt:" + err.Error())
@@ -87,6 +89,7 @@ func (se *SymmetricallyEncrypted) decryptAead(inputKey []byte) (io.ReadCloser, e
 			packetTag:      packetTypeSymmetricallyEncryptedIntegrityProtected,
 		},
 		reader:      se.Contents,
+		chunkBytes:  chunkBytes,
 		peekedBytes: peekedBytes,
 	}, nil
 }

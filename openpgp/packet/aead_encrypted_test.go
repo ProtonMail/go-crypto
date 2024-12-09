@@ -407,6 +407,7 @@ func readDecryptedStream(rc io.ReadCloser) (got []byte, err error) {
 			}
 		}
 	}
+	err = rc.Close()
 	return got, err
 }
 
