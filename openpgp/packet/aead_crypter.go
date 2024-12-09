@@ -125,7 +125,7 @@ func (ar *aeadDecrypter) openChunk(data []byte) ([]byte, error) {
 	}
 
 	nonce := ar.computeNextNonce()
-	plainChunk, err := ar.aead.Open(nil, nonce, data, adata)
+	plainChunk, err := ar.aead.Open(data[:0:len(data)], nonce, data, adata)
 	if err != nil {
 		return nil, errors.ErrAEADTagVerification
 	}
@@ -243,7 +243,7 @@ func (aw *aeadEncrypter) sealChunk(data []byte) ([]byte, error) {
 	}
 
 	nonce := aw.computeNextNonce()
-	encrypted := aw.aead.Seal(nil, nonce, data, adata)
+	encrypted := aw.aead.Seal(data[:0:len(data)], nonce, data, adata)
 	aw.bytesProcessed += len(data)
 	if err := aw.aeadCrypter.incrementIndex(); err != nil {
 		return nil, err
