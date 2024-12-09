@@ -454,7 +454,7 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, config *Config) (io.WriteCl
 			chunkSize:      chunkSize,
 			associatedData: prefix,
 			chunkIndex:     make([]byte, 8),
-			initialNonce:   nonce,
+			nonce:          nonce,
 			packetTag:      packetTypeAEADEncrypted,
 		},
 		writer: writer,

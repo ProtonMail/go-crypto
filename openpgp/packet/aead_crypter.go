@@ -15,7 +15,7 @@ import (
 type aeadCrypter struct {
 	aead           cipher.AEAD
 	chunkSize      int
-	initialNonce   []byte
+	nonce          []byte
 	associatedData []byte       // Chunk-independent associated data
 	chunkIndex     []byte       // Chunk counter
 	packetTag      packetType   // SEIP packet (v2) or AEAD Encrypted Data packet
@@ -28,12 +28,12 @@ type aeadCrypter struct {
 // 5.16.1 and 5.16.2). It returns the resulting nonce.
 func (wo *aeadCrypter) computeNextNonce() (nonce []byte) {
 	if wo.packetTag == packetTypeSymmetricallyEncryptedIntegrityProtected {
-		return append(wo.initialNonce, wo.chunkIndex...)
+		return wo.nonce
 	}
 
-	nonce = make([]byte, len(wo.initialNonce))
-	copy(nonce, wo.initialNonce)
-	offset := len(wo.initialNonce) - 8
+	nonce = make([]byte, len(wo.nonce))
+	copy(nonce, wo.nonce)
+	offset := len(wo.nonce) - 8
 	for i := 0; i < 8; i++ {
 		nonce[i+offset] ^= wo.chunkIndex[i]
 	}

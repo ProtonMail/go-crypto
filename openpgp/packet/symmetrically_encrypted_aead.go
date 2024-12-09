@@ -81,9 +81,9 @@ func (se *SymmetricallyEncrypted) decryptAead(inputKey []byte) (io.ReadCloser, e
 		aeadCrypter: aeadCrypter{
 			aead:           aead,
 			chunkSize:      decodeAEADChunkSize(se.ChunkSizeByte),
-			initialNonce:   nonce,
+			nonce:          nonce,
 			associatedData: se.associatedData(),
-			chunkIndex:     make([]byte, 8),
+			chunkIndex:     nonce[len(nonce)-8:],
 			packetTag:      packetTypeSymmetricallyEncryptedIntegrityProtected,
 		},
 		reader:      se.Contents,
@@ -135,8 +135,8 @@ func serializeSymmetricallyEncryptedAead(ciphertext io.WriteCloser, cipherSuite 
 			aead:           aead,
 			chunkSize:      decodeAEADChunkSize(chunkSizeByte),
 			associatedData: prefix,
-			chunkIndex:     make([]byte, 8),
-			initialNonce:   nonce,
+			nonce:          nonce,
+			chunkIndex:     nonce[len(nonce)-8:],
 			packetTag:      packetTypeSymmetricallyEncryptedIntegrityProtected,
 		},
 		writer: ciphertext,
@@ -149,10 +149,10 @@ func getSymmetricallyEncryptedAeadInstance(c CipherFunction, mode AEADMode, inpu
 	encryptionKey := make([]byte, c.KeySize())
 	_, _ = readFull(hkdfReader, encryptionKey)
 
-	// Last 64 bits of nonce are the counter
-	nonce = make([]byte, mode.IvLength()-8)
+	nonce = make([]byte, mode.IvLength())
 
-	_, _ = readFull(hkdfReader, nonce)
+	// Last 64 bits of nonce are the counter
+	_, _ = readFull(hkdfReader, nonce[:len(nonce)-8])
 
 	blockCipher := c.new(encryptionKey)
 	aead = mode.new(blockCipher)

@@ -76,7 +76,7 @@ func (ae *AEADEncrypted) decrypt(key []byte) (io.ReadCloser, error) {
 		aeadCrypter: aeadCrypter{
 			aead:           aead,
 			chunkSize:      chunkSize,
-			initialNonce:   ae.initialNonce,
+			nonce:          ae.initialNonce,
 			associatedData: ae.associatedData(),
 			chunkIndex:     make([]byte, 8),
 			packetTag:      packetTypeAEADEncrypted,
