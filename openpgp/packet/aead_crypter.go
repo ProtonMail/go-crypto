@@ -62,8 +62,8 @@ func (wo *aeadCrypter) incrementIndex() error {
 type aeadDecrypter struct {
 	aeadCrypter           // Embedded ciphertext opener
 	reader      io.Reader // 'reader' is a partialLengthReader
+	chunkBytes  []byte
 	peekedBytes []byte    // Used to detect last chunk
-	eof         bool
 }
 
 // Read decrypts bytes and reads them into dst. It decrypts when necessary and
@@ -75,22 +75,18 @@ func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 		return ar.buffer.Read(dst)
 	}
 
-	// Return EOF if we've previously validated the final tag
-	if ar.eof {
-		return 0, io.EOF
-	}
-
 	// Read a chunk
 	tagLen := ar.aead.Overhead()
-	cipherChunkBuf := new(bytes.Buffer)
-	_, errRead := io.CopyN(cipherChunkBuf, ar.reader, int64(ar.chunkSize+tagLen))
-	cipherChunk := cipherChunkBuf.Bytes()
-	if errRead != nil && errRead != io.EOF {
+	copy(ar.chunkBytes, ar.peekedBytes) // Copy bytes peeked in previous chunk or in initialization
+	bytesRead, errRead := io.ReadFull(ar.reader, ar.chunkBytes[tagLen:])
+	if errRead != nil && errRead != io.EOF && errRead != io.ErrUnexpectedEOF {
 		return 0, errRead
 	}
 
-	if len(cipherChunk) > 0 {
-		decrypted, errChunk := ar.openChunk(cipherChunk)
+	if bytesRead > 0 {
+		ar.peekedBytes = ar.chunkBytes[bytesRead:bytesRead+tagLen]
+
+		decrypted, errChunk := ar.openChunk(ar.chunkBytes[:bytesRead])
 		if errChunk != nil {
 			return 0, errChunk
 		}
@@ -102,28 +98,19 @@ func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 		} else {
 			n = copy(dst, decrypted)
 		}
+		return
 	}
 
-	// Check final authentication tag
-	if errRead == io.EOF {
-		errChunk := ar.validateFinalTag(ar.peekedBytes)
-		if errChunk != nil {
-			return n, errChunk
-		}
-		ar.eof = true // Mark EOF for when we've returned all buffered data
-	}
-	return
+	return 0, io.EOF
 }
 
-// Close is noOp. The final authentication tag of the stream was already
-// checked in the last Read call. In the future, this function could be used to
-// wipe the reader and peeked, decrypted bytes, if necessary.
+// Close checks the final authentication tag of the stream.
+// In the future, this function could also be used to wipe the reader
+// and peeked & decrypted bytes, if necessary.
 func (ar *aeadDecrypter) Close() (err error) {
-	if !ar.eof {
-		errChunk := ar.validateFinalTag(ar.peekedBytes)
-		if errChunk != nil {
-			return errChunk
-		}
+	errChunk := ar.validateFinalTag(ar.peekedBytes)
+	if errChunk != nil {
+		return errChunk
 	}
 	return nil
 }
@@ -132,20 +119,13 @@ func (ar *aeadDecrypter) Close() (err error) {
 // the underlying plaintext and an error. It accesses peeked bytes from next
 // chunk, to identify the last chunk and decrypt/validate accordingly.
 func (ar *aeadDecrypter) openChunk(data []byte) ([]byte, error) {
-	tagLen := ar.aead.Overhead()
-	// Restore carried bytes from last call
-	chunkExtra := append(ar.peekedBytes, data...)
-	// 'chunk' contains encrypted bytes, followed by an authentication tag.
-	chunk := chunkExtra[:len(chunkExtra)-tagLen]
-	ar.peekedBytes = chunkExtra[len(chunkExtra)-tagLen:]
-
 	adata := ar.associatedData
 	if ar.aeadCrypter.packetTag == packetTypeAEADEncrypted {
 		adata = append(ar.associatedData, ar.chunkIndex...)
 	}
 
 	nonce := ar.computeNextNonce()
-	plainChunk, err := ar.aead.Open(nil, nonce, chunk, adata)
+	plainChunk, err := ar.aead.Open(nil, nonce, data, adata)
 	if err != nil {
 		return nil, errors.ErrAEADTagVerification
 	}
