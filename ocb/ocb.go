@@ -109,9 +109,10 @@ func (o *ocb) Seal(dst, nonce, plaintext, adata []byte) []byte {
 	if len(nonce) > o.nonceSize {
 		panic("crypto/ocb: Incorrect nonce length given to OCB")
 	}
-	ret, out := byteutil.SliceForAppend(dst, len(plaintext)+o.tagSize)
-	tag := o.crypt(enc, out, nonce, adata, plaintext)
-	copy(out[len(plaintext):], tag)
+	sep := len(plaintext)
+	ret, out := byteutil.SliceForAppend(dst, sep+o.tagSize)
+	tag := o.crypt(enc, out[:sep], nonce, adata, plaintext)
+	copy(out[sep:], tag)
 	return ret
 }
 
@@ -194,13 +195,14 @@ func (o *ocb) crypt(instruction int, Y, nonce, adata, X []byte) []byte {
 		byteutil.XorBytesMut(offset, o.mask.L[bits.TrailingZeros(uint(i+1))])
 		blockX := X[i*blockSize : (i+1)*blockSize]
 		blockY := Y[i*blockSize : (i+1)*blockSize]
-		byteutil.XorBytes(blockY, blockX, offset)
 		switch instruction {
 		case enc:
+			byteutil.XorBytesMut(checksum, blockX)
+			byteutil.XorBytes(blockY, blockX, offset)
 			o.block.Encrypt(blockY, blockY)
 			byteutil.XorBytesMut(blockY, offset)
-			byteutil.XorBytesMut(checksum, blockX)
 		case dec:
+			byteutil.XorBytes(blockY, blockX, offset)
 			o.block.Decrypt(blockY, blockY)
 			byteutil.XorBytesMut(blockY, offset)
 			byteutil.XorBytesMut(checksum, blockY)
@@ -216,26 +218,23 @@ func (o *ocb) crypt(instruction int, Y, nonce, adata, X []byte) []byte {
 		o.block.Encrypt(pad, offset)
 		chunkX := X[blockSize*m:]
 		chunkY := Y[blockSize*m : len(X)]
-		byteutil.XorBytes(chunkY, chunkX, pad[:len(chunkX)])
-		// P_* || bit(1) || zeroes(127) - len(P_*)
 		switch instruction {
 		case enc:
 			byteutil.XorBytesMut(checksum, chunkX)
 			checksum[len(chunkX)] ^= 128
+			byteutil.XorBytes(chunkY, chunkX, pad[:len(chunkX)])
+			// P_* || bit(1) || zeroes(127) - len(P_*)
 		case dec:
+			byteutil.XorBytes(chunkY, chunkX, pad[:len(chunkX)])
+			// P_* || bit(1) || zeroes(127) - len(P_*)
 			byteutil.XorBytesMut(checksum, chunkY)
 			checksum[len(chunkY)] ^= 128
 		}
-		byteutil.XorBytes(tag, checksum, offset)
-		byteutil.XorBytesMut(tag, o.mask.lDol)
-		o.block.Encrypt(tag, tag)
-		byteutil.XorBytesMut(tag, o.hash(adata))
-	} else {
-		byteutil.XorBytes(tag, checksum, offset)
-		byteutil.XorBytesMut(tag, o.mask.lDol)
-		o.block.Encrypt(tag, tag)
-		byteutil.XorBytesMut(tag, o.hash(adata))
 	}
+	byteutil.XorBytes(tag, checksum, offset)
+	byteutil.XorBytesMut(tag, o.mask.lDol)
+	o.block.Encrypt(tag, tag)
+	byteutil.XorBytesMut(tag, o.hash(adata))
 	return tag[:o.tagSize]
 }
 

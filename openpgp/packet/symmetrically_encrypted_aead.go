@@ -133,16 +133,20 @@ func serializeSymmetricallyEncryptedAead(ciphertext io.WriteCloser, cipherSuite 
 
 	aead, nonce := getSymmetricallyEncryptedAeadInstance(cipherSuite.Cipher, cipherSuite.Mode, inputKey, salt, prefix)
 
+	chunkSize := decodeAEADChunkSize(chunkSizeByte)
+	tagLen := aead.Overhead()
+	chunkBytes := make([]byte, chunkSize+tagLen)
 	return &aeadEncrypter{
 		aeadCrypter: aeadCrypter{
 			aead:           aead,
-			chunkSize:      decodeAEADChunkSize(chunkSizeByte),
+			chunkSize:      chunkSize,
 			associatedData: prefix,
 			nonce:          nonce,
 			chunkIndex:     nonce[len(nonce)-8:],
 			packetTag:      packetTypeSymmetricallyEncryptedIntegrityProtected,
 		},
-		writer: ciphertext,
+		writer:     ciphertext,
+		chunkBytes: chunkBytes,
 	}, nil
 }
 
