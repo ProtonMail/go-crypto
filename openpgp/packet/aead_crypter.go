@@ -3,7 +3,6 @@
 package packet
 
 import (
-	"bytes"
 	"crypto/cipher"
 	"encoding/binary"
 	"io"
@@ -59,11 +58,11 @@ func (wo *aeadCrypter) incrementIndex() error {
 // aeadDecrypter reads and decrypts bytes. It buffers extra decrypted bytes when
 // necessary, similar to aeadEncrypter.
 type aeadDecrypter struct {
-	aeadCrypter              // Embedded ciphertext opener
-	reader      io.Reader    // 'reader' is a partialLengthReader
+	aeadCrypter           // Embedded ciphertext opener
+	reader      io.Reader // 'reader' is a partialLengthReader
 	chunkBytes  []byte
-	peekedBytes []byte       // Used to detect last chunk
-	buffer      bytes.Buffer // Buffered decrypted bytes
+	peekedBytes []byte    // Used to detect last chunk
+	buffer      []byte    // Buffered decrypted bytes
 }
 
 // Read decrypts bytes and reads them into dst. It decrypts when necessary and
@@ -71,8 +70,10 @@ type aeadDecrypter struct {
 // and an error.
 func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 	// Return buffered plaintext bytes from previous calls
-	if ar.buffer.Len() > 0 {
-		return ar.buffer.Read(dst)
+	if len(ar.buffer) > 0 {
+		n = copy(dst, ar.buffer)
+		ar.buffer = ar.buffer[n:]
+		return
 	}
 
 	// Read a chunk
@@ -92,12 +93,8 @@ func (ar *aeadDecrypter) Read(dst []byte) (n int, err error) {
 		}
 
 		// Return decrypted bytes, buffering if necessary
-		if len(dst) < len(decrypted) {
-			n = copy(dst, decrypted[:len(dst)])
-			ar.buffer.Write(decrypted[len(dst):])
-		} else {
-			n = copy(dst, decrypted)
-		}
+		n = copy(dst, decrypted)
+		ar.buffer = decrypted[n:]
 		return
 	}
 
