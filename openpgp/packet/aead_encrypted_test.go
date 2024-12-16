@@ -407,6 +407,7 @@ func readDecryptedStream(rc io.ReadCloser) (got []byte, err error) {
 			}
 		}
 	}
+	err = rc.Close()
 	return got, err
 }
 
@@ -448,15 +449,18 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, config *Config) (io.WriteCl
 	alg := aeadConf.Mode().new(blockCipher)
 
 	chunkSize := decodeAEADChunkSize(aeadConf.ChunkSizeByte())
+	tagLen := alg.Overhead()
+	chunkBytes := make([]byte, chunkSize+tagLen)
 	return &aeadEncrypter{
 		aeadCrypter: aeadCrypter{
 			aead:           alg,
 			chunkSize:      chunkSize,
 			associatedData: prefix,
 			chunkIndex:     make([]byte, 8),
-			initialNonce:   nonce,
+			nonce:          nonce,
 			packetTag:      packetTypeAEADEncrypted,
 		},
-		writer: writer,
+		writer:     writer,
+		chunkBytes: chunkBytes,
 	}, nil
 }
