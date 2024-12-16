@@ -180,14 +180,14 @@ jobs:
         with:
           name: test-suite-results.json
       - name: Compare with baseline v1
-        uses: ProtonMail/openpgp-interop-test-analyzer@5d7f4b6868ebe3bfc909302828342c461f5f4940
+        uses: ProtonMail/openpgp-interop-test-analyzer@v2.1.0
         with: 
           results: ${{ steps.download-test-results.outputs.download-path }}/test-suite-results.json
           output: baseline-comparison-v1.json
           baseline: gosop-main-v1
           target: gosop-branch-v1
       - name: Compare with baseline v2
-        uses: ProtonMail/openpgp-interop-test-analyzer@5d7f4b6868ebe3bfc909302828342c461f5f4940
+        uses: ProtonMail/openpgp-interop-test-analyzer@v2.1.0
         with: 
           results: ${{ steps.download-test-results.outputs.download-path }}/test-suite-results.json
           output: baseline-comparison-v2.json
