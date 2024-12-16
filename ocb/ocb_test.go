@@ -127,8 +127,20 @@ func TestEncryptDecryptRFC7253TestVectors(t *testing.T) {
 		adata, _ := hex.DecodeString(test.header)
 		targetPt, _ := hex.DecodeString(test.plaintext)
 		targetCt, _ := hex.DecodeString(test.ciphertext)
-		ct := ocbInstance.Seal(nil, nonce, targetPt, adata)
 		// Encrypt
+		ct := ocbInstance.Seal(nil, nonce, targetPt, adata)
+		if !bytes.Equal(ct, targetCt) {
+			t.Errorf(
+				`RFC7253 Test vectors Encrypt error (ciphertexts don't match):
+			Got:
+			%X
+			Want:
+			%X`, ct, targetCt)
+		}
+		// Encrypt reusing buffer
+		pt := make([]byte, len(targetPt) + ocbInstance.Overhead())
+		copy(pt, targetPt)
+		ct = ocbInstance.Seal(pt[:0], nonce, pt[:len(targetPt)], adata)
 		if !bytes.Equal(ct, targetCt) {
 			t.Errorf(
 				`RFC7253 Test vectors Encrypt error (ciphertexts don't match):
@@ -138,14 +150,14 @@ func TestEncryptDecryptRFC7253TestVectors(t *testing.T) {
 			%X`, ct, targetCt)
 		}
 		// Decrypt
-		pt, err := ocbInstance.Open(nil, nonce, targetCt, adata)
+		pt, err := ocbInstance.Open(nil, nonce, ct, adata)
 		if err != nil {
 			t.Errorf(
 				`RFC7253 Valid ciphertext was refused decryption:
 				plaintext %X
 				nonce %X
 				header %X
-				ciphertext %X`, targetPt, nonce, adata, targetCt)
+				ciphertext %X`, targetPt, nonce, adata, ct)
 		}
 		if !bytes.Equal(pt, targetPt) {
 			t.Errorf(
@@ -154,6 +166,24 @@ func TestEncryptDecryptRFC7253TestVectors(t *testing.T) {
 			%X
 			Want:
 			%X`, pt, targetPt)
+		}
+		// Decrypt reusing buffer
+		pt, err = ocbInstance.Open(ct[:0], nonce, ct, adata)
+		if err != nil {
+			t.Errorf(
+				`RFC7253 Valid ciphertext was refused decryption:
+				plaintext %X
+				nonce %X
+				header %X
+				ciphertext %X`, targetPt, nonce, adata, ct)
+		}
+		if !bytes.Equal(pt, targetPt) {
+			t.Errorf(
+				`RFC7253 test vectors Decrypt error (plaintexts don't match):
+			Got:
+			%X
+			Want:
+			%X`, targetPt, pt)
 		}
 	}
 }
@@ -182,7 +212,30 @@ func TestEncryptDecryptRFC7253TagLen96(t *testing.T) {
 		Want:
 		%X`, ct, targetCt)
 	}
-	pt, err := ocbInstance.Open(nil, nonce, targetCt, adata)
+	pt := make([]byte, len(targetPt) + ocbInstance.Overhead())
+	copy(pt, targetPt)
+	ct = ocbInstance.Seal(pt[:0], nonce, pt[:len(targetPt)], adata)
+	if !bytes.Equal(ct, targetCt) {
+		t.Errorf(
+			`RFC7253 test tagLen96 error (ciphertexts don't match):
+		Got:
+		%X
+		Want:
+		%X`, ct, targetCt)
+	}
+	pt, err = ocbInstance.Open(nil, nonce, ct, adata)
+	if err != nil {
+		t.Errorf(`RFC7253 test tagLen96 was refused decryption`)
+	}
+	if !bytes.Equal(pt, targetPt) {
+		t.Errorf(
+			`RFC7253 test tagLen96 error (plaintexts don't match):
+		Got:
+		%X
+		Want:
+		%X`, pt, targetPt)
+	}
+	pt, err = ocbInstance.Open(ct[:0], nonce, ct, adata)
 	if err != nil {
 		t.Errorf(`RFC7253 test tagLen96 was refused decryption`)
 	}
@@ -274,15 +327,47 @@ func TestEncryptDecryptGoTestVectors(t *testing.T) {
 			%X`, ct, targetCt)
 		}
 
+		// Encrypt reusing buffer
+		pt := make([]byte, len(targetPt) + ocbInstance.Overhead())
+		copy(pt, targetPt)
+		ct = ocbInstance.Seal(pt[:0], nonce, pt[:len(targetPt)], adata)
+		if !bytes.Equal(ct, targetCt) {
+			t.Errorf(
+				`Go Test vectors Encrypt error (ciphertexts don't match):
+			Got:
+			%X
+			Want:
+			%X`, ct, targetCt)
+		}
+
 		// Decrypt
-		pt, err := ocbInstance.Open(nil, nonce, targetCt, adata)
+		pt, err = ocbInstance.Open(nil, nonce, ct, adata)
 		if err != nil {
 			t.Errorf(
 				`Valid Go ciphertext was refused decryption:
 			plaintext %X
 			nonce %X
 			header %X
-			ciphertext %X`, targetPt, nonce, adata, targetCt)
+			ciphertext %X`, targetPt, nonce, adata, ct)
+		}
+		if !bytes.Equal(pt, targetPt) {
+			t.Errorf(
+				`Go Test vectors Decrypt error (plaintexts don't match):
+			Got:
+			%X
+			Want:
+			%X`, pt, targetPt)
+		}
+
+		// Decrypt reusing buffer
+		pt, err = ocbInstance.Open(ct[:0], nonce, ct, adata)
+		if err != nil {
+			t.Errorf(
+				`Valid Go ciphertext was refused decryption:
+			plaintext %X
+			nonce %X
+			header %X
+			ciphertext %X`, targetPt, nonce, adata, ct)
 		}
 		if !bytes.Equal(pt, targetPt) {
 			t.Errorf(
@@ -333,6 +418,17 @@ func TestEncryptDecryptVectorsWithPreviousDataRandomizeSlow(t *testing.T) {
 				`Random Encrypt/Decrypt error (plaintexts don't match)`)
 			break
 		}
+		decrypted, err = ocb.Open(ct[:0], nonce, ct, header)
+		if err != nil {
+			t.Errorf(
+				`Decrypt refused valid tag (not displaying long output)`)
+			break
+		}
+		if !bytes.Equal(pt, decrypted) {
+			t.Errorf(
+				`Random Encrypt/Decrypt error (plaintexts don't match)`)
+			break
+		}
 	}
 }
 
@@ -364,6 +460,12 @@ func TestRejectTamperedCiphertextRandomizeSlow(t *testing.T) {
 		tampered[mathrand.Intn(len(ct))] = byte(mathrand.Intn(len(ct)))
 	}
 	_, err = ocb.Open(nil, nonce, tampered, header)
+	if err == nil {
+		t.Errorf(
+			"Tampered ciphertext was not refused decryption (OCB did not return an error)")
+		return
+	}
+	_, err = ocb.Open(tampered[:0], nonce, tampered, header)
 	if err == nil {
 		t.Errorf(
 			"Tampered ciphertext was not refused decryption (OCB did not return an error)")
