@@ -187,7 +187,7 @@ func (s *Subkey) LatestValidBindingSignature(date time.Time, config *packet.Conf
 			if sig.Valid == nil {
 				err := s.Primary.PrimaryKey.VerifyKeySignature(s.PublicKey, sig.Packet)
 				if err == nil {
-					err = checkSignatureDetails(s.PublicKey, sig.Packet, date, config)
+					err = checkSignatureDetails(s.Primary.PrimaryKey, sig.Packet, date, config)
 				}
 				valid := err == nil
 				sig.Valid = &valid
