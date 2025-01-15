@@ -30,10 +30,11 @@ func generateFreshTestVectors(num int) (vectors []testVector, err error) {
 			v = "v6"
 		}
 		pkAlgoNames := map[packet.PublicKeyAlgorithm]string{
-			packet.PubKeyAlgoRSA:     "rsa_" + v,
-			packet.PubKeyAlgoEdDSA:   "EdDSA_" + v,
-			packet.PubKeyAlgoEd25519: "ed25519_" + v,
-			packet.PubKeyAlgoEd448:   "ed448_" + v,
+			packet.PubKeyAlgoRSA:            "rsa_" + v,
+			packet.PubKeyAlgoEdDSA:          "EdDSA_" + v,
+			packet.PubKeyAlgoEd25519:        "ed25519_" + v,
+			packet.PubKeyAlgoEd448:          "ed448_" + v,
+			packet.PubKeyAlgoMldsa65Ed25519: "mldsa_" + v,
 		}
 
 		newVector := testVector{
@@ -238,6 +239,7 @@ func randConfig() *packet.Config {
 		packet.PubKeyAlgoEdDSA,
 		packet.PubKeyAlgoEd25519,
 		packet.PubKeyAlgoEd448,
+		packet.PubKeyAlgoMldsa65Ed25519,
 	}
 	pkAlgo := pkAlgos[mathrand.Intn(len(pkAlgos))]
 
@@ -268,7 +270,9 @@ func randConfig() *packet.Config {
 	compConf := &packet.CompressionConfig{Level: level}
 
 	var v6 bool
-	if mathrand.Int()%2 == 0 {
+	if pkAlgo == packet.PubKeyAlgoMldsa65Ed25519 {
+		v6 = true
+	} else if mathrand.Int()%2 == 0 {
 		v6 = true
 		if pkAlgo == packet.PubKeyAlgoEdDSA {
 			pkAlgo = packet.PubKeyAlgoEd25519
