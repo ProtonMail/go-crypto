@@ -189,6 +189,9 @@ func (s *Subkey) LatestValidBindingSignature(date time.Time, config *packet.Conf
 				if err == nil {
 					err = checkSignatureDetails(s.Primary.PrimaryKey, sig.Packet, date, config)
 				}
+				if err == nil && (sig.Packet.FlagSign || sig.Packet.FlagCertify) {
+					err = checkSignatureDetails(s.PublicKey, sig.Packet.EmbeddedSignature, date, config)
+				}
 				valid := err == nil
 				sig.Valid = &valid
 			}

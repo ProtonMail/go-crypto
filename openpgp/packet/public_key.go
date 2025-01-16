@@ -908,9 +908,9 @@ func (pk *PublicKey) VerifyKeySignature(signed *PublicKey, sig *Signature) error
 		return err
 	}
 
-	if sig.FlagSign {
-		// Signing subkeys must be cross-signed. See
-		// https://www.gnupg.org/faq/subkey-cross-certify.html.
+	if sig.FlagSign || sig.FlagCertify {
+		// Subkeys that can issue signatures must be cross-signed. See
+		// https://www.rfc-editor.org/rfc/rfc9580.html#section-10.1.5-8.
 		if sig.EmbeddedSignature == nil {
 			return errors.StructuralError("signing subkey is missing cross-signature")
 		}
