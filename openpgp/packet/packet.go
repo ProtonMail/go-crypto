@@ -519,8 +519,11 @@ const (
 	PubKeyAlgoMlkem1024X448  = 106
 
 	// Experimental PQC DSA algorithms
-	PubKeyAlgoMldsa65Ed25519 = 107
-	PubKeyAlgoMldsa87Ed448   = 108
+	PubKeyAlgoMldsa65Ed25519  = 107
+	PubKeyAlgoMldsa87Ed448    = 108
+	PubKeyAlgoSlhdsaShake128s = 109
+	PubKeyAlgoSlhdsaShake128f = 110
+	PubKeyAlgoSlhdsaShake256s = 111
 )
 
 // CanEncrypt returns true if it's possible to encrypt a message to a public
@@ -539,7 +542,8 @@ func (pka PublicKeyAlgorithm) CanEncrypt() bool {
 func (pka PublicKeyAlgorithm) CanSign() bool {
 	switch pka {
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA, PubKeyAlgoEd25519,
-		PubKeyAlgoEd448, ExperimentalPubKeyAlgoHMAC, PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
+		PubKeyAlgoEd448, ExperimentalPubKeyAlgoHMAC, PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448,
+		PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
 		return true
 	}
 	return false
@@ -549,9 +553,9 @@ func (pka PublicKeyAlgorithm) CanSign() bool {
 // otherwise, it returns the selectedHash.
 func (pka PublicKeyAlgorithm) HandleSpecificHash(selectedHash crypto.Hash) crypto.Hash {
 	switch pka {
-	case PubKeyAlgoMldsa65Ed25519:
+	case PubKeyAlgoMldsa65Ed25519, PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f:
 		return crypto.SHA3_256
-	case PubKeyAlgoMldsa87Ed448:
+	case PubKeyAlgoMldsa87Ed448, PubKeyAlgoSlhdsaShake256s:
 		return crypto.SHA3_512
 	}
 	return selectedHash
