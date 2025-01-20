@@ -513,6 +513,9 @@ const (
 	// PQC DSA algorithms
 	PubKeyAlgoMldsa65Ed25519 = 30
 	PubKeyAlgoMldsa87Ed448   = 31
+	PubKeyAlgoSlhdsaShake128s = 32
+	PubKeyAlgoSlhdsaShake128f = 33
+	PubKeyAlgoSlhdsaShake256s = 34
 
 	// PQC KEM algorithms
 	PubKeyAlgoMlkem768X25519 = 35
@@ -534,8 +537,10 @@ func (pka PublicKeyAlgorithm) CanEncrypt() bool {
 // sign a message.
 func (pka PublicKeyAlgorithm) CanSign() bool {
 	switch pka {
-	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA, PubKeyAlgoEd25519, PubKeyAlgoEd448,
-		PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
+	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA,
+		PubKeyAlgoEd25519, PubKeyAlgoEd448,
+		PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448,
+		PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
 		return true
 	}
 	return false
