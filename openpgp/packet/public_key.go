@@ -31,6 +31,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/internal/encoding"
 	"github.com/ProtonMail/go-crypto/openpgp/mldsa_eddsa"
 	"github.com/ProtonMail/go-crypto/openpgp/mlkem_ecdh"
+	"github.com/ProtonMail/go-crypto/openpgp/slhdsa"
 	"github.com/ProtonMail/go-crypto/openpgp/symmetric"
 	"github.com/ProtonMail/go-crypto/openpgp/x25519"
 	"github.com/ProtonMail/go-crypto/openpgp/x448"
@@ -40,6 +41,7 @@ import (
 	"github.com/cloudflare/circl/sign"
 	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
 	"github.com/cloudflare/circl/sign/mldsa/mldsa87"
+	slhdsaCircl "github.com/cloudflare/circl/sign/slhdsa"
 )
 
 // PublicKey represents an OpenPGP public key. See RFC 4880, section 5.5.2.
@@ -321,6 +323,23 @@ func NewMldsaEddsaPublicKey(creationTime time.Time, pub *mldsa_eddsa.PublicKey) 
 	return pk
 }
 
+func NewSlhdsaPublicKey(creationTime time.Time, pub *slhdsa.PublicKey) *PublicKey {
+	publicKeyBytes, err := pub.PublicSlhdsa.MarshalBinary()
+	if err != nil {
+		panic(err)
+	}
+	pk := &PublicKey{
+		Version:      6,
+		CreationTime: creationTime,
+		PubKeyAlgo:   PublicKeyAlgorithm(pub.AlgId),
+		PublicKey:    pub,
+		q:            encoding.NewOctetArray(publicKeyBytes),
+	}
+
+	pk.setFingerprintAndKeyId()
+	return pk
+}
+
 func (pk *PublicKey) parse(r io.Reader) (err error) {
 	// RFC 4880, section 5.5.2
 	var buf [6]byte
@@ -387,6 +406,8 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 		err = pk.parseMldsaEddsa(r, 32, mldsa65.PublicKeySize)
 	case PubKeyAlgoMldsa87Ed448:
 		err = pk.parseMldsaEddsa(r, 57, mldsa87.PublicKeySize)
+	case PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
+		err = pk.parseSlhDsa(r)
 	default:
 		err = errors.UnsupportedError("public key type: " + strconv.Itoa(int(pk.PubKeyAlgo)))
 	}
@@ -871,6 +892,29 @@ func (pk *PublicKey) parseMldsaEddsa(r io.Reader, ecLen, dLen int) (err error) {
 	return
 }
 
+func (pk *PublicKey) parseSlhDsa(r io.Reader) (err error) {
+	parsedPublicKey := &slhdsa.PublicKey{
+		AlgId: uint8(pk.PubKeyAlgo),
+	}
+
+	if parsedPublicKey.Slhdsa, err = GetSlhdsaSchemeFromAlgID(pk.PubKeyAlgo); err != nil {
+		return err
+	}
+
+	keyLen := parsedPublicKey.Slhdsa.PublicKeySize()
+	pk.q = encoding.NewEmptyOctetArray(keyLen)
+	if _, err = pk.q.ReadFrom(r); err != nil {
+		return err
+	}
+
+	if parsedPublicKey.PublicSlhdsa, err = parsedPublicKey.Slhdsa.UnmarshalBinaryPublicKey(pk.q.Bytes()); err != nil {
+		return err
+	}
+
+	pk.PublicKey = parsedPublicKey
+	return nil
+}
+
 // SerializeForHash serializes the PublicKey to w with the special packet
 // header format needed for hashing.
 func (pk *PublicKey) SerializeForHash(w io.Writer) error {
@@ -970,6 +1014,8 @@ func (pk *PublicKey) algorithmSpecificByteCount() uint32 {
 	case PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem1024X448, PubKeyAlgoMldsa65Ed25519,
 		PubKeyAlgoMldsa87Ed448:
 		length += uint32(pk.p.EncodedLength())
+		length += uint32(pk.q.EncodedLength())
+	case PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
 		length += uint32(pk.q.EncodedLength())
 	default:
 		panic("unknown public key algorithm")
@@ -1102,6 +1148,9 @@ func (pk *PublicKey) serializeWithoutHeaders(w io.Writer) (err error) {
 		}
 		_, err = w.Write(pk.q.EncodedBytes())
 		return
+	case PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
+		_, err = w.Write(pk.q.EncodedBytes())
+		return
 	}
 	return errors.InvalidArgumentError("bad public-key algorithm")
 }
@@ -1214,6 +1263,12 @@ func (pk *PublicKey) VerifySignature(signed hash.Hash, sig *Signature) (err erro
 		mldsaEddsaPublicKey := pk.PublicKey.(*mldsa_eddsa.PublicKey)
 		if !mldsa_eddsa.Verify(mldsaEddsaPublicKey, hashBytes, sig.MldsaSig.Bytes(), sig.EdDSASigR.Bytes()) {
 			return errors.SignatureError("MldsaEddsa verification failure")
+		}
+		return nil
+	case PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
+		slhDsaPublicKey := pk.PublicKey.(*slhdsa.PublicKey)
+		if !slhdsa.Verify(slhDsaPublicKey, hashBytes, sig.SlhdsaSig.Bytes()) {
+			return errors.SignatureError("Slhdsa verification failure")
 		}
 		return nil
 	default:
@@ -1449,6 +1504,8 @@ func (pk *PublicKey) BitLength() (bitLength uint16, err error) {
 	case PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem1024X448, PubKeyAlgoMldsa65Ed25519,
 		PubKeyAlgoMldsa87Ed448:
 		bitLength = pk.q.BitLength() // TODO: Discuss if this makes sense.
+	case PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
+		bitLength = pk.q.BitLength()
 	default:
 		err = errors.InvalidArgumentError("bad public-key algorithm")
 	}
@@ -1492,7 +1549,8 @@ func (pk *PublicKey) KeyExpired(sig *Signature, currentTime time.Time) bool {
 func (pg *PublicKey) IsPQ() bool {
 	switch pg.PubKeyAlgo {
 	case PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem1024X448,
-		PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
+		PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448, PubKeyAlgoSlhdsaShake128s,
+		PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
 		return true
 	default:
 		return false
@@ -1501,9 +1559,9 @@ func (pg *PublicKey) IsPQ() bool {
 
 func GetMatchingMlkem(algId PublicKeyAlgorithm) (PublicKeyAlgorithm, error) {
 	switch algId {
-	case PubKeyAlgoMldsa65Ed25519:
+	case PubKeyAlgoMldsa65Ed25519, PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f:
 		return PubKeyAlgoMlkem768X25519, nil
-	case PubKeyAlgoMldsa87Ed448:
+	case PubKeyAlgoMldsa87Ed448, PubKeyAlgoSlhdsaShake256s:
 		return PubKeyAlgoMlkem1024X448, nil
 	default:
 		return 0, goerrors.New("packet: unsupported pq public key algorithm")
@@ -1519,6 +1577,20 @@ func GetMlkemFromAlgID(algId PublicKeyAlgorithm) (kem.Scheme, error) {
 		return mlkem1024.Scheme(), nil
 	default:
 		return nil, goerrors.New("packet: unsupported ML-KEM public key algorithm")
+	}
+}
+
+// GetSlhdsaSchemeFromAlgID returns the SLH-DSA instance from the matching KEM
+func GetSlhdsaSchemeFromAlgID(algId PublicKeyAlgorithm) (sign.Scheme, error) {
+	switch algId {
+	case PubKeyAlgoSlhdsaShake128s:
+		return slhdsaCircl.SHAKE_128s.Scheme(), nil
+	case PubKeyAlgoSlhdsaShake128f:
+		return slhdsaCircl.SHAKE_128f.Scheme(), nil
+	case PubKeyAlgoSlhdsaShake256s:
+		return slhdsaCircl.SHAKE_256s.Scheme(), nil
+	default:
+		return nil, goerrors.New("packet: unsupported SLH-DSA public key algorithm")
 	}
 }
 

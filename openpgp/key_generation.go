@@ -24,6 +24,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/mldsa_eddsa"
 	"github.com/ProtonMail/go-crypto/openpgp/mlkem_ecdh"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
+	"github.com/ProtonMail/go-crypto/openpgp/slhdsa"
 	"github.com/ProtonMail/go-crypto/openpgp/symmetric"
 	"github.com/ProtonMail/go-crypto/openpgp/x25519"
 	"github.com/ProtonMail/go-crypto/openpgp/x448"
@@ -343,6 +344,17 @@ func newSigner(config *packet.Config) (signer interface{}, err error) {
 		}
 
 		return mldsa_eddsa.GenerateKey(config.Random(), uint8(config.PublicKeyAlgorithm()), c, d)
+	case packet.PubKeyAlgoSlhdsaShake128s, packet.PubKeyAlgoSlhdsaShake128f, packet.PubKeyAlgoSlhdsaShake256s:
+		if !config.V6() {
+			return nil, goerrors.New("openpgp: cannot create a non-v6 SLH-DSH key")
+		}
+
+		scheme, err := packet.GetSlhdsaSchemeFromAlgID(config.PublicKeyAlgorithm())
+		if err != nil {
+			return nil, err
+		}
+
+		return slhdsa.GenerateKey(config.Random(), uint8(config.PublicKeyAlgorithm()), scheme)
 	default:
 		return nil, errors.InvalidArgumentError("unsupported public key algorithm")
 	}
@@ -393,7 +405,7 @@ func newDecrypter(config *packet.Config) (decrypter interface{}, err error) {
 	case packet.ExperimentalPubKeyAlgoHMAC, packet.ExperimentalPubKeyAlgoAEAD: // When passing HMAC, we generate an AEAD subkey
 		cipher := algorithm.CipherFunction(config.Cipher())
 		return symmetric.ExperimentalAEADGenerateKey(config.Random(), cipher)
-	case packet.PubKeyAlgoMldsa65Ed25519, packet.PubKeyAlgoMldsa87Ed448:
+	case packet.PubKeyAlgoMldsa65Ed25519, packet.PubKeyAlgoMldsa87Ed448, packet.PubKeyAlgoSlhdsaShake128s, packet.PubKeyAlgoSlhdsaShake128f, packet.PubKeyAlgoSlhdsaShake256s:
 		if pubKeyAlgo, err = packet.GetMatchingMlkem(config.PublicKeyAlgorithm()); err != nil {
 			return nil, err
 		}

@@ -16,6 +16,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ProtonMail/go-crypto/openpgp/armor"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
@@ -1118,5 +1119,18 @@ func TestReadMessageCompressionLimit(t *testing.T) {
 	// Should be able to read all data
 	if _, err = io.ReadAll(md.UnverifiedBody); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestPqcDraftKey(t *testing.T) {
+	t.Skip("skipping")
+	secretKey, err := ReadArmoredKeyRing(strings.NewReader(v6SlhDsaMlkem768PrivateTestVector))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	_, ok := secretKey[0].EncryptionKey(time.Unix(1737373639, 0), nil)
+	if !ok {
+		t.Fatal("Failed to verify key")
 	}
 }
