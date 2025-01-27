@@ -181,25 +181,29 @@ func (s *Subkey) Revoke(reason packet.ReasonForRevocation, reasonText string, co
 // Returns a StructuralError if no valid self-signature is found.
 func (s *Subkey) LatestValidBindingSignature(date time.Time, config *packet.Config) (selectedSig *packet.Signature, err error) {
 	for sigIdx := len(s.Bindings) - 1; sigIdx >= 0; sigIdx-- {
-		sig := s.Bindings[sigIdx]
-		if (date.IsZero() || date.Unix() >= sig.Packet.CreationTime.Unix()) &&
-			(selectedSig == nil || selectedSig.CreationTime.Unix() < sig.Packet.CreationTime.Unix()) {
-			if sig.Valid == nil {
-				err := s.Primary.PrimaryKey.VerifyKeySignature(s.PublicKey, sig.Packet)
+		binding := s.Bindings[sigIdx]
+		sig := binding.Packet
+		if (date.IsZero() || date.Unix() >= sig.CreationTime.Unix()) &&
+			(selectedSig == nil || selectedSig.CreationTime.Unix() < sig.CreationTime.Unix()) {
+			if binding.Valid == nil {
+				err := s.Primary.PrimaryKey.VerifyKeySignature(s.PublicKey, sig)
 				if err == nil {
-					err = checkSignatureDetails(s.Primary.PrimaryKey, sig.Packet, date, config)
+					err = checkSignatureDetails(s.Primary.PrimaryKey, sig, date, config)
+				}
+				if err == nil && (sig.FlagSign || sig.FlagCertify || (sig.FlagAuthenticate && sig.Version == 6)) {
+					err = checkSignatureDetails(s.PublicKey, sig.EmbeddedSignature, date, config)
 				}
 				valid := err == nil
-				sig.Valid = &valid
+				binding.Valid = &valid
 			}
 			mainSigExpired := !date.IsZero() &&
-				sig.Packet.SigExpired(date)
+				sig.SigExpired(date)
 			embeddedSigExpired := !date.IsZero() &&
-				sig.Packet.FlagSign &&
-				sig.Packet.EmbeddedSignature != nil &&
-				sig.Packet.EmbeddedSignature.SigExpired(date)
-			if *sig.Valid && !mainSigExpired && !embeddedSigExpired {
-				selectedSig = sig.Packet
+				sig.FlagSign &&
+				sig.EmbeddedSignature != nil &&
+				sig.EmbeddedSignature.SigExpired(date)
+			if *binding.Valid && !mainSigExpired && !embeddedSigExpired {
+				selectedSig = sig
 			}
 		}
 	}
