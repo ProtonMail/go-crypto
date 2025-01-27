@@ -908,7 +908,7 @@ func (pk *PublicKey) VerifyKeySignature(signed *PublicKey, sig *Signature) error
 		return err
 	}
 
-	if sig.FlagSign || sig.FlagCertify {
+	if sig.FlagSign || sig.FlagCertify || (sig.FlagAuthenticate && sig.Version == 6) {
 		// Subkeys that can issue signatures must be cross-signed. See
 		// https://www.rfc-editor.org/rfc/rfc9580.html#section-10.1.5-8.
 		if sig.EmbeddedSignature == nil {
