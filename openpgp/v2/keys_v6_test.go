@@ -3,10 +3,12 @@ package v2
 import (
 	"bytes"
 	"crypto"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/ProtonMail/go-crypto/openpgp/armor"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 )
 
@@ -241,4 +243,30 @@ func TestReadLegacyECC(t *testing.T) {
 	if err == nil {
 		t.Fatal("should not be able to read v6 legacy ECC key")
 	}
+}
+
+func TestGeneratePQCTestVector(t *testing.T) {
+	c := &packet.Config{
+		V6Keys:        true,
+		Algorithm:     packet.PubKeyAlgoSlhdsaShake128s,
+		AEADConfig:    &packet.AEADConfig{},
+		DefaultCipher: packet.CipherAES256,
+		DefaultHash:   crypto.SHA3_256,
+	}
+	e, err := NewEntity("PQC user", "Test Key", "pqc-test-key@example.com", c)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var armoredKey bytes.Buffer
+	armorer, _ := armor.Encode(&armoredKey, "PGP PRIVATE KEY BLOCK", nil)
+	e.SerializePrivateWithoutSigning(armorer, nil)
+	armorer.Close()
+	fmt.Println(armoredKey.String())
+
+	var armoredKeyPublic bytes.Buffer
+	armorer, _ = armor.Encode(&armoredKeyPublic, "PGP PUBLIC KEY BLOCK", nil)
+	e.Serialize(armorer)
+	armorer.Close()
+	fmt.Println(armoredKeyPublic.String())
 }
