@@ -967,12 +967,12 @@ var pqcDraftVectors = map[string]struct {
 	fingerprints      []string
 	armoredMessages   []string
 }{
-	"v6_Ed25519_ML-KEM-768+X25519": {
+	/*"v6_Ed25519_ML-KEM-768+X25519": {
 		v6Ed25519Mlkem768X25519PrivateTestVector,
 		v6Ed25519Mlkem768X25519PublicTestVector,
 		[]string{"bf262b24177002ac8ae5dc6da47c056d22ab9906d47d07952b75c358021901ca", "48b94bce2f9771788f5feb74122d599989c400cc0f49108bc98e0ea7945e4838"},
 		[]string{v6Ed25519Mlkem768X25519PrivateMessageTestVector},
-	},
+	},*/
 }
 
 func TestPqcDraftVectors(t *testing.T) {

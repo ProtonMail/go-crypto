@@ -519,11 +519,11 @@ const (
 	PubKeyAlgoMlkem1024X448  = 106
 
 	// Experimental PQC DSA algorithms
-	PubKeyAlgoMldsa65Ed25519  = 107
-	PubKeyAlgoMldsa87Ed448    = 108
-	PubKeyAlgoSlhdsaShake128s = 109
-	PubKeyAlgoSlhdsaShake128f = 110
-	PubKeyAlgoSlhdsaShake256s = 111
+	PubKeyAlgoMldsa65Ed25519  = 30
+	PubKeyAlgoMldsa87Ed448    = 31
+	PubKeyAlgoSlhdsaShake128s = 32
+	PubKeyAlgoSlhdsaShake128f = 33
+	PubKeyAlgoSlhdsaShake256s = 34
 )
 
 // CanEncrypt returns true if it's possible to encrypt a message to a public
