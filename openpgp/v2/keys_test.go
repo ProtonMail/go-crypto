@@ -2022,3 +2022,36 @@ NciH07RTRuMS/aRhRg4OB8PQROmTnZ+iZS0=
 		t.Fatal(err)
 	}
 }
+
+func TestEncryptionKeyError(t *testing.T) {
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = entity.EncryptionKeyWithError(time.Unix(1405544146, 0), nil)
+	if err == nil {
+		t.Fatal("should fail")
+	}
+	if !strings.Contains(err.Error(), "no valid self signature found") {
+		t.Fatal("wrong error")
+	}
+
+	entity.Subkeys[0].Bindings[0].Packet.CreationTime = time.Unix(1405544146, 0)
+	_, err = entity.EncryptionKeyWithError(time.Now(), nil)
+	if err == nil {
+		t.Fatal("should fail")
+	}
+	if !strings.Contains(err.Error(), "no valid binding signature found for subkey") {
+		t.Fatal("wrong error")
+	}
+
+	entity.Subkeys = nil
+	_, err = entity.EncryptionKeyWithError(time.Now(), nil)
+	if err == nil {
+		t.Fatal("should fail")
+	}
+	if !strings.Contains(err.Error(), "no key with encryption flags found") {
+		t.Fatal("wrong error")
+	}
+}

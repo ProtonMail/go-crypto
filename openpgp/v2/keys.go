@@ -98,27 +98,60 @@ func shouldPreferIdentity(existingId, potentialNewId *packet.Signature) bool {
 // EncryptionKey returns the best candidate Key for encrypting a message to the
 // given Entity.
 func (e *Entity) EncryptionKey(now time.Time, config *packet.Config) (Key, bool) {
+	encryptionKey, err := e.EncryptionKeyWithError(now, config)
+	return encryptionKey, err == nil
+}
+
+// EncryptionKey returns the best candidate Key for encrypting a message to the
+// given Entity.
+// Provides an error if the function fails to find an encryption key.
+func (e *Entity) EncryptionKeyWithError(now time.Time, config *packet.Config) (Key, error) {
 	// The primary key has to be valid at time now
 	primarySelfSignature, err := e.VerifyPrimaryKey(now, config)
 	if err != nil { // primary key is not valid
-		return Key{}, false
+		return Key{}, errors.ErrEncryptionKeySelection{
+			PrimaryKeyId:  e.PrimaryKey.KeyIdString(),
+			PrimaryKeyErr: err,
+		}
 	}
 
 	if checkKeyRequirements(e.PrimaryKey, config) != nil {
 		// The primary key produces weak signatures
-		return Key{}, false
+		return Key{}, errors.ErrEncryptionKeySelection{
+			PrimaryKeyId:  e.PrimaryKey.KeyIdString(),
+			PrimaryKeyErr: err,
+		}
 	}
 
 	// Iterate the keys to find the newest, unexpired one
+	var latestSelectionError *errors.ErrEncryptionKeySelection
 	candidateSubkey := -1
 	var maxTime time.Time
 	var selectedSubkeySelfSig *packet.Signature
 	for i, subkey := range e.Subkeys {
+		subkeyKeyId := subkey.PublicKey.KeyIdString()
+		subkeyErr := errors.ErrEncryptionKeySelection{
+			PrimaryKeyId:      e.PrimaryKey.KeyIdString(),
+			EncSelectionKeyId: &subkeyKeyId,
+		}
+		// Verify the subkey signature.
 		subkeySelfSig, err := subkey.Verify(now, config) // subkey has to be valid at time now
-		if err == nil &&
-			isValidEncryptionKey(subkeySelfSig, subkey.PublicKey.PubKeyAlgo) &&
-			checkKeyRequirements(subkey.PublicKey, config) == nil &&
-			(maxTime.IsZero() || subkeySelfSig.CreationTime.Unix() >= maxTime.Unix()) {
+		if err != nil {
+			subkeyErr.EncSelectionErr = err
+			latestSelectionError = &subkeyErr
+			continue
+		}
+		// Check the key flags.
+		if !isValidEncryptionKey(subkeySelfSig, subkey.PublicKey.PubKeyAlgo) {
+			continue
+		}
+		// Check if the key fulfils the requirements
+		if err := checkKeyRequirements(subkey.PublicKey, config); err != nil {
+			subkeyErr.EncSelectionErr = err
+			latestSelectionError = &subkeyErr
+			continue
+		}
+		if maxTime.IsZero() || subkeySelfSig.CreationTime.Unix() >= maxTime.Unix() {
 			candidateSubkey = i
 			selectedSubkeySelfSig = subkeySelfSig
 			maxTime = subkeySelfSig.CreationTime
@@ -133,7 +166,7 @@ func (e *Entity) EncryptionKey(now time.Time, config *packet.Config) (Key, bool)
 			PublicKey:            subkey.PublicKey,
 			PrivateKey:           subkey.PrivateKey,
 			SelfSignature:        selectedSubkeySelfSig,
-		}, true
+		}, nil
 	}
 
 	// If we don't have any subkeys for encryption and the primary key
@@ -145,10 +178,17 @@ func (e *Entity) EncryptionKey(now time.Time, config *packet.Config) (Key, bool)
 			PublicKey:            e.PrimaryKey,
 			PrivateKey:           e.PrivateKey,
 			SelfSignature:        primarySelfSignature,
-		}, true
+		}, nil
 	}
 
-	return Key{}, false
+	if latestSelectionError == nil {
+		latestSelectionError = &errors.ErrEncryptionKeySelection{
+			PrimaryKeyId:    e.PrimaryKey.KeyIdString(),
+			EncSelectionErr: goerrors.New("no key with encryption flags found"),
+		}
+	}
+
+	return Key{}, latestSelectionError
 }
 
 // DecryptionKeys returns all keys that are available for decryption, matching the keyID when given
