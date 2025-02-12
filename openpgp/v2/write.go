@@ -611,10 +611,8 @@ func encrypt(
 		timeForEncryptionKey = *params.EncryptionTime
 	}
 	for i, recipient := range append(to, toHidden...) {
-		var ok bool
-		encryptKeys[i], ok = recipient.EncryptionKey(timeForEncryptionKey, config)
-		if !ok {
-			return nil, errors.InvalidArgumentError("cannot encrypt a message to key id " + strconv.FormatUint(to[i].PrimaryKey.KeyId, 16) + " because it has no valid encryption keys")
+		if encryptKeys[i], err = recipient.EncryptionKeyWithError(timeForEncryptionKey, config); err != nil {
+			return nil, err
 		}
 
 		primarySelfSignature, _ := recipient.PrimarySelfSignature(timeForEncryptionKey, config)
