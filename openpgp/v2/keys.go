@@ -116,7 +116,7 @@ func (e *Entity) EncryptionKey(now time.Time, config *packet.Config) (Key, bool)
 	for i, subkey := range e.Subkeys {
 		subkeySelfSig, err := subkey.Verify(now, config) // subkey has to be valid at time now
 		if err == nil &&
-			isValidEncryptionKey(subkeySelfSig, subkey.PublicKey.PubKeyAlgo) &&
+			isValidEncryptionKey(subkeySelfSig, subkey.PublicKey.PubKeyAlgo, config) &&
 			checkKeyRequirements(subkey.PublicKey, config) == nil &&
 			(maxTime.IsZero() || subkeySelfSig.CreationTime.Unix() >= maxTime.Unix()) {
 			candidateSubkey = i
@@ -138,7 +138,7 @@ func (e *Entity) EncryptionKey(now time.Time, config *packet.Config) (Key, bool)
 
 	// If we don't have any subkeys for encryption and the primary key
 	// is marked as OK to encrypt with, then we can use it.
-	if isValidEncryptionKey(primarySelfSignature, e.PrimaryKey.PubKeyAlgo) {
+	if isValidEncryptionKey(primarySelfSignature, e.PrimaryKey.PubKeyAlgo, config) {
 		return Key{
 			Entity:               e,
 			PrimarySelfSignature: primarySelfSignature,
@@ -164,12 +164,12 @@ func (e *Entity) DecryptionKeys(id uint64, date time.Time, config *packet.Config
 	for _, subkey := range e.Subkeys {
 		subkeySelfSig, err := subkey.LatestValidBindingSignature(date, config)
 		if err == nil &&
-			(config.AllowDecryptionWithSigningKeys() || isValidEncryptionKey(subkeySelfSig, subkey.PublicKey.PubKeyAlgo)) &&
+			(config.AllowDecryptionWithSigningKeys() || isValidEncryptionKey(subkeySelfSig, subkey.PublicKey.PubKeyAlgo, config)) &&
 			(id == 0 || subkey.PublicKey.KeyId == id) {
 			keys = append(keys, Key{subkey.Primary, primarySelfSignature, subkey.PublicKey, subkey.PrivateKey, subkeySelfSig})
 		}
 	}
-	if config.AllowDecryptionWithSigningKeys() || isValidEncryptionKey(primarySelfSignature, e.PrimaryKey.PubKeyAlgo) {
+	if config.AllowDecryptionWithSigningKeys() || isValidEncryptionKey(primarySelfSignature, e.PrimaryKey.PubKeyAlgo, config) {
 		keys = append(keys, Key{e, primarySelfSignature, e.PrimaryKey, e.PrivateKey, primarySelfSignature})
 	}
 	return
@@ -219,8 +219,8 @@ func (e *Entity) signingKeyByIdUsage(now time.Time, id uint64, flags int, config
 	for idx, subkey := range e.Subkeys {
 		subkeySelfSig, err := subkey.Verify(now, config)
 		if err == nil &&
-			(flags&packet.KeyFlagCertify == 0 || isValidCertificationKey(subkeySelfSig, subkey.PublicKey.PubKeyAlgo)) &&
-			(flags&packet.KeyFlagSign == 0 || isValidSigningKey(subkeySelfSig, subkey.PublicKey.PubKeyAlgo)) &&
+			(flags&packet.KeyFlagCertify == 0 || isValidCertificationKey(subkeySelfSig, subkey.PublicKey.PubKeyAlgo, config)) &&
+			(flags&packet.KeyFlagSign == 0 || isValidSigningKey(subkeySelfSig, subkey.PublicKey.PubKeyAlgo, config)) &&
 			checkKeyRequirements(subkey.PublicKey, config) == nil &&
 			(maxTime.IsZero() || subkeySelfSig.CreationTime.Unix() >= maxTime.Unix()) &&
 			(id == 0 || subkey.PublicKey.KeyId == id) {
@@ -243,8 +243,8 @@ func (e *Entity) signingKeyByIdUsage(now time.Time, id uint64, flags int, config
 
 	// If we don't have any subkeys for signing and the primary key
 	// is marked as OK to sign with, then we can use it.
-	if (flags&packet.KeyFlagCertify == 0 || isValidCertificationKey(primarySelfSignature, e.PrimaryKey.PubKeyAlgo)) &&
-		(flags&packet.KeyFlagSign == 0 || isValidSigningKey(primarySelfSignature, e.PrimaryKey.PubKeyAlgo)) &&
+	if (flags&packet.KeyFlagCertify == 0 || isValidCertificationKey(primarySelfSignature, e.PrimaryKey.PubKeyAlgo, config)) &&
+		(flags&packet.KeyFlagSign == 0 || isValidSigningKey(primarySelfSignature, e.PrimaryKey.PubKeyAlgo, config)) &&
 		(id == 0 || e.PrimaryKey.KeyId == id) {
 		return Key{
 			Entity:               e,
@@ -770,20 +770,38 @@ func checkKeyRequirements(usedKey *packet.PublicKey, config *packet.Config) erro
 	return nil
 }
 
-func isValidSigningKey(signature *packet.Signature, algo packet.PublicKeyAlgorithm) bool {
-	return algo.CanSign() &&
-		signature.FlagsValid &&
-		signature.FlagSign
+func isValidSigningKey(signature *packet.Signature, algo packet.PublicKeyAlgorithm, config *packet.Config) bool {
+	if !algo.CanSign() {
+		return false
+	}
+
+	if signature.FlagsValid {
+		return signature.FlagSign
+	}
+
+	return config.AllowAllKeyFlagsWhenMissing()
 }
 
-func isValidCertificationKey(signature *packet.Signature, algo packet.PublicKeyAlgorithm) bool {
-	return algo.CanSign() &&
-		signature.FlagsValid &&
-		signature.FlagCertify
+func isValidCertificationKey(signature *packet.Signature, algo packet.PublicKeyAlgorithm, config *packet.Config) bool {
+	if !algo.CanSign() {
+		return false
+	}
+
+	if signature.FlagsValid {
+		return signature.FlagCertify
+	}
+
+	return config.AllowAllKeyFlagsWhenMissing()
 }
 
-func isValidEncryptionKey(signature *packet.Signature, algo packet.PublicKeyAlgorithm) bool {
-	return algo.CanEncrypt() &&
-		signature.FlagsValid &&
-		(signature.FlagEncryptCommunications || signature.FlagEncryptStorage)
+func isValidEncryptionKey(signature *packet.Signature, algo packet.PublicKeyAlgorithm, config *packet.Config) bool {
+	if !algo.CanEncrypt() {
+		return false
+	}
+
+	if signature.FlagsValid {
+		return signature.FlagEncryptCommunications || signature.FlagEncryptStorage
+	}
+
+	return config.AllowAllKeyFlagsWhenMissing()
 }
