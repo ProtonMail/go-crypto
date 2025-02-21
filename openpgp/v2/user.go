@@ -121,7 +121,7 @@ func (i *Identity) Revoked(selfCertification *packet.Signature, date time.Time, 
 				// Verify revocation signature (not verified yet).
 				err := i.Primary.PrimaryKey.VerifyUserIdSignature(i.Name, i.Primary.PrimaryKey, revocation.Packet)
 				if err == nil {
-					err = checkSignatureDetails(i.Primary.PrimaryKey, revocation.Packet, date, config)
+					err = checkSignatureDetails(revocation.Packet, date, config)
 				}
 				valid := err == nil
 				revocation.Valid = &valid
@@ -206,7 +206,7 @@ func (i *Identity) LatestValidSelfCertification(date time.Time, config *packet.C
 				// Verify revocation signature (not verified yet).
 				err = i.Primary.PrimaryKey.VerifyUserIdSignature(i.Name, i.Primary.PrimaryKey, sig.Packet)
 				if err == nil {
-					err = checkSignatureDetails(i.Primary.PrimaryKey, sig.Packet, date, config)
+					err = checkSignatureDetails(sig.Packet, date, config)
 				}
 				valid := err == nil
 				sig.Valid = &valid
