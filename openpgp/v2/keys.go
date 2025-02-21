@@ -676,7 +676,7 @@ func (e *Entity) LatestValidDirectSignature(date time.Time, config *packet.Confi
 			if sig.Valid == nil {
 				err := e.PrimaryKey.VerifyDirectKeySignature(sig.Packet)
 				if err == nil {
-					err = checkSignatureDetails(e.PrimaryKey, sig.Packet, date, config)
+					err = checkSignatureDetails(sig.Packet, date, config)
 				}
 				valid := err == nil
 				sig.Valid = &valid
