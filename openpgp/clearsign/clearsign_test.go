@@ -176,7 +176,7 @@ func testMultiSign(t *testing.T, v6 bool) {
 		t.Skip("skipping long test in -short mode")
 	}
 
-	var config packet.Config
+	config := packet.Config{V6Keys: v6}
 
 	for nKeys := 1; nKeys < 4; nKeys++ {
 	nextTest:
