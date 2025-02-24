@@ -732,17 +732,12 @@ func verifyDetachedSignatureReader(keyring KeyRing, signed, signature io.Reader,
 // It checks the following:
 //   - Hash function should not be invalid according to
 //     config.RejectHashAlgorithms.
-//   - Verification key must be older than the signature creation time.
 //   - Check signature notations.
 //   - Signature is not expired (unless a zero time is passed to
 //     explicitly ignore expiration).
-func checkSignatureDetails(pk *packet.PublicKey, signature *packet.Signature, now time.Time, config *packet.Config) error {
+func checkSignatureDetails(signature *packet.Signature, now time.Time, config *packet.Config) error {
 	if config.RejectHashAlgorithm(signature.Hash) {
 		return errors.SignatureError("insecure hash algorithm: " + signature.Hash.String())
-	}
-
-	if pk.CreationTime.Unix() > signature.CreationTime.Unix() {
-		return errors.ErrSignatureOlderThanKey
 	}
 
 	for _, notation := range signature.Notations {
@@ -762,9 +757,14 @@ func checkSignatureDetails(pk *packet.PublicKey, signature *packet.Signature, no
 // signature and all relevant binding signatures.
 // In addition, the message signature hash algorithm is checked against
 // config.RejectMessageHashAlgorithms.
+// Finally, the signature must be newer than the verification key.
 func checkMessageSignatureDetails(verifiedKey *Key, signature *packet.Signature, config *packet.Config) error {
 	if config.RejectMessageHashAlgorithm(signature.Hash) {
 		return errors.SignatureError("insecure message hash algorithm: " + signature.Hash.String())
+	}
+
+	if signature.CreationTime.Unix() < verifiedKey.PublicKey.CreationTime.Unix() {
+		return errors.ErrSignatureOlderThanKey
 	}
 
 	sigsToCheck := []*packet.Signature{signature, verifiedKey.PrimarySelfSignature}
@@ -773,19 +773,13 @@ func checkMessageSignatureDetails(verifiedKey *Key, signature *packet.Signature,
 	}
 	var errs []error
 	for _, sig := range sigsToCheck {
-		var pk *packet.PublicKey
-		if sig == verifiedKey.PrimarySelfSignature || sig == verifiedKey.SelfSignature {
-			pk = verifiedKey.Entity.PrimaryKey
-		} else {
-			pk = verifiedKey.PublicKey
-		}
 		var time time.Time
 		if sig == signature {
 			time = config.Now()
 		} else {
 			time = signature.CreationTime
 		}
-		if err := checkSignatureDetails(pk, sig, time, config); err != nil {
+		if err := checkSignatureDetails(sig, time, config); err != nil {
 			errs = append(errs, err)
 		}
 	}
