@@ -171,24 +171,12 @@ func TestSigningInterop(t *testing.T) {
 	}
 }
 
-// We use this to make test keys, so that they aren't all the same.
-type quickRand byte
-
-func (qr *quickRand) Read(p []byte) (int, error) {
-	for i := range p {
-		p[i] = byte(*qr)
-	}
-	*qr++
-	return len(p), nil
-}
-
 func testMultiSign(t *testing.T, v6 bool) {
 	if testing.Short() {
 		t.Skip("skipping long test in -short mode")
 	}
 
-	zero := quickRand(0)
-	config := packet.Config{Rand: &zero, V6Keys: v6}
+	config := packet.Config{V6Keys: v6}
 
 	for nKeys := 1; nKeys < 4; nKeys++ {
 	nextTest:
