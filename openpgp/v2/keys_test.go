@@ -2075,3 +2075,37 @@ func TestAllowAllKeyFlagsWhenMissing(t *testing.T) {
 		t.Error("isValidCertificationKey must be true when InsecureAllowAllKeyFlagsWhenMissing is true")
 	}
 }
+
+func TestEncryptionKeyError(t *testing.T) {
+	// Make a master key.
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = entity.EncryptionKeyWithError(time.Unix(1405544146, 0), nil)
+	if err == nil {
+		t.Fatal("should fail")
+	}
+	if !strings.Contains(err.Error(), "no valid self signature found") {
+		t.Fatal("wrong error")
+	}
+
+	entity.Subkeys[0].PublicKey.Version = 20
+	_, err = entity.EncryptionKeyWithError(time.Now(), nil)
+	if err == nil {
+		t.Fatal("should fail")
+	}
+	if !strings.Contains(err.Error(), "no valid binding signature found for subkey") {
+		t.Fatal("wrong error")
+	}
+
+	entity.Subkeys = nil
+	_, err = entity.EncryptionKeyWithError(time.Now(), nil)
+	if err == nil {
+		t.Fatal("should fail")
+	}
+	if !strings.Contains(err.Error(), "no encryption-capable key found (no key flags or invalid algorithm)") {
+		t.Fatal("wrong error")
+	}
+}
