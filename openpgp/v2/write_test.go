@@ -6,6 +6,7 @@ package v2
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/rand"
 	"io"
 	mathrand "math/rand"
@@ -434,33 +435,6 @@ func TestSymmetricEncryptionV5RandomizeSlow(t *testing.T) {
 	}
 }
 
-var testEncryptionTests = []struct {
-	keyRingHex string
-	isSigned   bool
-	okV6       bool
-}{
-	{
-		testKeys1And2PrivateHex,
-		false,
-		true,
-	},
-	{
-		testKeys1And2PrivateHex,
-		true,
-		true,
-	},
-	{
-		dsaElGamalTestKeysHex,
-		false,
-		false,
-	},
-	{
-		dsaElGamalTestKeysHex,
-		true,
-		false,
-	},
-}
-
 func TestIntendedRecipientsEncryption(t *testing.T) {
 	var config = &packet.Config{
 		V6Keys:     true,
@@ -674,129 +648,176 @@ func TestMultiSignEncryption(t *testing.T) {
 	}
 }
 
-func TestEncryption(t *testing.T) {
-	for i, test := range testEncryptionTests {
-		kring, _ := ReadKeyRing(readerFromHex(test.keyRingHex))
+var testEncryptionTests = map[string]struct {
+	keyRingHex string
+	isSigned   bool
+	okV6       bool
+}{
+	"Simple": {
+		testKeys1And2PrivateHex,
+		false,
+		true,
+	},
+	"Simple_signed": {
+		testKeys1And2PrivateHex,
+		true,
+		true,
+	},
+	"DSA_ElGamal": {
+		dsaElGamalTestKeysHex,
+		false,
+		false,
+	},
+	"DSA_ElGamal_signed": {
+		dsaElGamalTestKeysHex,
+		true,
+		false,
+	},
+	// TODO: Add test vectors
+	/*"v6_Ed25519_ML-KEM-768+X25519": {
+		v6Ed25519Mlkem768X25519PrivateHex,
+		false,
+		true,
+	},
+	"v6_Ed25519_ML-KEM-768+X25519_signed": {
+		v6Ed25519Mlkem768X25519PrivateHex,
+		true,
+		true,
+	},
+	"v6_ML-DSA-67+Ed25519_ML-KEM-768+X25519": {
+		mldsa65Ed25519Mlkem768X25519PrivateHex,
+		false,
+		true,
+	},
+	"v6_ML-DSA-67+Ed25519_ML-KEM-768+X25519_signed": {
+		mldsa65Ed25519Mlkem768X25519PrivateHex,
+		true,
+		true,
+	},*/
+}
 
-		passphrase := []byte("passphrase")
-		for _, entity := range kring {
-			if entity.PrivateKey != nil && entity.PrivateKey.Encrypted {
-				err := entity.PrivateKey.Decrypt(passphrase)
-				if err != nil {
-					t.Errorf("#%d: failed to decrypt key", i)
-				}
-			}
-			for _, subkey := range entity.Subkeys {
-				if subkey.PrivateKey != nil && subkey.PrivateKey.Encrypted {
-					err := subkey.PrivateKey.Decrypt(passphrase)
+func TestEncryption(t *testing.T) {
+	for name, test := range testEncryptionTests {
+		t.Run(name, func(t *testing.T) {
+			kring, _ := ReadKeyRing(readerFromHex(test.keyRingHex))
+
+			passphrase := []byte("passphrase")
+			for _, entity := range kring {
+				if entity.PrivateKey != nil && entity.PrivateKey.Encrypted {
+					err := entity.PrivateKey.Decrypt(passphrase)
 					if err != nil {
-						t.Errorf("#%d: failed to decrypt subkey", i)
+						t.Fatal("Failed to decrypt key")
+					}
+				}
+				for _, subkey := range entity.Subkeys {
+					if subkey.PrivateKey != nil && subkey.PrivateKey.Encrypted {
+						err := subkey.PrivateKey.Decrypt(passphrase)
+						if err != nil {
+							t.Fatal("Failed to decrypt subkey")
+						}
 					}
 				}
 			}
-		}
 
-		var signed *Entity
-		if test.isSigned {
-			signed = kring[0]
-		}
-
-		buf := new(bytes.Buffer)
-		// randomized compression test
-		compAlgos := []packet.CompressionAlgo{
-			packet.CompressionNone,
-			packet.CompressionZIP,
-			packet.CompressionZLIB,
-		}
-		compAlgo := compAlgos[mathrand.Intn(len(compAlgos))]
-		level := mathrand.Intn(11) - 1
-		compConf := &packet.CompressionConfig{Level: level}
-		config := allowAllAlgorithmsConfig
-		config.DefaultCompressionAlgo = compAlgo
-		config.CompressionConfig = compConf
-
-		// Flip coin to enable AEAD mode
-		if mathrand.Int()%2 == 0 {
-			aeadConf := packet.AEADConfig{
-				DefaultMode: aeadModes[mathrand.Intn(len(aeadModes))],
+			var signed []*Entity
+			if test.isSigned {
+				signed = kring[:1]
 			}
-			config.AEADConfig = &aeadConf
-		}
-		var signers []*Entity
-		if signed != nil {
-			signers = []*Entity{signed}
-		}
-		w, err := Encrypt(buf, kring[:1], nil, signers, nil /* no hints */, &config)
-		if (err != nil) == (test.okV6 && config.AEAD() != nil) {
-			// ElGamal is not allowed with v6
-			continue
-		}
 
-		if err != nil {
-			t.Errorf("#%d: error in Encrypt: %s", i, err)
-			continue
-		}
-
-		const message = "testing"
-		_, err = w.Write([]byte(message))
-		if err != nil {
-			t.Errorf("#%d: error writing plaintext: %s", i, err)
-			continue
-		}
-		err = w.Close()
-		if err != nil {
-			t.Errorf("#%d: error closing WriteCloser: %s", i, err)
-			continue
-		}
-
-		md, err := ReadMessage(buf, kring, nil /* no prompt */, &config)
-		if err != nil {
-			t.Errorf("#%d: error reading message: %s", i, err)
-			continue
-		}
-
-		testTime, _ := time.Parse("2006-01-02", "2013-07-01")
-		if test.isSigned {
-			signKey, _ := kring[0].SigningKey(testTime, &allowAllAlgorithmsConfig)
-			expectedKeyId := signKey.PublicKey.KeyId
-			if len(md.SignatureCandidates) < 1 {
-				t.Error("no candidate signature found")
+			buf := new(bytes.Buffer)
+			// randomized compression test
+			compAlgos := []packet.CompressionAlgo{
+				packet.CompressionNone,
+				packet.CompressionZIP,
+				packet.CompressionZLIB,
 			}
-			if md.SignatureCandidates[0].IssuerKeyId != expectedKeyId {
-				t.Errorf("#%d: message signed by wrong key id, got: %v, want: %v", i, *md.SignatureCandidates[0].SignedBy, expectedKeyId)
-			}
-			if md.SignatureCandidates[0].SignedByEntity == nil {
-				t.Errorf("#%d: failed to find the signing Entity", i)
-			}
-		}
+			compAlgo := compAlgos[mathrand.Intn(len(compAlgos))]
+			level := mathrand.Intn(11) - 1
+			compConf := &packet.CompressionConfig{Level: level}
+			config := allowAllAlgorithmsConfig
+			config.DefaultCompressionAlgo = compAlgo
+			config.CompressionConfig = compConf
+			config.DefaultCipher = packet.CipherAES256
 
-		plaintext, err := io.ReadAll(md.UnverifiedBody)
-		if err != nil {
-			t.Errorf("#%d: error reading encrypted contents: %s", i, err)
-			continue
-		}
-
-		encryptKey, _ := kring[0].EncryptionKey(testTime, &allowAllAlgorithmsConfig)
-		expectedKeyId := encryptKey.PublicKey.KeyId
-		if len(md.EncryptedToKeyIds) != 1 || md.EncryptedToKeyIds[0] != expectedKeyId {
-			t.Errorf("#%d: expected message to be encrypted to %v, but got %#v", i, expectedKeyId, md.EncryptedToKeyIds)
-		}
-
-		if string(plaintext) != message {
-			t.Errorf("#%d: got: %s, want: %s", i, string(plaintext), message)
-		}
-
-		if test.isSigned {
-			if !md.IsVerified {
-				t.Errorf("not verified despite all data read")
+			// Flip coin to enable AEAD mode
+			if test.okV6 && (mathrand.Int()%2 == 0) {
+				aeadConf := packet.AEADConfig{
+					DefaultMode: aeadModes[mathrand.Intn(len(aeadModes))],
+				}
+				config.AEADConfig = &aeadConf
 			}
-			if md.SignatureError != nil {
-				t.Errorf("#%d: signature error: %s", i, md.SignatureError)
+
+			w, err := Encrypt(buf, kring[:1], nil, signed, nil /* no hints */, &config)
+			if (err != nil) == (test.okV6 && config.AEAD() != nil) {
+				// ElGamal is not allowed with v6
+				return
 			}
-			if md.Signature == nil {
-				t.Error("signature missing")
+
+			if err != nil {
+				t.Fatalf("Error in Encrypt: %s", err)
 			}
-		}
+
+			const message = "testing"
+			_, err = w.Write([]byte(message))
+			if err != nil {
+				t.Fatalf("Error writing plaintext: %s", err)
+			}
+			err = w.Close()
+			if err != nil {
+				t.Fatalf("Error closing WriteCloser: %s", err)
+			}
+
+			testTime, _ := time.Parse("2006-01-02", "2013-07-01")
+
+			md, err := ReadMessage(buf, kring, nil /* no prompt */, &config)
+			if err != nil {
+				t.Fatalf("Error reading message: %s", err)
+			}
+
+			if test.isSigned {
+				signKey, _ := kring[0].SigningKey(testTime, &allowAllAlgorithmsConfig)
+				expectedKeyId := signKey.PublicKey.KeyId
+				if len(md.SignatureCandidates) < 1 {
+					t.Error("no candidate signature found")
+				}
+				if md.SignatureCandidates[0].IssuerKeyId != expectedKeyId {
+					t.Errorf("#%s: message signed by wrong key id, got: %v, want: %v", name, *md.SignatureCandidates[0].SignedBy, expectedKeyId)
+				}
+				if md.SignatureCandidates[0].SignedByEntity == nil {
+					t.Errorf("#%s: failed to find the signing Entity", name)
+				}
+			}
+
+			plaintext, err := io.ReadAll(md.UnverifiedBody)
+			if err != nil {
+				t.Fatalf("Error reading encrypted contents: %s", err)
+			}
+
+			encryptKey, out := kring[0].EncryptionKey(testTime, &allowAllAlgorithmsConfig)
+			if !out {
+				t.Fatalf("#%s: No encryption key found", name)
+			}
+			expectedKeyId := encryptKey.PublicKey.KeyId
+			if len(md.EncryptedToKeyIds) != 1 || md.EncryptedToKeyIds[0] != expectedKeyId {
+				t.Errorf("Expected message to be encrypted to %v, but got %#v", expectedKeyId, md.EncryptedToKeyIds)
+			}
+
+			if string(plaintext) != message {
+				t.Errorf("#Got: %s, want: %s", string(plaintext), message)
+			}
+
+			if test.isSigned {
+				if !md.IsVerified {
+					t.Errorf("not verified despite all data read")
+				}
+				if md.SignatureError != nil {
+					t.Errorf("Signature error: %s", md.SignatureError)
+				}
+				if md.Signature == nil {
+					t.Error("Signature missing")
+				}
+			}
+		})
 	}
 }
 
@@ -996,4 +1017,91 @@ FindKey:
 		return errors.StructuralError("No compressed packets found")
 	}
 	return nil
+}
+
+func TestEncryptWithAEAD(t *testing.T) {
+	c := &packet.Config{
+		MinRSABits:    1024,
+		Algorithm:     packet.ExperimentalPubKeyAlgoAEAD,
+		DefaultCipher: packet.CipherAES256,
+		AEADConfig: &packet.AEADConfig{
+			DefaultMode: packet.AEADMode(1),
+		},
+	}
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", &packet.Config{RSABits: 1024})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = entity.AddEncryptionSubkey(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	list := make([]*Entity, 1)
+	list[0] = entity
+	entityList := EntityList(list)
+	buf := bytes.NewBuffer(nil)
+	w, err := Encrypt(buf, entityList[:], nil, nil, nil, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const message = "test"
+	_, err = w.Write([]byte(message))
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = w.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m, err := ReadMessage(buf, entityList, nil /* no prompt */, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dec, err := io.ReadAll(m.decrypted)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(dec, []byte(message)) {
+		t.Error("decrypted does not match original")
+	}
+}
+
+func TestSignWithHMAC(t *testing.T) {
+	c := &packet.Config{
+		MinRSABits:  1024,
+		Algorithm:   packet.ExperimentalPubKeyAlgoHMAC,
+		DefaultHash: crypto.SHA512,
+	}
+	entity, err := NewEntity("Golang Gopher", "Test Key", "no-reply@golang.com", &packet.Config{RSABits: 1024})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = entity.AddSigningSubkey(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	list := make([]*Entity, 1)
+	list[0] = entity
+	entityList := EntityList(list)
+
+	msgBytes := []byte("message")
+	msg := bytes.NewBuffer(msgBytes)
+	sig := bytes.NewBuffer(nil)
+
+	err = DetachSign(sig, []*Entity{entity}, msg, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	msg = bytes.NewBuffer(msgBytes)
+	_, _, err = VerifyDetachedSignature(entityList, msg, sig, c)
+	if err != nil {
+		t.Fatal(err)
+	}
 }
