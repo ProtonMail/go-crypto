@@ -515,12 +515,12 @@ const (
 	PubKeyAlgoRSASignOnly    PublicKeyAlgorithm = 3
 
 	// Experimental PQC KEM algorithms
-	PubKeyAlgoMlkem768X25519 = 105
-	PubKeyAlgoMlkem1024X448  = 106
+	PubKeyAlgoMlkem768X25519 = 35
+	PubKeyAlgoMlkem1024X448  = 36
 
 	// Experimental PQC DSA algorithms
-	PubKeyAlgoMldsa65Ed25519 = 107
-	PubKeyAlgoMldsa87Ed448   = 108
+	PubKeyAlgoMldsa65Ed25519 = 30
+	PubKeyAlgoMldsa87Ed448   = 31
 )
 
 // CanEncrypt returns true if it's possible to encrypt a message to a public
