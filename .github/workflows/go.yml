@@ -16,7 +16,7 @@ jobs:
     - name: Set up Go latest
       uses: actions/setup-go@v3
       with:
-        go-version: ^1.18
+        go-version: ^1.22
 
     - name: Short test
       run: go test -short -v ./...
@@ -26,22 +26,3 @@ jobs:
 
     - name: Randomized test suite 2
       run: go test -v ./... -run RandomizeSlow -count=32
-
-  test-old:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Set up Go 1.17
-        uses: actions/setup-go@v3
-        with:
-          go-version: 1.17
-
-      - name: Short test
-        run: go test -short -v ./...
-
-      - name: Randomized test suite 1
-        run: go test -v ./... -run RandomizeFast -count=512
-
-      - name: Randomized test suite 2
-        run: go test -v ./... -run RandomizeSlow -count=32
