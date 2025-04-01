@@ -12,7 +12,6 @@ import (
 	_ "crypto/sha512"
 	"hash"
 	"io"
-	"io/ioutil"
 	"strconv"
 	"time"
 
@@ -678,7 +677,7 @@ func verifyDetachedSignature(keyring KeyRing, signed, signature io.Reader, confi
 	if err != nil {
 		return nil, nil, err
 	}
-	_, err = io.Copy(ioutil.Discard, md.UnverifiedBody)
+	_, err = io.Copy(io.Discard, md.UnverifiedBody)
 	if err != nil {
 		return nil, nil, err
 	}

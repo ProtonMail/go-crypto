@@ -10,7 +10,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"io"
-	"io/ioutil"
 	"math/bits"
 	"os"
 	"strings"
@@ -906,7 +905,7 @@ func TestMessageWithoutMdc(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	armoredMessageWithoutMdc, err := ioutil.ReadFile("../test_data/sym-message-without-mdc.asc")
+	armoredMessageWithoutMdc, err := os.ReadFile("../test_data/sym-message-without-mdc.asc")
 	if err != nil {
 		t.Fatal(err)
 	}
