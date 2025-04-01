@@ -213,7 +213,9 @@ func TestEncryptingEncryptedKeyV6(t *testing.T) {
 	}
 	rsaKey, _ := rsa.GenerateKey(config.Random(), 2048)
 	rsaWrappedKey := NewRSAPrivateKey(time.Now(), rsaKey)
-	rsaWrappedKey.UpgradeToV6()
+	if err := rsaWrappedKey.UpgradeToV6(); err != nil {
+		t.Errorf("error upgeading key to v6: %s", err)
+	}
 	rsaWrappedKeyPub := &rsaWrappedKey.PublicKey
 
 	buf := new(bytes.Buffer)
@@ -262,13 +264,17 @@ func TestEncryptingEncryptedKeyXAlgorithms(t *testing.T) {
 	x25519Gen := func() (*PrivateKey, PublicKeyAlgorithm) {
 		x25519Key, _ := x25519.GenerateKey(config.Random())
 		x25519WrappedKey := NewX25519PrivateKey(time.Now(), x25519Key)
-		x25519WrappedKey.UpgradeToV6()
+		if err := x25519WrappedKey.UpgradeToV6(); err != nil {
+			t.Errorf("error upgrading key to v6: %s", err)
+		}
 		return x25519WrappedKey, PubKeyAlgoX25519
 	}
 	x448Gen := func() (*PrivateKey, PublicKeyAlgorithm) {
 		x448Key, _ := x448.GenerateKey(config.Random())
 		x448WrappedKey := NewX448PrivateKey(time.Now(), x448Key)
-		x448WrappedKey.UpgradeToV6()
+		if err := x448WrappedKey.UpgradeToV6(); err != nil {
+			t.Errorf("error upgrading key to v6: %s", err)
+		}
 		return x448WrappedKey, PubKeyAlgoX448
 	}
 	testCaseFunc := []func() (*PrivateKey, PublicKeyAlgorithm){x25519Gen, x448Gen}

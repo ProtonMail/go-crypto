@@ -1055,7 +1055,7 @@ func TestReadMessageWithSignOnly(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	md, err = ReadMessage(msgReader.Body, key, nil, nil)
+	_, err = ReadMessage(msgReader.Body, key, nil, nil)
 	if err == nil {
 		t.Fatal("Should not decrypt")
 	}

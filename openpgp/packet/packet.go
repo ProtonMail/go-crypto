@@ -390,7 +390,7 @@ func Read(r io.Reader) (p Packet, err error) {
 		err = p.parse(contents)
 	}
 	if err != nil {
-		consumeAll(contents)
+		_, _ = consumeAll(contents)
 	}
 	return
 }
@@ -448,7 +448,7 @@ func ReadWithCheck(r io.Reader, sequence *SequenceVerifier) (p Packet, msgErr er
 		packetTypeUserId,
 		packetTypeUserAttribute:
 		msgErr = sequence.Next(UnknownSymbol)
-		consumeAll(contents)
+		_, _ = consumeAll(contents)
 	default:
 		// Packet Tags from 0 to 39 are critical.
 		// Packet Tags from 40 to 63 are non-critical.
@@ -462,7 +462,7 @@ func ReadWithCheck(r io.Reader, sequence *SequenceVerifier) (p Packet, msgErr er
 		err = p.parse(contents)
 	}
 	if err != nil {
-		consumeAll(contents)
+		_, _ = consumeAll(contents)
 	}
 	return
 }

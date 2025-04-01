@@ -694,14 +694,14 @@ func subpacketLengthLength(length int) int {
 }
 
 func (sig *Signature) CheckKeyIdOrFingerprint(pk *PublicKey) bool {
-	if sig.IssuerFingerprint != nil && len(sig.IssuerFingerprint) >= 20 {
+	if len(sig.IssuerFingerprint) >= 20 {
 		return bytes.Equal(sig.IssuerFingerprint, pk.Fingerprint)
 	}
 	return sig.IssuerKeyId != nil && *sig.IssuerKeyId == pk.KeyId
 }
 
 func (sig *Signature) CheckKeyIdOrFingerprintExplicit(fingerprint []byte, keyId uint64) bool {
-	if sig.IssuerFingerprint != nil && len(sig.IssuerFingerprint) >= 20 && fingerprint != nil {
+	if len(sig.IssuerFingerprint) >= 20 && fingerprint != nil {
 		return bytes.Equal(sig.IssuerFingerprint, fingerprint)
 	}
 	return sig.IssuerKeyId != nil && *sig.IssuerKeyId == keyId

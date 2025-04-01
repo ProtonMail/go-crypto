@@ -66,7 +66,9 @@ func (dr *decompressionReader) Read(data []byte) (n int, err error) {
 			return n, errDec
 		}
 		// Consume all remaining data from the compressed packet.
-		consumeAll(dr.compressed)
+		if _, errConsume := consumeAll(dr.compressed); errConsume != nil {
+			return n, errConsume
+		}
 	}
 	return n, err
 }
