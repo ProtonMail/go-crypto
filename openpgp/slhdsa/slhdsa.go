@@ -9,7 +9,6 @@ import (
 
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/cloudflare/circl/sign"
-	"github.com/cloudflare/circl/sign/slhdsa"
 )
 
 type PublicKey struct {
@@ -41,13 +40,7 @@ func GenerateKey(rand io.Reader, algId uint8, scheme sign.Scheme) (priv *Private
 
 // Sign generates a SLH-DSA signature.
 func Sign(priv *PrivateKey, message []byte) (signature []byte, err error) {
-	// The specification of SLH-DSA [FIPS-205] prescribes an optional non-deterministic message randomizer.
-	// This is not used in this specification
-	options := slhdsa.SignatureOpts{
-		PreHashID:       slhdsa.NoPreHash,
-		IsDeterministic: true,
-	}
-	signature, err = priv.SecretSlhdsa.Sign(nil, message, &options)
+	signature, err = priv.SecretSlhdsa.Sign(nil, message, nil)
 	if err != nil {
 		return nil, fmt.Errorf("slhdsa: unable to sign with SLH-DSA: %s", err)
 	}
