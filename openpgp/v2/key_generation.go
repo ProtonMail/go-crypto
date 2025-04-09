@@ -485,8 +485,8 @@ func newDecrypter(config *packet.Config) (decrypter interface{}, err error) {
 		}
 		fallthrough // When passing ML-DSA + EdDSA or ECDSA, we generate a ML-KEM + ECDH subkey
 	case packet.PubKeyAlgoMlkem768X25519, packet.PubKeyAlgoMlkem1024X448:
-		if !config.V6() {
-			return nil, goerrors.New("openpgp: cannot create a non-v6 mlkem_x25519 key")
+		if !config.V6() && pubKeyAlgo == packet.PubKeyAlgoMlkem1024X448 {
+			return nil, goerrors.New("openpgp: cannot create a non-v6 mlkem1024_x448 key")
 		}
 
 		c, err := packet.GetECDHCurveFromAlgID(pubKeyAlgo)

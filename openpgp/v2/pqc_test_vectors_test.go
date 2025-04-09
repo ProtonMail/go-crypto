@@ -84,7 +84,7 @@ func encryptPqcMessageVector(t *testing.T, filename string, entity *Entity, conf
 
 func TestV6EddsaPqKey(t *testing.T) {
 	eddsaConfig := &packet.Config{
-		DefaultHash:   crypto.SHA3_256,
+		DefaultHash:   crypto.SHA256,
 		Algorithm:     packet.PubKeyAlgoEd25519,
 		V6Keys:        true,
 		DefaultCipher: packet.CipherAES256,
@@ -130,6 +130,54 @@ func TestV6EddsaPqKey(t *testing.T) {
 	}
 
 	encryptPqcMessageVector(t, "v6-eddsa-sample-message-v2.asc", entity, configV2, false)
+}
+
+func TestV4EddsaPqKey(t *testing.T) {
+	eddsaConfig := &packet.Config{
+		DefaultHash:   crypto.SHA256,
+		Algorithm:     packet.PubKeyAlgoEd25519,
+		DefaultCipher: packet.CipherAES256,
+		AEADConfig: &packet.AEADConfig{
+			DefaultMode: packet.AEADModeOCB,
+		},
+		Time: func() time.Time {
+			parsed, _ := time.Parse("2006-01-02", "2013-07-01")
+			return parsed
+		},
+	}
+
+	entity, err := NewEntity("PQC user", "Test Key", "pqc-test-key@example.com", eddsaConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	kyberConfig := &packet.Config{
+		DefaultHash: crypto.SHA512,
+		Algorithm:   packet.PubKeyAlgoMlkem768X25519,
+		Time: func() time.Time {
+			parsed, _ := time.Parse("2006-01-02", "2013-07-01")
+			return parsed
+		},
+	}
+
+	err = entity.AddEncryptionSubkey(kyberConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	serializePqSkVector(t, "v4-eddsa-sample-sk.asc", entity, false)
+	serializePqPkVector(t, "v4-eddsa-sample-pk.asc", entity, false)
+
+	fmt.Printf("Primary fingerprint: %x\n", entity.PrimaryKey.Fingerprint)
+	for i, subkey := range entity.Subkeys {
+		fmt.Printf("Sub-key %d fingerprint: %x\n", i, subkey.PublicKey.Fingerprint)
+	}
+
+	configV2 := &packet.Config{
+		DefaultCipher: packet.CipherAES256,
+	}
+
+	encryptPqcMessageVector(t, "v4-eddsa-sample-message.asc", entity, configV2, false)
 }
 
 func TestV6MlDsa65PqKey(t *testing.T) {
