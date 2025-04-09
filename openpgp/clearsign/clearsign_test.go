@@ -187,8 +187,7 @@ func testMultiSign(t *testing.T, v6 bool) {
 		t.Skip("skipping long test in -short mode")
 	}
 
-	zero := quickRand(0)
-	config := packet.Config{Rand: &zero, V6Keys: v6}
+	config := packet.Config{V6Keys: v6}
 
 	for nKeys := 1; nKeys < 4; nKeys++ {
 	nextTest:

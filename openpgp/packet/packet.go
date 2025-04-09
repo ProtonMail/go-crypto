@@ -8,7 +8,6 @@ package packet // import "github.com/ProtonMail/go-crypto/openpgp/packet"
 
 import (
 	"bytes"
-	"crypto"
 	"crypto/cipher"
 	"crypto/rsa"
 	"io"
@@ -547,18 +546,6 @@ func (pka PublicKeyAlgorithm) CanSign() bool {
 		return true
 	}
 	return false
-}
-
-// HandleSpecificHash returns the mandated hash if the algorithm requires it;
-// otherwise, it returns the selectedHash.
-func (pka PublicKeyAlgorithm) HandleSpecificHash(selectedHash crypto.Hash) crypto.Hash {
-	switch pka {
-	case PubKeyAlgoMldsa65Ed25519, PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f:
-		return crypto.SHA3_256
-	case PubKeyAlgoMldsa87Ed448, PubKeyAlgoSlhdsaShake256s:
-		return crypto.SHA3_512
-	}
-	return selectedHash
 }
 
 // CipherFunction represents the different block ciphers specified for OpenPGP. See

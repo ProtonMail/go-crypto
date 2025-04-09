@@ -10,7 +10,6 @@ import (
 	"crypto/dsa"
 	"encoding/asn1"
 	"encoding/binary"
-	"fmt"
 	"hash"
 	"io"
 	"math/big"
@@ -1060,12 +1059,6 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 		if sig.Version != 6 {
 			return errors.StructuralError("cannot use MldsaEdDsa on a non-v6 signature")
 		}
-		if priv.PubKeyAlgo == PubKeyAlgoMldsa65Ed25519 && sig.Hash != crypto.SHA3_256 {
-			return errors.StructuralError(fmt.Sprintf("Mldsa65Ed25519 requires sha3-256 message hash: got %s", sig.Hash))
-		}
-		if priv.PubKeyAlgo == PubKeyAlgoMldsa87Ed448 && sig.Hash != crypto.SHA3_512 {
-			return errors.StructuralError(fmt.Sprintf("Mldsa87Ed448 requires sha3-512 message hash: got %s", sig.Hash))
-		}
 		sk := priv.PrivateKey.(*mldsa_eddsa.PrivateKey)
 		dSig, ecSig, err := mldsa_eddsa.Sign(sk, digest)
 
@@ -1075,13 +1068,7 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 		}
 	case PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
 		if sig.Version != 6 {
-			return errors.StructuralError("cannot use MldsaEdDsa on a non-v6 signature")
-		}
-		if (priv.PubKeyAlgo == PubKeyAlgoSlhdsaShake128s || priv.PubKeyAlgo == PubKeyAlgoSlhdsaShake128f) && sig.Hash != crypto.SHA3_256 {
-			return errors.SignatureError(fmt.Sprintf("verification failure: SlhDsaShake128 requires sha3-256 message hash: has %s", sig.Hash))
-		}
-		if priv.PubKeyAlgo == PubKeyAlgoSlhdsaShake256s && sig.Hash != crypto.SHA3_512 {
-			return errors.SignatureError(fmt.Sprintf("verification failure: SlhDsaShake256 requires sha3-512 message hash: has %s", sig.Hash))
+			return errors.StructuralError("cannot use Slhdsa on a non-v6 signature")
 		}
 		sk := priv.PrivateKey.(*slhdsa.PrivateKey)
 		dSig, err := slhdsa.Sign(sk, digest)

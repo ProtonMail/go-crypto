@@ -1057,12 +1057,9 @@ func acceptableHashesToWrite(singingKey *packet.PublicKey) []uint8 {
 				}
 			}
 		}
-	case packet.PubKeyAlgoMldsa65Ed25519, packet.PubKeyAlgoSlhdsaShake128s, packet.PubKeyAlgoSlhdsaShake128f:
-		return []uint8{
-			hashToHashId(crypto.SHA3_256),
-		}
 	case packet.PubKeyAlgoMldsa87Ed448, packet.PubKeyAlgoSlhdsaShake256s:
 		return []uint8{
+			hashToHashId(crypto.SHA512),
 			hashToHashId(crypto.SHA3_512),
 		}
 	}

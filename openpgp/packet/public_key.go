@@ -6,7 +6,6 @@ package packet
 
 import (
 	"bytes"
-	"crypto"
 	"crypto/dsa"
 	"crypto/rsa"
 	"crypto/sha1"
@@ -1189,24 +1188,12 @@ func (pk *PublicKey) VerifySignature(signed hash.Hash, sig *Signature) (err erro
 		}
 		return nil
 	case PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
-		if pk.PubKeyAlgo == PubKeyAlgoMldsa65Ed25519 && sig.Hash != crypto.SHA3_256 {
-			return errors.SignatureError(fmt.Sprintf("verification failure: Mldsa65Ed25519 requires sha3-256 message hash: has %s", sig.Hash))
-		}
-		if pk.PubKeyAlgo == PubKeyAlgoMldsa87Ed448 && sig.Hash != crypto.SHA3_512 {
-			return errors.SignatureError(fmt.Sprintf("verification failure: Mldsa87Ed448 requires sha3-512 message hash: has %s", sig.Hash))
-		}
 		mldsaEddsaPublicKey := pk.PublicKey.(*mldsa_eddsa.PublicKey)
 		if !mldsa_eddsa.Verify(mldsaEddsaPublicKey, hashBytes, sig.MldsaSig.Bytes(), sig.EdDSASigR.Bytes()) {
 			return errors.SignatureError("MldsaEddsa verification failure")
 		}
 		return nil
 	case PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
-		if (pk.PubKeyAlgo == PubKeyAlgoSlhdsaShake128s || pk.PubKeyAlgo == PubKeyAlgoSlhdsaShake128f) && sig.Hash != crypto.SHA3_256 {
-			return errors.SignatureError(fmt.Sprintf("verification failure: SlhDsaShake128 requires sha3-256 message hash: has %s", sig.Hash))
-		}
-		if pk.PubKeyAlgo == PubKeyAlgoSlhdsaShake256s && sig.Hash != crypto.SHA3_512 {
-			return errors.SignatureError(fmt.Sprintf("verification failure: SlhDsaShake256 requires sha3-512 message hash: has %s", sig.Hash))
-		}
 		slhDsaPublicKey := pk.PublicKey.(*slhdsa.PublicKey)
 		if !slhdsa.Verify(slhDsaPublicKey, hashBytes, sig.SlhdsaSig.Bytes()) {
 			return errors.SignatureError("MldsaEddsa verification failure")

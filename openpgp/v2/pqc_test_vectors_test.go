@@ -84,7 +84,7 @@ func encryptPqcMessageVector(t *testing.T, filename string, entity *Entity, conf
 
 func TestV6EddsaPqKey(t *testing.T) {
 	eddsaConfig := &packet.Config{
-		DefaultHash:   crypto.SHA512,
+		DefaultHash:   crypto.SHA3_256,
 		Algorithm:     packet.PubKeyAlgoEd25519,
 		V6Keys:        true,
 		DefaultCipher: packet.CipherAES256,
@@ -134,7 +134,7 @@ func TestV6EddsaPqKey(t *testing.T) {
 
 func TestV6MlDsa65PqKey(t *testing.T) {
 	eddsaConfig := &packet.Config{
-		DefaultHash:   crypto.SHA512,
+		DefaultHash:   crypto.SHA3_256,
 		Algorithm:     packet.PubKeyAlgoMldsa65Ed25519,
 		V6Keys:        true,
 		DefaultCipher: packet.CipherAES256,
@@ -172,7 +172,7 @@ func TestV6MlDsa65PqKey(t *testing.T) {
 
 func TestV6MlDsa87PqKey(t *testing.T) {
 	eddsaConfig := &packet.Config{
-		DefaultHash:   crypto.SHA512,
+		DefaultHash:   crypto.SHA3_512,
 		Algorithm:     packet.PubKeyAlgoMldsa87Ed448,
 		V6Keys:        true,
 		DefaultCipher: packet.CipherAES256,
@@ -210,7 +210,7 @@ func TestV6MlDsa87PqKey(t *testing.T) {
 
 func TestV6SlhDsa128sPqKey(t *testing.T) {
 	eddsaConfig := &packet.Config{
-		DefaultHash:   crypto.SHA512,
+		DefaultHash:   crypto.SHA3_256,
 		Algorithm:     packet.PubKeyAlgoSlhdsaShake128s,
 		V6Keys:        true,
 		DefaultCipher: packet.CipherAES256,

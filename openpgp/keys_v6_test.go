@@ -218,7 +218,7 @@ func TestGeneratePqKey(t *testing.T) {
 	for name, algo := range asymmAlgos {
 		t.Run(name, func(t *testing.T) {
 			config := &packet.Config{
-				DefaultHash:   crypto.SHA512,
+				DefaultHash:   crypto.SHA3_512,
 				Algorithm:     algo,
 				V6Keys:        true,
 				DefaultCipher: packet.CipherAES256,
