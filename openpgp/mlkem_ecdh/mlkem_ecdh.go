@@ -148,11 +148,6 @@ func buildKey(pub *PublicKey, eccSecretPoint, eccEphemeral, eccPublicKey, mlkemK
 	/// Set the output `ecdhKeyShare` to `eccSecretPoint`
 	eccKeyShare := eccSecretPoint
 
-	serializedMlkemPublicKey, err := mlkemPublicKey.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-
 	//   mlkemKeyShare   - the ML-KEM key share encoded as an octet string
 	//   mlkemEphemeral  - the ML-KEM ciphertext encoded as an octet string
 	//   mlkemPublicKey  - The ML-KEM public key of the recipient as an octet string
@@ -165,14 +160,12 @@ func buildKey(pub *PublicKey, eccSecretPoint, eccEphemeral, eccPublicKey, mlkemK
 	fmt.Printf("ml-kem key share: %s\n", hex.EncodeToString(mlkemKeyShare))
 
 	// SHA3-256(mlkemKeyShare || eccKeyShare || eccEphemeral || eccPublicKey ||
-	//          mlkemEphemeral || mlkemPublicKey || algId || "OpenPGPCompositeKDFv1")
+	//          algId || "OpenPGPCompositeKDFv1")
 	h := sha3.New256()
 	_, _ = h.Write(mlkemKeyShare)
 	_, _ = h.Write(eccKeyShare)
 	_, _ = h.Write(eccEphemeral)
 	_, _ = h.Write(eccPublicKey)
-	_, _ = h.Write(mlkemEphemeral)
-	_, _ = h.Write(serializedMlkemPublicKey)
 	_, _ = h.Write([]byte{pub.AlgId})
 	_, _ = h.Write([]byte(kdfContext))
 	return h.Sum(nil), nil
