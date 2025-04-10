@@ -105,7 +105,7 @@ func Encrypt(rand io.Reader, pub *PublicKey, msg []byte) (kEphemeral, ecEphemera
 		return nil, nil, nil, err
 	}
 
-	keyEncryptionKey, err := buildKey(pub, ecSS, ecEphemeral, pub.PublicPoint, kSS, kEphemeral, pub.PublicMlkem)
+	keyEncryptionKey, err := buildKey(pub, ecSS, ecEphemeral, pub.PublicPoint, kSS)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -134,7 +134,7 @@ func Decrypt(priv *PrivateKey, kEphemeral, ecEphemeral, ciphertext []byte) (msg 
 		return nil, err
 	}
 
-	kek, err := buildKey(&priv.PublicKey, ecSS, ecEphemeral, priv.PublicPoint, kSS, kEphemeral, priv.PublicMlkem)
+	kek, err := buildKey(&priv.PublicKey, ecSS, ecEphemeral, priv.PublicPoint, kSS)
 	if err != nil {
 		return nil, err
 	}
@@ -144,13 +144,11 @@ func Decrypt(priv *PrivateKey, kEphemeral, ecEphemeral, ciphertext []byte) (msg 
 
 // buildKey implements the composite KDF from
 // https://github.com/openpgp-pqc/draft-openpgp-pqc/pull/161
-func buildKey(pub *PublicKey, eccSecretPoint, eccEphemeral, eccPublicKey, mlkemKeyShare, mlkemEphemeral []byte, mlkemPublicKey kem.PublicKey) ([]byte, error) {
+func buildKey(pub *PublicKey, eccSecretPoint, eccEphemeral, eccPublicKey, mlkemKeyShare []byte) ([]byte, error) {
 	/// Set the output `ecdhKeyShare` to `eccSecretPoint`
 	eccKeyShare := eccSecretPoint
 
 	//   mlkemKeyShare   - the ML-KEM key share encoded as an octet string
-	//   mlkemEphemeral  - the ML-KEM ciphertext encoded as an octet string
-	//   mlkemPublicKey  - The ML-KEM public key of the recipient as an octet string
 	//   algId           - the OpenPGP algorithm ID of the public-key encryption algorithm
 	//   eccKeyShare     - the ECDH key share encoded as an octet string
 	//   eccEphemeral    - the ECDH ciphertext encoded as an octet string
@@ -160,7 +158,7 @@ func buildKey(pub *PublicKey, eccSecretPoint, eccEphemeral, eccPublicKey, mlkemK
 	fmt.Printf("ml-kem key share: %s\n", hex.EncodeToString(mlkemKeyShare))
 
 	// SHA3-256(mlkemKeyShare || eccKeyShare || eccEphemeral || eccPublicKey ||
-	//          algId || "OpenPGPCompositeKDFv1")
+	//          algId || "OpenPGPCompositeKDFv1" || len("OpenPGPCompositeKDFv1"))
 	h := sha3.New256()
 	_, _ = h.Write(mlkemKeyShare)
 	_, _ = h.Write(eccKeyShare)
@@ -168,6 +166,7 @@ func buildKey(pub *PublicKey, eccSecretPoint, eccEphemeral, eccPublicKey, mlkemK
 	_, _ = h.Write(eccPublicKey)
 	_, _ = h.Write([]byte{pub.AlgId})
 	_, _ = h.Write([]byte(kdfContext))
+	_, _ = h.Write([]byte{21})
 	return h.Sum(nil), nil
 }
 
