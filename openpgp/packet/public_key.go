@@ -292,7 +292,7 @@ func NewMlkemEcdhPublicKey(creationTime time.Time, pub *mlkem_ecdh.PublicKey) *P
 	}
 
 	pk := &PublicKey{
-		Version:      6,
+		Version:      4,
 		CreationTime: creationTime,
 		PubKeyAlgo:   PublicKeyAlgorithm(pub.AlgId),
 		PublicKey:    pub,
