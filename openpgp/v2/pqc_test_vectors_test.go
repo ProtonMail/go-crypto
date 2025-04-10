@@ -103,7 +103,7 @@ func TestV6EddsaPqKey(t *testing.T) {
 	}
 
 	kyberConfig := &packet.Config{
-		DefaultHash: crypto.SHA512,
+		DefaultHash: crypto.SHA256,
 		Algorithm:   packet.PubKeyAlgoMlkem768X25519,
 		V6Keys:      true,
 		Time: func() time.Time {
@@ -152,7 +152,7 @@ func TestV4EddsaPqKey(t *testing.T) {
 	}
 
 	kyberConfig := &packet.Config{
-		DefaultHash: crypto.SHA512,
+		DefaultHash: crypto.SHA256,
 		Algorithm:   packet.PubKeyAlgoMlkem768X25519,
 		Time: func() time.Time {
 			parsed, _ := time.Parse("2006-01-02", "2013-07-01")
