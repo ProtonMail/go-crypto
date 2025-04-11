@@ -88,7 +88,7 @@ func testMarshalUnmarshal(t *testing.T, priv *PrivateKey) {
 	p := priv.MarshalPoint()
 	d := priv.MarshalByteSecret()
 
-	parsed := NewPrivateKey(*NewPublicKey(priv.GetCurve(), priv.KDF.Hash, priv.KDF.Cipher))
+	parsed := NewPrivateKey(*NewPublicKey(priv.GetCurve(), priv.KDF))
 
 	if err := parsed.UnmarshalPoint(p); err != nil {
 		t.Fatalf("unable to unmarshal point: %s", err)
@@ -111,4 +111,38 @@ func testMarshalUnmarshal(t *testing.T, priv *PrivateKey) {
 	if !bytes.Equal(priv.Point, parsed.Point) || !bytes.Equal(expectedD, parsed.D) {
 		t.Fatal("failed to marshal/unmarshal correctly")
 	}
+}
+
+func TestKDFParamsWrite(t *testing.T) {
+	kdf := KDF{
+		Hash:   algorithm.SHA512,
+		Cipher: algorithm.AES256,
+	}
+	byteBuffer := new(bytes.Buffer)
+
+	testFingerprint := make([]byte, 20)
+
+	expectBytesV1 := []byte{3, 1, kdf.Hash.Id(), kdf.Cipher.Id()}
+	kdf.Serialize(byteBuffer)
+	gotBytes := byteBuffer.Bytes()
+	if !bytes.Equal(gotBytes, expectBytesV1) {
+		t.Errorf("error serializing KDF params, got %x, want: %x", gotBytes, expectBytesV1)
+	}
+	byteBuffer.Reset()
+
+	kdfV2 := KDF{
+		Version:                KDFVersionForwarding,
+		Hash:                   algorithm.SHA512,
+		Cipher:                 algorithm.AES256,
+		ReplacementFingerprint: testFingerprint,
+	}
+	expectBytesV2 := []byte{23, 0xFF, kdfV2.Hash.Id(), kdfV2.Cipher.Id()}
+	expectBytesV2 = append(expectBytesV2, testFingerprint...)
+
+	kdfV2.Serialize(byteBuffer)
+	gotBytes = byteBuffer.Bytes()
+	if !bytes.Equal(gotBytes, expectBytesV2) {
+		t.Errorf("error serializing KDF params v2, got %x, want: %x", gotBytes, expectBytesV2)
+	}
+	byteBuffer.Reset()
 }

@@ -206,7 +206,7 @@ func Decode(data []byte) (b *Block, rest []byte) {
 type dashEscaper struct {
 	buffered    *bufio.Writer
 	hashers     []hash.Hash // one per key in privateKeys
-	hashType    crypto.Hash
+	hashType    []crypto.Hash
 	toHash      io.Writer         // writes to all the hashes in hashers
 	salts       [][]byte          // salts for the signatures if v6
 	armorHeader map[string]string // Armor headers
@@ -328,7 +328,7 @@ func (d *dashEscaper) Close() (err error) {
 		sig.Version = k.Version
 		sig.SigType = packet.SigTypeText
 		sig.PubKeyAlgo = k.PubKeyAlgo
-		sig.Hash = d.hashType
+		sig.Hash = d.hashType[i]
 		sig.CreationTime = t
 		sig.IssuerKeyId = &k.KeyId
 		sig.IssuerFingerprint = k.Fingerprint
@@ -399,14 +399,16 @@ func EncodeMultiWithHeader(w io.Writer, privateKeys []*packet.PrivateKey, config
 		return nil, errors.UnsupportedError("unsupported hash type: " + strconv.Itoa(int(hashType)))
 	}
 	var hashers []hash.Hash
+	var hashTypes []crypto.Hash
 	var ws []io.Writer
 	var salts [][]byte
 	for _, sk := range privateKeys {
-		h := hashType.New()
+		selectedHash := sk.PubKeyAlgo.HandleSpecificHash(hashType)
+		h := selectedHash.New()
 		if sk.Version == 6 {
 			// generate salt
 			var salt []byte
-			salt, err = packet.SignatureSaltForHash(hashType, config.Random())
+			salt, err = packet.SignatureSaltForHash(selectedHash, config.Random())
 			if err != nil {
 				return
 			}
@@ -416,6 +418,7 @@ func EncodeMultiWithHeader(w io.Writer, privateKeys []*packet.PrivateKey, config
 			salts = append(salts, salt)
 		}
 		hashers = append(hashers, h)
+		hashTypes = append(hashTypes, selectedHash)
 		ws = append(ws, h)
 	}
 	toHash := io.MultiWriter(ws...)
@@ -446,7 +449,7 @@ func EncodeMultiWithHeader(w io.Writer, privateKeys []*packet.PrivateKey, config
 	plaintext = &dashEscaper{
 		buffered:    buffered,
 		hashers:     hashers,
-		hashType:    hashType,
+		hashType:    hashTypes,
 		toHash:      toHash,
 		salts:       salts,
 		armorHeader: headers,
