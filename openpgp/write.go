@@ -279,11 +279,6 @@ func writeAndSign(payload io.WriteCloser, candidateHashes []uint8, signed *Entit
 		return nil, errors.InvalidArgumentError("cannot encrypt because no candidate hash functions are compiled in. (Wanted " + name + " in this case.)")
 	}
 
-	if signer != nil {
-		// Handle signature algorithms that force a specific hash.
-		hash = signer.PubKeyAlgo.HandleSpecificHash(hash)
-	}
-
 	var salt []byte
 	if signer != nil {
 		var opsVersion = 3
@@ -574,7 +569,7 @@ func (s signatureWriter) Close() error {
 
 func createSignaturePacket(signer *packet.PublicKey, sigType packet.SignatureType, config *packet.Config) *packet.Signature {
 	sigLifetimeSecs := config.SigLifetime()
-	hash := signer.PubKeyAlgo.HandleSpecificHash(config.Hash())
+	hash := config.Hash()
 	return &packet.Signature{
 		Version:           signer.Version,
 		SigType:           sigType,

@@ -10,7 +10,6 @@ import (
 	"crypto/dsa"
 	"encoding/asn1"
 	"encoding/binary"
-	"fmt"
 	"hash"
 	"io"
 	"math/big"
@@ -25,6 +24,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/encoding"
 	"github.com/ProtonMail/go-crypto/openpgp/mldsa_eddsa"
+	"github.com/ProtonMail/go-crypto/openpgp/slhdsa"
 	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
 	"github.com/cloudflare/circl/sign/mldsa/mldsa87"
 )
@@ -207,7 +207,8 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 	sig.PubKeyAlgo = PublicKeyAlgorithm(buf[1])
 	switch sig.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA, PubKeyAlgoEd25519,
-		PubKeyAlgoEd448, ExperimentalPubKeyAlgoHMAC, PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
+		PubKeyAlgoEd448, ExperimentalPubKeyAlgoHMAC, PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448,
+		PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
 	default:
 		err = errors.UnsupportedError("public key algorithm " + strconv.Itoa(int(sig.PubKeyAlgo)))
 		return
@@ -358,6 +359,10 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 		if err = sig.parseMldsaEddsaSignature(r, 114, mldsa87.SignatureSize); err != nil {
 			return
 		}
+	case PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
+		if err = sig.parseSlhdsaSignature(r, sig.PubKeyAlgo); err != nil {
+			return
+		}
 	default:
 		panic("unreachable")
 	}
@@ -374,6 +379,17 @@ func (sig *Signature) parseMldsaEddsaSignature(r io.Reader, ecLen, dLen int) (er
 
 	sig.MldsaSig = encoding.NewEmptyOctetArray(dLen)
 	_, err = sig.MldsaSig.ReadFrom(r)
+	return
+}
+
+// parseSlhdsaSignature parses an SLH-DSA signature as specified in
+func (sig *Signature) parseSlhdsaSignature(r io.Reader, algID PublicKeyAlgorithm) (err error) {
+	scheme, err := GetSlhdsaSchemeFromAlgID(algID)
+	if err != nil {
+		return err
+	}
+	sig.SlhdsaSig = encoding.NewEmptyOctetArray(scheme.SignatureSize())
+	_, err = sig.SlhdsaSig.ReadFrom(r)
 	return
 }
 
@@ -1043,18 +1059,22 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 		if sig.Version != 6 {
 			return errors.StructuralError("cannot use MldsaEdDsa on a non-v6 signature")
 		}
-		if priv.PubKeyAlgo == PubKeyAlgoMldsa65Ed25519 && sig.Hash != crypto.SHA3_256 {
-			return errors.StructuralError(fmt.Sprintf("Mldsa65Ed25519 requires sha3-256 message hash: got %s", sig.Hash))
-		}
-		if priv.PubKeyAlgo == PubKeyAlgoMldsa87Ed448 && sig.Hash != crypto.SHA3_512 {
-			return errors.StructuralError(fmt.Sprintf("Mldsa87Ed448 requires sha3-512 message hash: got %s", sig.Hash))
-		}
 		sk := priv.PrivateKey.(*mldsa_eddsa.PrivateKey)
 		dSig, ecSig, err := mldsa_eddsa.Sign(sk, digest)
 
 		if err == nil {
 			sig.MldsaSig = encoding.NewOctetArray(dSig)
 			sig.EdDSASigR = encoding.NewOctetArray(ecSig)
+		}
+	case PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
+		if sig.Version != 6 {
+			return errors.StructuralError("cannot use Slhdsa on a non-v6 signature")
+		}
+		sk := priv.PrivateKey.(*slhdsa.PrivateKey)
+		dSig, err := slhdsa.Sign(sk, digest)
+
+		if err == nil {
+			sig.SlhdsaSig = encoding.NewOctetArray(dSig)
 		}
 	default:
 		err = errors.UnsupportedError("public key algorithm: " + strconv.Itoa(int(sig.PubKeyAlgo)))
@@ -1199,6 +1219,8 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 	case PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
 		sigLength = int(sig.EdDSASigR.EncodedLength())
 		sigLength += int(sig.MldsaSig.EncodedLength())
+	case PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
+		sigLength += int(sig.SlhdsaSig.EncodedLength())
 	default:
 		panic("impossible")
 	}
@@ -1312,6 +1334,8 @@ func (sig *Signature) serializeBody(w io.Writer) (err error) {
 			return
 		}
 		_, err = w.Write(sig.MldsaSig.EncodedBytes())
+	case PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
+		_, err = w.Write(sig.SlhdsaSig.EncodedBytes())
 	default:
 		panic("impossible")
 	}
