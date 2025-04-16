@@ -3,7 +3,6 @@
 package mlkem_ecdh
 
 import (
-	"encoding/hex"
 	goerrors "errors"
 	"fmt"
 	"io"
@@ -109,8 +108,6 @@ func Encrypt(rand io.Reader, pub *PublicKey, msg []byte) (kEphemeral, ecEphemera
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	fmt.Printf("sessionKey: %x\n", msg)
-	fmt.Printf("keyEncryptionKey: %x\n\n", keyEncryptionKey)
 
 	if ciphertext, err = keywrap.Wrap(keyEncryptionKey, msg); err != nil {
 		return nil, nil, nil, err
@@ -153,9 +150,6 @@ func buildKey(pub *PublicKey, eccSecretPoint, eccEphemeral, eccPublicKey, mlkemK
 	//   eccKeyShare     - the ECDH key share encoded as an octet string
 	//   eccEphemeral    - the ECDH ciphertext encoded as an octet string
 	//   eccPublicKey    - The ECDH public key of the recipient as an octet string
-
-	fmt.Printf("ecdh key share: %s\n", hex.EncodeToString(eccKeyShare))
-	fmt.Printf("ml-kem key share: %s\n", hex.EncodeToString(mlkemKeyShare))
 
 	// SHA3-256(mlkemKeyShare || eccKeyShare || eccEphemeral || eccPublicKey ||
 	//          algId || "OpenPGPCompositeKDFv1" || len("OpenPGPCompositeKDFv1"))
