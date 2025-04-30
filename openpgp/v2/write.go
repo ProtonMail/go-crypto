@@ -1032,7 +1032,7 @@ func parseOutsideSig(outsideSig []byte) (outSigPacket *packet.Signature, err err
 
 func acceptableHashesToWrite(singingKey *packet.PublicKey) []uint8 {
 	switch singingKey.PubKeyAlgo {
-	case packet.PubKeyAlgoEd448:
+	case packet.PubKeyAlgoEd448, packet.PubKeyAlgoMldsa87Ed448:
 		return []uint8{
 			hashToHashId(crypto.SHA512),
 			hashToHashId(crypto.SHA3_512),
@@ -1054,14 +1054,6 @@ func acceptableHashesToWrite(singingKey *packet.PublicKey) []uint8 {
 					hashToHashId(crypto.SHA3_512),
 				}
 			}
-		}
-	case packet.PubKeyAlgoMldsa65Ed25519:
-		return []uint8{
-			hashToHashId(crypto.SHA3_256),
-		}
-	case packet.PubKeyAlgoMldsa87Ed448:
-		return []uint8{
-			hashToHashId(crypto.SHA3_512),
 		}
 	}
 	return []uint8{
