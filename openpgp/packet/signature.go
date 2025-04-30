@@ -10,7 +10,6 @@ import (
 	"crypto/dsa"
 	"encoding/asn1"
 	"encoding/binary"
-	"fmt"
 	"hash"
 	"io"
 	"math/big"
@@ -364,7 +363,7 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 }
 
 // parseMldsaEddsaSignature parses an ML-DSA + EdDSA signature as specified in
-// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-05.html#name-signature-packet-tag-2
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-09.html#name-signature-packet-tag-2
 func (sig *Signature) parseMldsaEddsaSignature(r io.Reader, ecLen, dLen int) (err error) {
 	sig.EdDSASigR = encoding.NewEmptyOctetArray(ecLen)
 	if _, err = sig.EdDSASigR.ReadFrom(r); err != nil {
@@ -1038,12 +1037,6 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 	case PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
 		if sig.Version != 6 {
 			return errors.StructuralError("cannot use MldsaEdDsa on a non-v6 signature")
-		}
-		if priv.PubKeyAlgo == PubKeyAlgoMldsa65Ed25519 && sig.Hash != crypto.SHA3_256 {
-			return errors.StructuralError(fmt.Sprintf("Mldsa65Ed25519 requires sha3-256 message hash: got %s", sig.Hash))
-		}
-		if priv.PubKeyAlgo == PubKeyAlgoMldsa87Ed448 && sig.Hash != crypto.SHA3_512 {
-			return errors.StructuralError(fmt.Sprintf("Mldsa87Ed448 requires sha3-512 message hash: got %s", sig.Hash))
 		}
 		sk := priv.PrivateKey.(*mldsa_eddsa.PrivateKey)
 		dSig, ecSig, err := mldsa_eddsa.Sign(sk, digest)
