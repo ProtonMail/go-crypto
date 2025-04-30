@@ -18,7 +18,6 @@ var pqcDraftVectors = map[string]struct {
 	fingerprints          []string
 	armoredMessagePaths   []string
 }{
-
 	"v6_MlDsa65_MlKem768": {
 		"../test_data/pqc/v6-mldsa-65-sample-sk.asc",
 		"../test_data/pqc/v6-mldsa-65-sample-pk.asc",
@@ -30,6 +29,12 @@ var pqcDraftVectors = map[string]struct {
 		"../test_data/pqc/v4-eddsa-sample-pk.asc",
 		[]string{"342e5db2de345215cb2c944f7102ffed3b9cf12d", "e51dbfea51936988b5428fffa4f95f985ed61a51"},
 		[]string{"../test_data/pqc/v4-eddsa-sample-message-v1.asc", "../test_data/pqc/v4-eddsa-sample-message-v1.asc"},
+	},
+	"v6_SlhDsa128s_MlKem768": {
+		"../test_data/pqc/v6-slhdsa-128s-sample-sk.asc",
+		"../test_data/pqc/v6-slhdsa-128s-sample-pk.asc",
+		[]string{},
+		[]string{"../test_data/pqc/v6-slhdsa-128s-sample-message.asc"},
 	},
 }
 
@@ -58,16 +63,16 @@ func TestPqcDraftVectors(t *testing.T) {
 				t.Errorf("Expected 1 entity, found %d", len(secretKey))
 			}
 
-			if len(secretKey[0].Subkeys) != len(test.fingerprints)-1 {
+			if len(test.fingerprints) > 0 && len(secretKey[0].Subkeys) != len(test.fingerprints)-1 {
 				t.Errorf("Expected %d subkey, found %d", len(test.fingerprints)-1, len(secretKey[0].Subkeys))
 			}
 
-			if hex.EncodeToString(secretKey[0].PrimaryKey.Fingerprint) != test.fingerprints[0] {
+			if len(test.fingerprints) > 0 && hex.EncodeToString(secretKey[0].PrimaryKey.Fingerprint) != test.fingerprints[0] {
 				t.Errorf("Expected primary fingerprint %s, got %x", test.fingerprints[0], secretKey[0].PrimaryKey.Fingerprint)
 			}
 
 			for i, subkey := range secretKey[0].Subkeys {
-				if hex.EncodeToString(subkey.PublicKey.Fingerprint) != test.fingerprints[i+1] {
+				if len(test.fingerprints) > 0 && hex.EncodeToString(subkey.PublicKey.Fingerprint) != test.fingerprints[i+1] {
 					t.Errorf("Expected subkey %d fingerprint %s, got %x", i, test.fingerprints[i+1], subkey.PublicKey.Fingerprint)
 				}
 			}

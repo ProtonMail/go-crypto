@@ -30,6 +30,12 @@ var pqcDraftVectors = map[string]struct {
 		[]string{"342e5db2de345215cb2c944f7102ffed3b9cf12d", "e51dbfea51936988b5428fffa4f95f985ed61a51"},
 		[]string{"test_data/pqc/v4-eddsa-sample-message-v1.asc", "test_data/pqc/v4-eddsa-sample-message-v1.asc"},
 	},
+	"v6_SlhDsa128s_MlKem768": {
+		"test_data/pqc/v6-slhdsa-128s-sample-sk.asc",
+		"test_data/pqc/v6-slhdsa-128s-sample-pk.asc",
+		[]string{},
+		[]string{"test_data/pqc/v6-slhdsa-128s-sample-message.asc"},
+	},
 }
 
 func TestPqcDraftVectors(t *testing.T) {
