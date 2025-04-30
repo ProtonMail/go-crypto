@@ -1,5 +1,5 @@
 // Package mlkem_ecdh implements hybrid ML-KEM + ECDH encryption, suitable for OpenPGP, experimental.
-// It follows the spec https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-05.html#name-composite-kem-schemes
+// It follows the spec https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-09.html#name-composite-kem-schemes
 package mlkem_ecdh
 
 import (
@@ -38,7 +38,7 @@ type PrivateKey struct {
 }
 
 // GenerateKey implements ML-KEM + ECC key generation as specified in
-// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-05.html#name-key-generation-procedure
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-09.html#name-key-generation-procedure
 func GenerateKey(rand io.Reader, algId uint8, c ecc.ECDHCurve, k kem.Scheme) (priv *PrivateKey, err error) {
 	priv = new(PrivateKey)
 
@@ -77,7 +77,7 @@ func (priv *PrivateKey) DeriveMlKemKeys(seed []byte, overridePublicKey bool) (er
 }
 
 // Encrypt implements ML-KEM + ECC encryption as specified in
-// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-05.html#name-encryption-procedure
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-09.html#name-encryption-procedure
 func Encrypt(rand io.Reader, pub *PublicKey, msg []byte) (kEphemeral, ecEphemeral, ciphertext []byte, err error) {
 	if len(msg) > maxSessionKeyLength {
 		return nil, nil, nil, goerrors.New("mlkem_ecdh: session key too long")
@@ -104,7 +104,7 @@ func Encrypt(rand io.Reader, pub *PublicKey, msg []byte) (kEphemeral, ecEphemera
 		return nil, nil, nil, err
 	}
 
-	keyEncryptionKey, err := buildKey(pub, ecSS, ecEphemeral, pub.PublicPoint, kSS, kEphemeral, pub.PublicMlkem)
+	keyEncryptionKey, err := buildKey(pub, ecSS, ecEphemeral, pub.PublicPoint, kSS)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -117,7 +117,7 @@ func Encrypt(rand io.Reader, pub *PublicKey, msg []byte) (kEphemeral, ecEphemera
 }
 
 // Decrypt implements ML-KEM + ECC decryption as specified in
-// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-05.html#name-decryption-procedure
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-09.html#name-decryption-procedure
 func Decrypt(priv *PrivateKey, kEphemeral, ecEphemeral, ciphertext []byte) (msg []byte, err error) {
 	// EC shared secret derivation
 	ecSS, err := priv.PublicKey.Curve.Decaps(ecEphemeral, priv.SecretEc)
@@ -131,7 +131,7 @@ func Decrypt(priv *PrivateKey, kEphemeral, ecEphemeral, ciphertext []byte) (msg 
 		return nil, err
 	}
 
-	kek, err := buildKey(&priv.PublicKey, ecSS, ecEphemeral, priv.PublicPoint, kSS, kEphemeral, priv.PublicMlkem)
+	kek, err := buildKey(&priv.PublicKey, ecSS, ecEphemeral, priv.PublicPoint, kSS)
 	if err != nil {
 		return nil, err
 	}
@@ -141,34 +141,26 @@ func Decrypt(priv *PrivateKey, kEphemeral, ecEphemeral, ciphertext []byte) (msg 
 
 // buildKey implements the composite KDF from
 // https://github.com/openpgp-pqc/draft-openpgp-pqc/pull/161
-func buildKey(pub *PublicKey, eccSecretPoint, eccEphemeral, eccPublicKey, mlkemKeyShare, mlkemEphemeral []byte, mlkemPublicKey kem.PublicKey) ([]byte, error) {
+func buildKey(pub *PublicKey, eccSecretPoint, eccEphemeral, eccPublicKey, mlkemKeyShare []byte) ([]byte, error) {
 	/// Set the output `ecdhKeyShare` to `eccSecretPoint`
 	eccKeyShare := eccSecretPoint
 
-	serializedMlkemPublicKey, err := mlkemPublicKey.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-
 	//   mlkemKeyShare   - the ML-KEM key share encoded as an octet string
-	//   mlkemEphemeral  - the ML-KEM ciphertext encoded as an octet string
-	//   mlkemPublicKey  - The ML-KEM public key of the recipient as an octet string
 	//   algId           - the OpenPGP algorithm ID of the public-key encryption algorithm
 	//   eccKeyShare     - the ECDH key share encoded as an octet string
 	//   eccEphemeral    - the ECDH ciphertext encoded as an octet string
 	//   eccPublicKey    - The ECDH public key of the recipient as an octet string
 
 	// SHA3-256(mlkemKeyShare || eccKeyShare || eccEphemeral || eccPublicKey ||
-	//          mlkemEphemeral || mlkemPublicKey || algId || "OpenPGPCompositeKDFv1")
+	//          algId || "OpenPGPCompositeKDFv1" || len("OpenPGPCompositeKDFv1"))
 	h := sha3.New256()
 	_, _ = h.Write(mlkemKeyShare)
 	_, _ = h.Write(eccKeyShare)
 	_, _ = h.Write(eccEphemeral)
 	_, _ = h.Write(eccPublicKey)
-	_, _ = h.Write(mlkemEphemeral)
-	_, _ = h.Write(serializedMlkemPublicKey)
 	_, _ = h.Write([]byte{pub.AlgId})
 	_, _ = h.Write([]byte(kdfContext))
+	_, _ = h.Write([]byte{21})
 	return h.Sum(nil), nil
 }
 

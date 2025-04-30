@@ -561,7 +561,7 @@ func serializeHMACPrivateKey(w io.Writer, priv *symmetric.HMACPrivateKey) (err e
 }
 
 // serializeMlkemPrivateKey serializes a ML-KEM + ECC private key according to
-// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-05.html#name-key-material-packets
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-09.html#name-key-material-packets
 func serializeMlkemPrivateKey(w io.Writer, priv *mlkem_ecdh.PrivateKey) (err error) {
 	if _, err = w.Write(encoding.NewOctetArray(priv.SecretEc).EncodedBytes()); err != nil {
 		return err
@@ -571,7 +571,7 @@ func serializeMlkemPrivateKey(w io.Writer, priv *mlkem_ecdh.PrivateKey) (err err
 }
 
 // serializeMldsaEddsaPrivateKey serializes a ML-DSA + EdDSA private key according to
-// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-05.html#name-key-material-packets-2
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-09.html#name-key-material-packets-2
 func serializeMldsaEddsaPrivateKey(w io.Writer, priv *mldsa_eddsa.PrivateKey) error {
 	if _, err := w.Write(encoding.NewOctetArray(priv.SecretEc).EncodedBytes()); err != nil {
 		return err
@@ -923,8 +923,14 @@ func (pk *PrivateKey) parsePrivateKey(data []byte) (err error) {
 	case ExperimentalPubKeyAlgoHMAC:
 		return pk.parseHMACPrivateKey(data)
 	case PubKeyAlgoMlkem768X25519:
+		if !(pk.Version == 4 || pk.Version >= 6) {
+			return goerrors.New("openpgp: ML-KEM-768+X25519 may only be used with v4 or v6+")
+		}
 		return pk.parseMlkemEcdhPrivateKey(data, 32, mlkem_ecdh.MlKemSeedLen)
 	case PubKeyAlgoMlkem1024X448:
+		if pk.Version < 6 {
+			return goerrors.New("openpgp: ML-KEM-1024+X448 may only be used with v6+")
+		}
 		return pk.parseMlkemEcdhPrivateKey(data, 56, mlkem_ecdh.MlKemSeedLen)
 	case PubKeyAlgoMldsa65Ed25519:
 		return pk.parseMldsaEddsaPrivateKey(data, 32, mldsa_eddsa.MlDsaSeedLen)
@@ -1254,7 +1260,7 @@ func validateCommonSymmetric(seed [32]byte, bindingHash [32]byte) error {
 }
 
 // parseMldsaEddsaPrivateKey parses a ML-DSA + EdDSA private key as specified in
-// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-05.html#name-key-material-packets-2
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-09.html#name-key-material-packets-2
 func (pk *PrivateKey) parseMldsaEddsaPrivateKey(data []byte, ecLen, seedLen int) (err error) {
 	if pk.Version != 6 {
 		return goerrors.New("openpgp: cannot parse non-v6 ML-DSA + EdDSA key")
@@ -1287,11 +1293,8 @@ func (pk *PrivateKey) parseMldsaEddsaPrivateKey(data []byte, ecLen, seedLen int)
 }
 
 // parseMlkemEcdhPrivateKey parses a ML-KEM + ECC private key as specified in
-// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-05.html#name-key-material-packets
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-09.html#name-key-material-packets
 func (pk *PrivateKey) parseMlkemEcdhPrivateKey(data []byte, ecLen, seedLen int) (err error) {
-	if pk.Version != 6 {
-		return goerrors.New("openpgp: cannot parse non-v6 ML-KEM + ECDH key")
-	}
 	pub := pk.PublicKey.PublicKey.(*mlkem_ecdh.PublicKey)
 	priv := new(mlkem_ecdh.PrivateKey)
 	priv.PublicKey = *pub
