@@ -8,3 +8,5 @@ require (
 )
 
 require golang.org/x/sys v0.30.0 // indirect
+
+replace github.com/cloudflare/circl v1.6.0 => github.com/ProtonMail/circl v0.0.0-20250505075934-8c9cec5c8dd7
