@@ -6,7 +6,6 @@ package packet
 
 import (
 	"bytes"
-	"crypto"
 	"crypto/dsa"
 	"crypto/rsa"
 	"crypto/sha1"
@@ -291,7 +290,7 @@ func NewMlkemEcdhPublicKey(creationTime time.Time, pub *mlkem_ecdh.PublicKey) *P
 	}
 
 	pk := &PublicKey{
-		Version:      6,
+		Version:      4,
 		CreationTime: creationTime,
 		PubKeyAlgo:   PublicKeyAlgorithm(pub.AlgId),
 		PublicKey:    pub,
@@ -615,7 +614,7 @@ func (pk *PublicKey) parseECDH(r io.Reader) (err error) {
 }
 
 // parseMlkemEcdh parses a ML-KEM + ECC public key as specified in
-// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-05.html#name-key-material-packets
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-08.html#name-key-material-packets
 func (pk *PublicKey) parseMlkemEcdh(r io.Reader, ecLen, kLen int) (err error) {
 	pk.p = encoding.NewEmptyOctetArray(ecLen)
 	if _, err = pk.p.ReadFrom(r); err != nil {
@@ -800,7 +799,7 @@ func readBindingHash(r io.Reader) (bindingHash [32]byte, err error) {
 }
 
 // parseMldsaEddsa parses a ML-DSA + EdDSA public key as specified in
-// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-05.html#name-key-material-packets-2
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-08.html#name-key-material-packets-2
 func (pk *PublicKey) parseMldsaEddsa(r io.Reader, ecLen, dLen int) (err error) {
 	pk.p = encoding.NewEmptyOctetArray(ecLen)
 	if _, err = pk.p.ReadFrom(r); err != nil {
@@ -1140,12 +1139,6 @@ func (pk *PublicKey) VerifySignature(signed hash.Hash, sig *Signature) (err erro
 		}
 		return nil
 	case PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
-		if pk.PubKeyAlgo == PubKeyAlgoMldsa65Ed25519 && sig.Hash != crypto.SHA3_256 {
-			return errors.SignatureError(fmt.Sprintf("verification failure: Mldsa65Ed25519 requires sha3-256 message hash: has %s", sig.Hash))
-		}
-		if pk.PubKeyAlgo == PubKeyAlgoMldsa87Ed448 && sig.Hash != crypto.SHA3_512 {
-			return errors.SignatureError(fmt.Sprintf("verification failure: Mldsa87Ed448 requires sha3-512 message hash: has %s", sig.Hash))
-		}
 		mldsaEddsaPublicKey := pk.PublicKey.(*mldsa_eddsa.PublicKey)
 		if !mldsa_eddsa.Verify(mldsaEddsaPublicKey, hashBytes, sig.MldsaSig.Bytes(), sig.EdDSASigR.Bytes()) {
 			return errors.SignatureError("MldsaEddsa verification failure")

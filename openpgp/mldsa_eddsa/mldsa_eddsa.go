@@ -1,5 +1,5 @@
 // Package mldsa_eddsa implements hybrid ML-DSA + EdDSA encryption, suitable for OpenPGP, experimental.
-// It follows the specs https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-05.html#name-composite-signature-schemes
+// It follows the specs https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-08.html#name-composite-signature-schemes
 package mldsa_eddsa
 
 import (
@@ -9,6 +9,8 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
 	"github.com/cloudflare/circl/sign"
+	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
+	"github.com/cloudflare/circl/sign/mldsa/mldsa87"
 )
 
 const (
@@ -31,7 +33,7 @@ type PrivateKey struct {
 }
 
 // GenerateKey generates a ML-DSA + EdDSA composite key as specified in
-// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-05.html#name-key-generation-procedure-2
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-08.html#name-key-generation-procedure-2
 func GenerateKey(rand io.Reader, algId uint8, c ecc.EdDSACurve, d sign.Scheme) (priv *PrivateKey, err error) {
 	priv = new(PrivateKey)
 
@@ -70,14 +72,25 @@ func (priv *PrivateKey) DeriveMlDsaKeys(seed []byte, overridePublicKey bool) (er
 }
 
 // Sign generates a ML-DSA + EdDSA composite signature as specified in
-// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-05.html#name-signature-generation
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-08.html#name-signature-generation
 func Sign(priv *PrivateKey, message []byte) (dSig, ecSig []byte, err error) {
 	ecSig, err = priv.PublicKey.Curve.Sign(priv.PublicKey.PublicPoint, priv.SecretEc, message)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	dSig = priv.PublicKey.Mldsa.Sign(priv.SecretMldsa, message, nil)
+	// The default signer interface does not use the hedged variant.
+	// Thus, we need to use the low level api
+	if mldsa65PrivateKey, ok := priv.SecretMldsa.(*mldsa65.PrivateKey); ok {
+		dSig = make([]byte, mldsa65.SignatureSize)
+		mldsa65.SignTo(mldsa65PrivateKey, message, nil, true, dSig)
+	} else if mldsa87PrivateKey, ok := priv.SecretMldsa.(*mldsa87.PrivateKey); ok {
+		dSig = make([]byte, mldsa87.SignatureSize)
+		mldsa87.SignTo(mldsa87PrivateKey, message, nil, true, dSig)
+	} else {
+		return nil, nil, goerrors.New("mldsa_eddsa: ML-DSA key corruption")
+	}
+
 	if dSig == nil {
 		return nil, nil, goerrors.New("mldsa_eddsa: unable to sign with ML-DSA")
 	}
@@ -86,7 +99,7 @@ func Sign(priv *PrivateKey, message []byte) (dSig, ecSig []byte, err error) {
 }
 
 // Verify verifies a ML-DSA + EdDSA composite signature as specified in
-// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-05.html#name-signature-verification
+// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-08.html#name-signature-verification
 func Verify(pub *PublicKey, message, dSig, ecSig []byte) bool {
 	return pub.Curve.Verify(pub.PublicPoint, message, ecSig) && pub.Mldsa.Verify(pub.PublicMldsa, message, dSig, nil)
 }
