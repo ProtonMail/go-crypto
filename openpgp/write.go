@@ -665,7 +665,7 @@ func selectHash(candidateHashes []byte, configuredHash crypto.Hash, signer *pack
 
 func acceptableHashesToWrite(singingKey *packet.PublicKey) []uint8 {
 	switch singingKey.PubKeyAlgo {
-	case packet.PubKeyAlgoEd448:
+	case packet.PubKeyAlgoEd448, packet.PubKeyAlgoMldsa87Ed448:
 		return []uint8{
 			hashToHashId(crypto.SHA512),
 			hashToHashId(crypto.SHA3_512),
