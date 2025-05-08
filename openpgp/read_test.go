@@ -13,7 +13,6 @@ import (
 	"io/ioutil"
 	"math/bits"
 	"os"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -958,92 +957,5 @@ func TestReadV5Messages(t *testing.T) {
 	}
 	if md.SignatureError != nil {
 		t.Error("expected no signature error, got:", md.SignatureError)
-	}
-}
-
-var pqcDraftVectors = map[string]struct {
-	armoredPrivateKey string
-	armoredPublicKey  string
-	fingerprints      []string
-	armoredMessages   []string
-}{
-	"v6_Ed25519_ML-KEM-768+X25519": {
-		v6Ed25519Mlkem768X25519PrivateTestVector,
-		v6Ed25519Mlkem768X25519PublicTestVector,
-		[]string{"bf262b24177002ac8ae5dc6da47c056d22ab9906d47d07952b75c358021901ca", "48b94bce2f9771788f5feb74122d599989c400cc0f49108bc98e0ea7945e4838"},
-		[]string{v6Ed25519Mlkem768X25519PrivateMessageTestVector},
-	},
-}
-
-func TestPqcDraftVectors(t *testing.T) {
-	for name, test := range pqcDraftVectors {
-		t.Run(name, func(t *testing.T) {
-			secretKey, err := ReadArmoredKeyRing(strings.NewReader(test.armoredPrivateKey))
-			if err != nil {
-				t.Error(err)
-				return
-			}
-
-			if len(secretKey) != 1 {
-				t.Errorf("Expected 1 entity, found %d", len(secretKey))
-			}
-
-			if len(secretKey[0].Subkeys) != len(test.fingerprints)-1 {
-				t.Errorf("Expected %d subkey, found %d", len(test.fingerprints)-1, len(secretKey[0].Subkeys))
-			}
-
-			if hex.EncodeToString(secretKey[0].PrimaryKey.Fingerprint) != test.fingerprints[0] {
-				t.Errorf("Expected primary fingerprint %s, got %x", test.fingerprints[0], secretKey[0].PrimaryKey.Fingerprint)
-			}
-
-			for i, subkey := range secretKey[0].Subkeys {
-				if hex.EncodeToString(subkey.PublicKey.Fingerprint) != test.fingerprints[i+1] {
-					t.Errorf("Expected subkey %d fingerprint %s, got %x", i, test.fingerprints[i+1], subkey.PublicKey.Fingerprint)
-				}
-			}
-
-			var serializedArmoredPublic bytes.Buffer
-			serializedPublic, err := armor.EncodeWithChecksumOption(&serializedArmoredPublic, PublicKeyType, nil, false)
-			if err != nil {
-				t.Fatalf("Failed to init armoring: %s", err)
-			}
-
-			if err = secretKey[0].Serialize(serializedPublic); err != nil {
-				t.Fatalf("Failed to serialize entity: %s", err)
-			}
-
-			if err := serializedPublic.Close(); err != nil {
-				t.Fatalf("Failed to close armoring: %s", err)
-			}
-
-			if serializedArmoredPublic.String() != test.armoredPublicKey {
-				t.Error("Wrong serialized public key")
-			}
-
-			for i, armoredMessage := range test.armoredMessages {
-				t.Run("Decrypt_message_"+strconv.Itoa(i), func(t *testing.T) {
-					msgReader, err := armor.Decode(strings.NewReader(armoredMessage))
-					if err != nil {
-						t.Error(err)
-						return
-					}
-
-					md, err := ReadMessage(msgReader.Body, secretKey, nil, nil)
-					if err != nil {
-						t.Fatalf("Error in reading message: %s", err)
-						return
-					}
-					contents, err := io.ReadAll(md.UnverifiedBody)
-					if err != nil {
-						t.Fatalf("Error in decrypting message: %s", err)
-						return
-					}
-
-					if string(contents) != "Testing\r\n" {
-						t.Fatalf("Decrypted message is wrong: %s", contents)
-					}
-				})
-			}
-		})
 	}
 }

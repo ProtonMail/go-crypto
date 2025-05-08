@@ -8,7 +8,6 @@ package packet // import "github.com/ProtonMail/go-crypto/openpgp/packet"
 
 import (
 	"bytes"
-	"crypto"
 	"crypto/cipher"
 	"crypto/rsa"
 	"io"
@@ -514,13 +513,16 @@ const (
 	PubKeyAlgoRSAEncryptOnly PublicKeyAlgorithm = 2
 	PubKeyAlgoRSASignOnly    PublicKeyAlgorithm = 3
 
-	// Experimental PQC KEM algorithms
-	PubKeyAlgoMlkem768X25519 = 105
-	PubKeyAlgoMlkem1024X448  = 106
-
 	// Experimental PQC DSA algorithms
-	PubKeyAlgoMldsa65Ed25519 = 107
-	PubKeyAlgoMldsa87Ed448   = 108
+	PubKeyAlgoMldsa65Ed25519  = 30
+	PubKeyAlgoMldsa87Ed448    = 31
+	PubKeyAlgoSlhdsaShake128s = 32
+	PubKeyAlgoSlhdsaShake128f = 33
+	PubKeyAlgoSlhdsaShake256s = 34
+
+	// Experimental PQC KEM algorithms
+	PubKeyAlgoMlkem768X25519 = 35
+	PubKeyAlgoMlkem1024X448  = 36
 )
 
 // CanEncrypt returns true if it's possible to encrypt a message to a public
@@ -539,22 +541,11 @@ func (pka PublicKeyAlgorithm) CanEncrypt() bool {
 func (pka PublicKeyAlgorithm) CanSign() bool {
 	switch pka {
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA, PubKeyAlgoEd25519,
-		PubKeyAlgoEd448, ExperimentalPubKeyAlgoHMAC, PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
+		PubKeyAlgoEd448, ExperimentalPubKeyAlgoHMAC, PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448,
+		PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
 		return true
 	}
 	return false
-}
-
-// HandleSpecificHash returns the mandated hash if the algorithm requires it;
-// otherwise, it returns the selectedHash.
-func (pka PublicKeyAlgorithm) HandleSpecificHash(selectedHash crypto.Hash) crypto.Hash {
-	switch pka {
-	case PubKeyAlgoMldsa65Ed25519:
-		return crypto.SHA3_256
-	case PubKeyAlgoMldsa87Ed448:
-		return crypto.SHA3_512
-	}
-	return selectedHash
 }
 
 // CipherFunction represents the different block ciphers specified for OpenPGP. See

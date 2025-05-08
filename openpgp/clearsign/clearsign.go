@@ -403,7 +403,7 @@ func EncodeMultiWithHeader(w io.Writer, privateKeys []*packet.PrivateKey, config
 	var ws []io.Writer
 	var salts [][]byte
 	for _, sk := range privateKeys {
-		selectedHash := sk.PubKeyAlgo.HandleSpecificHash(hashType)
+		selectedHash := hashType
 		h := selectedHash.New()
 		if sk.Version == 6 {
 			// generate salt
