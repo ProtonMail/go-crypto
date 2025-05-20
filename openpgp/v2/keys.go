@@ -731,7 +731,7 @@ func (e *Entity) LatestValidDirectSignature(date time.Time, config *packet.Confi
 	if selectedSig == nil {
 		return nil, errors.StructuralError("no valid direct key signature found")
 	}
-	return
+	return selectedSig, nil
 }
 
 // PrimarySelfSignature searches the entity for the self-signature that stores key preferences.

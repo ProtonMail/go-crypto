@@ -219,5 +219,5 @@ func (i *Identity) LatestValidSelfCertification(date time.Time, config *packet.C
 	if selectedSig == nil {
 		return nil, errors.StructuralError("no valid certification signature found for identity")
 	}
-	return
+	return selectedSig, nil
 }
