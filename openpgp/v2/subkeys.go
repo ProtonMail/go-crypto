@@ -206,5 +206,5 @@ func (s *Subkey) LatestValidBindingSignature(date time.Time, config *packet.Conf
 	if selectedSig == nil {
 		return nil, errors.StructuralError("no valid binding signature found for subkey")
 	}
-	return
+	return selectedSig, nil
 }
