@@ -5,6 +5,7 @@
 package clearsign
 
 import (
+	"bufio"
 	"bytes"
 	"crypto"
 	"fmt"
@@ -168,6 +169,63 @@ func TestSigningInterop(t *testing.T) {
 	expected := "- - tofu\n- - vegetables\n- - noodles\n\n\n"
 	if !strings.Contains(buf.String(), expected) {
 		t.Fatalf("expected output to contain %s but got: %s", expected, buf.String())
+	}
+}
+
+func TestHashHeader(t *testing.T) {
+	tests := []struct {
+		name      string
+		hashTypes []crypto.Hash
+		expected  string
+	}{
+		{
+			name: "unique hashes",
+			hashTypes: []crypto.Hash{
+				crypto.SHA256,
+				crypto.SHA512,
+				crypto.SHA3_512,
+			},
+			expected: "Hash: SHA256,SHA512,SHA3-512\n",
+		},
+		{
+			name: "with duplicates",
+			hashTypes: []crypto.Hash{
+				crypto.SHA256,
+				crypto.SHA512,
+				crypto.SHA512,
+				crypto.SHA3_512,
+			},
+			expected: "Hash: SHA256,SHA512,SHA3-512\n",
+		},
+		{
+			name: "with duplicates",
+			hashTypes: []crypto.Hash{
+				crypto.SHA256,
+				crypto.SHA256,
+				crypto.SHA256,
+				crypto.SHA256,
+			},
+			expected: "Hash: SHA256\n",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			writer := bufio.NewWriter(&buf)
+			if err := writeHashHeader(writer, tc.hashTypes); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if err := writer.Flush(); err != nil {
+				t.Fatalf("flush failed: %v", err)
+			}
+
+			actual := buf.String()
+			if actual != tc.expected {
+				t.Errorf("output mismatch:\nExpected: %q\nActual:   %q", tc.expected, actual)
+			}
+		})
 	}
 }
 

@@ -390,14 +390,6 @@ func EncodeMultiWithHeader(w io.Writer, privateKeys []*packet.PrivateKey, config
 	}
 
 	hashType := config.Hash()
-	name := nameOfHash(hashType)
-	if len(name) == 0 {
-		return nil, errors.UnsupportedError("unknown hash type: " + strconv.Itoa(int(hashType)))
-	}
-
-	if !hashType.Available() {
-		return nil, errors.UnsupportedError("unsupported hash type: " + strconv.Itoa(int(hashType)))
-	}
 
 	var hashers []hash.Hash
 	var hashTypes []crypto.Hash
@@ -444,11 +436,8 @@ func EncodeMultiWithHeader(w io.Writer, privateKeys []*packet.PrivateKey, config
 	nonV6 := len(salts) < len(hashers)
 	// Crypto refresh: Headers SHOULD NOT be emitted
 	if nonV6 { // Emit header if non v6 signatures are present for compatibility
-		if _, err = buffered.WriteString(fmt.Sprintf("%s: %s", hashHeader, name)); err != nil {
-			return
-		}
-		if err = buffered.WriteByte(lf); err != nil {
-			return
+		if err := writeHashHeader(buffered, hashTypes); err != nil {
+			return nil, err
 		}
 	}
 	if err = buffered.WriteByte(lf); err != nil {
@@ -480,6 +469,40 @@ func EncodeMultiWithHeader(w io.Writer, privateKeys []*packet.PrivateKey, config
 func (b *Block) VerifySignature(keyring openpgp.KeyRing, config *packet.Config) (signer *openpgp.Entity, err error) {
 	_, signer, err = openpgp.VerifyDetachedSignature(keyring, bytes.NewBuffer(b.Bytes), b.ArmoredSignature.Body, config)
 	return
+}
+
+// writeHashHeader writes the legacy cleartext hash header to buffered.
+func writeHashHeader(buffered *bufio.Writer, hashTypes []crypto.Hash) error {
+	seen := make(map[string]bool, len(hashTypes))
+	if _, err := buffered.WriteString(fmt.Sprintf("%s: ", hashHeader)); err != nil {
+		return err
+	}
+
+	for index, sigHashType := range hashTypes {
+		first := index == 0
+		name := nameOfHash(sigHashType)
+		if len(name) == 0 {
+			return errors.UnsupportedError("unknown hash type: " + strconv.Itoa(int(sigHashType)))
+		}
+
+		switch {
+		case !seen[name] && first:
+			if _, err := buffered.WriteString(name); err != nil {
+				return err
+			}
+		case !seen[name]:
+			if _, err := buffered.WriteString(fmt.Sprintf(",%s", name)); err != nil {
+				return err
+			}
+		}
+		seen[name] = true
+	}
+
+	if err := buffered.WriteByte(lf); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // nameOfHash returns the OpenPGP name for the given hash, or the empty string
