@@ -506,6 +506,8 @@ const (
 	PubKeyAlgoEd25519 PublicKeyAlgorithm = 27
 	PubKeyAlgoEd448   PublicKeyAlgorithm = 28
 
+	PubKeyAlgoAEAD PublicKeyAlgorithm = 128
+	PubKeyAlgoHMAC PublicKeyAlgorithm = 129
 	ExperimentalPubKeyAlgoAEAD PublicKeyAlgorithm = 100
 	ExperimentalPubKeyAlgoHMAC PublicKeyAlgorithm = 101
 
@@ -526,7 +528,9 @@ const (
 // key of the given type.
 func (pka PublicKeyAlgorithm) CanEncrypt() bool {
 	switch pka {
-	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoElGamal, PubKeyAlgoECDH, PubKeyAlgoX25519, PubKeyAlgoX448, ExperimentalPubKeyAlgoAEAD,
+	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoElGamal, PubKeyAlgoECDH,
+		PubKeyAlgoX25519, PubKeyAlgoX448,
+		PubKeyAlgoAEAD, ExperimentalPubKeyAlgoAEAD,
 		PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem1024X448:
 		return true
 	}
@@ -537,8 +541,10 @@ func (pka PublicKeyAlgorithm) CanEncrypt() bool {
 // sign a message.
 func (pka PublicKeyAlgorithm) CanSign() bool {
 	switch pka {
-	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA, PubKeyAlgoEd25519,
-		PubKeyAlgoEd448, ExperimentalPubKeyAlgoHMAC, PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
+	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA,
+		PubKeyAlgoEd25519, PubKeyAlgoEd448,
+		PubKeyAlgoHMAC, ExperimentalPubKeyAlgoHMAC,
+		PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
 		return true
 	}
 	return false

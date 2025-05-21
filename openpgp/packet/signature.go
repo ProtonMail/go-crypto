@@ -206,7 +206,7 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 	sig.PubKeyAlgo = PublicKeyAlgorithm(buf[1])
 	switch sig.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA, PubKeyAlgoEd25519,
-		PubKeyAlgoEd448, ExperimentalPubKeyAlgoHMAC, PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
+		PubKeyAlgoEd448, PubKeyAlgoHMAC, ExperimentalPubKeyAlgoHMAC, PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
 	default:
 		err = errors.UnsupportedError("public key algorithm " + strconv.Itoa(int(sig.PubKeyAlgo)))
 		return
@@ -344,6 +344,12 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 		if err != nil {
 			return
 		}
+	case PubKeyAlgoHMAC:
+		hmac, err := io.ReadAll(r)
+		if err != nil {
+			return err
+		}
+		sig.HMAC = encoding.NewOctetArray(hmac)
 	case ExperimentalPubKeyAlgoHMAC:
 		sig.HMAC = new(encoding.ShortByteString)
 		if _, err = sig.HMAC.ReadFrom(r); err != nil {
@@ -1033,6 +1039,11 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 		if err == nil {
 			sig.EdSig = signature
 		}
+	case PubKeyAlgoHMAC:
+		sigdata, err := priv.PrivateKey.(crypto.Signer).Sign(config.Random(), digest, nil)
+		if err == nil {
+			sig.HMAC = encoding.NewOctetArray(sigdata)
+		}
 	case ExperimentalPubKeyAlgoHMAC:
 		sigdata, err := priv.PrivateKey.(crypto.Signer).Sign(config.Random(), digest, nil)
 		if err == nil {
@@ -1298,7 +1309,7 @@ func (sig *Signature) serializeBody(w io.Writer) (err error) {
 		err = ed25519.WriteSignature(w, sig.EdSig)
 	case PubKeyAlgoEd448:
 		err = ed448.WriteSignature(w, sig.EdSig)
-	case ExperimentalPubKeyAlgoHMAC:
+	case PubKeyAlgoHMAC, ExperimentalPubKeyAlgoHMAC:
 		_, err = w.Write(sig.HMAC.EncodedBytes())
 	case PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
 		if _, err = w.Write(sig.EdDSASigR.EncodedBytes()); err != nil {

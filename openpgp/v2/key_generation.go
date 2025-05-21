@@ -402,9 +402,12 @@ func newSigner(config *packet.Config) (signer interface{}, err error) {
 			return nil, err
 		}
 		return priv, nil
-	case packet.ExperimentalPubKeyAlgoHMAC:
+	case packet.PubKeyAlgoHMAC:
 		hash := algorithm.HashById[hashToHashId(config.Hash())]
 		return symmetric.HMACGenerateKey(config.Random(), hash)
+	case packet.ExperimentalPubKeyAlgoHMAC:
+		hash := algorithm.HashById[hashToHashId(config.Hash())]
+		return symmetric.ExperimentalHMACGenerateKey(config.Random(), hash)
 	case packet.PubKeyAlgoMldsa65Ed25519, packet.PubKeyAlgoMldsa87Ed448:
 		if !config.V6() {
 			return nil, goerrors.New("openpgp: cannot create a non-v6 mldsa_eddsa key")
@@ -463,9 +466,13 @@ func newDecrypter(config *packet.Config) (decrypter interface{}, err error) {
 		return x25519.GenerateKey(config.Random())
 	case packet.PubKeyAlgoEd448, packet.PubKeyAlgoX448: // When passing Ed448, we generate an x448 subkey
 		return x448.GenerateKey(config.Random())
+	case packet.PubKeyAlgoHMAC, packet.PubKeyAlgoAEAD: // When passing HMAC, we generate an AEAD subkey
+		cipher := algorithm.CipherFunction(config.Cipher())
+		aead := algorithm.AEADMode(config.AEAD().Mode())
+		return symmetric.AEADGenerateKey(config.Random(), cipher, aead)
 	case packet.ExperimentalPubKeyAlgoHMAC, packet.ExperimentalPubKeyAlgoAEAD: // When passing HMAC, we generate an AEAD subkey
 		cipher := algorithm.CipherFunction(config.Cipher())
-		return symmetric.AEADGenerateKey(config.Random(), cipher)
+		return symmetric.ExperimentalAEADGenerateKey(config.Random(), cipher)
 	case packet.PubKeyAlgoMldsa65Ed25519, packet.PubKeyAlgoMldsa87Ed448:
 		if pubKeyAlgo, err = packet.GetMatchingMlkem(config.PublicKeyAlgorithm()); err != nil {
 			return nil, err

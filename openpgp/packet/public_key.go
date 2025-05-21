@@ -265,7 +265,7 @@ func NewAEADPublicKey(creationTime time.Time, pub *symmetric.AEADPublicKey) *Pub
 	pk := &PublicKey{
 		Version:      4,
 		CreationTime: creationTime,
-		PubKeyAlgo:   ExperimentalPubKeyAlgoAEAD,
+		PubKeyAlgo:   PubKeyAlgoAEAD,
 		PublicKey:    pub,
 	}
 
@@ -273,6 +273,28 @@ func NewAEADPublicKey(creationTime time.Time, pub *symmetric.AEADPublicKey) *Pub
 }
 
 func NewHMACPublicKey(creationTime time.Time, pub *symmetric.HMACPublicKey) *PublicKey {
+	pk := &PublicKey{
+		Version:      4,
+		CreationTime: creationTime,
+		PubKeyAlgo:   PubKeyAlgoHMAC,
+		PublicKey:    pub,
+	}
+
+	return pk
+}
+
+func NewExperimentalAEADPublicKey(creationTime time.Time, pub *symmetric.ExperimentalAEADPublicKey) *PublicKey {
+	pk := &PublicKey{
+		Version:      4,
+		CreationTime: creationTime,
+		PubKeyAlgo:   ExperimentalPubKeyAlgoAEAD,
+		PublicKey:    pub,
+	}
+
+	return pk
+}
+
+func NewExperimentalHMACPublicKey(creationTime time.Time, pub *symmetric.ExperimentalHMACPublicKey) *PublicKey {
 	pk := &PublicKey{
 		Version:      4,
 		CreationTime: creationTime,
@@ -370,10 +392,14 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 		err = pk.parseEd25519(r)
 	case PubKeyAlgoEd448:
 		err = pk.parseEd448(r)
-	case ExperimentalPubKeyAlgoAEAD:
+	case PubKeyAlgoAEAD:
 		err = pk.parseAEAD(r)
-	case ExperimentalPubKeyAlgoHMAC:
+	case PubKeyAlgoHMAC:
 		err = pk.parseHMAC(r)
+	case ExperimentalPubKeyAlgoAEAD:
+		err = pk.parseExperimentalAEAD(r)
+	case ExperimentalPubKeyAlgoHMAC:
+		err = pk.parseExperimentalHMAC(r)
 	case PubKeyAlgoMlkem768X25519:
 		err = pk.parseMlkemEcdh(r, 32, mlkem768.PublicKeySize)
 	case PubKeyAlgoMlkem1024X448:
@@ -747,6 +773,55 @@ func (pk *PublicKey) parseEd448(r io.Reader) (err error) {
 }
 
 func (pk *PublicKey) parseAEAD(r io.Reader) (err error) {
+	var algOctets [2]byte
+	_, err = readFull(r, algOctets[:])
+	if err != nil {
+		return
+	}
+
+	var fpSeed [32]byte
+	_, err = readFull(r, fpSeed[:])
+	if err != nil {
+		return
+	}
+
+	symmetric := &symmetric.AEADPublicKey{
+		Cipher: algorithm.CipherFunction(algOctets[0]),
+		AEADMode: algorithm.AEADMode(algOctets[1]),
+		FpSeed: fpSeed,
+	}
+
+	pk.PublicKey = symmetric
+	return
+}
+
+func (pk *PublicKey) parseHMAC(r io.Reader) (err error) {
+	var hash [1]byte
+	_, err = readFull(r, hash[:])
+	if err != nil {
+		return
+	}
+	var fpSeed [32]byte
+	_, err = readFull(r, fpSeed[:])
+	if err != nil {
+		return
+	}
+
+	hmacHash, ok := algorithm.HashById[hash[0]]
+	if !ok {
+		return errors.UnsupportedError("unsupported HMAC hash: " + strconv.Itoa(int(hash[0])))
+	}
+
+	symmetric := &symmetric.HMACPublicKey{
+		Hash: hmacHash,
+		FpSeed: fpSeed,
+	}
+
+	pk.PublicKey = symmetric
+	return
+}
+
+func (pk *PublicKey) parseExperimentalAEAD(r io.Reader) (err error) {
 	var cipher [1]byte
 	_, err = readFull(r, cipher[:])
 	if err != nil {
@@ -759,7 +834,7 @@ func (pk *PublicKey) parseAEAD(r io.Reader) (err error) {
 		return
 	}
 
-	symmetric := &symmetric.AEADPublicKey{
+	symmetric := &symmetric.ExperimentalAEADPublicKey{
 		Cipher:      algorithm.CipherFunction(cipher[0]),
 		BindingHash: bindingHash,
 	}
@@ -768,7 +843,7 @@ func (pk *PublicKey) parseAEAD(r io.Reader) (err error) {
 	return
 }
 
-func (pk *PublicKey) parseHMAC(r io.Reader) (err error) {
+func (pk *PublicKey) parseExperimentalHMAC(r io.Reader) (err error) {
 	var hash [1]byte
 	_, err = readFull(r, hash[:])
 	if err != nil {
@@ -784,7 +859,7 @@ func (pk *PublicKey) parseHMAC(r io.Reader) (err error) {
 		return errors.UnsupportedError("unsupported HMAC hash: " + strconv.Itoa(int(hash[0])))
 	}
 
-	symmetric := &symmetric.HMACPublicKey{
+	symmetric := &symmetric.ExperimentalHMACPublicKey{
 		Hash:        hmacHash,
 		BindingHash: bindingHash,
 	}
@@ -919,6 +994,12 @@ func (pk *PublicKey) algorithmSpecificByteCount() uint32 {
 		length += ed25519.PublicKeySize
 	case PubKeyAlgoEd448:
 		length += ed448.PublicKeySize
+	case PubKeyAlgoAEAD:
+		length += 2  // Symmetric and AEAD algorithm octets
+		length += 32 // Fingerprint seed
+	case PubKeyAlgoHMAC:
+		length += 1  // Hash octet
+		length += 32 // Fingerprint seed
 	case ExperimentalPubKeyAlgoAEAD, ExperimentalPubKeyAlgoHMAC:
 		length += 1  // Hash octet
 		length += 32 // Binding hash
@@ -1018,8 +1099,24 @@ func (pk *PublicKey) serializeWithoutHeaders(w io.Writer) (err error) {
 		publicKey := pk.PublicKey.(*ed448.PublicKey)
 		_, err = w.Write(publicKey.Point)
 		return
-	case ExperimentalPubKeyAlgoAEAD:
+	case PubKeyAlgoAEAD:
 		symmKey := pk.PublicKey.(*symmetric.AEADPublicKey)
+		algOctets := [2]byte{symmKey.Cipher.Id(), symmKey.AEADMode.Id()}
+		if _, err = w.Write(algOctets[:]); err != nil {
+			return
+		}
+		_, err = w.Write(symmKey.FpSeed[:])
+		return
+	case PubKeyAlgoHMAC:
+		symmKey := pk.PublicKey.(*symmetric.HMACPublicKey)
+		hashOctet := [1]byte{symmKey.Hash.Id()}
+		if _, err = w.Write(hashOctet[:]); err != nil {
+			return
+		}
+		_, err = w.Write(symmKey.FpSeed[:])
+		return
+	case ExperimentalPubKeyAlgoAEAD:
+		symmKey := pk.PublicKey.(*symmetric.ExperimentalAEADPublicKey)
 		cipherOctet := [1]byte{symmKey.Cipher.Id()}
 		if _, err = w.Write(cipherOctet[:]); err != nil {
 			return
@@ -1027,7 +1124,7 @@ func (pk *PublicKey) serializeWithoutHeaders(w io.Writer) (err error) {
 		_, err = w.Write(symmKey.BindingHash[:])
 		return
 	case ExperimentalPubKeyAlgoHMAC:
-		symmKey := pk.PublicKey.(*symmetric.HMACPublicKey)
+		symmKey := pk.PublicKey.(*symmetric.ExperimentalHMACPublicKey)
 		hashOctet := [1]byte{symmKey.Hash.Id()}
 		if _, err = w.Write(hashOctet[:]); err != nil {
 			return
@@ -1127,8 +1224,19 @@ func (pk *PublicKey) VerifySignature(signed hash.Hash, sig *Signature) (err erro
 			return errors.SignatureError("ed448 verification failure")
 		}
 		return nil
-	case ExperimentalPubKeyAlgoHMAC:
+	case PubKeyAlgoHMAC:
 		HMACKey := pk.PublicKey.(*symmetric.HMACPublicKey)
+
+		result, err := HMACKey.Verify(hashBytes, sig.HMAC.Bytes())
+		if err != nil {
+			return err
+		}
+		if !result {
+			return errors.SignatureError("HMAC verification failure")
+		}
+		return nil
+	case ExperimentalPubKeyAlgoHMAC:
+		HMACKey := pk.PublicKey.(*symmetric.ExperimentalHMACPublicKey)
 
 		result, err := HMACKey.Verify(hashBytes, sig.HMAC.Bytes())
 		if err != nil {
@@ -1377,6 +1485,8 @@ func (pk *PublicKey) BitLength() (bitLength uint16, err error) {
 		bitLength = ed25519.PublicKeySize * 8
 	case PubKeyAlgoEd448:
 		bitLength = ed448.PublicKeySize * 8
+	case PubKeyAlgoAEAD:
+		bitLength = uint16(pk.PublicKey.(*symmetric.AEADPublicKey).Cipher.KeySize()) * 8
 	case ExperimentalPubKeyAlgoAEAD:
 		bitLength = 32
 	case PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem1024X448, PubKeyAlgoMldsa65Ed25519,
