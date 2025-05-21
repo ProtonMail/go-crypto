@@ -172,6 +172,8 @@ func NewSignerPrivateKey(creationTime time.Time, signer interface{}) *PrivateKey
 		pk.PublicKey = *NewEd448PublicKey(creationTime, &pubkey.PublicKey)
 	case *symmetric.HMACPrivateKey:
 		pk.PublicKey = *NewHMACPublicKey(creationTime, &pubkey.PublicKey)
+	case *symmetric.ExperimentalHMACPrivateKey:
+		pk.PublicKey = *NewExperimentalHMACPublicKey(creationTime, &pubkey.PublicKey)
 	case *mldsa_eddsa.PrivateKey:
 		pk.PublicKey = *NewMldsaEddsaPublicKey(creationTime, &pubkey.PublicKey)
 	default:
@@ -197,6 +199,8 @@ func NewDecrypterPrivateKey(creationTime time.Time, decrypter interface{}) *Priv
 		pk.PublicKey = *NewX448PublicKey(creationTime, &priv.PublicKey)
 	case *symmetric.AEADPrivateKey:
 		pk.PublicKey = *NewAEADPublicKey(creationTime, &priv.PublicKey)
+	case *symmetric.ExperimentalAEADPrivateKey:
+		pk.PublicKey = *NewExperimentalAEADPublicKey(creationTime, &priv.PublicKey)
 	case *mlkem_ecdh.PrivateKey:
 		pk.PublicKey = *NewMlkemEcdhPublicKey(creationTime, &priv.PublicKey)
 	default:
@@ -543,6 +547,16 @@ func serializeEd448PrivateKey(w io.Writer, priv *ed448.PrivateKey) error {
 }
 
 func serializeAEADPrivateKey(w io.Writer, priv *symmetric.AEADPrivateKey) (err error) {
+	_, err = w.Write(priv.Key)
+	return
+}
+
+func serializeHMACPrivateKey(w io.Writer, priv *symmetric.HMACPrivateKey) (err error) {
+	_, err = w.Write(priv.Key)
+	return err
+}
+
+func serializeExperimentalAEADPrivateKey(w io.Writer, priv *symmetric.ExperimentalAEADPrivateKey) (err error) {
 	_, err = w.Write(priv.HashSeed[:])
 	if err != nil {
 		return
@@ -551,7 +565,7 @@ func serializeAEADPrivateKey(w io.Writer, priv *symmetric.AEADPrivateKey) (err e
 	return
 }
 
-func serializeHMACPrivateKey(w io.Writer, priv *symmetric.HMACPrivateKey) (err error) {
+func serializeExperimentalHMACPrivateKey(w io.Writer, priv *symmetric.ExperimentalHMACPrivateKey) (err error) {
 	_, err = w.Write(priv.HashSeed[:])
 	if err != nil {
 		return
@@ -886,6 +900,10 @@ func (pk *PrivateKey) serializePrivateKey(w io.Writer) (err error) {
 		err = serializeAEADPrivateKey(w, priv)
 	case *symmetric.HMACPrivateKey:
 		err = serializeHMACPrivateKey(w, priv)
+	case *symmetric.ExperimentalAEADPrivateKey:
+		err = serializeExperimentalAEADPrivateKey(w, priv)
+	case *symmetric.ExperimentalHMACPrivateKey:
+		err = serializeExperimentalHMACPrivateKey(w, priv)
 	case *mlkem_ecdh.PrivateKey:
 		err = serializeMlkemPrivateKey(w, priv)
 	case *mldsa_eddsa.PrivateKey:
@@ -918,10 +936,14 @@ func (pk *PrivateKey) parsePrivateKey(data []byte) (err error) {
 		return pk.parseEd25519PrivateKey(data)
 	case PubKeyAlgoEd448:
 		return pk.parseEd448PrivateKey(data)
-	case ExperimentalPubKeyAlgoAEAD:
+	case PubKeyAlgoAEAD:
 		return pk.parseAEADPrivateKey(data)
-	case ExperimentalPubKeyAlgoHMAC:
+	case PubKeyAlgoHMAC:
 		return pk.parseHMACPrivateKey(data)
+	case ExperimentalPubKeyAlgoAEAD:
+		return pk.parseExperimentalAEADPrivateKey(data)
+	case ExperimentalPubKeyAlgoHMAC:
+		return pk.parseExperimentalHMACPrivateKey(data)
 	case PubKeyAlgoMlkem768X25519:
 		if !(pk.Version == 4 || pk.Version >= 6) {
 			return goerrors.New("openpgp: ML-KEM-768+X25519 may only be used with v4 or v6+")
@@ -1205,16 +1227,10 @@ func (pk *PrivateKey) parseAEADPrivateKey(data []byte) (err error) {
 	aeadPriv := new(symmetric.AEADPrivateKey)
 	aeadPriv.PublicKey = *pubKey
 
-	copy(aeadPriv.HashSeed[:], data[:32])
-
 	priv := make([]byte, pubKey.Cipher.KeySize())
-	copy(priv, data[32:])
+	copy(priv, data[:])
 	aeadPriv.Key = priv
 	aeadPriv.PublicKey.Key = aeadPriv.Key
-
-	if err = validateAEADParameters(aeadPriv); err != nil {
-		return
-	}
 
 	pk.PrivateKey = aeadPriv
 	pk.PublicKey.PublicKey = &aeadPriv.PublicKey
@@ -1227,6 +1243,44 @@ func (pk *PrivateKey) parseHMACPrivateKey(data []byte) (err error) {
 	hmacPriv := new(symmetric.HMACPrivateKey)
 	hmacPriv.PublicKey = *pubKey
 
+	priv := make([]byte, pubKey.Hash.Size())
+	copy(priv, data[:])
+	hmacPriv.Key = priv[:]
+	hmacPriv.PublicKey.Key = hmacPriv.Key
+
+	pk.PrivateKey = hmacPriv
+	pk.PublicKey.PublicKey = &hmacPriv.PublicKey
+	return
+}
+
+func (pk *PrivateKey) parseExperimentalAEADPrivateKey(data []byte) (err error) {
+	pubKey := pk.PublicKey.PublicKey.(*symmetric.ExperimentalAEADPublicKey)
+
+	aeadPriv := new(symmetric.ExperimentalAEADPrivateKey)
+	aeadPriv.PublicKey = *pubKey
+
+	copy(aeadPriv.HashSeed[:], data[:32])
+
+	priv := make([]byte, pubKey.Cipher.KeySize())
+	copy(priv, data[32:])
+	aeadPriv.Key = priv
+	aeadPriv.PublicKey.Key = aeadPriv.Key
+
+	if err = validateExperimentalAEADParameters(aeadPriv); err != nil {
+		return
+	}
+
+	pk.PrivateKey = aeadPriv
+	pk.PublicKey.PublicKey = &aeadPriv.PublicKey
+	return
+}
+
+func (pk *PrivateKey) parseExperimentalHMACPrivateKey(data []byte) (err error) {
+	pubKey := pk.PublicKey.PublicKey.(*symmetric.ExperimentalHMACPublicKey)
+
+	hmacPriv := new(symmetric.ExperimentalHMACPrivateKey)
+	hmacPriv.PublicKey = *pubKey
+
 	copy(hmacPriv.HashSeed[:], data[:32])
 
 	priv := make([]byte, pubKey.Hash.Size())
@@ -1234,7 +1288,7 @@ func (pk *PrivateKey) parseHMACPrivateKey(data []byte) (err error) {
 	hmacPriv.Key = data[32:]
 	hmacPriv.PublicKey.Key = hmacPriv.Key
 
-	if err = validateHMACParameters(hmacPriv); err != nil {
+	if err = validateExperimentalHMACParameters(hmacPriv); err != nil {
 		return
 	}
 
@@ -1243,11 +1297,11 @@ func (pk *PrivateKey) parseHMACPrivateKey(data []byte) (err error) {
 	return
 }
 
-func validateAEADParameters(priv *symmetric.AEADPrivateKey) error {
+func validateExperimentalAEADParameters(priv *symmetric.ExperimentalAEADPrivateKey) error {
 	return validateCommonSymmetric(priv.HashSeed, priv.PublicKey.BindingHash)
 }
 
-func validateHMACParameters(priv *symmetric.HMACPrivateKey) error {
+func validateExperimentalHMACParameters(priv *symmetric.ExperimentalHMACPrivateKey) error {
 	return validateCommonSymmetric(priv.HashSeed, priv.PublicKey.BindingHash)
 }
 

@@ -771,8 +771,10 @@ func (e *Entity) serializePrivate(w io.Writer, config *packet.Config, reSign boo
 // Serialize writes the public part of the given Entity to w, including
 // signatures from other entities. No private key material will be output.
 func (e *Entity) Serialize(w io.Writer) error {
-	if e.PrimaryKey.PubKeyAlgo == packet.ExperimentalPubKeyAlgoHMAC ||
-	  e.PrimaryKey.PubKeyAlgo == packet.ExperimentalPubKeyAlgoAEAD {
+	if e.PrimaryKey.PubKeyAlgo == packet.PubKeyAlgoHMAC ||
+		e.PrimaryKey.PubKeyAlgo == packet.PubKeyAlgoAEAD ||
+		e.PrimaryKey.PubKeyAlgo == packet.ExperimentalPubKeyAlgoHMAC ||
+		e.PrimaryKey.PubKeyAlgo == packet.ExperimentalPubKeyAlgoAEAD {
 		return errors.InvalidArgumentError("Can't serialize symmetric primary key")
 	}
 	err := e.PrimaryKey.Serialize(w)
@@ -808,8 +810,10 @@ func (e *Entity) Serialize(w io.Writer) error {
 		// The types of keys below are only useful as private keys. Thus, the
 		// public key packets contain no meaningful information and do not need
 		// to be serialized.
-		if subkey.PublicKey.PubKeyAlgo == packet.ExperimentalPubKeyAlgoHMAC ||
-		  subkey.PublicKey.PubKeyAlgo == packet.ExperimentalPubKeyAlgoAEAD {
+		if subkey.PublicKey.PubKeyAlgo == packet.PubKeyAlgoHMAC ||
+			subkey.PublicKey.PubKeyAlgo == packet.PubKeyAlgoAEAD ||
+			subkey.PublicKey.PubKeyAlgo == packet.ExperimentalPubKeyAlgoHMAC ||
+			subkey.PublicKey.PubKeyAlgo == packet.ExperimentalPubKeyAlgoAEAD {
 			continue
 		}
 		err = subkey.PublicKey.Serialize(w)
