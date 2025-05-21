@@ -206,7 +206,7 @@ func Decode(data []byte) (b *Block, rest []byte) {
 type dashEscaper struct {
 	buffered    *bufio.Writer
 	hashers     []hash.Hash // one per key in privateKeys
-	hashType    crypto.Hash
+	hashTypes   []crypto.Hash
 	toHash      io.Writer         // writes to all the hashes in hashers
 	salts       [][]byte          // salts for the signatures if v6
 	armorHeader map[string]string // Armor headers
@@ -328,7 +328,7 @@ func (d *dashEscaper) Close() (err error) {
 		sig.Version = k.Version
 		sig.SigType = packet.SigTypeText
 		sig.PubKeyAlgo = k.PubKeyAlgo
-		sig.Hash = d.hashType
+		sig.Hash = d.hashTypes[i]
 		sig.CreationTime = t
 		sig.IssuerKeyId = &k.KeyId
 		sig.IssuerFingerprint = k.Fingerprint
@@ -390,19 +390,22 @@ func EncodeMultiWithHeader(w io.Writer, privateKeys []*packet.PrivateKey, config
 	}
 
 	hashType := config.Hash()
-	name := nameOfHash(hashType)
-	if len(name) == 0 {
-		return nil, errors.UnsupportedError("unknown hash type: " + strconv.Itoa(int(hashType)))
-	}
 
-	if !hashType.Available() {
-		return nil, errors.UnsupportedError("unsupported hash type: " + strconv.Itoa(int(hashType)))
-	}
 	var hashers []hash.Hash
+	var hashTypes []crypto.Hash
 	var ws []io.Writer
 	var salts [][]byte
 	for _, sk := range privateKeys {
-		h := hashType.New()
+		acceptedHashes := acceptableHashesToWrite(&sk.PublicKey)
+		// acceptedHashes contains at least one hash
+		selectedHashType := acceptedHashes[0]
+		for _, acceptedHash := range acceptedHashes {
+			if hashType == acceptedHash {
+				selectedHashType = hashType
+				break
+			}
+		}
+		h := selectedHashType.New()
 		if sk.Version == 6 {
 			// generate salt
 			var salt []byte
@@ -416,6 +419,7 @@ func EncodeMultiWithHeader(w io.Writer, privateKeys []*packet.PrivateKey, config
 			salts = append(salts, salt)
 		}
 		hashers = append(hashers, h)
+		hashTypes = append(hashTypes, selectedHashType)
 		ws = append(ws, h)
 	}
 	toHash := io.MultiWriter(ws...)
@@ -432,11 +436,8 @@ func EncodeMultiWithHeader(w io.Writer, privateKeys []*packet.PrivateKey, config
 	nonV6 := len(salts) < len(hashers)
 	// Crypto refresh: Headers SHOULD NOT be emitted
 	if nonV6 { // Emit header if non v6 signatures are present for compatibility
-		if _, err = buffered.WriteString(fmt.Sprintf("%s: %s", hashHeader, name)); err != nil {
-			return
-		}
-		if err = buffered.WriteByte(lf); err != nil {
-			return
+		if err := writeHashHeader(buffered, hashTypes); err != nil {
+			return nil, err
 		}
 	}
 	if err = buffered.WriteByte(lf); err != nil {
@@ -446,7 +447,7 @@ func EncodeMultiWithHeader(w io.Writer, privateKeys []*packet.PrivateKey, config
 	plaintext = &dashEscaper{
 		buffered:    buffered,
 		hashers:     hashers,
-		hashType:    hashType,
+		hashTypes:   hashTypes,
 		toHash:      toHash,
 		salts:       salts,
 		armorHeader: headers,
@@ -470,6 +471,40 @@ func (b *Block) VerifySignature(keyring openpgp.KeyRing, config *packet.Config) 
 	return
 }
 
+// writeHashHeader writes the legacy cleartext hash header to buffered.
+func writeHashHeader(buffered *bufio.Writer, hashTypes []crypto.Hash) error {
+	seen := make(map[string]bool, len(hashTypes))
+	if _, err := buffered.WriteString(fmt.Sprintf("%s: ", hashHeader)); err != nil {
+		return err
+	}
+
+	for index, sigHashType := range hashTypes {
+		first := index == 0
+		name := nameOfHash(sigHashType)
+		if len(name) == 0 {
+			return errors.UnsupportedError("unknown hash type: " + strconv.Itoa(int(sigHashType)))
+		}
+
+		switch {
+		case !seen[name] && first:
+			if _, err := buffered.WriteString(name); err != nil {
+				return err
+			}
+		case !seen[name]:
+			if _, err := buffered.WriteString(fmt.Sprintf(",%s", name)); err != nil {
+				return err
+			}
+		}
+		seen[name] = true
+	}
+
+	if err := buffered.WriteByte(lf); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // nameOfHash returns the OpenPGP name for the given hash, or the empty string
 // if the name isn't known. See RFC 4880, section 9.4.
 func nameOfHash(h crypto.Hash) string {
@@ -488,4 +523,39 @@ func nameOfHash(h crypto.Hash) string {
 		return "SHA3-512"
 	}
 	return ""
+}
+
+func acceptableHashesToWrite(singingKey *packet.PublicKey) []crypto.Hash {
+	switch singingKey.PubKeyAlgo {
+	case packet.PubKeyAlgoEd448:
+		return []crypto.Hash{
+			crypto.SHA512,
+			crypto.SHA3_512,
+		}
+	case packet.PubKeyAlgoECDSA, packet.PubKeyAlgoEdDSA:
+		if curve, err := singingKey.Curve(); err == nil {
+			if curve == packet.Curve448 ||
+				curve == packet.CurveNistP521 ||
+				curve == packet.CurveBrainpoolP512 {
+				return []crypto.Hash{
+					crypto.SHA512,
+					crypto.SHA3_512,
+				}
+			} else if curve == packet.CurveBrainpoolP384 ||
+				curve == packet.CurveNistP384 {
+				return []crypto.Hash{
+					crypto.SHA384,
+					crypto.SHA512,
+					crypto.SHA3_512,
+				}
+			}
+		}
+	}
+	return []crypto.Hash{
+		crypto.SHA256,
+		crypto.SHA384,
+		crypto.SHA512,
+		crypto.SHA3_256,
+		crypto.SHA3_512,
+	}
 }
