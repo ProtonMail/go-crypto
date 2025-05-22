@@ -449,8 +449,10 @@ func (c *Config) GenerateNonCriticalSignatureCreationTime() bool {
 }
 
 func (c *Config) DecompressedMessageSizeLimit() *int64 {
-	if c == nil {
-		return nil
+	if c == nil || c.MaxDecompressedMessageSize == nil {
+		// 50 MiB
+		max := 50 * (int64(1) << 20)
+		return &max
 	}
 	return c.MaxDecompressedMessageSize
 }
