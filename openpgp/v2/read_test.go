@@ -9,6 +9,7 @@ import (
 	"crypto/sha512"
 	"encoding/base64"
 	"encoding/hex"
+	goerrors "errors"
 	"io"
 	"io/ioutil"
 	"math/bits"
@@ -1056,8 +1057,52 @@ func TestReadMessageWithSignOnly(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	md, err = ReadMessage(msgReader.Body, key, nil, nil)
+	_, err = ReadMessage(msgReader.Body, key, nil, nil)
 	if err == nil {
 		t.Fatal("Should not decrypt")
+	}
+}
+
+func TestReadMessageCompressionLimit(t *testing.T) {
+	// Limit 1KB
+	max := int64(1024)
+	config := packet.Config{
+		MaxDecompressedMessageSize: &max,
+	}
+
+	msgReader, err := armor.Decode(strings.NewReader(compressed2KB))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	md, err := ReadMessage(msgReader.Body, nil, nil, &config)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	// Should not be able to read all data
+	_, err = io.ReadAll(md.UnverifiedBody)
+	if !goerrors.Is(err, errors.ErrMessageTooLarge) {
+		t.Errorf("Wrong error")
+	}
+
+	// Limit 4KB
+	max = int64(4 * 1024)
+	config = packet.Config{
+		MaxDecompressedMessageSize: &max,
+	}
+	msgReader, err = armor.Decode(strings.NewReader(compressed2KB))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	md, err = ReadMessage(msgReader.Body, nil, nil, &config)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	// Should be able to read all data
+	if _, err = io.ReadAll(md.UnverifiedBody); err != nil {
+		t.Fatal(err)
 	}
 }
