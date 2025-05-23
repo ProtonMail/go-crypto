@@ -30,6 +30,20 @@ func readerFromHex(s string) io.Reader {
 	return bytes.NewBuffer(data)
 }
 
+func TestReadKeyRingWithSymmetricSubkey(t *testing.T) {
+	_, err := ReadArmoredKeyRing(strings.NewReader(keyWithAEADSubkey))
+	if err != nil {
+		t.Error("could not read keyring", err)
+	}
+}
+
+func TestReadKeyRingWithExperimentalSymmetricSubkey(t *testing.T) {
+	_, err := ReadArmoredKeyRing(strings.NewReader(keyWithExperimentalAEADSubkey))
+	if err != nil {
+		t.Error("could not read keyring", err)
+	}
+}
+
 func TestReadKeyRing(t *testing.T) {
 	kring, err := ReadKeyRing(readerFromHex(testKeys1And2Hex))
 	if err != nil {
