@@ -183,6 +183,9 @@ type Config struct {
 	// read from a compressed packet. This serves as an upper limit to prevent
 	// excessively large decompressed messages.
 	MaxDecompressedMessageSize *int64
+
+	// DisableCriticalSubpackets removes the critical flag from all signature subpackets.
+	DisableCriticalSubpackets bool
 }
 
 func (c *Config) Random() io.Reader {

@@ -933,7 +933,7 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 		}
 		sig.Notations = append(sig.Notations, &notation)
 	}
-	sig.outSubpackets, err = sig.buildSubpackets(priv.PublicKey)
+	sig.outSubpackets, err = sig.buildSubpackets(priv.PublicKey, config)
 	if err != nil {
 		return err
 	}
@@ -1254,31 +1254,31 @@ type outputSubpacket struct {
 	contents      []byte
 }
 
-func (sig *Signature) buildSubpackets(issuer PublicKey) (subpackets []outputSubpacket, err error) {
+func (sig *Signature) buildSubpackets(issuer PublicKey, config *Config) (subpackets []outputSubpacket, err error) {
 	creationTime := make([]byte, 4)
 	binary.BigEndian.PutUint32(creationTime, uint32(sig.CreationTime.Unix()))
 	// Signature Creation Time
-	subpackets = append(subpackets, outputSubpacket{true, creationTimeSubpacket, true, creationTime})
+	subpackets = append(subpackets, outputSubpacket{true, creationTimeSubpacket, !config.DisableCriticalSubpackets, creationTime})
 	// Signature Expiration Time
 	if sig.SigLifetimeSecs != nil && *sig.SigLifetimeSecs != 0 {
 		sigLifetime := make([]byte, 4)
 		binary.BigEndian.PutUint32(sigLifetime, *sig.SigLifetimeSecs)
-		subpackets = append(subpackets, outputSubpacket{true, signatureExpirationSubpacket, true, sigLifetime})
+		subpackets = append(subpackets, outputSubpacket{true, signatureExpirationSubpacket, !config.DisableCriticalSubpackets, sigLifetime})
 	}
 	// Trust Signature
 	if sig.TrustLevel != 0 {
-		subpackets = append(subpackets, outputSubpacket{true, trustSubpacket, true, []byte{byte(sig.TrustLevel), byte(sig.TrustAmount)}})
+		subpackets = append(subpackets, outputSubpacket{true, trustSubpacket, !config.DisableCriticalSubpackets, []byte{byte(sig.TrustLevel), byte(sig.TrustAmount)}})
 	}
 	// Regular Expression
 	if sig.TrustRegularExpression != nil {
 		// RFC specifies the string should be null-terminated; add a null byte to the end
-		subpackets = append(subpackets, outputSubpacket{true, regularExpressionSubpacket, true, []byte(*sig.TrustRegularExpression + "\000")})
+		subpackets = append(subpackets, outputSubpacket{true, regularExpressionSubpacket, !config.DisableCriticalSubpackets, []byte(*sig.TrustRegularExpression + "\000")})
 	}
 	// Key Expiration Time
 	if sig.KeyLifetimeSecs != nil && *sig.KeyLifetimeSecs != 0 {
 		keyLifetime := make([]byte, 4)
 		binary.BigEndian.PutUint32(keyLifetime, *sig.KeyLifetimeSecs)
-		subpackets = append(subpackets, outputSubpacket{true, keyExpirationSubpacket, true, keyLifetime})
+		subpackets = append(subpackets, outputSubpacket{true, keyExpirationSubpacket, !config.DisableCriticalSubpackets, keyLifetime})
 	}
 	// Preferred Symmetric Ciphers for v1 SEIPD
 	if len(sig.PreferredSymmetric) > 0 {
@@ -1357,7 +1357,7 @@ func (sig *Signature) buildSubpackets(issuer PublicKey) (subpackets []outputSubp
 		if sig.FlagGroupKey {
 			flags |= KeyFlagGroupKey
 		}
-		subpackets = append(subpackets, outputSubpacket{true, keyFlagsSubpacket, true, []byte{flags}})
+		subpackets = append(subpackets, outputSubpacket{true, keyFlagsSubpacket, !config.DisableCriticalSubpackets, []byte{flags}})
 	}
 	// Signer's User ID
 	if sig.SignerUserId != nil {
@@ -1366,7 +1366,7 @@ func (sig *Signature) buildSubpackets(issuer PublicKey) (subpackets []outputSubp
 	// Reason for Revocation
 	// Revocation reason appears only in revocation signatures and is serialized as per section 5.2.3.31.
 	if sig.RevocationReason != nil {
-		subpackets = append(subpackets, outputSubpacket{true, reasonForRevocationSubpacket, true,
+		subpackets = append(subpackets, outputSubpacket{true, reasonForRevocationSubpacket, !config.DisableCriticalSubpackets,
 			append([]uint8{uint8(*sig.RevocationReason)}, []uint8(sig.RevocationReasonText)...)})
 	}
 	// Features
@@ -1388,7 +1388,7 @@ func (sig *Signature) buildSubpackets(issuer PublicKey) (subpackets []outputSubp
 		if err != nil {
 			return
 		}
-		subpackets = append(subpackets, outputSubpacket{true, embeddedSignatureSubpacket, true, buf.Bytes()})
+		subpackets = append(subpackets, outputSubpacket{true, embeddedSignatureSubpacket, !config.DisableCriticalSubpackets, buf.Bytes()})
 	}
 	// Issuer Fingerprint
 	if sig.IssuerFingerprint != nil {
