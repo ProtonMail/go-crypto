@@ -89,6 +89,34 @@ func TestLongHeader(t *testing.T) {
 	}
 }
 
+func TestWithWhitespace(t *testing.T) {
+	buff := bytes.NewBuffer([]byte(armorWithWhitespace))
+	armorWithWhitespace, err := Decode(buff)
+	if err != nil {
+		t.Error(err)
+	}
+
+	armorWithWhitespaceBody, err := io.ReadAll(armorWithWhitespace.Body)
+	if err != nil {
+		t.Error(err)
+	}
+
+	buff = bytes.NewBuffer([]byte(armorExampleEmptyVersion))
+	armorWithOutWhitespace, err := Decode(buff)
+	if err != nil {
+		t.Error(err)
+	}
+
+	armorWithOutWhitespaceBody, err := io.ReadAll(armorWithOutWhitespace.Body)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !bytes.Equal(armorWithWhitespaceBody, armorWithOutWhitespaceBody) {
+		t.Errorf("got: %s want: %s", armorWithWhitespaceBody, armorWithOutWhitespaceBody)
+	}
+}
+
 const armorExample1 = `-----BEGIN PGP SIGNATURE-----
 Version: GnuPG v1.4.10 (GNU/Linux)
 
@@ -128,4 +156,20 @@ k3hXy+XB5mZW6iisjUnUBknJEa43AMX+zGSaGHljEgfTGLbgEK+deOhPqKEkhUKr
 /VlIVBXgfjQuoizme9S9juxXHdDHa+Y5Wb9rTUc1y9YPArRem51VI0OzbJ2cRnLH
 J0YF6lYvjcTVBtmQlYeOfZsz4EABEeBYe/rbDmJC
 =b+IB
+-----END PGP SIGNATURE-----`
+
+const armorWithWhitespace = `-----BEGIN PGP SIGNATURE-----
+
+	wsE7BAABCgBvBYJkbfmWCRD7/MgqAV5zMEcUAAAAAAAeACBzYWx0QG5vdGF0aW9u  
+	cy5zZXF1b2lhLXBncC5vcmeMXzsJEgIm228SdxV22XgYny4adwqEgyIT9UL3F92C       
+	OhYhBNGmbhojsYLJmA94jPv8yCoBXnMwAAAj1AwAiSkJPxsEcyaoYWbxc657xPW1     
+	MlrbNhDBIWpKVrqQgyz7NdDZvvY0Ty+/h62HK5GQ5obAzVmQVwtUVG950TxCksg1
+	F18mqticpxg1veZQdw7DBYTk0RJTpdVBRYJ5UOtHaSJUAnqGh7OQE6Lu74vfFhNv   
+	dDjpjgEc6TnJrEBOOR7+RVp7+0i4HhM3+JdfSOMMOEb6ixWEYLtfC2Zd/p0f7vP8  
+	tHiqllDXDbfBCXlFl5h2LAh39o/LE0vZvwf+C9i9PgRARawWIh+xeAJsVne8FZ12     
+	FD+hWZJdNUCv4iE1H7QDVv8nuPAz3WB/DQWNSfeGTZnN+ouB1cjPFscBuunO5Dss    
+	k3hXy+XB5mZW6iisjUnUBknJEa43AMX+zGSaGHljEgfTGLbgEK+deOhPqKEkhUKr
+	/VlIVBXgfjQuoizme9S9juxXHdDHa+Y5Wb9rTUc1y9YPArRem51VI0OzbJ2cRnLH  
+	J0YF6lYvjcTVBtmQlYeOfZsz4EABEeBYe/rbDmJC
+    =b+IB
 -----END PGP SIGNATURE-----`
