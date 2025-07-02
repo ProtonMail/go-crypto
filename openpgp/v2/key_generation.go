@@ -169,8 +169,8 @@ func writeKeyProperties(selfSignature *packet.Signature, selectedKeyProperties *
 	// appropriate a matching hash function is available.
 	acceptableHashes := acceptableHashesToWrite(&selectedKeyProperties.primaryKey.PublicKey)
 	var match bool
-	for _, acceptableHashes := range acceptableHashes {
-		if acceptableHashes == hash {
+	for _, acceptableHash := range acceptableHashes {
+		if acceptableHash == hash {
 			match = true
 			break
 		}
