@@ -185,6 +185,9 @@ type Config struct {
 	MaxDecompressedMessageSize *int64
 
 	// DisableCriticalSubpackets removes the critical flag from all signature subpackets.
+	// This can be needed for messages to be accepted by older clients who do not recognize
+	// some packets and are configured to reject critical packets they do not know (RFC 2440, section 5.2.3.1).
+	// Example: rpm 4.14.3-150400.59.3.1 in OpenSUSE Leap 15.4 not recognizing the key flag subpacket.
 	DisableCriticalSubpackets bool
 }
 
