@@ -184,11 +184,11 @@ type Config struct {
 	// excessively large decompressed messages.
 	MaxDecompressedMessageSize *int64
 
-	// DisableCriticalSubpackets removes the critical flag from all signature subpackets.
+	// DisableKeyFlagCriticalSubpacket removes the critical flag from the "Key Flags" signature subpacket.
 	// This can be needed for messages to be accepted by older clients who do not recognize
 	// some packets and are configured to reject critical packets they do not know (RFC 2440, section 5.2.3.1).
-	// Example: rpm 4.14.3-150400.59.3.1 in OpenSUSE Leap 15.4 not recognizing the key flag subpacket.
-	DisableCriticalSubpackets bool
+	// Example: rpm 4.14.3-150400.59.3.1 in OpenSUSE Leap 15.4 does not recognize it.
+	DisableKeyFlagCriticalSubpacket bool
 }
 
 func (c *Config) Random() io.Reader {
@@ -433,11 +433,11 @@ func (c *Config) DecompressedMessageSizeLimit() *int64 {
 	return c.MaxDecompressedMessageSize
 }
 
-func (c *Config) DisabledCriticalSubpackets() bool {
+func (c *Config) DisabledKeyFlagCriticalSubpacket() bool {
 	if c == nil {
 		return false
 	}
-	return c.DisableCriticalSubpackets
+	return c.DisableKeyFlagCriticalSubpacket
 }
 
 // BoolPointer is a helper function to set a boolean pointer in the Config.
