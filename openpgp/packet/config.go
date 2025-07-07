@@ -430,6 +430,13 @@ func (c *Config) DecompressedMessageSizeLimit() *int64 {
 	return c.MaxDecompressedMessageSize
 }
 
+func (c *Config) DisabledCriticalSubpackets() bool {
+	if c == nil {
+		return false
+	}
+	return c.DisableCriticalSubpackets
+}
+
 // BoolPointer is a helper function to set a boolean pointer in the Config.
 // e.g., config.CheckPacketSequence = BoolPointer(true)
 func BoolPointer(value bool) *bool {
