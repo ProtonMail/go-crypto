@@ -390,12 +390,10 @@ func TestSignatureWithTrustAndRegex(t *testing.T) {
 }
 
 func TestSignatureWithDisabledKeyFlagCriticalSubpacket(t *testing.T) {
-	lifeTime := uint32(3600 * 24 * 30) // 30 days
 	sig := &Signature{
 		SigType:         SigTypeGenericCert,
 		PubKeyAlgo:      PubKeyAlgoRSA,
 		Hash:            crypto.SHA256,
-		SigLifetimeSecs: &lifeTime,
 		FlagsValid:      true,
 		FlagSign:        true,
 	}
@@ -436,7 +434,7 @@ func TestSignatureWithDisabledKeyFlagCriticalSubpacket(t *testing.T) {
 	for _, subPacket := range sig.rawSubpackets {
 		if subPacket.subpacketType == keyFlagsSubpacket {
 			if subPacket.isCritical {
-				t.Errorf("signature expiration subpacket is marked as critical")
+				t.Errorf("key flags subpacket is marked as critical")
 			}
 		}
 	}

@@ -184,10 +184,11 @@ type Config struct {
 	// excessively large decompressed messages.
 	MaxDecompressedMessageSize *int64
 
-	// InsecureGenerateNonCriticalKeyFlags removes the critical flag from the "Key Flags" signature subpacket.
-	// This can be needed for messages to be accepted by older clients who do not recognize
-	// some packets and are configured to reject critical packets they do not know (RFC 2440, section 5.2.3.1).
-	// Example: rpm 4.14.3-150400.59.3.1 in OpenSUSE Leap 15.4 does not recognize it.
+	// InsecureGenerateNonCriticalKeyFlags causes the "Key Flags" signature subpacket
+	// to be non-critical in newly generated signatures.
+	// This may be needed for keys to be accepted by older clients who do not recognize
+	// the subpacket.
+	// For example, rpm 4.14.3-150400.59.3.1 in OpenSUSE Leap 15.4 does not recognize it.
 	InsecureGenerateNonCriticalKeyFlags bool
 }
 
