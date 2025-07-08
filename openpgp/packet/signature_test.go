@@ -418,7 +418,7 @@ func TestSignatureWithDisabledKeyFlagCriticalSubpacket(t *testing.T) {
 	}
 
 	err = sig.SignUserId("", pubKey, privKey, &Config{
-		DisableKeyFlagCriticalSubpacket: true,
+		InsecureGenerateNonCriticalKeyFlags: true,
 	})
 	if err != nil {
 		t.Errorf("failed to sign user id: %v", err)

@@ -1357,7 +1357,7 @@ func (sig *Signature) buildSubpackets(issuer PublicKey, config *Config) (subpack
 		if sig.FlagGroupKey {
 			flags |= KeyFlagGroupKey
 		}
-		subpackets = append(subpackets, outputSubpacket{true, keyFlagsSubpacket, !config.DisabledKeyFlagCriticalSubpacket(), []byte{flags}})
+		subpackets = append(subpackets, outputSubpacket{true, keyFlagsSubpacket, !config.GenerateNonCriticalKeyFlags(), []byte{flags}})
 	}
 	// Signer's User ID
 	if sig.SignerUserId != nil {
