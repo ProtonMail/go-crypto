@@ -391,11 +391,11 @@ func TestSignatureWithTrustAndRegex(t *testing.T) {
 
 func TestSignatureWithDisabledKeyFlagCriticalSubpacket(t *testing.T) {
 	sig := &Signature{
-		SigType:         SigTypeGenericCert,
-		PubKeyAlgo:      PubKeyAlgoRSA,
-		Hash:            crypto.SHA256,
-		FlagsValid:      true,
-		FlagSign:        true,
+		SigType:    SigTypeGenericCert,
+		PubKeyAlgo: PubKeyAlgoRSA,
+		Hash:       crypto.SHA256,
+		FlagsValid: true,
+		FlagSign:   true,
 	}
 
 	packet, err := Read(readerFromHex(rsaPkDataHex))
@@ -435,6 +435,57 @@ func TestSignatureWithDisabledKeyFlagCriticalSubpacket(t *testing.T) {
 		if subPacket.subpacketType == keyFlagsSubpacket {
 			if subPacket.isCritical {
 				t.Errorf("key flags subpacket is marked as critical")
+			}
+		}
+	}
+}
+
+func TestSignatureWithDisabledSignatureCreationTimeCriticalSubpacket(t *testing.T) {
+	sig := &Signature{
+		SigType:    SigTypeGenericCert,
+		PubKeyAlgo: PubKeyAlgoRSA,
+		Hash:       crypto.SHA256,
+		FlagsValid: true,
+		FlagSign:   true,
+	}
+
+	packet, err := Read(readerFromHex(rsaPkDataHex))
+	if err != nil {
+		t.Fatalf("failed to deserialize public key: %v", err)
+	}
+	pubKey := packet.(*PublicKey)
+
+	packet, err = Read(readerFromHex(privKeyRSAHex))
+	if err != nil {
+		t.Fatalf("failed to deserialize private key: %v", err)
+	}
+	privKey := packet.(*PrivateKey)
+
+	err = privKey.Decrypt([]byte("testing"))
+	if err != nil {
+		t.Fatalf("failed to decrypt private key: %v", err)
+	}
+
+	err = sig.SignUserId("", pubKey, privKey, &Config{
+		InsecureGenerateNonCriticalSignatureCreationDate: true,
+	})
+	if err != nil {
+		t.Errorf("failed to sign user id: %v", err)
+	}
+
+	buf := bytes.NewBuffer([]byte{})
+	err = sig.Serialize(buf)
+	if err != nil {
+		t.Errorf("failed to serialize signature: %v", err)
+	}
+
+	packet, _ = Read(bytes.NewReader(buf.Bytes()))
+	sig = packet.(*Signature)
+
+	for _, subPacket := range sig.rawSubpackets {
+		if subPacket.subpacketType == creationTimeSubpacket {
+			if subPacket.isCritical {
+				t.Errorf("signature creation time subpacket is marked as critical")
 			}
 		}
 	}

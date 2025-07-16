@@ -185,6 +185,13 @@ type Config struct {
 	// For example, rpm 4.14.3-150400.59.3.1 in OpenSUSE Leap 15.4 does not recognize it.
 	InsecureGenerateNonCriticalKeyFlags bool
 
+	// InsecureGenerateNonCriticalSignatureCreationDate causes the "Signature Creation Date" signature subpacket
+	// to be non-critical in newly generated signatures.
+	// This may be needed for keys to be accepted by older clients who do not recognize
+	// the subpacket.
+	// For example, yum 3.4.3-168 in CentOS 7 and yum 3.4.3-158 Amazon Linux 2 do not recognize it.
+	InsecureGenerateNonCriticalSignatureCreationDate bool
+
 	// MaxDecompressedMessageSize specifies the maximum number of bytes that can be
 	// read from a compressed packet. This serves as an upper limit to prevent
 	// excessively large decompressed messages.
@@ -431,6 +438,13 @@ func (c *Config) GenerateNonCriticalKeyFlags() bool {
 		return false
 	}
 	return c.InsecureGenerateNonCriticalKeyFlags
+}
+
+func (c *Config) GenerateNonCriticalSignatureCreationDate() bool {
+	if c == nil {
+		return false
+	}
+	return c.InsecureGenerateNonCriticalSignatureCreationDate
 }
 
 func (c *Config) DecompressedMessageSizeLimit() *int64 {
