@@ -467,7 +467,7 @@ func TestSignatureWithDisabledSignatureCreationTimeCriticalSubpacket(t *testing.
 	}
 
 	err = sig.SignUserId("", pubKey, privKey, &Config{
-		InsecureGenerateNonCriticalSignatureCreationDate: true,
+		InsecureGenerateNonCriticalSignatureCreationTime: true,
 	})
 	if err != nil {
 		t.Errorf("failed to sign user id: %v", err)
