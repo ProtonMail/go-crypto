@@ -184,12 +184,11 @@ type Config struct {
 	// the subpacket.
 	// For example, rpm 4.14.3-150400.59.3.1 in OpenSUSE Leap 15.4 does not recognize it.
 	InsecureGenerateNonCriticalKeyFlags bool
-
 	// InsecureGenerateNonCriticalSignatureCreationTime causes the "Signature Creation Time" signature subpacket
 	// to be non-critical in newly generated signatures.
 	// This may be needed for keys to be accepted by older clients who do not recognize
 	// the subpacket.
-	// For example, yum 3.4.3-168 in CentOS 7 and yum 3.4.3-158 Amazon Linux 2 do not recognize it.
+	// For example, yum 3.4.3-168 in CentOS 7 and yum 3.4.3-158 in Amazon Linux 2 do not recognize it.
 	InsecureGenerateNonCriticalSignatureCreationTime bool
 
 	// MaxDecompressedMessageSize specifies the maximum number of bytes that can be

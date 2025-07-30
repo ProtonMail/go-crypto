@@ -389,7 +389,7 @@ func TestSignatureWithTrustAndRegex(t *testing.T) {
 	}
 }
 
-func TestSignatureWithDisabledKeyFlagCriticalSubpacket(t *testing.T) {
+func TestGenerateSignatureWithNonCriticalKeyFlagsSubpacket(t *testing.T) {
 	sig := &Signature{
 		SigType:    SigTypeGenericCert,
 		PubKeyAlgo: PubKeyAlgoRSA,
@@ -440,7 +440,7 @@ func TestSignatureWithDisabledKeyFlagCriticalSubpacket(t *testing.T) {
 	}
 }
 
-func TestSignatureWithDisabledSignatureCreationTimeCriticalSubpacket(t *testing.T) {
+func TestGenerateSignatureWithNonCriticalSignatureCreationTimeSubpacket(t *testing.T) {
 	sig := &Signature{
 		SigType:    SigTypeGenericCert,
 		PubKeyAlgo: PubKeyAlgoRSA,
