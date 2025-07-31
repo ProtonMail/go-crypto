@@ -74,11 +74,13 @@ func NewEntity(name, comment, email string, config *packet.Config) (*Entity, err
 		return nil, err
 	}
 
-	// NOTE: No key expiry here, but we will not return this subkey in EncryptionKey()
-	// if the primary/master key has expired.
-	err = e.addEncryptionSubkey(config, creationTime, 0)
-	if err != nil {
-		return nil, err
+	if !config.NoEncryptionSubkey() {
+		// NOTE: No key expiry here, but we will not return this subkey in EncryptionKey()
+		// if the primary/master key has expired.
+		err = e.addEncryptionSubkey(config, creationTime, 0)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return e, nil
