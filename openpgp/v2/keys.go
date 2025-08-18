@@ -126,6 +126,7 @@ func (e *Entity) EncryptionKeyWithError(now time.Time, config *packet.Config) (K
 	// Iterate the keys to find the newest, unexpired one
 	var latestSelectionError *errors.ErrEncryptionKeySelection
 	candidateSubkey := -1
+	isPQ := false
 	var maxTime time.Time
 	var selectedSubkeySelfSig *packet.Signature
 	for i, subkey := range e.Subkeys {
@@ -153,10 +154,11 @@ func (e *Entity) EncryptionKeyWithError(now time.Time, config *packet.Config) (K
 			latestSelectionError = subkeyErr(err)
 			continue
 		}
-		if maxTime.IsZero() || subkeySelfSig.CreationTime.Unix() >= maxTime.Unix() {
+		if maxTime.IsZero() || subkeySelfSig.CreationTime.Unix() >= maxTime.Unix() || (!isPQ && subkey.IsPQ()) {
 			candidateSubkey = i
 			selectedSubkeySelfSig = subkeySelfSig
 			maxTime = subkeySelfSig.CreationTime
+			isPQ = subkey.IsPQ() // Prefer PQ keys
 		}
 	}
 
@@ -206,12 +208,12 @@ func (e *Entity) DecryptionKeys(id uint64, date time.Time, config *packet.Config
 	for _, subkey := range e.Subkeys {
 		subkeySelfSig, err := subkey.LatestValidBindingSignature(date, config)
 		if err == nil &&
-			(config.AllowDecryptionWithSigningKeys() || isValidEncryptionKey(subkeySelfSig, subkey.PublicKey.PubKeyAlgo, config)) &&
+			(config.AllowDecryptionWithSigningKeys() || isValidDecryptionKey(subkeySelfSig, subkey.PublicKey.PubKeyAlgo, config)) &&
 			(id == 0 || subkey.PublicKey.KeyId == id) {
 			keys = append(keys, Key{subkey.Primary, primarySelfSignature, subkey.PublicKey, subkey.PrivateKey, subkeySelfSig})
 		}
 	}
-	if config.AllowDecryptionWithSigningKeys() || isValidEncryptionKey(primarySelfSignature, e.PrimaryKey.PubKeyAlgo, config) {
+	if config.AllowDecryptionWithSigningKeys() || isValidDecryptionKey(primarySelfSignature, e.PrimaryKey.PubKeyAlgo, config) {
 		keys = append(keys, Key{e, primarySelfSignature, e.PrimaryKey, e.PrivateKey, primarySelfSignature})
 	}
 	return
@@ -255,6 +257,7 @@ func (e *Entity) signingKeyByIdUsage(now time.Time, id uint64, flags int, config
 	}
 
 	// Iterate the keys to find the newest, unexpired one.
+	isPQ := false
 	candidateSubkey := -1
 	var maxTime time.Time
 	var selectedSubkeySelfSig *packet.Signature
@@ -265,10 +268,12 @@ func (e *Entity) signingKeyByIdUsage(now time.Time, id uint64, flags int, config
 			(flags&packet.KeyFlagSign == 0 || isValidSigningKey(subkeySelfSig, subkey.PublicKey.PubKeyAlgo, config)) &&
 			checkKeyRequirements(subkey.PublicKey, config) == nil &&
 			(maxTime.IsZero() || subkeySelfSig.CreationTime.Unix() >= maxTime.Unix()) &&
-			(id == 0 || subkey.PublicKey.KeyId == id) {
+			(id == 0 || subkey.PublicKey.KeyId == id) &&
+			(!isPQ || subkey.IsPQ()) {
 			candidateSubkey = idx
 			maxTime = subkeySelfSig.CreationTime
 			selectedSubkeySelfSig = subkeySelfSig
+			isPQ = subkey.IsPQ()
 		}
 	}
 
@@ -651,6 +656,12 @@ func (e *Entity) serializePrivate(w io.Writer, config *packet.Config, reSign boo
 // Serialize writes the public part of the given Entity to w, including
 // signatures from other entities. No private key material will be output.
 func (e *Entity) Serialize(w io.Writer) error {
+	if e.PrimaryKey.PubKeyAlgo == packet.PubKeyAlgoHMAC ||
+		e.PrimaryKey.PubKeyAlgo == packet.PubKeyAlgoAEAD ||
+		e.PrimaryKey.PubKeyAlgo == packet.ExperimentalPubKeyAlgoHMAC ||
+		e.PrimaryKey.PubKeyAlgo == packet.ExperimentalPubKeyAlgoAEAD {
+		return errors.InvalidArgumentError("Can't serialize symmetric primary key")
+	}
 	if err := e.PrimaryKey.Serialize(w); err != nil {
 		return err
 	}
@@ -671,6 +682,18 @@ func (e *Entity) Serialize(w io.Writer) error {
 		}
 	}
 	for _, subkey := range e.Subkeys {
+		// The types of keys below are only useful as private keys. Thus, the
+		// public key packets contain no meaningful information and do not need
+		// to be serialized.
+		// Prevent public key export for forwarding keys, see forwarding section 4.1.
+		subKeySelfSig, err := subkey.LatestValidBindingSignature(time.Time{}, nil)
+		if subkey.PublicKey.PubKeyAlgo == packet.PubKeyAlgoHMAC ||
+			subkey.PublicKey.PubKeyAlgo == packet.PubKeyAlgoAEAD ||
+			subkey.PublicKey.PubKeyAlgo == packet.ExperimentalPubKeyAlgoHMAC ||
+			subkey.PublicKey.PubKeyAlgo == packet.ExperimentalPubKeyAlgoAEAD ||
+			(err == nil && subKeySelfSig.FlagForward) {
+			continue
+		}
 		if err := subkey.Serialize(w, false); err != nil {
 			return err
 		}
@@ -843,6 +866,18 @@ func isValidEncryptionKey(signature *packet.Signature, algo packet.PublicKeyAlgo
 
 	if signature.FlagsValid {
 		return signature.FlagEncryptCommunications || signature.FlagEncryptStorage
+	}
+
+	return config.AllowAllKeyFlagsWhenMissing()
+}
+
+func isValidDecryptionKey(signature *packet.Signature, algo packet.PublicKeyAlgorithm, config *packet.Config) bool {
+	if !algo.CanEncrypt() {
+		return false
+	}
+
+	if signature.FlagsValid {
+		return signature.FlagEncryptCommunications || signature.FlagForward || signature.FlagEncryptStorage
 	}
 
 	return config.AllowAllKeyFlagsWhenMissing()

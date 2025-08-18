@@ -134,6 +134,7 @@ func (e *Entity) EncryptionKey(now time.Time) (Key, bool) {
 
 	// Iterate the keys to find the newest, unexpired one
 	candidateSubkey := -1
+	isPQ := false
 	var maxTime time.Time
 	for i, subkey := range e.Subkeys {
 		if subkey.Sig.FlagsValid &&
@@ -142,9 +143,10 @@ func (e *Entity) EncryptionKey(now time.Time) (Key, bool) {
 			!subkey.PublicKey.KeyExpired(subkey.Sig, now) &&
 			!subkey.Sig.SigExpired(now) &&
 			!subkey.Revoked(now) &&
-			(maxTime.IsZero() || subkey.Sig.CreationTime.After(maxTime)) {
+			(maxTime.IsZero() || subkey.Sig.CreationTime.After(maxTime) || (!isPQ && subkey.IsPQ())) {
 			candidateSubkey = i
 			maxTime = subkey.Sig.CreationTime
+			isPQ = subkey.IsPQ() // Prefer PQ keys
 		}
 	}
 
@@ -201,6 +203,7 @@ func (e *Entity) signingKeyByIdUsage(now time.Time, id uint64, flags int) (Key, 
 	// Iterate the keys to find the newest, unexpired one
 	candidateSubkey := -1
 	var maxTime time.Time
+	isPQ := false
 	for idx, subkey := range e.Subkeys {
 		if subkey.Sig.FlagsValid &&
 			(flags&packet.KeyFlagCertify == 0 || subkey.Sig.FlagCertify) &&
@@ -210,9 +213,11 @@ func (e *Entity) signingKeyByIdUsage(now time.Time, id uint64, flags int) (Key, 
 			!subkey.Sig.SigExpired(now) &&
 			!subkey.Revoked(now) &&
 			(maxTime.IsZero() || subkey.Sig.CreationTime.After(maxTime)) &&
-			(id == 0 || subkey.PublicKey.KeyId == id) {
+			(id == 0 || subkey.PublicKey.KeyId == id) &&
+			(!isPQ || subkey.IsPQ()) {
 			candidateSubkey = idx
 			maxTime = subkey.Sig.CreationTime
+			isPQ = subkey.IsPQ()
 		}
 	}
 
@@ -305,6 +310,11 @@ func (s *Subkey) Revoked(now time.Time) bool {
 	return revoked(s.Revocations, now)
 }
 
+// IsPQ returns true if the algorithm is Post-Quantum safe.
+func (s *Subkey) IsPQ() bool {
+	return s.PublicKey.IsPQ()
+}
+
 // Revoked returns whether the key or subkey has been revoked by a self-signature.
 // Note that third-party revocation signatures are not supported.
 // Note also that Identity revocation should be checked separately.
@@ -371,7 +381,7 @@ func (el EntityList) KeysByIdUsage(id uint64, requiredUsage byte) (keys []Key) {
 func (el EntityList) DecryptionKeys() (keys []Key) {
 	for _, e := range el {
 		for _, subKey := range e.Subkeys {
-			if subKey.PrivateKey != nil && subKey.Sig.FlagsValid && (subKey.Sig.FlagEncryptStorage || subKey.Sig.FlagEncryptCommunications) {
+			if subKey.PrivateKey != nil && subKey.Sig.FlagsValid && (subKey.Sig.FlagEncryptStorage || subKey.Sig.FlagEncryptCommunications || subKey.Sig.FlagForward) {
 				keys = append(keys, Key{e, subKey.PublicKey, subKey.PrivateKey, subKey.Sig, subKey.Revocations})
 			}
 		}
@@ -761,6 +771,12 @@ func (e *Entity) serializePrivate(w io.Writer, config *packet.Config, reSign boo
 // Serialize writes the public part of the given Entity to w, including
 // signatures from other entities. No private key material will be output.
 func (e *Entity) Serialize(w io.Writer) error {
+	if e.PrimaryKey.PubKeyAlgo == packet.PubKeyAlgoHMAC ||
+		e.PrimaryKey.PubKeyAlgo == packet.PubKeyAlgoAEAD ||
+		e.PrimaryKey.PubKeyAlgo == packet.ExperimentalPubKeyAlgoHMAC ||
+		e.PrimaryKey.PubKeyAlgo == packet.ExperimentalPubKeyAlgoAEAD {
+		return errors.InvalidArgumentError("Can't serialize symmetric primary key")
+	}
 	err := e.PrimaryKey.Serialize(w)
 	if err != nil {
 		return err
@@ -790,6 +806,18 @@ func (e *Entity) Serialize(w io.Writer) error {
 		}
 	}
 	for _, subkey := range e.Subkeys {
+		// The types of keys below are only useful as private keys. Thus, the
+		// public key packets contain no meaningful information and do not need
+		// to be serialized.
+		// Prevent public key export for forwarding keys, see forwarding section 4.1.
+		if subkey.PublicKey.PubKeyAlgo == packet.PubKeyAlgoHMAC ||
+			subkey.PublicKey.PubKeyAlgo == packet.PubKeyAlgoAEAD ||
+			subkey.PublicKey.PubKeyAlgo == packet.ExperimentalPubKeyAlgoHMAC ||
+			subkey.PublicKey.PubKeyAlgo == packet.ExperimentalPubKeyAlgoAEAD ||
+			subkey.Sig.FlagForward {
+			continue
+		}
+
 		err = subkey.PublicKey.Serialize(w)
 		if err != nil {
 			return err
