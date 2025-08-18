@@ -3,10 +3,12 @@
 package ecdsa
 
 import (
+	"crypto/elliptic"
 	"errors"
-	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
 	"io"
 	"math/big"
+
+	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
 )
 
 type PublicKey struct {
@@ -17,6 +19,14 @@ type PublicKey struct {
 type PrivateKey struct {
 	PublicKey
 	D *big.Int
+}
+
+// NewPublicKeyFromCurve takes an elliptic curve, and returns a PublicKey
+// of that curve type.
+func NewPublicKeyFromCurve(c elliptic.Curve) *PublicKey {
+	return &PublicKey{
+		curve: ecc.NewGenericCurve(c),
+	}
 }
 
 func NewPublicKey(curve ecc.ECDSACurve) *PublicKey {
