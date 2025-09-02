@@ -11,10 +11,15 @@ import (
 	"crypto/cipher"
 	"crypto/rsa"
 	"io"
+	"os"
 
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
 )
+
+func init() {
+	os.Setenv("GODEBUG", "rsa1024min=0")
+}
 
 // readFull is the same as io.ReadFull except that reading zero bytes returns
 // ErrUnexpectedEOF rather than EOF.
@@ -506,8 +511,8 @@ const (
 	PubKeyAlgoEd25519 PublicKeyAlgorithm = 27
 	PubKeyAlgoEd448   PublicKeyAlgorithm = 28
 
-	PubKeyAlgoAEAD PublicKeyAlgorithm = 128
-	PubKeyAlgoHMAC PublicKeyAlgorithm = 129
+	PubKeyAlgoAEAD             PublicKeyAlgorithm = 128
+	PubKeyAlgoHMAC             PublicKeyAlgorithm = 129
 	ExperimentalPubKeyAlgoAEAD PublicKeyAlgorithm = 100
 	ExperimentalPubKeyAlgoHMAC PublicKeyAlgorithm = 101
 
