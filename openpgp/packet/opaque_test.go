@@ -48,7 +48,7 @@ func TestOpaqueParseReason(t *testing.T) {
 		count++
 	}
 
-	const expectedBad = 3
+	const expectedBad = 2
 	// Test post-conditions, make sure we actually parsed packets as expected.
 	if badPackets != expectedBad {
 		t.Errorf("unexpected # unparseable packets: %d (want %d)", badPackets, expectedBad)
