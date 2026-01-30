@@ -278,6 +278,17 @@ func NewSlhdsaPublicKey(creationTime time.Time, pub *slhdsa.PublicKey) *PublicKe
 }
 
 func (pk *PublicKey) parse(r io.Reader) (err error) {
+	err = pk.parsePublicKey(r)
+	if err != nil {
+		return
+	}
+	if pk.PubKeyAlgo == PubKeyAlgoAEAD {
+		return goerrors.New("openpgp: AEAD may only be used with persistent symmetric key packets")
+	}
+	return
+}
+
+func (pk *PublicKey) parsePublicKey(r io.Reader) (err error) {
 	// RFC 4880, section 5.5.2
 	var buf [6]byte
 	_, err = readFull(r, buf[:])
@@ -307,6 +318,8 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 	pk.PubKeyAlgo = PublicKeyAlgorithm(buf[5])
 	// Ignore four-octet length
 	switch pk.PubKeyAlgo {
+	case PubKeyAlgoAEAD:
+		err = pk.parseAEAD(r)
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoRSASignOnly:
 		err = pk.parseRSA(r)
 	case PubKeyAlgoDSA:
@@ -401,6 +414,27 @@ func (pk *PublicKey) checkV6Compatibility() error {
 		return errors.StructuralError("cannot generate v6 key with deprecated algorithm: EdDSALegacy")
 	}
 	return nil
+}
+
+// parseAEAD parses AEAD public key material from the given Reader.
+// See draft-ietf-openpgp-persistent-symmetric-keys.
+func (pk *PublicKey) parseAEAD(r io.Reader) (err error) {
+	algoAndFpSeed := make([]byte, 33)
+	_, err = io.ReadFull(r, algoAndFpSeed)
+	if err != nil {
+		return
+	}
+	aead := &PersistentSymmetricKeyPublicFields{
+		SymmetricAlgorithm: CipherFunction(algoAndFpSeed[0]),
+		FingerprintSeed: algoAndFpSeed[1:],
+	}
+	if aead.SymmetricAlgorithm != CipherAES128 &&
+		aead.SymmetricAlgorithm != CipherAES192 &&
+		aead.SymmetricAlgorithm != CipherAES256 {
+		return errors.UnsupportedError(fmt.Sprintf("unknown or weak algorithm: %d", aead.SymmetricAlgorithm))
+	}
+	pk.PublicKey = aead
+	return
 }
 
 // parseRSA parses RSA public key material from the given Reader. See RFC 4880,
@@ -815,6 +849,8 @@ func (pk *PublicKey) Serialize(w io.Writer) (err error) {
 func (pk *PublicKey) algorithmSpecificByteCount() uint32 {
 	length := uint32(0)
 	switch pk.PubKeyAlgo {
+	case PubKeyAlgoAEAD:
+		length += 33 // Symmetric algorithm ID and fingerprint seed
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoRSASignOnly:
 		length += uint32(pk.n.EncodedLength())
 		length += uint32(pk.e.EncodedLength())
@@ -888,6 +924,13 @@ func (pk *PublicKey) serializeWithoutHeaders(w io.Writer) (err error) {
 	}
 
 	switch pk.PubKeyAlgo {
+	case PubKeyAlgoAEAD:
+		publicKey := pk.PublicKey.(*PersistentSymmetricKeyPublicFields)
+		if _, err = w.Write([]byte{byte(publicKey.SymmetricAlgorithm)}); err != nil {
+			return
+		}
+		_, err = w.Write(publicKey.FingerprintSeed)
+		return
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoRSASignOnly:
 		if _, err = w.Write(pk.n.EncodedBytes()); err != nil {
 			return
@@ -1061,25 +1104,25 @@ func (pk *PublicKey) VerifySignature(signed hash.Hash, sig *Signature) (err erro
 		return nil
 	case PubKeyAlgoEd25519:
 		ed25519PublicKey := pk.PublicKey.(*ed25519.PublicKey)
-		if !ed25519.Verify(ed25519PublicKey, hashBytes, sig.EdSig) {
+		if !ed25519.Verify(ed25519PublicKey, hashBytes, sig.SigBytes1) {
 			return errors.SignatureError("Ed25519 verification failure")
 		}
 		return nil
 	case PubKeyAlgoEd448:
 		ed448PublicKey := pk.PublicKey.(*ed448.PublicKey)
-		if !ed448.Verify(ed448PublicKey, hashBytes, sig.EdSig) {
+		if !ed448.Verify(ed448PublicKey, hashBytes, sig.SigBytes1) {
 			return errors.SignatureError("ed448 verification failure")
 		}
 		return nil
 	case PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
 		mldsaEddsaPublicKey := pk.PublicKey.(*mldsa_eddsa.PublicKey)
-		if !mldsa_eddsa.Verify(mldsaEddsaPublicKey, hashBytes, sig.MldsaSig, sig.EdSig) {
+		if !mldsa_eddsa.Verify(mldsaEddsaPublicKey, hashBytes, sig.SigBytes2, sig.SigBytes1) {
 			return errors.SignatureError("MldsaEddsa verification failure")
 		}
 		return nil
 	case PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
 		slhDsaPublicKey := pk.PublicKey.(*slhdsa.PublicKey)
-		if !slhdsa.Verify(slhDsaPublicKey, hashBytes, sig.SlhdsaSig) {
+		if !slhdsa.Verify(slhDsaPublicKey, hashBytes, sig.SigBytes1) {
 			return errors.SignatureError("Slhdsa verification failure")
 		}
 		return nil

@@ -47,7 +47,8 @@ type PrivateKey struct {
 	s2k           func(out, in []byte)
 	aead          AEADMode // only relevant if S2KAEAD is enabled
 	// An *{rsa|dsa|elgamal|ecdh|ecdsa|ed25519|ed448}.PrivateKey or
-	// crypto.Signer/crypto.Decrypter (Decryptor RSA only).
+	// crypto.Signer/crypto.Decrypter (Decryptor RSA only) or
+	// *packet.PersistentSymmetricKeyPrivateFields (AEAD only).
 	PrivateKey interface{}
 	iv         []byte
 
@@ -205,7 +206,18 @@ func NewDecrypterPrivateKey(creationTime time.Time, decrypter interface{}) *Priv
 }
 
 func (pk *PrivateKey) parse(r io.Reader) (err error) {
-	err = (&pk.PublicKey).parse(r)
+	err = pk.parsePrivateKey(r)
+	if err != nil {
+		return
+	}
+	if pk.PubKeyAlgo == PubKeyAlgoAEAD {
+		return goerrors.New("openpgp: AEAD may only be used with persistent symmetric key packets")
+	}
+	return
+}
+
+func (pk *PrivateKey) parsePrivateKey(r io.Reader) (err error) {
+	err = (&pk.PublicKey).parsePublicKey(r)
 	if err != nil {
 		return
 	}
@@ -351,10 +363,10 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 				return errors.StructuralError("private key checksum failure")
 			}
 			privateKeyData = privateKeyData[:len(privateKeyData)-2]
-			return pk.parsePrivateKey(privateKeyData)
+			return pk.parsePrivateKeyMaterial(privateKeyData)
 		} else {
 			// No checksum
-			return pk.parsePrivateKey(privateKeyData)
+			return pk.parsePrivateKeyMaterial(privateKeyData)
 		}
 	}
 
@@ -377,11 +389,32 @@ func mod64kHash(d []byte) uint16 {
 
 func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 	contents := bytes.NewBuffer(nil)
-	err = pk.PublicKey.serializeWithoutHeaders(contents)
+	err = pk.serializeWithoutHeaders(contents)
 	if err != nil {
 		return
 	}
-	if _, err = contents.Write([]byte{uint8(pk.s2kType)}); err != nil {
+
+	ptype := packetTypePrivateKey
+	if pk.IsSubkey {
+		ptype = packetTypePrivateSubkey
+	}
+	err = serializeHeader(w, ptype, contents.Len())
+	if err != nil {
+		return
+	}
+	_, err = io.Copy(w, contents)
+	if err != nil {
+		return
+	}
+	return
+}
+
+func (pk *PrivateKey) serializeWithoutHeaders(w io.Writer) (err error) {
+	err = pk.PublicKey.serializeWithoutHeaders(w)
+	if err != nil {
+		return
+	}
+	if _, err = w.Write([]byte{uint8(pk.s2kType)}); err != nil {
 		return
 	}
 
@@ -434,10 +467,10 @@ func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 		}
 	}
 	if pk.Version == 5 || (pk.Version == 6 && pk.s2kType != S2KNON) {
-		contents.Write([]byte{uint8(optional.Len())})
+		w.Write([]byte{uint8(optional.Len())})
 	}
 
-	if _, err := io.Copy(contents, optional); err != nil {
+	if _, err := io.Copy(w, optional); err != nil {
 		return err
 	}
 
@@ -446,7 +479,7 @@ func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 		var priv []byte
 		if !pk.Encrypted {
 			buf := bytes.NewBuffer(nil)
-			err = pk.serializePrivateKey(buf)
+			err = pk.serializePrivateKeyMaterial(buf)
 			if err != nil {
 				return err
 			}
@@ -461,24 +494,16 @@ func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 		}
 
 		if pk.Version == 5 {
-			contents.Write([]byte{byte(l >> 24), byte(l >> 16), byte(l >> 8), byte(l)})
+			w.Write([]byte{byte(l >> 24), byte(l >> 16), byte(l >> 8), byte(l)})
 		}
-		contents.Write(priv)
-	}
-
-	ptype := packetTypePrivateKey
-	if pk.IsSubkey {
-		ptype = packetTypePrivateSubkey
-	}
-	err = serializeHeader(w, ptype, contents.Len())
-	if err != nil {
-		return
-	}
-	_, err = io.Copy(w, contents)
-	if err != nil {
-		return
+		w.Write(priv)
 	}
 	return
+}
+
+func serializeAEADPrivateKey(w io.Writer, priv *PersistentSymmetricKeyPrivateFields) error {
+	_, err := w.Write(priv.Key)
+	return err
 }
 
 func serializeRSAPrivateKey(w io.Writer, priv *rsa.PrivateKey) error {
@@ -629,7 +654,7 @@ func (pk *PrivateKey) decrypt(decryptionKey []byte) error {
 		return errors.InvalidArgumentError("invalid s2k type")
 	}
 
-	err := pk.parsePrivateKey(data)
+	err := pk.parsePrivateKeyMaterial(data)
 	if _, ok := err.(errors.KeyInvalidError); ok {
 		return errors.KeyInvalidError("invalid key parameters")
 	}
@@ -718,7 +743,7 @@ func (pk *PrivateKey) encrypt(key []byte, params *s2k.Params, s2kType S2KType, c
 	}
 
 	priv := bytes.NewBuffer(nil)
-	err := pk.serializePrivateKey(priv)
+	err := pk.serializePrivateKeyMaterial(priv)
 	if err != nil {
 		return err
 	}
@@ -852,8 +877,10 @@ func (pk *PrivateKey) Encrypt(passphrase []byte) error {
 	return pk.EncryptWithConfig(passphrase, config)
 }
 
-func (pk *PrivateKey) serializePrivateKey(w io.Writer) (err error) {
+func (pk *PrivateKey) serializePrivateKeyMaterial(w io.Writer) (err error) {
 	switch priv := pk.PrivateKey.(type) {
+	case *PersistentSymmetricKeyPrivateFields:
+		err = serializeAEADPrivateKey(w, priv)
 	case *rsa.PrivateKey:
 		err = serializeRSAPrivateKey(w, priv)
 	case *dsa.PrivateKey:
@@ -886,8 +913,10 @@ func (pk *PrivateKey) serializePrivateKey(w io.Writer) (err error) {
 	return
 }
 
-func (pk *PrivateKey) parsePrivateKey(data []byte) (err error) {
+func (pk *PrivateKey) parsePrivateKeyMaterial(data []byte) (err error) {
 	switch pk.PublicKey.PubKeyAlgo {
+	case PubKeyAlgoAEAD:
+		return pk.parseAEADPrivateKey(data)
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoRSAEncryptOnly:
 		return pk.parseRSAPrivateKey(data)
 	case PubKeyAlgoDSA:
@@ -937,6 +966,13 @@ func (pk *PrivateKey) parsePrivateKey(data []byte) (err error) {
 		err = errors.StructuralError("unknown private key type")
 		return
 	}
+}
+
+func (pk *PrivateKey) parseAEADPrivateKey(data []byte) (err error) {
+	aeadPriv := new(PersistentSymmetricKeyPrivateFields)
+	aeadPriv.Key = data
+	pk.PrivateKey = aeadPriv
+	return nil
 }
 
 func (pk *PrivateKey) parseRSAPrivateKey(data []byte) (err error) {
@@ -1165,7 +1201,9 @@ func (pk *PrivateKey) additionalData() ([]byte, error) {
 	additionalData := bytes.NewBuffer(nil)
 	// Write additional data prefix based on packet type
 	var packetByte byte
-	if pk.PublicKey.IsSubkey {
+	if pk.PubKeyAlgo == PubKeyAlgoAEAD {
+		packetByte = 0xe8 // Must be a persistent symmetric key packet
+	} else if pk.PublicKey.IsSubkey {
 		packetByte = 0xc7
 	} else {
 		packetByte = 0xc5
@@ -1184,7 +1222,9 @@ func (pk *PrivateKey) additionalData() ([]byte, error) {
 
 func (pk *PrivateKey) applyHKDF(inputKey []byte) []byte {
 	var packetByte byte
-	if pk.PublicKey.IsSubkey {
+	if pk.PubKeyAlgo == PubKeyAlgoAEAD {
+		packetByte = 0xe8 // Must be a persistent symmetric key packet
+	} else if pk.PublicKey.IsSubkey {
 		packetByte = 0xc7
 	} else {
 		packetByte = 0xc5
