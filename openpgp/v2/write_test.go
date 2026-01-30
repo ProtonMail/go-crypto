@@ -727,6 +727,16 @@ var testEncryptionTests = map[string]struct {
 		true,
 		true,
 	},
+	"PersistentSymmetricKey": {
+		persistentSymmetricKey,
+		false,
+		true,
+	},
+	"PersistentSymmetricKey_signed": {
+		persistentSymmetricKey,
+		true,
+		true,
+	},
 }
 
 func TestEncryption(t *testing.T) {
@@ -868,6 +878,9 @@ var testSigningTests = []struct {
 	},
 	{
 		ed25519wX25519Key,
+	},
+	{
+		persistentSymmetricKey,
 	},
 }
 

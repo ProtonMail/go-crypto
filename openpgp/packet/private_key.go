@@ -487,6 +487,11 @@ func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 	return
 }
 
+func serializeAEADPrivateKey(w io.Writer, priv *PersistentSymmetricKeyPrivateFields) error {
+	_, err := w.Write(priv.Key)
+	return err
+}
+
 func serializeRSAPrivateKey(w io.Writer, priv *rsa.PrivateKey) error {
 	if _, err := w.Write(new(encoding.MPI).SetBig(priv.D).EncodedBytes()); err != nil {
 		return err
@@ -866,6 +871,8 @@ func (pk *PrivateKey) Encrypt(passphrase []byte) error {
 
 func (pk *PrivateKey) serializePrivateKey(w io.Writer) (err error) {
 	switch priv := pk.PrivateKey.(type) {
+	case *PersistentSymmetricKeyPrivateFields:
+		err = serializeAEADPrivateKey(w, priv)
 	case *rsa.PrivateKey:
 		err = serializeRSAPrivateKey(w, priv)
 	case *dsa.PrivateKey:
@@ -900,6 +907,8 @@ func (pk *PrivateKey) serializePrivateKey(w io.Writer) (err error) {
 
 func (pk *PrivateKey) parsePrivateKey(data []byte) (err error) {
 	switch pk.PublicKey.PubKeyAlgo {
+	case PubKeyAlgoAEAD:
+		return pk.parseAEADPrivateKey(data)
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoRSAEncryptOnly:
 		return pk.parseRSAPrivateKey(data)
 	case PubKeyAlgoDSA:
@@ -949,6 +958,13 @@ func (pk *PrivateKey) parsePrivateKey(data []byte) (err error) {
 		err = errors.StructuralError("unknown private key type")
 		return
 	}
+}
+
+func (pk *PrivateKey) parseAEADPrivateKey(data []byte) (err error) {
+	aeadPriv := new(PersistentSymmetricKeyPrivateFields)
+	aeadPriv.Key = data
+	pk.PrivateKey = aeadPriv
+	return nil
 }
 
 func (pk *PrivateKey) parseRSAPrivateKey(data []byte) (err error) {

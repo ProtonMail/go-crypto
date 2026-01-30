@@ -332,6 +332,7 @@ const (
 	packetTypeSymmetricallyEncryptedIntegrityProtected packetType = 18
 	packetTypeAEADEncrypted                            packetType = 20
 	packetPadding                                      packetType = 21
+	packetPersistentSymmetricKey                       packetType = 40
 )
 
 // EncryptedDataPacket holds encrypted data. It is currently implemented by
@@ -384,6 +385,8 @@ func Read(r io.Reader) (p Packet, err error) {
 		p = new(AEADEncrypted)
 	case packetPadding:
 		p = Padding(len)
+	case packetPersistentSymmetricKey:
+		p = new(PersistentSymmetricKey)
 	case packetTypeMarker:
 		p = new(Marker)
 	case packetTypeTrust:
@@ -504,6 +507,7 @@ const (
 type PublicKeyAlgorithm uint8
 
 const (
+	PubKeyAlgoAEAD    PublicKeyAlgorithm = 0
 	PubKeyAlgoRSA     PublicKeyAlgorithm = 1
 	PubKeyAlgoElGamal PublicKeyAlgorithm = 16
 	PubKeyAlgoDSA     PublicKeyAlgorithm = 17
@@ -538,7 +542,8 @@ const (
 // key of the given type.
 func (pka PublicKeyAlgorithm) CanEncrypt() bool {
 	switch pka {
-	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoElGamal, PubKeyAlgoECDH, PubKeyAlgoX25519, PubKeyAlgoX448,
+	case PubKeyAlgoAEAD, PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoElGamal,
+		PubKeyAlgoECDH, PubKeyAlgoX25519, PubKeyAlgoX448,
 		PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem1024X448:
 		return true
 	}
@@ -549,7 +554,8 @@ func (pka PublicKeyAlgorithm) CanEncrypt() bool {
 // sign a message.
 func (pka PublicKeyAlgorithm) CanSign() bool {
 	switch pka {
-	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA,
+	case PubKeyAlgoAEAD, PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA,
+		PubKeyAlgoECDSA, PubKeyAlgoEdDSA,
 		PubKeyAlgoEd25519, PubKeyAlgoEd448,
 		PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448,
 		PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
