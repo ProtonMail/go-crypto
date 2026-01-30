@@ -152,16 +152,18 @@ func detachSignWithWriter(w io.Writer, signers []*Entity, sigType packet.Signatu
 			hashToHashId(crypto.SHA3_256),
 			hashToHashId(crypto.SHA3_512),
 		}
-		defaultHashes := candidateHashes[0:1]
-		primarySelfSignature, _ := signer.PrimarySelfSignature(config.Now(), config)
-		if primarySelfSignature == nil {
-			return nil, errors.StructuralError("signed entity has no valid self-signature")
+		if signer.PSK == nil {
+			defaultHashes := candidateHashes[0:1]
+			primarySelfSignature, _ := signer.PrimarySelfSignature(config.Now(), config)
+			if primarySelfSignature == nil {
+				return nil, errors.StructuralError("signed entity has no valid self-signature")
+			}
+			preferredHashes := primarySelfSignature.PreferredHash
+			if len(preferredHashes) == 0 {
+				preferredHashes = defaultHashes
+			}
+			candidateHashes = intersectPreferences(candidateHashes, preferredHashes)
 		}
-		preferredHashes := primarySelfSignature.PreferredHash
-		if len(preferredHashes) == 0 {
-			preferredHashes = defaultHashes
-		}
-		candidateHashes = intersectPreferences(candidateHashes, preferredHashes)
 
 		var hash crypto.Hash
 		if hash, err = selectHash(candidateHashes, config.Hash(), signingKey.PrivateKey); err != nil {
@@ -308,6 +310,11 @@ func symmetricallyEncrypt(passphrase []byte, dataWriter io.Writer, params *Encry
 				hashToHashId(crypto.SHA512),
 				hashToHashId(crypto.SHA3_256),
 				hashToHashId(crypto.SHA3_512),
+			}
+			if signer.PSK != nil {
+				// Treat Persistent Symmetric Keys as supporting all algorithms.
+				candidateHashesPerSignature = append(candidateHashesPerSignature, candidateHashes)
+				continue
 			}
 			defaultHashes := candidateHashes[0:1]
 			primarySelfSignature, _ := signer.PrimarySelfSignature(params.Config.Now(), params.Config)
@@ -466,10 +473,12 @@ func writeAndSign(payload io.WriteCloser, candidateHashes [][]uint8, signEntitie
 			signer: signer,
 		}
 
-		if signKey.PrimarySelfSignature == nil {
-			return nil, errors.InvalidArgumentError("signing key has no self-signature")
+		if signKey.PSK == nil {
+			if signKey.PrimarySelfSignature == nil {
+				return nil, errors.InvalidArgumentError("signing key has no self-signature")
+			}
+			candidateHashes[signEntityIdx] = intersectPreferences(candidateHashes[signEntityIdx], signKey.PrimarySelfSignature.PreferredHash)
 		}
-		candidateHashes[signEntityIdx] = intersectPreferences(candidateHashes[signEntityIdx], signKey.PrimarySelfSignature.PreferredHash)
 		hash, err := selectHash(candidateHashes[signEntityIdx], config.Hash(), signKey.PrivateKey)
 		if err != nil {
 			return nil, err
@@ -601,7 +610,11 @@ func encrypt(
 	// Intended Recipient Fingerprint subpacket SHOULD be used when creating a signed and encrypted message
 	for _, publicRecipient := range to {
 		if config.IntendedRecipients() {
-			intendedRecipients = append(intendedRecipients, &packet.Recipient{KeyVersion: publicRecipient.PrimaryKey.Version, Fingerprint: publicRecipient.PrimaryKey.Fingerprint})
+			if publicRecipient.PSK != nil {
+				intendedRecipients = append(intendedRecipients, &packet.Recipient{KeyVersion: publicRecipient.PSK.Version, Fingerprint: publicRecipient.PSK.Fingerprint})
+			} else {
+				intendedRecipients = append(intendedRecipients, &packet.Recipient{KeyVersion: publicRecipient.PrimaryKey.Version, Fingerprint: publicRecipient.PrimaryKey.Fingerprint})
+			}
 		}
 	}
 
@@ -615,6 +628,11 @@ func encrypt(
 	for i, recipient := range append(to, toHidden...) {
 		if encryptKeys[i], err = recipient.EncryptionKeyWithError(timeForEncryptionKey, config); err != nil {
 			return nil, err
+		}
+
+		if encryptKeys[i].PSK != nil {
+			// Treat Persistent Symmetric Keys as supporting all algorithms.
+			continue
 		}
 
 		if !encryptKeys[i].PublicKey.IsPQ() {
@@ -693,7 +711,13 @@ func encrypt(
 	for idx, key := range encryptKeys {
 		// hide the keys of the hidden recipients
 		hidden := idx >= len(to)
-		if err := packet.SerializeEncryptedKeyAEADwithHiddenOption(params.KeyWriter, key.PublicKey, cipher, aeadSupported, params.SessionKey, hidden, config); err != nil {
+		var err error
+		if key.PSK != nil {
+			err = packet.SerializeEncryptedKeyPSK(params.KeyWriter, key.PSK, cipher, aeadSupported, params.SessionKey, config)
+		} else {
+			err = packet.SerializeEncryptedKeyAEADwithHiddenOption(params.KeyWriter, key.PublicKey, cipher, aeadSupported, params.SessionKey, hidden, config)
+		}
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -779,6 +803,11 @@ func SignWithParams(output io.Writer, signers []*Entity, params *SignParams) (in
 			hashToHashId(crypto.SHA3_256),
 			hashToHashId(crypto.SHA3_512),
 		}
+		if signer.PSK != nil {
+			// Treat Persistent Symmetric Keys as supporting all algorithms.
+			candidateHashesPerSignature = append(candidateHashesPerSignature, candidateHashes)
+			continue
+		}
 		defaultHashes := candidateHashes[0:1]
 		primarySelfSignature, _ := signer.PrimarySelfSignature(params.Config.Now(), params.Config)
 		if primarySelfSignature == nil {
@@ -794,7 +823,6 @@ func SignWithParams(output io.Writer, signers []*Entity, params *SignParams) (in
 		}
 		candidateHashesPerSignature = append(candidateHashesPerSignature, candidateHashes)
 		candidateCompression = intersectPreferences(candidateCompression, primarySelfSignature.PreferredCompression)
-
 	}
 
 	sigType := packet.SigTypeBinary
