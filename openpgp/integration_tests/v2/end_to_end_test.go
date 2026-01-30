@@ -372,7 +372,7 @@ func readArmoredPk(t *testing.T, publicKey string) openpgp.EntityList {
 	if len(keys) < 1 {
 		t.Errorf("Failed to read key with good cross signature, %d", len(keys))
 	}
-	if len(keys[0].Subkeys) < 1 {
+	if len(keys[0].Subkeys) < 1 && keys[0].PrimaryKey.PubKeyAlgo != packet.PubKeyAlgoAEAD {
 		t.Errorf("Failed to read good subkey, %d", len(keys[0].Subkeys))
 	}
 	return keys
@@ -386,7 +386,7 @@ func readArmoredSk(t *testing.T, sk string, pass string) openpgp.EntityList {
 	if len(keys) != 1 {
 		t.Errorf("Failed to read key with good cross signature, %d", len(keys))
 	}
-	if len(keys[0].Subkeys) < 1 {
+	if len(keys[0].Subkeys) < 1 && keys[0].PrimaryKey.PubKeyAlgo != packet.PubKeyAlgoAEAD {
 		t.Errorf("Failed to read good subkey, %d", len(keys[0].Subkeys))
 	}
 	keyObject := keys[0].PrivateKey
