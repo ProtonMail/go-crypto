@@ -417,6 +417,11 @@ func (pk *PublicKey) parseAEAD(r io.Reader) (err error) {
 		SymmetricAlgorithm: CipherFunction(algoAndFpSeed[0]),
 		FingerprintSeed: algoAndFpSeed[1:],
 	}
+	if aead.SymmetricAlgorithm != CipherAES128 &&
+		aead.SymmetricAlgorithm != CipherAES192 &&
+		aead.SymmetricAlgorithm != CipherAES256 {
+		return errors.UnsupportedError(fmt.Sprintf("unknown or weak algorithm: %d", aead.SymmetricAlgorithm))
+	}
 	pk.PublicKey = aead
 	return
 }
