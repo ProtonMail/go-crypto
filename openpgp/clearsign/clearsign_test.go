@@ -352,6 +352,12 @@ NotHash: SHA256
 
 _o/
 ` + signatureBlock,
+	`
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA256 Hello world this should not be allowed
+
+_o/
+` + signatureBlock,
 }
 
 func TestParseInvalid(t *testing.T) {
