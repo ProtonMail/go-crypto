@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"fmt"
+	"io"
 	"math/big"
 	"strconv"
 	"strings"
@@ -2107,5 +2108,141 @@ func TestEncryptionKeyError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "no encryption-capable key found (no key flags or invalid algorithm)") {
 		t.Fatal("wrong error")
+	}
+}
+
+type DeterministicReader struct {
+	data []byte
+	// tracks the current read position in the data buffer
+	offset int
+}
+
+func (r *DeterministicReader) Read(p []byte) (n int, err error) {
+	if r.offset >= len(r.data) {
+		return 0, io.EOF
+	}
+
+	if len(p) == 0 {
+		return 0, nil
+	}
+
+	remaining := len(r.data) - r.offset
+	n = len(p)
+	if n > remaining {
+		n = remaining
+	}
+
+	copy(p, r.data[r.offset:r.offset+n])
+	r.offset += n
+
+	if r.offset >= len(r.data) {
+		return n, io.EOF
+	}
+
+	return n, nil
+}
+
+func TestGenerateRSAKeyPLessThanQ(t *testing.T) {
+	// Hard-coded primes for a 2048-bit RSA key were taken from https://github.com/jam-awake/gpg-verify-bug
+	// using key with fingerprint: 2A25F94C4E482847305AB91E46EF00DD763B1D37
+	pHex := "00F9CC692674BE8A88092ADD770579E250871510B95057FA753DB79090CD72D3A6CE95BE6B8A632EB3F1D535C593F1804133441AD20D158848B5C2683B653C95F2844E5E168922BC2FF26D3F83F2CA76D29908C7E7BEA46F55C591978824C06999F362203B1EBFF457FF4232BA9ACB7AF4AA13DC5323E8DF5783C3F9DD0784F483"
+	qHex := "00D5FBCC013D18F2F98C4D52E8D69074803AE89E98ABAE93F8BB063F821C2E0AE652DB15180E5D659C7ABFF69DAD6D6C4EFB041FA21E3E3159E340131ED7962AFE260DA2DB570B21F49ACA3F722327BB1644FF4058CB9AA6B1ED06D9B82A36988780F175D33401F2D80AF831F42829DE914B8F68A8F98457950B8300E63290551F"
+
+	p := new(big.Int)
+	p.SetString(pHex, 16)
+
+	q := new(big.Int)
+	q.SetString(qHex, 16)
+
+	// Ensure RFC 9580's `p < q` requirement is NOT satisfied initially
+	if p.Cmp(q) == -1 {
+		t.Fatal(fmt.Printf("Expected `p < q` constraint to be unsatisfied. \np: %d\nq: %d\n", p, q))
+	}
+
+	bits := 2048
+	primeSize := bits / 8
+
+	createReader := func() *DeterministicReader {
+		readerBuffer := make([]byte, primeSize*2)
+		p.FillBytes(readerBuffer[primeSize:])
+		q.FillBytes(readerBuffer[:primeSize])
+		return &DeterministicReader{
+			data:   readerBuffer,
+			offset: 0,
+		}
+	}
+
+	verifyRSAKey := func(t *testing.T, key *rsa.PrivateKey, err error) {
+		t.Helper()
+
+		if err != nil {
+			t.Fatalf("Failed to generate RSA key: %v", err)
+		}
+
+		if key == nil {
+			t.Fatal("Generated key is nil")
+		}
+
+		if len(key.Primes) != 2 {
+			t.Fatalf("Expected 2 primes, got %d", len(key.Primes))
+		}
+
+		if key.Primes[0].Cmp(key.Primes[1]) != -1 {
+			t.Fatal("Prime in p slot should be less than prime in q slot")
+		}
+
+		pPrime := key.Primes[1]
+		qPrime := key.Primes[0]
+		if p.Cmp(pPrime) != 0 || q.Cmp(qPrime) != 0 {
+			t.Fatalf(
+				"Expected outputted primes to match inputted ones.\n"+
+					"p:  %d\n"+
+					"p': %d\n"+
+					"q:  %d\n"+
+					"q': %d",
+				p,
+				pPrime,
+				q,
+				qPrime,
+			)
+		}
+	}
+
+	tests := []struct {
+		name        string
+		generateKey func(reader *DeterministicReader) (*rsa.PrivateKey, error)
+	}{
+		{
+			name: "generateRSAKeyWithPrimes",
+			generateKey: func(reader *DeterministicReader) (*rsa.PrivateKey, error) {
+				noPrepopulatedPrimes := []*big.Int{}
+				return generateRSAKeyWithPrimes(reader, 2, bits, noPrepopulatedPrimes)
+			},
+		},
+		{
+			name: "generateRSAKey",
+			generateKey: func(reader *DeterministicReader) (*rsa.PrivateKey, error) {
+				return generateRSAKey(reader, bits)
+			},
+		},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			for i := 0; i < 20; i++ {
+				reader := createReader()
+				key, err := testCase.generateKey(reader)
+
+				if err == io.ErrUnexpectedEOF {
+					t.Logf("Failed to generate key on attempt %d. "+
+						// In other words, the outputted integer didn't pass the ProbablyPrime test.
+						"Could not find two valid primes in the buffer before it ran out of data. "+
+						"Retrying...", i)
+					continue
+				}
+				verifyRSAKey(t, key, err)
+				break
+			}
+		})
 	}
 }

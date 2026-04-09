@@ -359,7 +359,7 @@ func newSigner(config *packet.Config) (signer interface{}, err error) {
 			config.RSAPrimes = config.RSAPrimes[2:]
 			return generateRSAKeyWithPrimes(config.Random(), 2, bits, primes)
 		}
-		return rsa.GenerateKey(config.Random(), bits)
+		return generateRSAKey(config.Random(), bits)
 	case packet.PubKeyAlgoEdDSA:
 		if config.V6() {
 			// Implementations MUST NOT accept or generate v6 key material
@@ -417,7 +417,7 @@ func newDecrypter(config *packet.Config) (decrypter interface{}, err error) {
 			config.RSAPrimes = config.RSAPrimes[2:]
 			return generateRSAKeyWithPrimes(config.Random(), 2, bits, primes)
 		}
-		return rsa.GenerateKey(config.Random(), bits)
+		return generateRSAKey(config.Random(), bits)
 	case packet.PubKeyAlgoEdDSA, packet.PubKeyAlgoECDSA:
 		fallthrough // When passing EdDSA or ECDSA, we generate an ECDH subkey
 	case packet.PubKeyAlgoECDH:
@@ -447,6 +447,22 @@ func newDecrypter(config *packet.Config) (decrypter interface{}, err error) {
 }
 
 var bigOne = big.NewInt(1)
+
+// generateRSAKey generates an RSA keypair and ensures that p < q as required by RFC 9580.
+func generateRSAKey(random io.Reader, bits int) (*rsa.PrivateKey, error) {
+	key, err := rsa.GenerateKey(random, bits)
+	if err != nil {
+		return nil, err
+	}
+	// RFC 9580 section 5.5.5.1 requires p < q for RSA keys.
+	// The Go standard library does not guarantee this, so we swap if needed
+	// and recompute the precomputed values.
+	if len(key.Primes) == 2 && key.Primes[0].Cmp(key.Primes[1]) > 0 {
+		key.Primes[0], key.Primes[1] = key.Primes[1], key.Primes[0]
+		key.Precompute()
+	}
+	return key, nil
+}
 
 // generateRSAKeyWithPrimes generates a multi-prime RSA keypair of the
 // given bit size, using the given random source and prepopulated primes.
@@ -529,6 +545,11 @@ NextSetOfPrimes:
 			priv.N = n
 			break
 		}
+	}
+
+	// RFC 9580 section 5.5.5.1 requires p < q for RSA keys.
+	if len(priv.Primes) == 2 && priv.Primes[0].Cmp(priv.Primes[1]) > 0 {
+		priv.Primes[0], priv.Primes[1] = priv.Primes[1], priv.Primes[0]
 	}
 
 	priv.Precompute()
