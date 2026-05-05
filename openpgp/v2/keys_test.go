@@ -2111,37 +2111,6 @@ func TestEncryptionKeyError(t *testing.T) {
 	}
 }
 
-type DeterministicReader struct {
-	data []byte
-	// tracks the current read position in the data buffer
-	offset int
-}
-
-func (r *DeterministicReader) Read(p []byte) (n int, err error) {
-	if r.offset >= len(r.data) {
-		return 0, io.EOF
-	}
-
-	if len(p) == 0 {
-		return 0, nil
-	}
-
-	remaining := len(r.data) - r.offset
-	n = len(p)
-	if n > remaining {
-		n = remaining
-	}
-
-	copy(p, r.data[r.offset:r.offset+n])
-	r.offset += n
-
-	if r.offset >= len(r.data) {
-		return n, io.EOF
-	}
-
-	return n, nil
-}
-
 func TestGenerateRSAKeyPLessThanQ(t *testing.T) {
 	// Hard-coded primes for a 2048-bit RSA key were taken from https://github.com/jam-awake/gpg-verify-bug
 	// using key with fingerprint: 2A25F94C4E482847305AB91E46EF00DD763B1D37
@@ -2162,14 +2131,11 @@ func TestGenerateRSAKeyPLessThanQ(t *testing.T) {
 	bits := 2048
 	primeSize := bits / 8
 
-	createReader := func() *DeterministicReader {
+	createReader := func() *bytes.Reader {
 		readerBuffer := make([]byte, primeSize*2)
 		p.FillBytes(readerBuffer[primeSize:])
 		q.FillBytes(readerBuffer[:primeSize])
-		return &DeterministicReader{
-			data:   readerBuffer,
-			offset: 0,
-		}
+		return bytes.NewReader(readerBuffer)
 	}
 
 	verifyRSAKey := func(t *testing.T, key *rsa.PrivateKey, err error) {
@@ -2210,18 +2176,18 @@ func TestGenerateRSAKeyPLessThanQ(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		generateKey func(reader *DeterministicReader) (*rsa.PrivateKey, error)
+		generateKey func(reader *bytes.Reader) (*rsa.PrivateKey, error)
 	}{
 		{
 			name: "generateRSAKeyWithPrimes",
-			generateKey: func(reader *DeterministicReader) (*rsa.PrivateKey, error) {
+			generateKey: func(reader *bytes.Reader) (*rsa.PrivateKey, error) {
 				noPrepopulatedPrimes := []*big.Int{}
 				return generateRSAKeyWithPrimes(reader, 2, bits, noPrepopulatedPrimes)
 			},
 		},
 		{
 			name: "generateRSAKey",
-			generateKey: func(reader *DeterministicReader) (*rsa.PrivateKey, error) {
+			generateKey: func(reader *bytes.Reader) (*rsa.PrivateKey, error) {
 				return generateRSAKey(reader, bits)
 			},
 		},
