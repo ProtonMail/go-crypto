@@ -145,6 +145,14 @@ type Signature struct {
 	// subkey as their own.
 	EmbeddedSignature *Signature
 
+	// ReplacementKey, if non-nil, is a key target record.
+	// It identifies the primary key that should be used instead of the one this self-signature is over.
+	ReplacementKey *TargetRecord
+
+	// ReplacementForKeys, if non-nil, is an ordered array of key target records.
+	// They identify the primary keys for which the primary key that this self-signature is over should be used instead.
+	ReplacementForKeys []*TargetRecord
+
 	outSubpackets []outputSubpacket
 }
 
@@ -385,6 +393,7 @@ const (
 	issuerFingerprintSubpacket   signatureSubpacketType = 33
 	intendedRecipientSubpacket   signatureSubpacketType = 35
 	prefCipherSuitesSubpacket    signatureSubpacketType = 39
+	replacementKeySubpacket      signatureSubpacketType = 100 // TEMPORARY
 )
 
 // parseSignatureSubpacket parses a single subpacket. len(subpacket) is >= 1.
@@ -668,6 +677,42 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 
 		for i := 0; i < len(subpacket)/2; i++ {
 			sig.PreferredCipherSuites[i] = [2]uint8{subpacket[2*i], subpacket[2*i+1]}
+		}
+	case replacementKeySubpacket:
+		// Replacement Key subpacket, https://datatracker.ietf.org/doc/html/draft-ietf-openpgp-replacementkey
+		if len(subpacket) < 51 {
+			return nil, errors.StructuralError("invalid replacement key length")
+		}
+		if sig.ReplacementKey != nil || sig.ReplacementForKeys != nil {
+			return nil, errors.StructuralError("multiple replacement key subpackets")
+		}
+		if subpacket[0]&0x01 == 0x01 {
+			records := subpacket[1:]
+			sig.ReplacementForKeys = []*TargetRecord{}
+			for {
+				record, n, err := ReadTargetRecord(records)
+				if err != nil {
+					return nil, err
+				}
+				if record != nil {
+					sig.ReplacementForKeys = append(sig.ReplacementForKeys, record)
+				}
+				records = records[n:]
+				if len(records) == 0 {
+					break
+				}
+			}
+		} else {
+			record, n, err := ReadTargetRecord(subpacket[1:])
+			if err != nil {
+				return nil, err
+			}
+			if n+1 != len(subpacket) {
+				return nil, errors.StructuralError("invalid replacement key length")
+			}
+			if record != nil {
+				sig.ReplacementKey = record
+			}
 		}
 	default:
 		if isCritical {
@@ -1414,6 +1459,32 @@ func (sig *Signature) buildSubpackets(issuer PublicKey, config *Config) (subpack
 			serialized[2*i+1] = cipherSuite[1]
 		}
 		subpackets = append(subpackets, outputSubpacket{true, prefCipherSuitesSubpacket, false, serialized})
+	}
+	// Replacement Keys - note that only one of these should be non-nil
+	if sig.ReplacementKey != nil {
+		if sig.ReplacementForKeys != nil {
+			return nil, errors.StructuralError("must not set both ReplacementKey and ReplacementForKeys")
+		}
+		record := sig.ReplacementKey.Serialize()
+		serialized := make([]byte, len(record)+1)
+		serialized[0] = 0x00
+		copy(serialized[1:], record)
+		subpackets = append(subpackets, outputSubpacket{true, replacementKeySubpacket, false, serialized})
+	} else if sig.ReplacementForKeys != nil {
+		records := make([][]byte, len(sig.ReplacementForKeys))
+		totalLength := 1
+		for i, record := range sig.ReplacementForKeys {
+			records[i] = record.Serialize()
+			totalLength += len(records[i])
+		}
+		serialized := make([]byte, totalLength)
+		serialized[0] = 0x01 // backwards replacement key subpacket
+		n := 1
+		for _, record := range records {
+			copy(serialized[n:n+len(record)], record)
+			n += len(record)
+		}
+		subpackets = append(subpackets, outputSubpacket{true, replacementKeySubpacket, false, serialized})
 	}
 	return
 }
