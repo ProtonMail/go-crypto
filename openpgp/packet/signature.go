@@ -147,11 +147,15 @@ type Signature struct {
 
 	// ReplacementKey, if non-nil, is a key target record.
 	// It identifies the primary key that should be used instead of the one this self-signature is over.
+	// Only one of ReplacementKey or DeprecatedKeys should be non-nil at any time.
+	// see https://datatracter.ietf.org/doc/html/draft-ietf-openpgp-replacementkey#graph-topology
 	ReplacementKey *TargetRecord
 
-	// ReplacementForKeys, if non-nil, is an ordered array of key target records.
+	// DeprecatedKeys, if non-nil, is an ordered array of key target records.
 	// They identify the primary keys for which the primary key that this self-signature is over should be used instead.
-	ReplacementForKeys []*TargetRecord
+	// Only one of ReplacementKey or DeprecatedKeys should be non-nil at any time.
+	// see https://datatracter.ietf.org/doc/html/draft-ietf-openpgp-replacementkey#graph-topology
+	DeprecatedKeys []*TargetRecord
 
 	outSubpackets []outputSubpacket
 }
@@ -683,19 +687,19 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		if len(subpacket) < 51 {
 			return nil, errors.StructuralError("invalid replacement key length")
 		}
-		if sig.ReplacementKey != nil || sig.ReplacementForKeys != nil {
+		if sig.ReplacementKey != nil || sig.DeprecatedKeys != nil {
 			return nil, errors.StructuralError("multiple replacement key subpackets")
 		}
 		if subpacket[0]&0x01 == 0x01 {
 			records := subpacket[1:]
-			sig.ReplacementForKeys = []*TargetRecord{}
+			sig.DeprecatedKeys = []*TargetRecord{}
 			for {
 				record, n, err := ReadTargetRecord(records)
 				if err != nil {
 					return nil, err
 				}
 				if record != nil {
-					sig.ReplacementForKeys = append(sig.ReplacementForKeys, record)
+					sig.DeprecatedKeys = append(sig.DeprecatedKeys, record)
 				}
 				records = records[n:]
 				if len(records) == 0 {
@@ -1462,18 +1466,18 @@ func (sig *Signature) buildSubpackets(issuer PublicKey, config *Config) (subpack
 	}
 	// Replacement Keys - note that only one of these should be non-nil
 	if sig.ReplacementKey != nil {
-		if sig.ReplacementForKeys != nil {
-			return nil, errors.StructuralError("must not set both ReplacementKey and ReplacementForKeys")
+		if sig.DeprecatedKeys != nil {
+			return nil, errors.StructuralError("must not set both ReplacementKey and DeprecatedKeys")
 		}
 		record := sig.ReplacementKey.Serialize()
 		serialized := make([]byte, len(record)+1)
 		serialized[0] = 0x00
 		copy(serialized[1:], record)
 		subpackets = append(subpackets, outputSubpacket{true, replacementKeySubpacket, false, serialized})
-	} else if sig.ReplacementForKeys != nil {
-		records := make([][]byte, len(sig.ReplacementForKeys))
+	} else if sig.DeprecatedKeys != nil {
+		records := make([][]byte, len(sig.DeprecatedKeys))
 		totalLength := 1
-		for i, record := range sig.ReplacementForKeys {
+		for i, record := range sig.DeprecatedKeys {
 			records[i] = record.Serialize()
 			totalLength += len(records[i])
 		}
