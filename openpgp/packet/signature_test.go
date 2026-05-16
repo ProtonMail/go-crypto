@@ -514,6 +514,83 @@ func TestCannotParseSignatureWithNonExportableCert(t *testing.T) {
 	}
 }
 
+func TestSignatureWithReplacementKeySupacket(t *testing.T) {
+	sig := &Signature{
+		SigType:    SigTypeDirectSignature,
+		PubKeyAlgo: PubKeyAlgoRSA,
+		Hash:       crypto.SHA256,
+		FlagsValid: true,
+		FlagSign:   true,
+	}
+
+	fingerprint, err := hex.DecodeString("deadbeefdeadbeefdeadbeefdeadbeefdeadbeef")
+	imprint, err := hex.DecodeString("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+
+	sig.ReplacementKey = &TargetRecord{
+		KeyVersion:  4,
+		Fingerprint: fingerprint,
+		Imprint:     imprint,
+	}
+
+	packet, err := Read(readerFromHex(rsaPkDataHex))
+	if err != nil {
+		t.Fatalf("failed to deserialize public key: %v", err)
+	}
+	pubKey := packet.(*PublicKey)
+
+	packet, err = Read(readerFromHex(privKeyRSAHex))
+	if err != nil {
+		t.Fatalf("failed to deserialize private key: %v", err)
+	}
+	privKey := packet.(*PrivateKey)
+
+	err = privKey.Decrypt([]byte("testing"))
+	if err != nil {
+		t.Fatalf("failed to decrypt private key: %v", err)
+	}
+
+	err = sig.SignDirectKeyBinding(pubKey, privKey, nil)
+	if err != nil {
+		t.Errorf("failed to sign key: %v", err)
+	}
+
+	buf := bytes.NewBuffer([]byte{})
+	err = sig.Serialize(buf)
+	if err != nil {
+		t.Errorf("failed to serialize signature: %v", err)
+	}
+
+	packet, _ = Read(bytes.NewReader(buf.Bytes()))
+	sig = packet.(*Signature)
+
+	for _, subPacket := range sig.rawSubpackets {
+		if subPacket.subpacketType == replacementKeySubpacket {
+			body := subPacket.contents
+			if len(body) != 55 {
+				t.Errorf("replacementkey subpacket is wrong length: expected 55 got %d", len(body))
+			}
+			if hex.EncodeToString(body) != "003504"+
+				"deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"+
+				"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" {
+				t.Errorf("replacementkey subpacket has wrong contents: got %x", body)
+			}
+		}
+	}
+
+	packet, err = Read(readerFromHex(replacementKeySignatureDataHex))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	sig, ok := packet.(*Signature)
+	if !ok || sig.SigType != SigTypeDirectSignature || sig.PubKeyAlgo != PubKeyAlgoEdDSA || sig.Hash != crypto.SHA256 {
+		t.Errorf("failed to parse, got: %#v", packet)
+	}
+	if sig.ReplacementKey == nil || sig.ReplacementKey.KeyVersion != 6 || len(sig.ReplacementKey.Fingerprint) != 32 || len(sig.ReplacementKey.Imprint) != 32 {
+		t.Errorf("did not parse Replacement Key packet: %v, %v, %v", sig.ReplacementKey.KeyVersion, sig.ReplacementKey.Fingerprint, sig.ReplacementKey.Imprint)
+	}
+}
+
 const onePassSignatureDataHex = `c40d03000201ab105c91af38fb1501`
 
 const signatureDataHex = "c2c05c04000102000605024cb45112000a0910ab105c91af38fb158f8d07ff5596ea368c5efe015bed6e78348c0f033c931d5f2ce5db54ce7f2a7e4b4ad64db758d65a7a71773edeab7ba2a9e0908e6a94a1175edd86c1d843279f045b021a6971a72702fcbd650efc393c5474d5b59a15f96d2eaad4c4c426797e0dcca2803ef41c6ff234d403eec38f31d610c344c06f2401c262f0993b2e66cad8a81ebc4322c723e0d4ba09fe917e8777658307ad8329adacba821420741009dfe87f007759f0982275d028a392c6ed983a0d846f890b36148c7358bdb8a516007fac760261ecd06076813831a36d0459075d1befa245ae7f7fb103d92ca759e9498fe60ef8078a39a3beda510deea251ea9f0a7f0df6ef42060f20780360686f3e400e"
@@ -529,3 +606,5 @@ const positiveCertSignatureDataHex = "c2c0b304130108005d050b0908070206150a09080b
 const signatureWithExportableCertHex = "c2c07404130102001e050263fde196050903c3b880021b26030b0309021601041508090a028401000a09101bf1d93a68a8b208342b07ff6f59f5a882d148c481b877b434271b2e844e0dd783d9eb5534aac51170024382089cf07194a1835c72177d677a7ce04a614c1f85ccf5972d08ebabdfefefbe9d0f2b9f0a0a010c0889d9ab43ec99ccaddf76f7a96d91c49256ae23078a22469fd2a3d1d2ccfb30eb4f137e8c893731163e8f7aa18abb6a72ebfbab71ac8946f991d0a10d0293bc275183f67567c709bdd7e035d16c3cb2d14565b8baccaf721a3e1ed59385fc4b248648bdf7072a07ed693caf9179ea980fa8f89bef9c6819870c0074aa0419bf80e073863fe4cfe144a3083586d05f3ce8277d891dc11aa157dd133ac8d2dab4e8095affe6f3d3be673d2392c9177102374f51c56199dd3c05"
 
 const signatureWithNonExportableCertHex = "c2c07404130102001e050263fde196050903c3b880021b26030b0309021601041508090a028400000a09101bf1d93a68a8b208342b07ff6f59f5a882d148c481b877b434271b2e844e0dd783d9eb5534aac51170024382089cf07194a1835c72177d677a7ce04a614c1f85ccf5972d08ebabdfefefbe9d0f2b9f0a0a010c0889d9ab43ec99ccaddf76f7a96d91c49256ae23078a22469fd2a3d1d2ccfb30eb4f137e8c893731163e8f7aa18abb6a72ebfbab71ac8946f991d0a10d0293bc275183f67567c709bdd7e035d16c3cb2d14565b8baccaf721a3e1ed59385fc4b248648bdf7072a07ed693caf9179ea980fa8f89bef9c6819870c0074aa0419bf80e073863fe4cfe144a3083586d05f3ce8277d891dc11aa157dd133ac8d2dab4e8095affe6f3d3be673d2392c9177102374f51c56199dd3c05"
+
+const replacementKeySignatureDataHex = "c299041f1608004b05826a07acf0446400410628c8b10c1191d21e2c665b4016595775b3e0b2223ab93d133a90e0b7e047b3716061d17c9814d4b755327512e39be7eea0211188b89869bfc5f80c6c866cceb30000654c0100e658b6f5ed02c10afb27bbc0cdfa77d568b2389e0d214b776e2c7fab88385ded0100ba3176c568073a665a6952f8cbeabc83a6d9e853d3ed550d29aa1477c0572d0b"
