@@ -63,7 +63,7 @@ func ReadTargetRecord(r []byte) (kt *TargetRecord, n int, err error) {
 	if fingerprintLen+imprintLen+1 != ktlen {
 		return nil, 0, errors.StructuralError("malformed key target")
 	}
-	kt.Fingerprint = r[1 : 1+fingerprintLen]
-	kt.Imprint = r[1+fingerprintLen:]
+	kt.Fingerprint = r[2 : 2+fingerprintLen]
+	kt.Imprint = r[2+fingerprintLen:]
 	return kt, ktlen + 1, nil
 }
