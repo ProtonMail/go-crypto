@@ -93,6 +93,7 @@ type Signature struct {
 	PreferredCipherSuites                                   [][2]uint8
 	IssuerKeyId                                             *uint64
 	IssuerFingerprint                                       []byte
+	IssuerFingerprintVersion                                *uint8
 	SignerUserId                                            *string
 	IsPrimaryId                                             *bool
 	Notations                                               []*Notation
@@ -638,6 +639,7 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 			return nil, errors.StructuralError("bad fingerprint length")
 		}
 		sig.IssuerFingerprint = make([]byte, l)
+		sig.IssuerFingerprintVersion = &subpacket[0]
 		copy(sig.IssuerFingerprint, subpacket[1:])
 		sig.IssuerKeyId = new(uint64)
 		if v >= 5 {
