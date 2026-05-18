@@ -295,23 +295,24 @@ func (pk *PublicKey) setFingerprintAndKeyId() {
 	// RFC 4880, section 12.2
 	if pk.Version >= 5 {
 		fingerprint := sha256.New()
-		if err := pk.SerializeForHash(fingerprint); err != nil {
-			// Should not happen for a hash.
-			panic(err)
-		}
 		pk.Fingerprint = make([]byte, 32)
-		copy(pk.Fingerprint, fingerprint.Sum(nil))
+		copy(pk.Fingerprint, pk.Imprint(fingerprint))
 		pk.KeyId = binary.BigEndian.Uint64(pk.Fingerprint[:8])
 	} else {
 		fingerprint := sha1.New()
-		if err := pk.SerializeForHash(fingerprint); err != nil {
-			// Should not happen for a hash.
-			panic(err)
-		}
 		pk.Fingerprint = make([]byte, 20)
-		copy(pk.Fingerprint, fingerprint.Sum(nil))
+		copy(pk.Fingerprint, pk.Imprint(fingerprint))
 		pk.KeyId = binary.BigEndian.Uint64(pk.Fingerprint[12:20])
 	}
+}
+
+// Imprint is the generalisation of a fingerprint, using an arbitrary hash algorithm.
+func (pk *PublicKey) Imprint(h hash.Hash) []byte {
+	if err := pk.SerializeForHash(h); err != nil {
+		// Should not happen for a hash.
+		panic(err)
+	}
+	return h.Sum(nil)
 }
 
 func (pk *PublicKey) checkV6Compatibility() error {
