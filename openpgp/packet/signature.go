@@ -87,13 +87,14 @@ type Signature struct {
 
 	// The following are optional so are nil when not included in the
 	// signature.
+	// The exception is IssuerFingerprintVersion, which defaults to 0.
 
 	SigLifetimeSecs, KeyLifetimeSecs                        *uint32
 	PreferredSymmetric, PreferredHash, PreferredCompression []uint8
 	PreferredCipherSuites                                   [][2]uint8
 	IssuerKeyId                                             *uint64
 	IssuerFingerprint                                       []byte
-	IssuerFingerprintVersion                                *uint8
+	IssuerFingerprintVersion                                uint8
 	SignerUserId                                            *string
 	IsPrimaryId                                             *bool
 	Notations                                               []*Notation
@@ -639,7 +640,7 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 			return nil, errors.StructuralError("bad fingerprint length")
 		}
 		sig.IssuerFingerprint = make([]byte, l)
-		sig.IssuerFingerprintVersion = &subpacket[0]
+		sig.IssuerFingerprintVersion = subpacket[0]
 		copy(sig.IssuerFingerprint, subpacket[1:])
 		sig.IssuerKeyId = new(uint64)
 		if v >= 5 {
@@ -696,8 +697,8 @@ func subpacketLengthLength(length int) int {
 }
 
 func (sig *Signature) CheckKeyIdOrFingerprint(pk *PublicKey) bool {
-	if len(sig.IssuerFingerprint) >= 20 {
-		return bytes.Equal(sig.IssuerFingerprint, pk.Fingerprint)
+	if len(sig.IssuerFingerprint) >= 20 && sig.IssuerFingerprintVersion != 0 {
+		return int(sig.IssuerFingerprintVersion) == pk.Version && bytes.Equal(sig.IssuerFingerprint, pk.Fingerprint)
 	}
 	return sig.IssuerKeyId != nil && *sig.IssuerKeyId == pk.KeyId
 }
@@ -921,6 +922,7 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 	}
 	sig.Version = priv.PublicKey.Version
 	sig.IssuerFingerprint = priv.PublicKey.Fingerprint
+	sig.IssuerFingerprintVersion = uint8(priv.PublicKey.Version)
 	if sig.Version < 6 && config.RandomizeSignaturesViaNotation() {
 		sig.removeNotationsWithName(SaltNotationName)
 		salt, err := SignatureSaltForHash(sig.Hash, config.Random())
@@ -935,7 +937,7 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 		}
 		sig.Notations = append(sig.Notations, &notation)
 	}
-	sig.outSubpackets, err = sig.buildSubpackets(priv.PublicKey, config)
+	sig.outSubpackets, err = sig.buildSubpackets(config)
 	if err != nil {
 		return err
 	}
@@ -1256,7 +1258,7 @@ type outputSubpacket struct {
 	contents      []byte
 }
 
-func (sig *Signature) buildSubpackets(issuer PublicKey, config *Config) (subpackets []outputSubpacket, err error) {
+func (sig *Signature) buildSubpackets(config *Config) (subpackets []outputSubpacket, err error) {
 	creationTime := make([]byte, 4)
 	binary.BigEndian.PutUint32(creationTime, uint32(sig.CreationTime.Unix()))
 	// Signature Creation Time
@@ -1393,8 +1395,8 @@ func (sig *Signature) buildSubpackets(issuer PublicKey, config *Config) (subpack
 		subpackets = append(subpackets, outputSubpacket{true, embeddedSignatureSubpacket, true, buf.Bytes()})
 	}
 	// Issuer Fingerprint
-	if sig.IssuerFingerprint != nil {
-		contents := append([]uint8{uint8(issuer.Version)}, sig.IssuerFingerprint...)
+	if sig.IssuerFingerprint != nil && sig.IssuerFingerprintVersion != 0 {
+		contents := append([]uint8{sig.IssuerFingerprintVersion}, sig.IssuerFingerprint...)
 		subpackets = append(subpackets, outputSubpacket{true, issuerFingerprintSubpacket, sig.Version >= 5, contents})
 	}
 	// Intended Recipient Fingerprint

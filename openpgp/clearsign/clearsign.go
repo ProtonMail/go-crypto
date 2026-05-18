@@ -338,6 +338,7 @@ func (d *dashEscaper) Close() (err error) {
 		sig.CreationTime = t
 		sig.IssuerKeyId = &k.KeyId
 		sig.IssuerFingerprint = k.Fingerprint
+		sig.IssuerFingerprintVersion = uint8(k.Version)
 		sig.Notations = d.config.Notations()
 		sigLifetimeSecs := d.config.SigLifetime()
 		sig.SigLifetimeSecs = &sigLifetimeSecs
