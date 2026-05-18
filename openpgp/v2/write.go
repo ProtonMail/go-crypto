@@ -904,16 +904,16 @@ func createSignaturePacket(signer *packet.PublicKey, sigType packet.SignatureTyp
 	sigLifetimeSecs := config.SigLifetime()
 	hash := selectHashForSigningKey(config, signer)
 	return &packet.Signature{
-		Version:                  signer.Version,
-		SigType:                  sigType,
-		PubKeyAlgo:               signer.PubKeyAlgo,
-		Hash:                     hash,
-		CreationTime:             config.Now(),
-		IssuerKeyId:              &signer.KeyId,
-		IssuerFingerprint:        signer.Fingerprint,
-		IssuerFingerprintVersion: uint8(signer.Version),
-		Notations:                config.Notations(),
-		SigLifetimeSecs:          &sigLifetimeSecs,
+		Version:           signer.Version,
+		SigType:           sigType,
+		PubKeyAlgo:        signer.PubKeyAlgo,
+		Hash:              hash,
+		CreationTime:      config.Now(),
+		IssuerKeyId:       &signer.KeyId,
+		IssuerKeyVersion:  uint8(signer.Version),
+		IssuerFingerprint: signer.Fingerprint,
+		Notations:         config.Notations(),
+		SigLifetimeSecs:   &sigLifetimeSecs,
 	}
 }
 
