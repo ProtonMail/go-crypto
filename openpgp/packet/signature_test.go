@@ -523,16 +523,15 @@ func TestSignatureWithReplacementKeySupacket(t *testing.T) {
 		FlagSign:   true,
 	}
 
-	fingerprint, err := hex.DecodeString("deadbeefdeadbeefdeadbeefdeadbeefdeadbeef")
-	imprint, err := hex.DecodeString("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
-
-	sig.ReplacementKey = &TargetRecord{
-		KeyVersion:  4,
-		Fingerprint: fingerprint,
-		Imprint:     imprint,
+	packet, err := Read(readerFromHex(eddsaPkDataHex))
+	if err != nil {
+		t.Fatalf("failed to deserialize public key: %v", err)
 	}
+	targetKey := packet.(*PublicKey)
 
-	packet, err := Read(readerFromHex(rsaPkDataHex))
+	sig.ReplacementKey = NewTargetRecord(targetKey)
+
+	packet, err = Read(readerFromHex(rsaPkDataHex))
 	if err != nil {
 		t.Fatalf("failed to deserialize public key: %v", err)
 	}
@@ -569,9 +568,7 @@ func TestSignatureWithReplacementKeySupacket(t *testing.T) {
 			if len(body) != 55 {
 				t.Errorf("replacementkey subpacket is wrong length: expected 55 got %d", len(body))
 			}
-			if hex.EncodeToString(body) != "003504"+
-				"deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"+
-				"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" {
+			if hex.EncodeToString(body) != "003504"+eddsaFingerprintHex+eddsaSha3256ImprintHex {
 				t.Errorf("replacementkey subpacket has wrong contents: got %x", body)
 			}
 		}

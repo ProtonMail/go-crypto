@@ -1,6 +1,10 @@
 package packet
 
 import (
+	"slices"
+
+	"golang.org/x/crypto/sha3"
+
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
 )
 
@@ -12,7 +16,8 @@ type TargetRecord struct {
 	Imprint     []byte
 }
 
-// Serialize writes a TargetRecord, including record length; caller must construct the Replacement Key subpacket.
+// Serialize writes a TargetRecord, including the prefixed record length.
+// The caller must construct the Replacement Key subpacket.
 // We assume the TargetRecord is well-formed, i.e. the Fingerprint and Imprint field lengths match the KeyVersion.
 // If the result is nil, the record is unserializable.
 func (t *TargetRecord) Serialize() []byte {
@@ -28,42 +33,66 @@ func (t *TargetRecord) Serialize() []byte {
 	return record
 }
 
-// ReadTargetRecord reads a target record from the wire, where the first octet is the record length.
-// If kt and err are both nil, it means that the record was well-formed but could not be read,
-// for example if the key version was unknown.
+// ReadTargetRecord reads a target record from a byte slice.
+// The first byte indicates the record length, followed by the record itself.
+// If t and err are both nil, it means the record was read but could not be parsed,
+// most likely because the key version was unknown.
 // n is the total number of bytes read, i.e. the record length plus 1.
-func ReadTargetRecord(r []byte) (kt *TargetRecord, n int, err error) {
-	if len(r) < 52 {
+// The caller should re-slice the byte slice before reading the next record.
+func ReadTargetRecord(b []byte) (t *TargetRecord, n int, err error) {
+	if len(b) < 52 {
 		return nil, 0, errors.StructuralError("malformed key target")
 	}
-	ktlen := int(r[0])
-	if len(r) < ktlen {
+	tlen := int(b[0])
+	if len(b) < tlen {
 		return nil, 0, errors.StructuralError("malformed key target")
 	}
-	kt = &TargetRecord{
-		KeyVersion: int(r[1]),
+	t = &TargetRecord{
+		KeyVersion: int(b[1]),
 	}
 	var fingerprintLen, imprintLen int
-	switch kt.KeyVersion {
+	switch t.KeyVersion {
 	case 3:
 		fingerprintLen = 16
 		imprintLen = 32
 	case 4:
 		fingerprintLen = 20
 		imprintLen = 32
-	case 5:
-		fingerprintLen = 32
-		imprintLen = 32
-	case 6:
+	case 5, 6:
 		fingerprintLen = 32
 		imprintLen = 32
 	default:
-		return nil, ktlen + 1, nil
+		return nil, tlen + 1, nil
 	}
-	if fingerprintLen+imprintLen+1 != ktlen {
+	if fingerprintLen+imprintLen+1 != tlen {
 		return nil, 0, errors.StructuralError("malformed key target")
 	}
-	kt.Fingerprint = r[2 : 2+fingerprintLen]
-	kt.Imprint = r[2+fingerprintLen:]
-	return kt, ktlen + 1, nil
+	t.Fingerprint = b[2 : 2+fingerprintLen]
+	t.Imprint = b[2+fingerprintLen:]
+	return t, tlen + 1, nil
+}
+
+// NewTargetRecord creates a target record pointing to the supplied public key.
+// The public key must be a primary key, not a subkey.
+// If the key version is unknown, it returns nil.
+func NewTargetRecord(k *PublicKey) *TargetRecord {
+	var imprint []byte
+	switch k.Version {
+	case 4, 5, 6:
+		imprint = k.Imprint(sha3.New256())
+	default:
+		return nil
+	}
+	return &TargetRecord{
+		KeyVersion:  k.Version,
+		Fingerprint: k.Fingerprint,
+		Imprint:     imprint,
+	}
+}
+
+// Equals tests target records for equality.
+func (t1 *TargetRecord) Equals(t2 *TargetRecord) bool {
+	return t1.KeyVersion == t2.KeyVersion &&
+		slices.Compare(t1.Fingerprint, t2.Fingerprint) == 0 &&
+		slices.Compare(t1.Imprint, t2.Imprint) == 0
 }
