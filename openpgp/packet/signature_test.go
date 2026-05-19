@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ProtonMail/go-crypto/openpgp/armor"
 )
@@ -515,40 +516,48 @@ func TestCannotParseSignatureWithNonExportableCert(t *testing.T) {
 }
 
 func TestSignatureWithReplacementKeySupacket(t *testing.T) {
-	sig := &Signature{
-		SigType:    SigTypeDirectSignature,
-		PubKeyAlgo: PubKeyAlgoRSA,
-		Hash:       crypto.SHA256,
-		FlagsValid: true,
-		FlagSign:   true,
-	}
-
-	packet, err := Read(readerFromHex(eddsaPkDataHex))
+	packet, err := Read(readerFromHex(pubKeyRSAHex))
 	if err != nil {
 		t.Fatalf("failed to deserialize public key: %v", err)
 	}
-	targetKey := packet.(*PublicKey)
+	deprecatedKey := packet.(*PublicKey)
 
-	sig.ReplacementKey = NewTargetRecord(targetKey)
-
-	packet, err = Read(readerFromHex(rsaPkDataHex))
+	packet, err = Read(readerFromHex(v6a4PkDataHex))
 	if err != nil {
 		t.Fatalf("failed to deserialize public key: %v", err)
 	}
-	pubKey := packet.(*PublicKey)
+	replacementKey := packet.(*PublicKey)
 
 	packet, err = Read(readerFromHex(privKeyRSAHex))
 	if err != nil {
 		t.Fatalf("failed to deserialize private key: %v", err)
 	}
-	privKey := packet.(*PrivateKey)
+	deprecatedPrivKey := packet.(*PrivateKey)
 
-	err = privKey.Decrypt([]byte("testing"))
+	err = deprecatedPrivKey.Decrypt([]byte("testing"))
 	if err != nil {
 		t.Fatalf("failed to decrypt private key: %v", err)
 	}
 
-	err = sig.SignDirectKeyBinding(pubKey, privKey, nil)
+	packet, err = Read(readerFromHex(v6a4PrivKeyHex))
+	if err != nil {
+		t.Fatalf("failed to deserialize private key: %v", err)
+	}
+	replacementPrivKey := packet.(*PrivateKey)
+
+	// make forwards replacement signature
+	sig := &Signature{
+		CreationTime:   time.Unix(1777777777, 0),
+		SigType:        SigTypeDirectSignature,
+		PubKeyAlgo:     deprecatedKey.PubKeyAlgo,
+		Hash:           crypto.SHA256,
+		FlagsValid:     true,
+		FlagSign:       true,
+		FlagCertify:    true,
+		ReplacementKey: NewTargetRecord(replacementKey),
+	}
+
+	err = sig.SignDirectKeyBinding(deprecatedKey, deprecatedPrivKey, nil)
 	if err != nil {
 		t.Errorf("failed to sign key: %v", err)
 	}
@@ -562,17 +571,74 @@ func TestSignatureWithReplacementKeySupacket(t *testing.T) {
 	packet, _ = Read(bytes.NewReader(buf.Bytes()))
 	sig = packet.(*Signature)
 
+	found := false
 	for _, subPacket := range sig.rawSubpackets {
 		if subPacket.subpacketType == replacementKeySubpacket {
-			body := subPacket.contents
-			if len(body) != 55 {
-				t.Errorf("replacementkey subpacket is wrong length: expected 55 got %d", len(body))
+			if found {
+				t.Errorf("duplicate replacementkey subpacket found in signature")
 			}
-			if hex.EncodeToString(body) != "003504"+eddsaFingerprintHex+eddsaSha3256ImprintHex {
+			found = true
+			body := subPacket.contents
+			if len(body) != 67 {
+				t.Errorf("replacementkey subpacket is wrong length: expected 67 got %d", len(body))
+			}
+			if hex.EncodeToString(body) != "004106"+v6a4FingerprintHex+v6a4Sha3256ImprintHex {
 				t.Errorf("replacementkey subpacket has wrong contents: got %x", body)
 			}
 		}
 	}
+	if !found {
+		t.Errorf("no replacementkey subpacket found in signature")
+	}
+
+	// make reverse replacement key signature
+	sig = &Signature{
+		CreationTime:   time.Unix(1777777777, 0),
+		SigType:        SigTypeDirectSignature,
+		PubKeyAlgo:     replacementKey.PubKeyAlgo,
+		Hash:           crypto.SHA256,
+		FlagsValid:     true,
+		FlagSign:       true,
+		FlagCertify:    true,
+		DeprecatedKeys: []*TargetRecord{NewTargetRecord(deprecatedKey)},
+		salt:           []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
+	}
+
+	err = sig.SignDirectKeyBinding(replacementKey, replacementPrivKey, nil)
+	if err != nil {
+		t.Errorf("failed to sign key: %v", err)
+	}
+
+	buf = bytes.NewBuffer([]byte{})
+	err = sig.Serialize(buf)
+	if err != nil {
+		t.Errorf("failed to serialize signature: %v", err)
+	}
+
+	packet, _ = Read(bytes.NewReader(buf.Bytes()))
+	sig = packet.(*Signature)
+
+	found = false
+	for _, subPacket := range sig.rawSubpackets {
+		if subPacket.subpacketType == replacementKeySubpacket {
+			if found {
+				t.Errorf("duplicate replacementkey subpacket found in signature")
+			}
+			found = true
+			body := subPacket.contents
+			if len(body) != 55 {
+				t.Errorf("replacementkey subpacket is wrong length: expected 55 got %d", len(body))
+			}
+			if hex.EncodeToString(body) != "013504"+fingerprintRSAHex+sha3256ImprintRSAHex {
+				t.Errorf("replacementkey subpacket has wrong contents: got %x", body)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("no replacementkey subpacket found in signature")
+	}
+
+	// now read a signature that we made earlier (using rPGP)
 
 	packet, err = Read(readerFromHex(replacementKeySignatureDataHex))
 	if err != nil {
