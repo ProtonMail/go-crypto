@@ -336,19 +336,20 @@ func newSignatureCandidateFromSignature(sig *packet.Signature) (sigCandidate *Si
 }
 
 func (sc *SignatureCandidate) validate() bool {
+	if sc.CorrespondingSig == nil {
+		return false
+	}
 	correspondingSig := sc.CorrespondingSig
 	invalidV3 := sc.OPSVersion == 3 && correspondingSig.Version == 6
 	invalidV6 := (sc.OPSVersion == 6 && correspondingSig.Version != 6) ||
 		(sc.OPSVersion == 6 && sc.IssuerKeyVersion != correspondingSig.IssuerKeyVersion) ||
 		(sc.OPSVersion == 6 && !bytes.Equal(sc.IssuerFingerprint, correspondingSig.IssuerFingerprint)) ||
 		(sc.OPSVersion == 6 && !bytes.Equal(sc.Salt, correspondingSig.Salt()))
-	return correspondingSig != nil &&
+	return !invalidV3 && !invalidV6 &&
 		sc.SigType == correspondingSig.SigType &&
 		sc.HashAlgorithm == correspondingSig.Hash &&
 		sc.PubKeyAlgo == correspondingSig.PubKeyAlgo &&
-		sc.IssuerKeyId == *correspondingSig.IssuerKeyId &&
-		!invalidV3 &&
-		!invalidV6
+		sc.IssuerKeyId == *correspondingSig.IssuerKeyId
 }
 
 // readSignedMessage reads a possibly signed message if mdin is non-zero then
