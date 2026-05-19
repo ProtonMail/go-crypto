@@ -336,9 +336,10 @@ func (sc *SignatureCandidate) validate() bool {
 	}
 	correspondingSig := sc.CorrespondingSig
 	invalidV3 := sc.OPSVersion == 3 && correspondingSig.Version == 6
-	invalidV6 := (sc.OPSVersion == 6 && correspondingSig.Version != 6) ||
-		(sc.OPSVersion == 6 && !bytes.Equal(sc.IssuerFingerprint, correspondingSig.IssuerFingerprint)) ||
-		(sc.OPSVersion == 6 && !bytes.Equal(sc.Salt, correspondingSig.Salt()))
+	invalidV6 := sc.OPSVersion == 6 &&
+		(correspondingSig.Version != 6 ||
+			!bytes.Equal(sc.IssuerFingerprint, correspondingSig.IssuerFingerprint) ||
+			!bytes.Equal(sc.Salt, correspondingSig.Salt()))
 	return !invalidV3 && !invalidV6 &&
 		sc.SigType == correspondingSig.SigType &&
 		sc.HashAlgorithm == correspondingSig.Hash &&
