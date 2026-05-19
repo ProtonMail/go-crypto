@@ -298,9 +298,11 @@ func newSignatureCandidate(ops *packet.OnePassSignature) (sigCandidate *Signatur
 		HashAlgorithm:     ops.Hash,
 		PubKeyAlgo:        ops.PubKeyAlgo,
 		IssuerKeyId:       ops.KeyId,
-		Salt:              ops.Salt,
-		IssuerKeyVersion:  uint8(ops.Version),
 		IssuerFingerprint: ops.KeyFingerprint,
+		Salt:              ops.Salt,
+	}
+	if ops.Version == 6 {
+		sigCandidate.IssuerKeyVersion = uint8(ops.Version)
 	}
 	sigCandidate.Hash, sigCandidate.WrappedHash, sigCandidate.SignatureError = hashForSignature(
 		sigCandidate.HashAlgorithm,
