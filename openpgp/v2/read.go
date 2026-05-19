@@ -280,7 +280,6 @@ type SignatureCandidate struct {
 	HashAlgorithm     crypto.Hash
 	PubKeyAlgo        packet.PublicKeyAlgorithm
 	IssuerKeyId       uint64
-	IssuerKeyVersion  uint8
 	IssuerFingerprint []byte
 	Salt              []byte // v6 only
 
@@ -301,9 +300,6 @@ func newSignatureCandidate(ops *packet.OnePassSignature) (sigCandidate *Signatur
 		IssuerFingerprint: ops.KeyFingerprint,
 		Salt:              ops.Salt,
 	}
-	if ops.Version == 6 {
-		sigCandidate.IssuerKeyVersion = uint8(ops.Version)
-	}
 	sigCandidate.Hash, sigCandidate.WrappedHash, sigCandidate.SignatureError = hashForSignature(
 		sigCandidate.HashAlgorithm,
 		sigCandidate.SigType,
@@ -318,7 +314,6 @@ func newSignatureCandidateFromSignature(sig *packet.Signature) (sigCandidate *Si
 		HashAlgorithm:     sig.Hash,
 		PubKeyAlgo:        sig.PubKeyAlgo,
 		IssuerKeyId:       *sig.IssuerKeyId,
-		IssuerKeyVersion:  sig.IssuerKeyVersion,
 		IssuerFingerprint: sig.IssuerFingerprint,
 		Salt:              sig.Salt(),
 	}
@@ -342,7 +337,6 @@ func (sc *SignatureCandidate) validate() bool {
 	correspondingSig := sc.CorrespondingSig
 	invalidV3 := sc.OPSVersion == 3 && correspondingSig.Version == 6
 	invalidV6 := (sc.OPSVersion == 6 && correspondingSig.Version != 6) ||
-		(sc.OPSVersion == 6 && sc.IssuerKeyVersion != correspondingSig.IssuerKeyVersion) ||
 		(sc.OPSVersion == 6 && !bytes.Equal(sc.IssuerFingerprint, correspondingSig.IssuerFingerprint)) ||
 		(sc.OPSVersion == 6 && !bytes.Equal(sc.Salt, correspondingSig.Salt()))
 	return !invalidV3 && !invalidV6 &&
