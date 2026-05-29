@@ -546,7 +546,7 @@ func TestSignatureWithReplacementKeySupacket(t *testing.T) {
 	replacementPrivKey := packet.(*PrivateKey)
 
 	// make forwards replacement signature
-	sig := &Signature{
+	deprecatedSig := &Signature{
 		CreationTime:   time.Unix(1777777777, 0),
 		SigType:        SigTypeDirectSignature,
 		PubKeyAlgo:     deprecatedKey.PubKeyAlgo,
@@ -557,19 +557,27 @@ func TestSignatureWithReplacementKeySupacket(t *testing.T) {
 		ReplacementKey: NewTargetRecord(replacementKey),
 	}
 
-	err = sig.SignDirectKeyBinding(deprecatedKey, deprecatedPrivKey, nil)
+	err = deprecatedSig.SignDirectKeyBinding(deprecatedKey, deprecatedPrivKey, nil)
 	if err != nil {
 		t.Errorf("failed to sign key: %v", err)
 	}
 
 	buf := bytes.NewBuffer([]byte{})
-	err = sig.Serialize(buf)
+	err = deprecatedSig.Serialize(buf)
 	if err != nil {
 		t.Errorf("failed to serialize signature: %v", err)
 	}
 
+	// verify what we just created
 	packet, _ = Read(bytes.NewReader(buf.Bytes()))
-	sig = packet.(*Signature)
+	sig, ok := packet.(*Signature)
+	if !ok {
+		t.Errorf("failed to parse signature")
+	}
+	err = deprecatedPrivKey.VerifyDirectKeySignature(sig)
+	if err != nil {
+		t.Errorf("failed to verify signature: %v", err)
+	}
 
 	found := false
 	for _, subPacket := range sig.rawSubpackets {
@@ -592,7 +600,8 @@ func TestSignatureWithReplacementKeySupacket(t *testing.T) {
 	}
 
 	// make reverse replacement key signature
-	sig = &Signature{
+	replacementSig := &Signature{
+		Version:        6, // otherwise it ignores the salt, *even though it makes a v6 sig*
 		CreationTime:   time.Unix(1777777777, 0),
 		SigType:        SigTypeDirectSignature,
 		PubKeyAlgo:     replacementKey.PubKeyAlgo,
@@ -601,22 +610,33 @@ func TestSignatureWithReplacementKeySupacket(t *testing.T) {
 		FlagSign:       true,
 		FlagCertify:    true,
 		DeprecatedKeys: []*TargetRecord{NewTargetRecord(deprecatedKey)},
-		salt:           []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
+	}
+	err = replacementSig.SetSalt([]byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15})
+	if err != nil {
+		t.Errorf("failed to set salt: %v", err)
 	}
 
-	err = sig.SignDirectKeyBinding(replacementKey, replacementPrivKey, nil)
+	err = replacementSig.SignDirectKeyBinding(replacementKey, replacementPrivKey, nil)
 	if err != nil {
 		t.Errorf("failed to sign key: %v", err)
 	}
 
 	buf = bytes.NewBuffer([]byte{})
-	err = sig.Serialize(buf)
+	err = replacementSig.Serialize(buf)
 	if err != nil {
 		t.Errorf("failed to serialize signature: %v", err)
 	}
 
+	// verify what we just created
 	packet, _ = Read(bytes.NewReader(buf.Bytes()))
-	sig = packet.(*Signature)
+	sig, ok = packet.(*Signature)
+	if !ok {
+		t.Errorf("failed to parse signature")
+	}
+	err = replacementPrivKey.VerifyDirectKeySignature(sig)
+	if err != nil {
+		t.Errorf("failed to verify signature: %v", err)
+	}
 
 	found = false
 	for _, subPacket := range sig.rawSubpackets {
@@ -635,7 +655,7 @@ func TestSignatureWithReplacementKeySupacket(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Errorf("no replacementkey subpacket found in signature")
+		t.Errorf("no replacementkey subpacket found in signature: %v", sig)
 	}
 
 	// now read a signature that we made earlier (using rPGP)
@@ -645,7 +665,7 @@ func TestSignatureWithReplacementKeySupacket(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	sig, ok := packet.(*Signature)
+	sig, ok = packet.(*Signature)
 	if !ok || sig.SigType != SigTypeDirectSignature || sig.PubKeyAlgo != PubKeyAlgoEdDSA || sig.Hash != crypto.SHA256 {
 		t.Errorf("failed to parse, got: %#v", packet)
 	}
