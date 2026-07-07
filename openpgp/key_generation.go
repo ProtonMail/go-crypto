@@ -379,6 +379,7 @@ func generateRSAKey(random io.Reader, bits int) (*rsa.PrivateKey, error) {
 	// and recompute the precomputed values.
 	if len(key.Primes) == 2 && key.Primes[0].Cmp(key.Primes[1]) > 0 {
 		key.Primes[0], key.Primes[1] = key.Primes[1], key.Primes[0]
+		key.Precomputed = rsa.PrecomputedValues{}
 		key.Precompute()
 	}
 	return key, nil

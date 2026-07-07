@@ -1912,6 +1912,13 @@ func TestGenerateRSAKeyPLessThanQ(t *testing.T) {
 		if key.Primes[0].Cmp(key.Primes[1]) != -1 {
 			t.Fatal("Prime in p slot should be less than prime in q slot")
 		}
+		if err := key.Validate(); err != nil {
+			t.Fatalf("Generated key failed validation: %v", err)
+		}
+		digest := make([]byte, crypto.SHA256.Size())
+		if _, err := key.Sign(rand.Reader, digest, crypto.SHA256); err != nil {
+			t.Fatalf("Generated key failed signing: %v", err)
+		}
 
 		pPrime := key.Primes[1]
 		qPrime := key.Primes[0]
