@@ -1,5 +1,5 @@
-// Package mldsa_eddsa implements hybrid ML-DSA + EdDSA encryption, suitable for OpenPGP, experimental.
-// It follows the specs https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-09.html#name-composite-signature-schemes
+// Package mldsa_eddsa implements hybrid ML-DSA + EdDSA encryption for OpenPGP,
+// according to https://www.rfc-editor.org/rfc/rfc9980.html#name-composite-signature-schemes.
 package mldsa_eddsa
 
 import (
@@ -33,7 +33,7 @@ type PrivateKey struct {
 }
 
 // GenerateKey generates a ML-DSA + EdDSA composite key as specified in
-// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-09.html#name-key-generation-procedure-2
+// https://www.rfc-editor.org/rfc/rfc9980.html#name-key-generation-procedure-2
 func GenerateKey(rand io.Reader, algId uint8, c ecc.EdDSACurve, d sign.Scheme) (priv *PrivateKey, err error) {
 	priv = new(PrivateKey)
 
@@ -72,7 +72,7 @@ func (priv *PrivateKey) DeriveMlDsaKeys(seed []byte, overridePublicKey bool) (er
 }
 
 // Sign generates a ML-DSA + EdDSA composite signature as specified in
-// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-09.html#name-signature-generation
+// https://www.rfc-editor.org/rfc/rfc9980.html#name-signature-generation
 func Sign(priv *PrivateKey, message []byte) (mldsaSig, ecSig []byte, err error) {
 	ecSig, err = priv.PublicKey.Curve.Sign(priv.PublicKey.PublicPoint, priv.SecretEc, message)
 	if err != nil {
@@ -100,7 +100,7 @@ func Sign(priv *PrivateKey, message []byte) (mldsaSig, ecSig []byte, err error) 
 }
 
 // Verify verifies a ML-DSA + EdDSA composite signature as specified in
-// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-09.html#name-signature-verification
+// https://www.rfc-editor.org/rfc/rfc9980.html#name-signature-verification
 func Verify(pub *PublicKey, message, dSig, ecSig []byte) bool {
 	return pub.Curve.Verify(pub.PublicPoint, message, ecSig) && pub.Mldsa.Verify(pub.PublicMldsa, message, dSig, nil)
 }

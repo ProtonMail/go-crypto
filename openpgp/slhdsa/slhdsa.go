@@ -1,5 +1,5 @@
-// Package slhdsa implements SLH-DSA-SHAKE, suitable for OpenPGP, experimental.
-// It follows the specs https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-06.html
+// Package slhdsa implements SLH-DSA-SHAKE for OpenPGP,
+// according to https://www.rfc-editor.org/rfc/rfc9980.html#name-slh-dsa-2.
 package slhdsa
 
 import (

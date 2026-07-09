@@ -367,7 +367,7 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 }
 
 // parseMldsaEddsaSignature parses an ML-DSA + EdDSA signature as specified in
-// https://www.ietf.org/archive/id/draft-ietf-openpgp-pqc-09.html#name-signature-packet-tag-2
+// https://www.rfc-editor.org/rfc/rfc9980.html#name-signature-packet-packet-typ
 func (sig *Signature) parseMldsaEddsaSignature(r io.Reader, ecLen, dLen int) (err error) {
 	sig.EdDSASigR = encoding.NewEmptyOctetArray(ecLen)
 	if _, err = sig.EdDSASigR.ReadFrom(r); err != nil {
