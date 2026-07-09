@@ -1328,8 +1328,8 @@ func (pk *PublicKey) KeyExpired(sig *Signature, currentTime time.Time) bool {
 func (pg *PublicKey) IsPQ() bool {
 	switch pg.PubKeyAlgo {
 	case PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem1024X448,
-		PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448, PubKeyAlgoSlhdsaShake128s,
-		PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
+		PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448,
+		PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
 		return true
 	default:
 		return false

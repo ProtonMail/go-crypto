@@ -213,7 +213,8 @@ func (s *Subkey) LatestValidBindingSignature(date time.Time, config *packet.Conf
 func (s *Subkey) IsPQ() bool {
 	switch s.PublicKey.PubKeyAlgo {
 	case packet.PubKeyAlgoMlkem768X25519, packet.PubKeyAlgoMlkem1024X448,
-		packet.PubKeyAlgoMldsa65Ed25519, packet.PubKeyAlgoMldsa87Ed448:
+		packet.PubKeyAlgoMldsa65Ed25519, packet.PubKeyAlgoMldsa87Ed448,
+		packet.PubKeyAlgoSlhdsaShake128s, packet.PubKeyAlgoSlhdsaShake128f, packet.PubKeyAlgoSlhdsaShake256s:
 		return true
 	default:
 		return false
