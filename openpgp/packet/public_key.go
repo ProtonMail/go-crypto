@@ -242,18 +242,11 @@ func NewEd448PublicKey(creationTime time.Time, pub *ed448.PublicKey) *PublicKey 
 }
 
 func NewMlkemEcdhPublicKey(creationTime time.Time, pub *mlkem_ecdh.PublicKey) *PublicKey {
-	mlkemBin, err := pub.PublicMlkem.MarshalBinary()
-	if err != nil {
-		panic(err)
-	}
-
 	pk := &PublicKey{
 		Version:      4,
 		CreationTime: creationTime,
 		PubKeyAlgo:   PublicKeyAlgorithm(pub.AlgId),
 		PublicKey:    pub,
-		p:            encoding.NewOctetArray(pub.PublicPoint),
-		q:            encoding.NewOctetArray(mlkemBin),
 	}
 
 	pk.setFingerprintAndKeyId()
@@ -261,17 +254,11 @@ func NewMlkemEcdhPublicKey(creationTime time.Time, pub *mlkem_ecdh.PublicKey) *P
 }
 
 func NewMldsaEddsaPublicKey(creationTime time.Time, pub *mldsa_eddsa.PublicKey) *PublicKey {
-	publicKeyBytes, err := pub.PublicMldsa.MarshalBinary()
-	if err != nil {
-		panic(err)
-	}
 	pk := &PublicKey{
 		Version:      6,
 		CreationTime: creationTime,
 		PubKeyAlgo:   PublicKeyAlgorithm(pub.AlgId),
 		PublicKey:    pub,
-		p:            encoding.NewOctetArray(pub.PublicPoint),
-		q:            encoding.NewOctetArray(publicKeyBytes),
 	}
 
 	pk.setFingerprintAndKeyId()
@@ -279,16 +266,11 @@ func NewMldsaEddsaPublicKey(creationTime time.Time, pub *mldsa_eddsa.PublicKey) 
 }
 
 func NewSlhdsaPublicKey(creationTime time.Time, pub *slhdsa.PublicKey) *PublicKey {
-	publicKeyBytes, err := pub.PublicSlhdsa.MarshalBinary()
-	if err != nil {
-		panic(err)
-	}
 	pk := &PublicKey{
 		Version:      6,
 		CreationTime: creationTime,
 		PubKeyAlgo:   PublicKeyAlgorithm(pub.AlgId),
 		PublicKey:    pub,
-		q:            encoding.NewOctetArray(publicKeyBytes),
 	}
 
 	pk.setFingerprintAndKeyId()
@@ -571,41 +553,6 @@ func (pk *PublicKey) parseECDH(r io.Reader) (err error) {
 	return
 }
 
-// parseMlkemEcdh parses a ML-KEM + ECC public key as specified in
-// https://www.rfc-editor.org/rfc/rfc9980.html#name-key-material-packets
-func (pk *PublicKey) parseMlkemEcdh(r io.Reader, ecLen, kLen int) (err error) {
-	pk.p = encoding.NewEmptyOctetArray(ecLen)
-	if _, err = pk.p.ReadFrom(r); err != nil {
-		return
-	}
-
-	pk.q = encoding.NewEmptyOctetArray(kLen)
-	if _, err = pk.q.ReadFrom(r); err != nil {
-		return
-	}
-
-	pub := &mlkem_ecdh.PublicKey{
-		AlgId:       uint8(pk.PubKeyAlgo),
-		PublicPoint: pk.p.Bytes(),
-	}
-
-	if pub.Curve, err = GetECDHCurveFromAlgID(pk.PubKeyAlgo); err != nil {
-		return err
-	}
-
-	if pub.Mlkem, err = GetMlkemFromAlgID(pk.PubKeyAlgo); err != nil {
-		return err
-	}
-
-	if pub.PublicMlkem, err = pub.Mlkem.UnmarshalBinaryPublicKey(pk.q.Bytes()); err != nil {
-		return err
-	}
-
-	pk.PublicKey = pub
-
-	return
-}
-
 func (pk *PublicKey) parseEdDSA(r io.Reader) (err error) {
 	if pk.Version == 6 {
 		// Implementations MUST NOT accept or generate version 6 key material using the deprecated OIDs.
@@ -704,22 +651,57 @@ func (pk *PublicKey) parseEd448(r io.Reader) (err error) {
 	return
 }
 
-// parseMldsaEddsa parses a ML-DSA + EdDSA public key as specified in
-// https://www.rfc-editor.org/rfc/rfc9980.html#name-key-material-packets-2
-func (pk *PublicKey) parseMldsaEddsa(r io.Reader, ecLen, dLen int) (err error) {
-	pk.p = encoding.NewEmptyOctetArray(ecLen)
-	if _, err = pk.p.ReadFrom(r); err != nil {
+// parseMlkemEcdh parses a ML-KEM + ECC public key as specified in
+// https://www.rfc-editor.org/rfc/rfc9980.html#name-key-material-packets
+func (pk *PublicKey) parseMlkemEcdh(r io.Reader, ecLen, kLen int) (err error) {
+	ecKey := make([]byte, ecLen)
+	if _, err = io.ReadFull(r, ecKey); err != nil {
 		return
 	}
 
-	pk.q = encoding.NewEmptyOctetArray(dLen)
-	if _, err = pk.q.ReadFrom(r); err != nil {
+	mlkemKey := make([]byte, kLen)
+	if _, err = io.ReadFull(r, mlkemKey); err != nil {
+		return
+	}
+
+	pub := &mlkem_ecdh.PublicKey{
+		AlgId:       uint8(pk.PubKeyAlgo),
+		PublicPoint: ecKey,
+	}
+
+	if pub.Curve, err = GetECDHCurveFromAlgID(pk.PubKeyAlgo); err != nil {
+		return err
+	}
+
+	if pub.Mlkem, err = GetMlkemFromAlgID(pk.PubKeyAlgo); err != nil {
+		return err
+	}
+
+	if pub.PublicMlkem, err = pub.Mlkem.UnmarshalBinaryPublicKey(mlkemKey); err != nil {
+		return err
+	}
+
+	pk.PublicKey = pub
+
+	return
+}
+
+// parseMldsaEddsa parses a ML-DSA + EdDSA public key as specified in
+// https://www.rfc-editor.org/rfc/rfc9980.html#name-key-material-packets-2
+func (pk *PublicKey) parseMldsaEddsa(r io.Reader, ecLen, dLen int) (err error) {
+	ecKey := make([]byte, ecLen)
+	if _, err = io.ReadFull(r, ecKey); err != nil {
+		return
+	}
+
+	mldsaKey := make([]byte, dLen)
+	if _, err = io.ReadFull(r, mldsaKey); err != nil {
 		return
 	}
 
 	pub := &mldsa_eddsa.PublicKey{
 		AlgId:       uint8(pk.PubKeyAlgo),
-		PublicPoint: pk.p.Bytes(),
+		PublicPoint: ecKey,
 	}
 
 	if pub.Curve, err = GetEdDSACurveFromAlgID(pk.PubKeyAlgo); err != nil {
@@ -730,7 +712,7 @@ func (pk *PublicKey) parseMldsaEddsa(r io.Reader, ecLen, dLen int) (err error) {
 		return err
 	}
 
-	if pub.PublicMldsa, err = pub.Mldsa.UnmarshalBinaryPublicKey(pk.q.Bytes()); err != nil {
+	if pub.PublicMldsa, err = pub.Mldsa.UnmarshalBinaryPublicKey(mldsaKey); err != nil {
 		return err
 	}
 
@@ -748,12 +730,12 @@ func (pk *PublicKey) parseSlhDsa(r io.Reader) (err error) {
 	}
 
 	keyLen := parsedPublicKey.Slhdsa.PublicKeySize()
-	pk.q = encoding.NewEmptyOctetArray(keyLen)
-	if _, err = pk.q.ReadFrom(r); err != nil {
+	key := make([]byte, keyLen)
+	if _, err = io.ReadFull(r, key); err != nil {
 		return err
 	}
 
-	if parsedPublicKey.PublicSlhdsa, err = parsedPublicKey.Slhdsa.UnmarshalBinaryPublicKey(pk.q.Bytes()); err != nil {
+	if parsedPublicKey.PublicSlhdsa, err = parsedPublicKey.Slhdsa.UnmarshalBinaryPublicKey(key); err != nil {
 		return err
 	}
 
@@ -848,12 +830,21 @@ func (pk *PublicKey) algorithmSpecificByteCount() uint32 {
 		length += ed25519.PublicKeySize
 	case PubKeyAlgoEd448:
 		length += ed448.PublicKeySize
-	case PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem1024X448,
-		PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
-		length += uint32(pk.p.EncodedLength())
-		length += uint32(pk.q.EncodedLength())
+	case PubKeyAlgoMlkem768X25519:
+		length += x25519.KeySize
+		length += mlkem768.PublicKeySize
+	case PubKeyAlgoMlkem1024X448:
+		length += x448.KeySize
+		length += mlkem1024.PublicKeySize
+	case PubKeyAlgoMldsa65Ed25519:
+		length += ed25519.PublicKeySize
+		length += mldsa65.PublicKeySize
+	case PubKeyAlgoMldsa87Ed448:
+		length += ed448.PublicKeySize
+		length += mldsa87.PublicKeySize
 	case PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
-		length += uint32(pk.q.EncodedLength())
+		publicKey := pk.PublicKey.(*slhdsa.PublicKey)
+		length += uint32(publicKey.Slhdsa.PublicKeySize())
 	default:
 		panic("unknown public key algorithm")
 	}
@@ -946,15 +937,38 @@ func (pk *PublicKey) serializeWithoutHeaders(w io.Writer) (err error) {
 		publicKey := pk.PublicKey.(*ed448.PublicKey)
 		_, err = w.Write(publicKey.Point)
 		return
-	case PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem1024X448,
-		PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
-		if _, err = w.Write(pk.p.EncodedBytes()); err != nil {
+	case PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem1024X448:
+		publicKey := pk.PublicKey.(*mlkem_ecdh.PublicKey)
+		if _, err = w.Write(publicKey.PublicPoint); err != nil {
 			return
 		}
-		_, err = w.Write(pk.q.EncodedBytes())
+		var mlkemBin []byte
+        mlkemBin, err = publicKey.PublicMlkem.MarshalBinary()
+        if err != nil {
+			return
+        }
+		_, err = w.Write(mlkemBin)
+		return
+	case PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
+		publicKey := pk.PublicKey.(*mldsa_eddsa.PublicKey)
+		if _, err = w.Write(publicKey.PublicPoint); err != nil {
+			return
+		}
+		var mldsaBin []byte
+        mldsaBin, err = publicKey.PublicMldsa.MarshalBinary()
+        if err != nil {
+			return
+        }
+		_, err = w.Write(mldsaBin)
 		return
 	case PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
-		_, err = w.Write(pk.q.EncodedBytes())
+		publicKey := pk.PublicKey.(*slhdsa.PublicKey)
+		var slhdsaBin []byte
+        slhdsaBin, err = publicKey.PublicSlhdsa.MarshalBinary()
+        if err != nil {
+			return
+        }
+		_, err = w.Write(slhdsaBin)
 		return
 	}
 	return errors.InvalidArgumentError("bad public-key algorithm")
@@ -1044,13 +1058,13 @@ func (pk *PublicKey) VerifySignature(signed hash.Hash, sig *Signature) (err erro
 		return nil
 	case PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
 		mldsaEddsaPublicKey := pk.PublicKey.(*mldsa_eddsa.PublicKey)
-		if !mldsa_eddsa.Verify(mldsaEddsaPublicKey, hashBytes, sig.MldsaSig.Bytes(), sig.EdDSASigR.Bytes()) {
+		if !mldsa_eddsa.Verify(mldsaEddsaPublicKey, hashBytes, sig.MldsaSig, sig.EdSig) {
 			return errors.SignatureError("MldsaEddsa verification failure")
 		}
 		return nil
 	case PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
 		slhDsaPublicKey := pk.PublicKey.(*slhdsa.PublicKey)
-		if !slhdsa.Verify(slhDsaPublicKey, hashBytes, sig.SlhdsaSig.Bytes()) {
+		if !slhdsa.Verify(slhDsaPublicKey, hashBytes, sig.SlhdsaSig) {
 			return errors.SignatureError("Slhdsa verification failure")
 		}
 		return nil
@@ -1280,11 +1294,15 @@ func (pk *PublicKey) BitLength() (bitLength uint16, err error) {
 		bitLength = ed25519.PublicKeySize * 8
 	case PubKeyAlgoEd448:
 		bitLength = ed448.PublicKeySize * 8
-	case PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem1024X448,
-		PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
-		bitLength = pk.q.BitLength() // TODO: Discuss if this makes sense.
+	case PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem1024X448:
+		publicKey := pk.PublicKey.(*mlkem_ecdh.PublicKey)
+		bitLength = uint16(publicKey.Mlkem.PublicKeySize() * 8)
+	case PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
+		publicKey := pk.PublicKey.(*mldsa_eddsa.PublicKey)
+		bitLength = uint16(publicKey.Mldsa.PublicKeySize() * 8)
 	case PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
-		bitLength = pk.q.BitLength()
+		publicKey := pk.PublicKey.(*slhdsa.PublicKey)
+		bitLength = uint16(publicKey.Slhdsa.PublicKeySize() * 8)
 	default:
 		err = errors.InvalidArgumentError("bad public-key algorithm")
 	}

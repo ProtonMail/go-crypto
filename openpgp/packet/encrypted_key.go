@@ -34,12 +34,11 @@ type EncryptedKey struct {
 	CipherFunc     CipherFunction // only valid after a successful Decrypt for a v3 packet
 	Key            []byte         // only valid after a successful Decrypt
 
-	encryptedMPI1         encoding.Field    // Only valid in RSA, Elgamal, ECDH, and PQC keys
-	encryptedMPI2         encoding.Field    // Only valid in Elgamal, ECDH and PQC keys
-	encryptedMPI3         encoding.Field    // Only valid in PQC keys
-	ephemeralPublicX25519 *x25519.PublicKey // used for x25519
-	ephemeralPublicX448   *x448.PublicKey   // used for x448
-	encryptedSession      []byte            // used for x25519 and x448
+	encryptedMPI1         encoding.Field    // used for RSA, Elgamal and ECDH
+	encryptedMPI2         encoding.Field    // used for Elgamal and ECDH
+	ephemeralPublicEcc    []byte            // used for X25519, X448 and ML-KEM
+	ephemeralPublicMlKem  []byte            // used for ML-KEM
+	encryptedSession      []byte            // used for X25519, X448 and ML-KEM
 }
 
 func (e *EncryptedKey) parse(r io.Reader) (err error) {
@@ -127,21 +126,21 @@ func (e *EncryptedKey) parse(r io.Reader) (err error) {
 			return
 		}
 	case PubKeyAlgoX25519:
-		e.ephemeralPublicX25519, e.encryptedSession, cipherFunction, err = x25519.DecodeFields(r, e.Version == 6)
+		e.ephemeralPublicEcc, e.encryptedSession, cipherFunction, err = x25519.DecodeFields(r, e.Version == 6)
 		if err != nil {
 			return
 		}
 	case PubKeyAlgoX448:
-		e.ephemeralPublicX448, e.encryptedSession, cipherFunction, err = x448.DecodeFields(r, e.Version == 6)
+		e.ephemeralPublicEcc, e.encryptedSession, cipherFunction, err = x448.DecodeFields(r, e.Version == 6)
 		if err != nil {
 			return
 		}
 	case PubKeyAlgoMlkem768X25519:
-		if e.encryptedMPI1, e.encryptedMPI2, e.encryptedMPI3, cipherFunction, err = mlkem_ecdh.DecodeFields(r, 32, 1088, e.Version == 6); err != nil {
+		if e.ephemeralPublicEcc, e.ephemeralPublicMlKem, e.encryptedSession, cipherFunction, err = mlkem_ecdh.DecodeFields(r, 32, 1088, e.Version == 6); err != nil {
 			return err
 		}
 	case PubKeyAlgoMlkem1024X448:
-		if e.encryptedMPI1, e.encryptedMPI2, e.encryptedMPI3, cipherFunction, err = mlkem_ecdh.DecodeFields(r, 56, 1568, e.Version == 6); err != nil {
+		if e.ephemeralPublicEcc, e.ephemeralPublicMlKem, e.encryptedSession, cipherFunction, err = mlkem_ecdh.DecodeFields(r, 56, 1568, e.Version == 6); err != nil {
 			return err
 		}
 	}
@@ -199,15 +198,11 @@ func (e *EncryptedKey) Decrypt(priv *PrivateKey, config *Config) error {
 		}
 		b, err = ecdh.Decrypt(priv.PrivateKey.(*ecdh.PrivateKey), vsG, m, oid, fp)
 	case PubKeyAlgoX25519:
-		b, err = x25519.Decrypt(priv.PrivateKey.(*x25519.PrivateKey), e.ephemeralPublicX25519, e.encryptedSession)
+		b, err = x25519.Decrypt(priv.PrivateKey.(*x25519.PrivateKey), e.ephemeralPublicEcc, e.encryptedSession)
 	case PubKeyAlgoX448:
-		b, err = x448.Decrypt(priv.PrivateKey.(*x448.PrivateKey), e.ephemeralPublicX448, e.encryptedSession)
+		b, err = x448.Decrypt(priv.PrivateKey.(*x448.PrivateKey), e.ephemeralPublicEcc, e.encryptedSession)
 	case PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem1024X448:
-		ecE := e.encryptedMPI1.Bytes()
-		kE := e.encryptedMPI2.Bytes()
-		m := e.encryptedMPI3.Bytes()
-
-		b, err = mlkem_ecdh.Decrypt(priv.PrivateKey.(*mlkem_ecdh.PrivateKey), kE, ecE, m)
+		b, err = mlkem_ecdh.Decrypt(priv.PrivateKey.(*mlkem_ecdh.PrivateKey), e.ephemeralPublicMlKem, e.ephemeralPublicEcc, e.encryptedSession)
 	default:
 		err = errors.InvalidArgumentError("cannot decrypt encrypted session key with private key of type " + strconv.Itoa(int(priv.PubKeyAlgo)))
 	}
@@ -262,7 +257,7 @@ func (e *EncryptedKey) Serialize(w io.Writer) error {
 	case PubKeyAlgoX448:
 		encodedLength = x448.EncodedFieldsLength(e.encryptedSession, e.Version == 6)
 	case PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem1024X448:
-		encodedLength = int(e.encryptedMPI1.EncodedLength()) + int(e.encryptedMPI2.EncodedLength()) + int(e.encryptedMPI3.EncodedLength()) + 1
+		encodedLength = len(e.ephemeralPublicEcc) + len(e.ephemeralPublicMlKem) + len(e.encryptedSession) + 1
 		if e.Version < 6 {
 			encodedLength += 1
 		}
@@ -331,13 +326,13 @@ func (e *EncryptedKey) Serialize(w io.Writer) error {
 		_, err := w.Write(e.encryptedMPI2.EncodedBytes())
 		return err
 	case PubKeyAlgoX25519:
-		err := x25519.EncodeFields(w, e.ephemeralPublicX25519, e.encryptedSession, byte(e.CipherFunc), e.Version == 6)
+		err := x25519.EncodeFields(w, e.ephemeralPublicEcc, e.encryptedSession, byte(e.CipherFunc), e.Version == 6)
 		return err
 	case PubKeyAlgoX448:
-		err := x448.EncodeFields(w, e.ephemeralPublicX448, e.encryptedSession, byte(e.CipherFunc), e.Version == 6)
+		err := x448.EncodeFields(w, e.ephemeralPublicEcc, e.encryptedSession, byte(e.CipherFunc), e.Version == 6)
 		return err
 	case PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem1024X448:
-		err := mlkem_ecdh.EncodeFields(w, e.encryptedMPI1.EncodedBytes(), e.encryptedMPI2.EncodedBytes(), e.encryptedMPI3.EncodedBytes(), byte(e.CipherFunc), e.Version == 6)
+		err := mlkem_ecdh.EncodeFields(w, e.ephemeralPublicEcc, e.ephemeralPublicMlKem, e.encryptedSession, byte(e.CipherFunc), e.Version == 6)
 		return err
 	default:
 		panic("internal error")
@@ -616,12 +611,8 @@ func serializeEncryptedKeyMlkem(w io.Writer, rand io.Reader, header []byte, pub 
 		return errors.InvalidArgumentError("ML-KEM + ECDH encryption failed: " + err.Error())
 	}
 
-	ml := encoding.NewOctetArray(mlE)
-	ec := encoding.NewOctetArray(ecE)
-	m := encoding.NewOctetArray(c)
-
 	packetLen := len(header) /* header length */
-	packetLen += int(ec.EncodedLength()) + int(ml.EncodedLength()) + int(m.EncodedLength()) + 1
+	packetLen += len(ecE) + len(mlE) + len(c) + 1
 	if version < 6 {
 		packetLen += 1
 	}
@@ -636,5 +627,5 @@ func serializeEncryptedKeyMlkem(w io.Writer, rand io.Reader, header []byte, pub 
 		return err
 	}
 
-	return mlkem_ecdh.EncodeFields(w, ec.EncodedBytes(), ml.EncodedBytes(), m.EncodedBytes(), cipherFunc, version == 6)
+	return mlkem_ecdh.EncodeFields(w, ecE, mlE, c, cipherFunc, version == 6)
 }

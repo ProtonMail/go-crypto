@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/ProtonMail/go-crypto/openpgp/internal/encoding"
 	"golang.org/x/crypto/sha3"
 
 	"github.com/ProtonMail/go-crypto/openpgp/aes/keywrap"
@@ -213,16 +212,16 @@ func EncodeFields(w io.Writer, ec, ml, encryptedSessionKey []byte, cipherFunctio
 
 // DecodeFields decodes an ML-KEM + ECDH session key encryption fields as
 // ephemeral ECDH public key | ML-KEM ciphertext | follow byte length | cipherFunction (v3 only) | encryptedSessionKey.
-func DecodeFields(r io.Reader, lenEcc, lenMlkem int, v6 bool) (encryptedMPI1, encryptedMPI2, encryptedMPI3 encoding.Field, cipherFunction byte, err error) {
+func DecodeFields(r io.Reader, lenEcc, lenMlkem int, v6 bool) (ephemeralPublicEcc, ephemeralPublicMlKem, encryptedSessionKey []byte, cipherFunction byte, err error) {
 	var buf [1]byte
 
-	encryptedMPI1 = encoding.NewEmptyOctetArray(lenEcc)
-	if _, err = encryptedMPI1.ReadFrom(r); err != nil {
+	ephemeralPublicEcc = make([]byte, lenEcc)
+	if _, err = io.ReadFull(r, ephemeralPublicEcc); err != nil {
 		return
 	}
 
-	encryptedMPI2 = encoding.NewEmptyOctetArray(lenMlkem)
-	if _, err = encryptedMPI2.ReadFrom(r); err != nil {
+	ephemeralPublicMlKem = make([]byte, lenMlkem)
+	if _, err = io.ReadFull(r, ephemeralPublicMlKem); err != nil {
 		return
 	}
 
@@ -242,8 +241,8 @@ func DecodeFields(r io.Reader, lenEcc, lenMlkem int, v6 bool) (encryptedMPI1, en
 	}
 
 	// The encrypted session key.
-	encryptedMPI3 = encoding.NewEmptyOctetArray(int(followingLen))
-	if _, err = encryptedMPI3.ReadFrom(r); err != nil {
+	encryptedSessionKey = make([]byte, followingLen)
+	if _, err = io.ReadFull(r, encryptedSessionKey); err != nil {
 		return
 	}
 

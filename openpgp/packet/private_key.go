@@ -543,20 +543,20 @@ func serializeEd448PrivateKey(w io.Writer, priv *ed448.PrivateKey) error {
 // serializeMlkemPrivateKey serializes a ML-KEM + ECC private key according to
 // https://www.rfc-editor.org/rfc/rfc9980.html#name-key-material-packets
 func serializeMlkemPrivateKey(w io.Writer, priv *mlkem_ecdh.PrivateKey) (err error) {
-	if _, err = w.Write(encoding.NewOctetArray(priv.SecretEc).EncodedBytes()); err != nil {
+	if _, err = w.Write(priv.SecretEc); err != nil {
 		return err
 	}
-	_, err = w.Write(encoding.NewOctetArray(priv.SecretMlkemSeed).EncodedBytes())
+	_, err = w.Write(priv.SecretMlkemSeed)
 	return err
 }
 
 // serializeMldsaEddsaPrivateKey serializes a ML-DSA + EdDSA private key according to
 // https://www.rfc-editor.org/rfc/rfc9980.html#name-key-material-packets-2
 func serializeMldsaEddsaPrivateKey(w io.Writer, priv *mldsa_eddsa.PrivateKey) error {
-	if _, err := w.Write(encoding.NewOctetArray(priv.SecretEc).EncodedBytes()); err != nil {
+	if _, err := w.Write(priv.SecretEc); err != nil {
 		return err
 	}
-	if _, err := w.Write(encoding.NewOctetArray(priv.SecretMldsaSeed).EncodedBytes()); err != nil {
+	if _, err := w.Write(priv.SecretMldsaSeed); err != nil {
 		return err
 	}
 	return nil
@@ -1197,18 +1197,17 @@ func (pk *PrivateKey) parseMldsaEddsaPrivateKey(data []byte, ecLen, seedLen int)
 	priv := new(mldsa_eddsa.PrivateKey)
 	priv.PublicKey = *pub
 
-	buf := bytes.NewBuffer(data)
-	ec := encoding.NewEmptyOctetArray(ecLen)
-	if _, err := ec.ReadFrom(buf); err != nil {
-		return err
+	if len(data) != ecLen + seedLen {
+		return errors.StructuralError("wrong ML-DSA+EdDSA key size")
 	}
-	priv.SecretEc = ec.Bytes()
 
-	seed := encoding.NewEmptyOctetArray(seedLen)
-	if _, err := seed.ReadFrom(buf); err != nil {
-		return err
-	}
-	if err = priv.DeriveMlDsaKeys(seed.Bytes(), false); err != nil {
+	ecKey := make([]byte, ecLen)
+	copy(ecKey, data[:ecLen])
+	priv.SecretEc = ecKey
+
+	seed := make([]byte, seedLen)
+	copy(seed, data[ecLen:ecLen+seedLen])
+	if err = priv.DeriveMlDsaKeys(seed, false); err != nil {
 		return err
 	}
 
@@ -1227,18 +1226,17 @@ func (pk *PrivateKey) parseMlkemEcdhPrivateKey(data []byte, ecLen, seedLen int) 
 	priv := new(mlkem_ecdh.PrivateKey)
 	priv.PublicKey = *pub
 
-	buf := bytes.NewBuffer(data)
-	ec := encoding.NewEmptyOctetArray(ecLen)
-	if _, err := ec.ReadFrom(buf); err != nil {
-		return err
+	if len(data) != ecLen + seedLen {
+		return errors.StructuralError("wrong ML-KEM+ECDH key size")
 	}
-	priv.SecretEc = ec.Bytes()
 
-	seed := encoding.NewEmptyOctetArray(seedLen)
-	if _, err := seed.ReadFrom(buf); err != nil {
-		return err
-	}
-	if err = priv.DeriveMlKemKeys(seed.Bytes(), false); err != nil {
+	ecKey := make([]byte, ecLen)
+	copy(ecKey, data[:ecLen])
+	priv.SecretEc = ecKey
+
+	seed := make([]byte, seedLen)
+	copy(seed, data[ecLen:ecLen+seedLen])
+	if err = priv.DeriveMlKemKeys(seed, false); err != nil {
 		return err
 	}
 

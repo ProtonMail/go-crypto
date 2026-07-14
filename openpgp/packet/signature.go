@@ -85,8 +85,8 @@ type Signature struct {
 	ECDSASigR, ECDSASigS encoding.Field
 	EdDSASigR, EdDSASigS encoding.Field
 	EdSig                []byte
-	MldsaSig             encoding.Field
-	SlhdsaSig            encoding.Field
+	MldsaSig             []byte
+	SlhdsaSig            []byte
 
 	// rawSubpackets contains the unparsed subpackets, in order.
 	rawSubpackets []outputSubpacket
@@ -369,13 +369,13 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 // parseMldsaEddsaSignature parses an ML-DSA + EdDSA signature as specified in
 // https://www.rfc-editor.org/rfc/rfc9980.html#name-signature-packet-packet-typ
 func (sig *Signature) parseMldsaEddsaSignature(r io.Reader, ecLen, dLen int) (err error) {
-	sig.EdDSASigR = encoding.NewEmptyOctetArray(ecLen)
-	if _, err = sig.EdDSASigR.ReadFrom(r); err != nil {
+	sig.EdSig = make([]byte, ecLen)
+	if _, err = io.ReadFull(r, sig.EdSig); err != nil {
 		return
 	}
 
-	sig.MldsaSig = encoding.NewEmptyOctetArray(dLen)
-	_, err = sig.MldsaSig.ReadFrom(r)
+	sig.MldsaSig = make([]byte, dLen)
+	_, err = io.ReadFull(r, sig.MldsaSig)
 	return
 }
 
@@ -385,8 +385,8 @@ func (sig *Signature) parseSlhdsaSignature(r io.Reader, algID PublicKeyAlgorithm
 	if err != nil {
 		return err
 	}
-	sig.SlhdsaSig = encoding.NewEmptyOctetArray(scheme.SignatureSize())
-	_, err = sig.SlhdsaSig.ReadFrom(r)
+	sig.SlhdsaSig = make([]byte, scheme.SignatureSize())
+	_, err = io.ReadFull(r, sig.SlhdsaSig)
 	return
 }
 
@@ -1054,8 +1054,8 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 		dSig, ecSig, err := mldsa_eddsa.Sign(sk, digest)
 
 		if err == nil {
-			sig.MldsaSig = encoding.NewOctetArray(dSig)
-			sig.EdDSASigR = encoding.NewOctetArray(ecSig)
+			sig.MldsaSig = dSig
+			sig.EdSig = ecSig
 		}
 	case PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
 		if sig.Version != 6 {
@@ -1065,7 +1065,7 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 		dSig, err := slhdsa.Sign(sk, digest)
 
 		if err == nil {
-			sig.SlhdsaSig = encoding.NewOctetArray(dSig)
+			sig.SlhdsaSig = dSig
 		}
 	default:
 		err = errors.UnsupportedError("public key algorithm: " + strconv.Itoa(int(sig.PubKeyAlgo)))
@@ -1206,10 +1206,10 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 	case PubKeyAlgoEd448:
 		sigLength = ed448.SignatureSize
 	case PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
-		sigLength = int(sig.EdDSASigR.EncodedLength())
-		sigLength += int(sig.MldsaSig.EncodedLength())
+		sigLength = len(sig.EdSig)
+		sigLength += len(sig.MldsaSig)
 	case PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
-		sigLength += int(sig.SlhdsaSig.EncodedLength())
+		sigLength += len(sig.SlhdsaSig)
 	default:
 		panic("impossible")
 	}
@@ -1317,12 +1317,12 @@ func (sig *Signature) serializeBody(w io.Writer) (err error) {
 	case PubKeyAlgoEd448:
 		err = ed448.WriteSignature(w, sig.EdSig)
 	case PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
-		if _, err = w.Write(sig.EdDSASigR.EncodedBytes()); err != nil {
+		if _, err = w.Write(sig.EdSig); err != nil {
 			return
 		}
-		_, err = w.Write(sig.MldsaSig.EncodedBytes())
+		_, err = w.Write(sig.MldsaSig)
 	case PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
-		_, err = w.Write(sig.SlhdsaSig.EncodedBytes())
+		_, err = w.Write(sig.SlhdsaSig)
 	default:
 		panic("impossible")
 	}
