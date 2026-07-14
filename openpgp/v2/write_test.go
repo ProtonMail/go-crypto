@@ -672,8 +672,7 @@ var testEncryptionTests = map[string]struct {
 		true,
 		false,
 	},
-	// TODO: Add test vectors
-	/*"v6_Ed25519_ML-KEM-768+X25519": {
+	"v6_Ed25519_ML-KEM-768+X25519": {
 		v6Ed25519Mlkem768X25519PrivateHex,
 		false,
 		true,
@@ -683,16 +682,51 @@ var testEncryptionTests = map[string]struct {
 		true,
 		true,
 	},
-	"v6_ML-DSA-67+Ed25519_ML-KEM-768+X25519": {
-		mldsa65Ed25519Mlkem768X25519PrivateHex,
+	"v4_Ed25519_ML-KEM-768+X25519": {
+		v4Ed25519Mlkem768X25519PrivateHex,
+		false,
+		true,
+	},
+	"v4_Ed25519_ML-KEM-768+X25519_signed": {
+		v4Ed25519Mlkem768X25519PrivateHex,
+		true,
+		true,
+	},
+	"v4_Ed25519_X25519,ML-KEM-768+X25519": {
+		v4Ed25519X25519Mlkem768X25519PrivateHex,
 		false,
 		true,
 	},
 	"v6_ML-DSA-67+Ed25519_ML-KEM-768+X25519_signed": {
-		mldsa65Ed25519Mlkem768X25519PrivateHex,
+		v6Mldsa65Ed25519Mlkem768X25519PrivateHex,
 		true,
 		true,
-	},*/
+	},
+	"v6_ML-DSA-87+Ed448_ML-KEM-1024+X448": {
+		v6Mldsa87Ed448Mlkem1024X448PrivateHex,
+		false,
+		true,
+	},
+	"v6_ML-DSA-87+Ed448_ML-KEM-1024+X448_signed": {
+		v6Mldsa87Ed448Mlkem1024X448PrivateHex,
+		true,
+		true,
+	},
+	"v6_SLH-DSA-128s_ML-KEM-768+X25519_signed": {
+		v6Slhdsa128sMlkem768X25519PrivateHex,
+		true,
+		true,
+	},
+	"v6_SLH-DSA-128f_ML-KEM-768+X25519_signed": {
+		v6Slhdsa128fMlkem768X25519PrivateHex,
+		true,
+		true,
+	},
+	"v6_SLH-DSA-256s_ML-KEM-1024+X448_signed": {
+		v6Slhdsa256sMlkem1024X448PrivateHex,
+		true,
+		true,
+	},
 }
 
 func TestEncryption(t *testing.T) {
@@ -766,7 +800,7 @@ func TestEncryption(t *testing.T) {
 				t.Fatalf("Error closing WriteCloser: %s", err)
 			}
 
-			testTime, _ := time.Parse("2006-01-02", "2013-07-01")
+			testTime, _ := time.Parse("2006-01-02", "2026-01-01")
 
 			md, err := ReadMessage(buf, kring, nil /* no prompt */, &config)
 			if err != nil {
@@ -774,10 +808,13 @@ func TestEncryption(t *testing.T) {
 			}
 
 			if test.isSigned {
-				signKey, _ := kring[0].SigningKey(testTime, &allowAllAlgorithmsConfig)
+				signKey, ok := kring[0].SigningKey(testTime, &allowAllAlgorithmsConfig)
+				if !ok {
+					t.Fatalf("#%s: No signing key found at %v", name, testTime)
+				}
 				expectedKeyId := signKey.PublicKey.KeyId
 				if len(md.SignatureCandidates) < 1 {
-					t.Error("no candidate signature found")
+					t.Errorf("#%s: no candidate signature found", name)
 				}
 				if md.SignatureCandidates[0].IssuerKeyId != expectedKeyId {
 					t.Errorf("#%s: message signed by wrong key id, got: %v, want: %v", name, *md.SignatureCandidates[0].SignedBy, expectedKeyId)
@@ -792,9 +829,9 @@ func TestEncryption(t *testing.T) {
 				t.Fatalf("Error reading encrypted contents: %s", err)
 			}
 
-			encryptKey, out := kring[0].EncryptionKey(testTime, &allowAllAlgorithmsConfig)
-			if !out {
-				t.Fatalf("#%s: No encryption key found", name)
+			encryptKey, ok := kring[0].EncryptionKey(testTime, &allowAllAlgorithmsConfig)
+			if !ok {
+				t.Fatalf("#%s: No encryption key found at %v", name, testTime)
 			}
 			expectedKeyId := encryptKey.PublicKey.KeyId
 			if len(md.EncryptedToKeyIds) != 1 || md.EncryptedToKeyIds[0] != expectedKeyId {
