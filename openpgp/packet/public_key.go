@@ -328,14 +328,29 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 	case PubKeyAlgoEd448:
 		err = pk.parseEd448(r)
 	case PubKeyAlgoMlkem768X25519:
+		if !(pk.Version == 4 || pk.Version >= 6) {
+			return goerrors.New("openpgp: ML-KEM-768+X25519 may only be used with v4 or v6+")
+		}
 		err = pk.parseMlkemEcdh(r, 32, mlkem768.PublicKeySize)
 	case PubKeyAlgoMlkem1024X448:
+		if pk.Version < 6 {
+			return goerrors.New("openpgp: ML-KEM-1024+X448 may only be used with v6+")
+		}
 		err = pk.parseMlkemEcdh(r, 56, mlkem1024.PublicKeySize)
 	case PubKeyAlgoMldsa65Ed25519:
+		if pk.Version < 6 {
+			return goerrors.New("openpgp: ML-DSA-65+Ed25519 may only be used with v6+")
+		}
 		err = pk.parseMldsaEddsa(r, 32, mldsa65.PublicKeySize)
 	case PubKeyAlgoMldsa87Ed448:
+		if pk.Version < 6 {
+			return goerrors.New("openpgp: ML-DSA-87+Ed448 may only be used with v6+")
+		}
 		err = pk.parseMldsaEddsa(r, 57, mldsa87.PublicKeySize)
 	case PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
+		if pk.Version < 6 {
+			return goerrors.New("openpgp: SLH-DSA may only be used with v6+")
+		}
 		err = pk.parseSlhDsa(r)
 	default:
 		err = errors.UnsupportedError("public key type: " + strconv.Itoa(int(pk.PubKeyAlgo)))
