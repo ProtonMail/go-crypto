@@ -375,8 +375,7 @@ func Read(r io.Reader) (p Packet, err error) {
 	case packetTypeMarker:
 		p = new(Marker)
 	case packetTypeTrust:
-		// Not implemented, just consume
-		err = errors.UnknownPacketTypeError(tag)
+		p = new(Trust)
 	default:
 		// Packet Tags from 0 to 39 are critical.
 		// Packet Tags from 40 to 63 are non-critical.
@@ -439,8 +438,7 @@ func ReadWithCheck(r io.Reader, sequence *SequenceVerifier) (p Packet, msgErr er
 	case packetTypeMarker:
 		p = new(Marker)
 	case packetTypeTrust:
-		// Not implemented, just consume
-		err = errors.UnknownPacketTypeError(tag)
+		p = new(Trust)
 	case packetTypePrivateKey,
 		packetTypePrivateSubkey,
 		packetTypePublicKey,
