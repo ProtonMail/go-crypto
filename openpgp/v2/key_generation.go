@@ -125,6 +125,34 @@ func newEntity(uid *userIdData, config *packet.Config) (*Entity, error) {
 	return e, nil
 }
 
+// NewSymmetricEntity returns an Entity that contains a fresh persistent
+// symmetric key for signing and encrypting pgp messages. The key is not
+// associated with an identity. It always returns a v6 persistent symmetric
+// key, regardless of the config.
+func NewSymmetricEntity(config *packet.Config) (*Entity, error) {
+	creationTime := config.Now()
+	symmetricAlgorithm := config.Cipher()
+	rand := config.Random()
+
+	fingerprintSeed := make([]byte, 32)
+	rand.Read(fingerprintSeed)
+
+	keyMaterial := make([]byte, symmetricAlgorithm.KeySize())
+	rand.Read(keyMaterial)
+
+	psk := packet.NewPersistentSymmetricKey(creationTime, symmetricAlgorithm, fingerprintSeed, keyMaterial)
+	e := &Entity{
+		PSK:              psk,
+		PrimaryKey:       &psk.PublicKey,
+		PrivateKey:       &psk.PrivateKey,
+		Identities:       make(map[string]*Identity),
+		Subkeys:          []Subkey{},
+		DirectSignatures: []*packet.VerifiableSignature{},
+	}
+
+	return e, nil
+}
+
 // AddUserId adds a user-id packet to the given entity.
 func (t *Entity) AddUserId(name, comment, email string, config *packet.Config) error {
 	var keyProperties *keyProperties
