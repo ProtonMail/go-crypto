@@ -31,6 +31,12 @@ type PersistentSymmetricKey struct {
 }
 
 func NewPersistentSymmetricKey(creationTime time.Time, symmetricAlgorithm CipherFunction, fingerprintSeed, keyMaterial []byte) *PersistentSymmetricKey {
+	if len(fingerprintSeed) != 32 {
+		panic("openpgp: incorrect fingerprint seed length in NewPersistentSymmetricKey")
+	}
+	if len(keyMaterial) != symmetricAlgorithm.KeySize() {
+		panic("openpgp: incorrect key material length in NewPersistentSymmetricKey")
+	}
 	psk := &PersistentSymmetricKey{
 		PrivateKey: PrivateKey{
 			PublicKey: PublicKey{
@@ -52,7 +58,7 @@ func NewPersistentSymmetricKey(creationTime time.Time, symmetricAlgorithm Cipher
 }
 
 func (psk *PersistentSymmetricKey) parse(r io.Reader) (err error) {
-	err = (&psk.PrivateKey).parse(r)
+	err = (&psk.PrivateKey).parsePrivateKey(r)
 	if err != nil {
 		return
 	}

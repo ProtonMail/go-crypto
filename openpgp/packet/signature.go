@@ -314,6 +314,9 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 			return
 		}
 		aeadMode := AEADMode(aeadModeAndSalt[0])
+		if !aeadMode.IsSupported() {
+			return errors.UnsupportedError("unsupported AEAD mode in signature")
+		}
 		sig.AEADMode = &aeadMode
 		sig.SigBytes1 = aeadModeAndSalt[1:]
 		authTag := make([]byte, aeadMode.TagLength())

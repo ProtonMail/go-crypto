@@ -210,7 +210,8 @@ func (e *Entity) EncryptionKeyWithError(now time.Time, config *packet.Config) (K
 // This is useful to retrieve keys for session key decryption.
 func (e *Entity) DecryptionKeys(id uint64, date time.Time, config *packet.Config) (keys []Key) {
 	// If e contains a persistent symmetric key, return that
-	if e.PSK != nil {
+	if e.PSK != nil &&
+		(id == 0 || e.PSK.KeyId == id) {
 		keys = append(keys, Key{e, nil, e.PrimaryKey, e.PrivateKey, e.PSK, nil})
 		return
 	}
@@ -227,7 +228,8 @@ func (e *Entity) DecryptionKeys(id uint64, date time.Time, config *packet.Config
 			keys = append(keys, Key{subkey.Primary, primarySelfSignature, subkey.PublicKey, subkey.PrivateKey, nil, subkeySelfSig})
 		}
 	}
-	if config.AllowDecryptionWithSigningKeys() || isValidEncryptionKey(primarySelfSignature, e.PrimaryKey.PubKeyAlgo, config) {
+	if (config.AllowDecryptionWithSigningKeys() || isValidEncryptionKey(primarySelfSignature, e.PrimaryKey.PubKeyAlgo, config)) &&
+		(id == 0 || e.PrimaryKey.KeyId == id) {
 		keys = append(keys, Key{e, primarySelfSignature, e.PrimaryKey, e.PrivateKey, nil, primarySelfSignature})
 	}
 	return

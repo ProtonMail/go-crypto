@@ -278,6 +278,17 @@ func NewSlhdsaPublicKey(creationTime time.Time, pub *slhdsa.PublicKey) *PublicKe
 }
 
 func (pk *PublicKey) parse(r io.Reader) (err error) {
+	err = pk.parsePublicKey(r)
+	if err != nil {
+		return
+	}
+	if pk.PubKeyAlgo == PubKeyAlgoAEAD {
+		return goerrors.New("openpgp: AEAD may only be used with persistent symmetric key packets")
+	}
+	return
+}
+
+func (pk *PublicKey) parsePublicKey(r io.Reader) (err error) {
 	// RFC 4880, section 5.5.2
 	var buf [6]byte
 	_, err = readFull(r, buf[:])

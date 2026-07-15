@@ -109,6 +109,9 @@ func (e *EncryptedKey) parse(r io.Reader) (err error) {
 			return
 		}
 		e.aeadMode = AEADMode(buf[0])
+		if !e.aeadMode.IsSupported() {
+			return errors.UnsupportedError("unsupported AEAD mode in PKESK")
+		}
 		e.aeadSalt = make([]byte, 32)
 		_, err = readFull(r, e.aeadSalt)
 		if err != nil {
@@ -558,6 +561,7 @@ func SerializeEncryptedKeyPSK(w io.Writer, psk *PersistentSymmetricKey, cipherFu
 		lenHeaderWritten += len(psk.Fingerprint)
 	} else {
 		binary.BigEndian.PutUint64(buf[versionSize:(versionSize+keyIdSize)], psk.KeyId)
+		lenHeaderWritten += keyIdSize
 	}
 	buf[lenHeaderWritten] = byte(psk.PubKeyAlgo)
 	lenHeaderWritten += algorithmSize
