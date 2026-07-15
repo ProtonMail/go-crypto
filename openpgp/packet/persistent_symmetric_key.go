@@ -5,6 +5,7 @@
 package packet
 
 import (
+	"bytes"
 	"crypto"
 	"hash"
 	"io"
@@ -85,7 +86,22 @@ func (psk *PersistentSymmetricKey) Serialize(w io.Writer) (err error) {
 	if psk.s2kType != S2KNON && psk.s2kType != S2KAEAD {
 		return errors.StructuralError("Persistent Symmetric Key packets can only be encrypted with modern AEAD")
 	}
-	return (&psk.PrivateKey).Serialize(w)
+
+	contents := bytes.NewBuffer(nil)
+	err = (&psk.PrivateKey).serializeWithoutHeaders(contents)
+	if err != nil {
+		return
+	}
+
+	err = serializeHeader(w, packetTypePersistentSymmetricKey, contents.Len())
+	if err != nil {
+		return
+	}
+	_, err = io.Copy(w, contents)
+	if err != nil {
+		return
+	}
+	return
 }
 
 // EncryptWithConfig encrypts an unencrypted persistent symmetric key using the passphrase and the config.
@@ -102,11 +118,8 @@ func (psk *PersistentSymmetricKey) EncryptWithConfig(passphrase []byte, config *
 	}
 	s2k(key, passphrase)
 	s2kType := S2KAEAD
-	psk.aead = AEADModeOCB
+	psk.aead = config.AEAD().Mode()
 	psk.cipher = config.Cipher()
-	if config.AEAD() != nil {
-		psk.aead = config.AEAD().Mode()
-	}
 	key = psk.applyHKDF(key)
 	// Encrypt the persistent symmetric key with the derived encryption key.
 	return psk.encrypt(key, params, s2kType, config.Cipher(), config.Random())

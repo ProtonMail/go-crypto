@@ -47,7 +47,8 @@ type PrivateKey struct {
 	s2k           func(out, in []byte)
 	aead          AEADMode // only relevant if S2KAEAD is enabled
 	// An *{rsa|dsa|elgamal|ecdh|ecdsa|ed25519|ed448}.PrivateKey or
-	// crypto.Signer/crypto.Decrypter (Decryptor RSA only).
+	// crypto.Signer/crypto.Decrypter (Decryptor RSA only) or
+	// *packet.PersistentSymmetricKeyPrivateFields (AEAD only).
 	PrivateKey interface{}
 	iv         []byte
 
@@ -394,11 +395,32 @@ func mod64kHash(d []byte) uint16 {
 
 func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 	contents := bytes.NewBuffer(nil)
-	err = pk.PublicKey.serializeWithoutHeaders(contents)
+	err = pk.serializeWithoutHeaders(contents)
 	if err != nil {
 		return
 	}
-	if _, err = contents.Write([]byte{uint8(pk.s2kType)}); err != nil {
+
+	ptype := packetTypePrivateKey
+	if pk.IsSubkey {
+		ptype = packetTypePrivateSubkey
+	}
+	err = serializeHeader(w, ptype, contents.Len())
+	if err != nil {
+		return
+	}
+	_, err = io.Copy(w, contents)
+	if err != nil {
+		return
+	}
+	return
+}
+
+func (pk *PrivateKey) serializeWithoutHeaders(w io.Writer) (err error) {
+	err = pk.PublicKey.serializeWithoutHeaders(w)
+	if err != nil {
+		return
+	}
+	if _, err = w.Write([]byte{uint8(pk.s2kType)}); err != nil {
 		return
 	}
 
@@ -451,10 +473,10 @@ func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 		}
 	}
 	if pk.Version == 5 || (pk.Version == 6 && pk.s2kType != S2KNON) {
-		contents.Write([]byte{uint8(optional.Len())})
+		w.Write([]byte{uint8(optional.Len())})
 	}
 
-	if _, err := io.Copy(contents, optional); err != nil {
+	if _, err := io.Copy(w, optional); err != nil {
 		return err
 	}
 
@@ -478,22 +500,9 @@ func (pk *PrivateKey) Serialize(w io.Writer) (err error) {
 		}
 
 		if pk.Version == 5 {
-			contents.Write([]byte{byte(l >> 24), byte(l >> 16), byte(l >> 8), byte(l)})
+			w.Write([]byte{byte(l >> 24), byte(l >> 16), byte(l >> 8), byte(l)})
 		}
-		contents.Write(priv)
-	}
-
-	ptype := packetTypePrivateKey
-	if pk.IsSubkey {
-		ptype = packetTypePrivateSubkey
-	}
-	err = serializeHeader(w, ptype, contents.Len())
-	if err != nil {
-		return
-	}
-	_, err = io.Copy(w, contents)
-	if err != nil {
-		return
+		w.Write(priv)
 	}
 	return
 }
