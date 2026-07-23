@@ -384,7 +384,7 @@ func (el EntityList) KeysByIdUsage(id uint64, requiredUsage byte) (keys []Key) {
 func (el EntityList) DecryptionKeys() (keys []Key) {
 	for _, e := range el {
 		for _, subKey := range e.Subkeys {
-			if subKey.PrivateKey != nil && subKey.Sig.FlagsValid && (subKey.Sig.FlagEncryptStorage || subKey.Sig.FlagEncryptCommunications) {
+			if subKey.PrivateKey != nil && subKey.Sig.FlagsValid && (subKey.Sig.FlagEncryptStorage || subKey.Sig.FlagEncryptCommunications || subKey.Sig.FlagForward) {
 				keys = append(keys, Key{e, subKey.PublicKey, subKey.PrivateKey, subKey.Sig, subKey.Revocations})
 			}
 		}
@@ -803,6 +803,11 @@ func (e *Entity) Serialize(w io.Writer) error {
 		}
 	}
 	for _, subkey := range e.Subkeys {
+		// Don't export public key for forwarding keys, see forwarding section 4.1.
+		if subkey.Sig.FlagForward {
+			continue
+		}
+
 		err = subkey.PublicKey.Serialize(w)
 		if err != nil {
 			return err

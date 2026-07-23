@@ -27,6 +27,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/slhdsa"
 	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
 	"github.com/cloudflare/circl/sign/mldsa/mldsa87"
+	"golang.org/x/crypto/hkdf"
 )
 
 const (
@@ -38,7 +39,7 @@ const (
 	KeyFlagEncryptStorage
 	KeyFlagSplitKey
 	KeyFlagAuthenticate
-	_
+	KeyFlagForward
 	KeyFlagGroupKey
 )
 
@@ -84,9 +85,8 @@ type Signature struct {
 	DSASigR, DSASigS     encoding.Field
 	ECDSASigR, ECDSASigS encoding.Field
 	EdDSASigR, EdDSASigS encoding.Field
-	EdSig                []byte
-	MldsaSig             []byte
-	SlhdsaSig            []byte
+	SigBytes1, SigBytes2 []byte
+	AEADMode             *AEADMode
 
 	// rawSubpackets contains the unparsed subpackets, in order.
 	rawSubpackets []outputSubpacket
@@ -135,8 +135,9 @@ type Signature struct {
 
 	// FlagsValid is set if any flags were given. See RFC 9580, section
 	// 5.2.3.29 for details.
-	FlagsValid                                                                                                         bool
-	FlagCertify, FlagSign, FlagEncryptCommunications, FlagEncryptStorage, FlagSplitKey, FlagAuthenticate, FlagGroupKey bool
+	FlagsValid                                                           bool
+	FlagCertify, FlagSign, FlagEncryptCommunications, FlagEncryptStorage bool
+	FlagSplitKey, FlagAuthenticate, FlagForward, FlagGroupKey            bool
 
 	// RevocationReason is set if this signature has been revoked.
 	// See RFC 9580, section 5.2.3.31 for details.
@@ -206,7 +207,7 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 	sig.SigType = SignatureType(buf[0])
 	sig.PubKeyAlgo = PublicKeyAlgorithm(buf[1])
 	switch sig.PubKeyAlgo {
-	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA,
+	case PubKeyAlgoAEAD, PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA,
 		PubKeyAlgoECDSA, PubKeyAlgoEdDSA,
 		PubKeyAlgoEd25519, PubKeyAlgoEd448,
 		PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448,
@@ -309,6 +310,24 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 	}
 
 	switch sig.PubKeyAlgo {
+	case PubKeyAlgoAEAD:
+		aeadModeAndSalt := make([]byte, 1 + 32)
+		_, err = readFull(r, aeadModeAndSalt)
+		if err != nil {
+			return
+		}
+		aeadMode := AEADMode(aeadModeAndSalt[0])
+		if !aeadMode.IsSupported() {
+			return errors.UnsupportedError("unsupported AEAD mode in signature")
+		}
+		sig.AEADMode = &aeadMode
+		sig.SigBytes1 = aeadModeAndSalt[1:]
+		authTag := make([]byte, aeadMode.TagLength())
+		_, err = readFull(r, authTag)
+		if err != nil {
+			return
+		}
+		sig.SigBytes2 = authTag
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly:
 		sig.RSASignature = new(encoding.MPI)
 		_, err = sig.RSASignature.ReadFrom(r)
@@ -339,12 +358,12 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 			return
 		}
 	case PubKeyAlgoEd25519:
-		sig.EdSig, err = ed25519.ReadSignature(r)
+		sig.SigBytes1, err = ed25519.ReadSignature(r)
 		if err != nil {
 			return
 		}
 	case PubKeyAlgoEd448:
-		sig.EdSig, err = ed448.ReadSignature(r)
+		sig.SigBytes1, err = ed448.ReadSignature(r)
 		if err != nil {
 			return
 		}
@@ -369,13 +388,13 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 // parseMldsaEddsaSignature parses an ML-DSA + EdDSA signature as specified in
 // https://www.rfc-editor.org/rfc/rfc9980.html#name-signature-packet-packet-typ
 func (sig *Signature) parseMldsaEddsaSignature(r io.Reader, ecLen, dLen int) (err error) {
-	sig.EdSig = make([]byte, ecLen)
-	if _, err = io.ReadFull(r, sig.EdSig); err != nil {
+	sig.SigBytes1 = make([]byte, ecLen)
+	if _, err = io.ReadFull(r, sig.SigBytes1); err != nil {
 		return
 	}
 
-	sig.MldsaSig = make([]byte, dLen)
-	_, err = io.ReadFull(r, sig.MldsaSig)
+	sig.SigBytes2 = make([]byte, dLen)
+	_, err = io.ReadFull(r, sig.SigBytes2)
 	return
 }
 
@@ -385,8 +404,8 @@ func (sig *Signature) parseSlhdsaSignature(r io.Reader, algID PublicKeyAlgorithm
 	if err != nil {
 		return err
 	}
-	sig.SlhdsaSig = make([]byte, scheme.SignatureSize())
-	_, err = io.ReadFull(r, sig.SlhdsaSig)
+	sig.SigBytes1 = make([]byte, scheme.SignatureSize())
+	_, err = io.ReadFull(r, sig.SigBytes1)
 	return
 }
 
@@ -629,6 +648,9 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		}
 		if subpacket[0]&KeyFlagAuthenticate != 0 {
 			sig.FlagAuthenticate = true
+		}
+		if subpacket[0]&KeyFlagForward != 0 {
+			sig.FlagForward = true
 		}
 		if subpacket[0]&KeyFlagGroupKey != 0 {
 			sig.FlagGroupKey = true
@@ -992,6 +1014,37 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 		return
 	}
 	switch priv.PubKeyAlgo {
+	case PubKeyAlgoAEAD:
+		pk := priv.PublicKey.PublicKey.(*PersistentSymmetricKeyPublicFields)
+		sk := priv.PrivateKey.(*PersistentSymmetricKeyPrivateFields)
+		packetID := 0xC0 | packetTypeSignature
+		version := sig.Version
+		aeadMode := config.AEAD().Mode()
+		info := []byte{byte(packetID), byte(version), byte(pk.SymmetricAlgorithm), byte(aeadMode)}
+		salt := make([]byte, 32)
+		_, err := io.ReadFull(config.Random(), salt)
+		if err != nil {
+			return err
+		}
+		hkdf := hkdf.New(crypto.SHA512.New, sk.Key, salt, info)
+		keySize := pk.SymmetricAlgorithm.KeySize()
+		ivLength := aeadMode.IvLength()
+		encKey := make([]byte, keySize)
+		iv := make([]byte, ivLength)
+		_, err = hkdf.Read(encKey)
+		if err != nil {
+			return err
+		}
+		_, err = hkdf.Read(iv)
+		if err != nil {
+			return err
+		}
+		modeInstance := aeadMode.new(pk.SymmetricAlgorithm.new(encKey))
+		var authTag []byte
+		authTag = modeInstance.Seal(authTag, iv, []byte{}, digest)
+		sig.SigBytes1 = salt
+		sig.SigBytes2 = authTag
+		sig.AEADMode = &aeadMode
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly:
 		// supports both *rsa.PrivateKey and crypto.Signer
 		sigdata, err := priv.PrivateKey.(crypto.Signer).Sign(config.Random(), digest, sig.Hash)
@@ -1038,13 +1091,13 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 		sk := priv.PrivateKey.(*ed25519.PrivateKey)
 		signature, err := ed25519.Sign(sk, digest)
 		if err == nil {
-			sig.EdSig = signature
+			sig.SigBytes1 = signature
 		}
 	case PubKeyAlgoEd448:
 		sk := priv.PrivateKey.(*ed448.PrivateKey)
 		signature, err := ed448.Sign(sk, digest)
 		if err == nil {
-			sig.EdSig = signature
+			sig.SigBytes1 = signature
 		}
 	case PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
 		if sig.Version != 6 {
@@ -1054,8 +1107,8 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 		dSig, ecSig, err := mldsa_eddsa.Sign(sk, digest)
 
 		if err == nil {
-			sig.MldsaSig = dSig
-			sig.EdSig = ecSig
+			sig.SigBytes1 = ecSig
+			sig.SigBytes2 = dSig
 		}
 	case PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
 		if sig.Version != 6 {
@@ -1065,7 +1118,7 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 		dSig, err := slhdsa.Sign(sk, digest)
 
 		if err == nil {
-			sig.SlhdsaSig = dSig
+			sig.SigBytes1 = dSig
 		}
 	default:
 		err = errors.UnsupportedError("public key algorithm: " + strconv.Itoa(int(sig.PubKeyAlgo)))
@@ -1184,12 +1237,14 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 	if len(sig.outSubpackets) == 0 {
 		sig.outSubpackets = sig.rawSubpackets
 	}
-	if sig.RSASignature == nil && sig.DSASigR == nil && sig.ECDSASigR == nil && sig.EdDSASigR == nil && sig.EdSig == nil && sig.SlhdsaSig == nil {
+	if sig.RSASignature == nil && sig.DSASigR == nil && sig.ECDSASigR == nil && sig.EdDSASigR == nil && sig.SigBytes1 == nil {
 		return errors.InvalidArgumentError("Signature: need to call Sign, SignUserId or SignKey before Serialize")
 	}
 
 	sigLength := 0
 	switch sig.PubKeyAlgo {
+	case PubKeyAlgoAEAD:
+		sigLength = 1 /* AEAD algorithm */ + len(sig.SigBytes1) + len(sig.SigBytes2)
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly:
 		sigLength = int(sig.RSASignature.EncodedLength())
 	case PubKeyAlgoDSA:
@@ -1206,10 +1261,10 @@ func (sig *Signature) Serialize(w io.Writer) (err error) {
 	case PubKeyAlgoEd448:
 		sigLength = ed448.SignatureSize
 	case PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
-		sigLength = len(sig.EdSig)
-		sigLength += len(sig.MldsaSig)
+		sigLength = len(sig.SigBytes1)
+		sigLength += len(sig.SigBytes2)
 	case PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
-		sigLength += len(sig.SlhdsaSig)
+		sigLength += len(sig.SigBytes1)
 	default:
 		panic("impossible")
 	}
@@ -1295,6 +1350,14 @@ func (sig *Signature) serializeBody(w io.Writer) (err error) {
 	}
 
 	switch sig.PubKeyAlgo {
+	case PubKeyAlgoAEAD:
+		if _, err = w.Write([]byte{byte(*sig.AEADMode)}); err != nil {
+			return
+		}
+		if _, err = w.Write(sig.SigBytes1); err != nil {
+			return
+		}
+		_, err = w.Write(sig.SigBytes2)
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly:
 		_, err = w.Write(sig.RSASignature.EncodedBytes())
 	case PubKeyAlgoDSA:
@@ -1313,16 +1376,16 @@ func (sig *Signature) serializeBody(w io.Writer) (err error) {
 		}
 		_, err = w.Write(sig.EdDSASigS.EncodedBytes())
 	case PubKeyAlgoEd25519:
-		err = ed25519.WriteSignature(w, sig.EdSig)
+		err = ed25519.WriteSignature(w, sig.SigBytes1)
 	case PubKeyAlgoEd448:
-		err = ed448.WriteSignature(w, sig.EdSig)
+		err = ed448.WriteSignature(w, sig.SigBytes1)
 	case PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
-		if _, err = w.Write(sig.EdSig); err != nil {
+		if _, err = w.Write(sig.SigBytes1); err != nil {
 			return
 		}
-		_, err = w.Write(sig.MldsaSig)
+		_, err = w.Write(sig.SigBytes2)
 	case PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
-		_, err = w.Write(sig.SlhdsaSig)
+		_, err = w.Write(sig.SigBytes1)
 	default:
 		panic("impossible")
 	}
@@ -1436,6 +1499,9 @@ func (sig *Signature) buildSubpackets(config *Config) (subpackets []outputSubpac
 		}
 		if sig.FlagAuthenticate {
 			flags |= KeyFlagAuthenticate
+		}
+		if sig.FlagForward {
+			flags |= KeyFlagForward
 		}
 		if sig.FlagGroupKey {
 			flags |= KeyFlagGroupKey

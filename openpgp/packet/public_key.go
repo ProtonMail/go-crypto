@@ -5,6 +5,7 @@
 package packet
 
 import (
+	"bytes"
 	"crypto/dsa"
 	"crypto/rsa"
 	"crypto/sha1"
@@ -78,6 +79,26 @@ func (pk *PublicKey) UpgradeToV6() error {
 	pk.Version = 6
 	pk.setFingerprintAndKeyId()
 	return pk.checkV6Compatibility()
+}
+
+// ReplaceKDF replaces the KDF instance, and updates all necessary fields.
+func (pk *PublicKey) ReplaceKDF(kdf ecdh.KDF) error {
+	ecdhKey, ok := pk.PublicKey.(*ecdh.PublicKey)
+	if !ok {
+		return goerrors.New("wrong forwarding sub key generation")
+	}
+
+	ecdhKey.KDF = kdf
+	byteBuffer := new(bytes.Buffer)
+	err := kdf.Serialize(byteBuffer)
+	if err != nil {
+		return err
+	}
+
+	pk.kdf = encoding.NewOID(byteBuffer.Bytes()[1:])
+	pk.setFingerprintAndKeyId()
+
+	return nil
 }
 
 // signingKey provides a convenient abstraction over signature verification
@@ -278,6 +299,17 @@ func NewSlhdsaPublicKey(creationTime time.Time, pub *slhdsa.PublicKey) *PublicKe
 }
 
 func (pk *PublicKey) parse(r io.Reader) (err error) {
+	err = pk.parsePublicKey(r)
+	if err != nil {
+		return
+	}
+	if pk.PubKeyAlgo == PubKeyAlgoAEAD {
+		return goerrors.New("openpgp: AEAD may only be used with persistent symmetric key packets")
+	}
+	return
+}
+
+func (pk *PublicKey) parsePublicKey(r io.Reader) (err error) {
 	// RFC 4880, section 5.5.2
 	var buf [6]byte
 	_, err = readFull(r, buf[:])
@@ -307,6 +339,8 @@ func (pk *PublicKey) parse(r io.Reader) (err error) {
 	pk.PubKeyAlgo = PublicKeyAlgorithm(buf[5])
 	// Ignore four-octet length
 	switch pk.PubKeyAlgo {
+	case PubKeyAlgoAEAD:
+		err = pk.parseAEAD(r)
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoRSASignOnly:
 		err = pk.parseRSA(r)
 	case PubKeyAlgoDSA:
@@ -401,6 +435,27 @@ func (pk *PublicKey) checkV6Compatibility() error {
 		return errors.StructuralError("cannot generate v6 key with deprecated algorithm: EdDSALegacy")
 	}
 	return nil
+}
+
+// parseAEAD parses AEAD public key material from the given Reader.
+// See draft-ietf-openpgp-persistent-symmetric-keys.
+func (pk *PublicKey) parseAEAD(r io.Reader) (err error) {
+	algoAndFpSeed := make([]byte, 33)
+	_, err = io.ReadFull(r, algoAndFpSeed)
+	if err != nil {
+		return
+	}
+	aead := &PersistentSymmetricKeyPublicFields{
+		SymmetricAlgorithm: CipherFunction(algoAndFpSeed[0]),
+		FingerprintSeed: algoAndFpSeed[1:],
+	}
+	if aead.SymmetricAlgorithm != CipherAES128 &&
+		aead.SymmetricAlgorithm != CipherAES192 &&
+		aead.SymmetricAlgorithm != CipherAES256 {
+		return errors.UnsupportedError(fmt.Sprintf("unknown or weak algorithm: %d", aead.SymmetricAlgorithm))
+	}
+	pk.PublicKey = aead
+	return
 }
 
 // parseRSA parses RSA public key material from the given Reader. See RFC 4880,
@@ -546,11 +601,13 @@ func (pk *PublicKey) parseECDH(r io.Reader) (err error) {
 		return errors.UnsupportedError(fmt.Sprintf("unsupported oid: %x", pk.oid))
 	}
 
-	if kdfLen := len(pk.kdf.Bytes()); kdfLen < 3 {
+	kdfLen := len(pk.kdf.Bytes())
+	if kdfLen < 3 {
 		return errors.UnsupportedError("unsupported ECDH KDF length: " + strconv.Itoa(kdfLen))
 	}
-	if reserved := pk.kdf.Bytes()[0]; reserved != 0x01 {
-		return errors.UnsupportedError("unsupported KDF reserved field: " + strconv.Itoa(int(reserved)))
+	kdfVersion := int(pk.kdf.Bytes()[0])
+	if kdfVersion != ecdh.KDFVersion1 && kdfVersion != ecdh.KDFVersionForwarding {
+		return errors.UnsupportedError("unsupported ECDH KDF version: " + strconv.Itoa(kdfVersion))
 	}
 	kdfHash, ok := algorithm.HashById[pk.kdf.Bytes()[1]]
 	if !ok {
@@ -561,10 +618,23 @@ func (pk *PublicKey) parseECDH(r io.Reader) (err error) {
 		return errors.UnsupportedError("unsupported ECDH KDF cipher: " + strconv.Itoa(int(pk.kdf.Bytes()[2])))
 	}
 
-	ecdhKey := ecdh.NewPublicKey(c, kdfHash, kdfCipher)
+	kdf := ecdh.KDF{
+		Version: kdfVersion,
+		Hash:    kdfHash,
+		Cipher:  kdfCipher,
+	}
+
+	if kdfVersion == ecdh.KDFVersionForwarding {
+		if pk.Version != 4 || kdfLen != 23 {
+			return errors.UnsupportedError("unsupported ECDH KDF v2 length: " + strconv.Itoa(kdfLen))
+		}
+
+		kdf.ReplacementFingerprint = pk.kdf.Bytes()[3:23]
+	}
+
+	ecdhKey := ecdh.NewPublicKey(c, kdf)
 	err = ecdhKey.UnmarshalPoint(pk.p.Bytes())
 	pk.PublicKey = ecdhKey
-
 	return
 }
 
@@ -815,6 +885,8 @@ func (pk *PublicKey) Serialize(w io.Writer) (err error) {
 func (pk *PublicKey) algorithmSpecificByteCount() uint32 {
 	length := uint32(0)
 	switch pk.PubKeyAlgo {
+	case PubKeyAlgoAEAD:
+		length += 33 // Symmetric algorithm ID and fingerprint seed
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoRSASignOnly:
 		length += uint32(pk.n.EncodedLength())
 		length += uint32(pk.e.EncodedLength())
@@ -888,6 +960,13 @@ func (pk *PublicKey) serializeWithoutHeaders(w io.Writer) (err error) {
 	}
 
 	switch pk.PubKeyAlgo {
+	case PubKeyAlgoAEAD:
+		publicKey := pk.PublicKey.(*PersistentSymmetricKeyPublicFields)
+		if _, err = w.Write([]byte{byte(publicKey.SymmetricAlgorithm)}); err != nil {
+			return
+		}
+		_, err = w.Write(publicKey.FingerprintSeed)
+		return
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoRSASignOnly:
 		if _, err = w.Write(pk.n.EncodedBytes()); err != nil {
 			return
@@ -1061,25 +1140,25 @@ func (pk *PublicKey) VerifySignature(signed hash.Hash, sig *Signature) (err erro
 		return nil
 	case PubKeyAlgoEd25519:
 		ed25519PublicKey := pk.PublicKey.(*ed25519.PublicKey)
-		if !ed25519.Verify(ed25519PublicKey, hashBytes, sig.EdSig) {
+		if !ed25519.Verify(ed25519PublicKey, hashBytes, sig.SigBytes1) {
 			return errors.SignatureError("Ed25519 verification failure")
 		}
 		return nil
 	case PubKeyAlgoEd448:
 		ed448PublicKey := pk.PublicKey.(*ed448.PublicKey)
-		if !ed448.Verify(ed448PublicKey, hashBytes, sig.EdSig) {
+		if !ed448.Verify(ed448PublicKey, hashBytes, sig.SigBytes1) {
 			return errors.SignatureError("ed448 verification failure")
 		}
 		return nil
 	case PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
 		mldsaEddsaPublicKey := pk.PublicKey.(*mldsa_eddsa.PublicKey)
-		if !mldsa_eddsa.Verify(mldsaEddsaPublicKey, hashBytes, sig.MldsaSig, sig.EdSig) {
+		if !mldsa_eddsa.Verify(mldsaEddsaPublicKey, hashBytes, sig.SigBytes2, sig.SigBytes1) {
 			return errors.SignatureError("MldsaEddsa verification failure")
 		}
 		return nil
 	case PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
 		slhDsaPublicKey := pk.PublicKey.(*slhdsa.PublicKey)
-		if !slhdsa.Verify(slhDsaPublicKey, hashBytes, sig.SlhdsaSig) {
+		if !slhdsa.Verify(slhDsaPublicKey, hashBytes, sig.SigBytes1) {
 			return errors.SignatureError("Slhdsa verification failure")
 		}
 		return nil
@@ -1151,6 +1230,13 @@ func (pk *PublicKey) VerifyKeySignature(signed *PublicKey, sig *Signature) error
 		if err := signed.VerifySignature(h, sig.EmbeddedSignature); err != nil {
 			return errors.StructuralError("error while verifying cross-signature: " + err.Error())
 		}
+	}
+
+	// Keys having this flag MUST have the forwarding KDF parameters version 2 defined in Section 5.1.
+	if sig.FlagForward && (signed.PubKeyAlgo != PubKeyAlgoECDH ||
+		signed.kdf == nil ||
+		signed.kdf.Bytes()[0] != ecdh.KDFVersionForwarding) {
+		return errors.StructuralError("forwarding key with wrong ecdh kdf version")
 	}
 
 	return nil
