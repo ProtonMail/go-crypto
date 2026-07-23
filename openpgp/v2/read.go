@@ -139,8 +139,8 @@ ParsePackets:
 			// This packet contains the decryption key encrypted to a public key.
 			md.EncryptedToKeyIds = append(md.EncryptedToKeyIds, p.KeyId)
 			switch p.Algo {
-			case packet.PubKeyAlgoRSA, packet.PubKeyAlgoRSAEncryptOnly, packet.PubKeyAlgoElGamal, packet.PubKeyAlgoECDH,
-				packet.PubKeyAlgoX25519, packet.PubKeyAlgoX448,
+			case packet.PubKeyAlgoAEAD, packet.PubKeyAlgoRSA, packet.PubKeyAlgoRSAEncryptOnly, packet.PubKeyAlgoElGamal,
+				packet.PubKeyAlgoECDH, packet.PubKeyAlgoX25519, packet.PubKeyAlgoX448,
 				packet.PubKeyAlgoMlkem768X25519, packet.PubKeyAlgoMlkem1024X448:
 				break
 			default:
@@ -587,7 +587,12 @@ func (scr *signatureCheckReader) Read(buf []byte) (int, error) {
 						} else {
 							candidate.SignedBy = &key
 						}
-						signatureError := key.PublicKey.VerifySignature(candidate.Hash, sig)
+						var signatureError error
+						if key.PSK != nil {
+							signatureError = key.PSK.VerifySignature(candidate.Hash, sig)
+						} else {
+							signatureError = key.PublicKey.VerifySignature(candidate.Hash, sig)
+						}
 						if signatureError == nil {
 							signatureError = checkMessageSignatureDetails(&key, sig, scr.config)
 						}
@@ -772,7 +777,10 @@ func checkMessageSignatureDetails(verifiedKey *Key, signature *packet.Signature,
 		return errors.ErrSignatureOlderThanKey
 	}
 
-	sigsToCheck := []*packet.Signature{signature, verifiedKey.PrimarySelfSignature}
+	sigsToCheck := []*packet.Signature{signature}
+	if verifiedKey.PSK == nil {
+		sigsToCheck = append(sigsToCheck, verifiedKey.PrimarySelfSignature)
+	}
 	if !verifiedKey.IsPrimary() {
 		sigsToCheck = append(sigsToCheck, verifiedKey.SelfSignature, verifiedKey.SelfSignature.EmbeddedSignature)
 	}
