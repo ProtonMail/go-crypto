@@ -994,7 +994,8 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 	switch priv.PubKeyAlgo {
 	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly:
 		// supports both *rsa.PrivateKey and crypto.Signer
-		sigdata, err := priv.PrivateKey.(crypto.Signer).Sign(config.Random(), digest, sig.Hash)
+		var sigdata []byte
+		sigdata, err = priv.PrivateKey.(crypto.Signer).Sign(config.Random(), digest, sig.Hash)
 		if err == nil {
 			sig.RSASignature = encoding.NewMPI(sigdata)
 		}
@@ -1006,7 +1007,8 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 		if len(digest) > subgroupSize {
 			digest = digest[:subgroupSize]
 		}
-		r, s, err := dsa.Sign(config.Random(), dsaPriv, digest)
+		var r, s *big.Int
+		r, s, err = dsa.Sign(config.Random(), dsaPriv, digest)
 		if err == nil {
 			sig.DSASigR = new(encoding.MPI).SetBig(r)
 			sig.DSASigS = new(encoding.MPI).SetBig(s)
@@ -1028,30 +1030,71 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 			sig.ECDSASigS = new(encoding.MPI).SetBig(s)
 		}
 	case PubKeyAlgoEdDSA:
-		sk := priv.PrivateKey.(*eddsa.PrivateKey)
-		r, s, err := eddsa.Sign(sk, digest)
-		if err == nil {
-			sig.EdDSASigR = encoding.NewMPI(r)
-			sig.EdDSASigS = encoding.NewMPI(s)
+		if sk, ok := priv.PrivateKey.(*eddsa.PrivateKey); ok {
+			var r, s []byte
+			r, s, err = eddsa.Sign(sk, digest)
+			if err == nil {
+				sig.EdDSASigR = encoding.NewMPI(r)
+				sig.EdDSASigS = encoding.NewMPI(s)
+			}
+		} else {
+			// Pure EdDSA, digest is message to sign
+			pub := priv.PublicKey.PublicKey.(*eddsa.PublicKey)
+			var b []byte
+			b, err = priv.PrivateKey.(crypto.Signer).Sign(config.Random(), digest, crypto.Hash(0))
+			if err == nil {
+				if len(b) != 2*len(pub.X) {
+					err = errors.InvalidArgumentError("signer returned an eddsa signature of unexpected length")
+				} else {
+					r, s := pub.GetCurve().MarshalSignature(b)
+					sig.EdDSASigR = encoding.NewMPI(r)
+					sig.EdDSASigS = encoding.NewMPI(s)
+				}
+			}
 		}
 	case PubKeyAlgoEd25519:
-		sk := priv.PrivateKey.(*ed25519.PrivateKey)
-		signature, err := ed25519.Sign(sk, digest)
-		if err == nil {
-			sig.EdSig = signature
+		if sk, ok := priv.PrivateKey.(*ed25519.PrivateKey); ok {
+			var signature []byte
+			signature, err = ed25519.Sign(sk, digest)
+			if err == nil {
+				sig.EdSig = signature
+			}
+		} else {
+			var b []byte
+			b, err = priv.PrivateKey.(crypto.Signer).Sign(config.Random(), digest, crypto.Hash(0))
+			if err == nil {
+				if len(b) != ed25519.SignatureSize {
+					err = errors.InvalidArgumentError("signer returned an ed25519 signature of unexpected length")
+				} else {
+					sig.EdSig = b
+				}
+			}
 		}
 	case PubKeyAlgoEd448:
-		sk := priv.PrivateKey.(*ed448.PrivateKey)
-		signature, err := ed448.Sign(sk, digest)
-		if err == nil {
-			sig.EdSig = signature
+		if sk, ok := priv.PrivateKey.(*ed448.PrivateKey); ok {
+			var signature []byte
+			signature, err = ed448.Sign(sk, digest)
+			if err == nil {
+				sig.EdSig = signature
+			}
+		} else {
+			var b []byte
+			b, err = priv.PrivateKey.(crypto.Signer).Sign(config.Random(), digest, crypto.Hash(0))
+			if err == nil {
+				if len(b) != ed448.SignatureSize {
+					err = errors.InvalidArgumentError("signer returned an ed448 signature of unexpected length")
+				} else {
+					sig.EdSig = b
+				}
+			}
 		}
 	case PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448:
 		if sig.Version != 6 {
 			return errors.StructuralError("cannot use MldsaEdDsa on a non-v6 signature")
 		}
 		sk := priv.PrivateKey.(*mldsa_eddsa.PrivateKey)
-		dSig, ecSig, err := mldsa_eddsa.Sign(sk, digest)
+		var dSig, ecSig []byte
+		dSig, ecSig, err = mldsa_eddsa.Sign(sk, digest)
 
 		if err == nil {
 			sig.MldsaSig = dSig
@@ -1062,7 +1105,8 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 			return errors.StructuralError("cannot use SLH-DSA on a non-v6 signature")
 		}
 		sk := priv.PrivateKey.(*slhdsa.PrivateKey)
-		dSig, err := slhdsa.Sign(sk, digest)
+		var dSig []byte
+		dSig, err = slhdsa.Sign(sk, digest)
 
 		if err == nil {
 			sig.SlhdsaSig = dSig
