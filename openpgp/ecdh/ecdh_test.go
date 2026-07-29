@@ -32,6 +32,7 @@ func TestCurves(t *testing.T) {
 
 			priv := testGenerate(t, ECDHCurve)
 			testEncryptDecrypt(t, priv, curve.Oid.Bytes(), testFingerprint)
+			testDecryptWithDecapsulator(t, priv, curve.Oid.Bytes(), testFingerprint)
 			testValidation(t, priv)
 
 			// Needs fresh key
@@ -70,6 +71,46 @@ func testEncryptDecrypt(t *testing.T, priv *PrivateKey, oid, fingerprint []byte)
 
 	if !bytes.Equal(message2, message) {
 		t.Errorf("decryption failed, got: %x, want: %x", message2, message)
+	}
+}
+
+// testDecapsulator wraps a real private key, simulating a hardware token
+// that performs ECDH key agreement internally without exposing the scalar.
+type testDecapsulator struct {
+	priv        *PrivateKey
+	decapsCount int
+}
+
+func (d *testDecapsulator) Decaps(ephemeral []byte) ([]byte, error) {
+	d.decapsCount++
+	return d.priv.PublicKey.GetCurve().Decaps(ephemeral, d.priv.D)
+}
+
+// testDecryptWithDecapsulator simulates the hardware token flow:
+// 1. Encrypt a message normally
+// 2. Decrypt via a Decapsulator (simulating what a hardware token does)
+// 3. Verify the decrypted message matches the original
+func testDecryptWithDecapsulator(t *testing.T, priv *PrivateKey, oid, fingerprint []byte) {
+	message := []byte("hello world")
+
+	vsG, wrappedKey, err := Encrypt(rand.Reader, &priv.PublicKey, message, oid, fingerprint)
+	if err != nil {
+		t.Fatalf("error encrypting: %s", err)
+	}
+
+	decapsulator := &testDecapsulator{priv: priv}
+
+	decrypted, err := DecryptWithDecapsulator(decapsulator, &priv.PublicKey, vsG, wrappedKey, oid, fingerprint)
+	if err != nil {
+		t.Fatalf("error in DecryptWithDecapsulator: %s", err)
+	}
+
+	if !bytes.Equal(decrypted, message) {
+		t.Errorf("DecryptWithDecapsulator failed, got: %x, want: %x", decrypted, message)
+	}
+
+	if decapsulator.decapsCount != 1 {
+		t.Errorf("expected Decaps to be called once, got %d", decapsulator.decapsCount)
 	}
 }
 
