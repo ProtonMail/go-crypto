@@ -215,11 +215,17 @@ func (e *EncryptedKey) Decrypt(priv *PrivateKey, config *Config) error {
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoElGamal, PubKeyAlgoECDH:
 		keyOffset := 0
 		if e.Version < 6 {
+			if len(b) < 3 {
+				return errors.StructuralError("v3 session key is too short")
+			}
 			e.CipherFunc = CipherFunction(b[0])
 			keyOffset = 1
 			if !e.CipherFunc.IsSupported() {
 				return errors.UnsupportedError("unsupported encryption function")
 			}
+		}
+		if len(b[keyOffset:]) < 2 {
+			return errors.StructuralError("session key is too short")
 		}
 		key, err = decodeChecksumKey(b[keyOffset:])
 	case PubKeyAlgoX25519, PubKeyAlgoX448, PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem1024X448:
