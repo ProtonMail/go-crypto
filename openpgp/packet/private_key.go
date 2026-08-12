@@ -586,7 +586,10 @@ func (pk *PrivateKey) decrypt(decryptionKey []byte) error {
 	var data []byte
 	switch pk.s2kType {
 	case S2KAEAD:
-		aead := pk.aead.new(block)
+		aead, err := pk.aead.new(block)
+		if err != nil {
+			return err
+		}
 		additionalData, err := pk.additionalData()
 		if err != nil {
 			return err
@@ -738,7 +741,10 @@ func (pk *PrivateKey) encrypt(key []byte, params *s2k.Params, s2kType S2KType, c
 		if pk.aead == 0 {
 			return errors.StructuralError("aead mode is not set on key")
 		}
-		aead := pk.aead.new(block)
+		aead, err := pk.aead.new(block)
+		if err != nil {
+			return err
+		}
 		additionalData, err := pk.additionalData()
 		if err != nil {
 			return err

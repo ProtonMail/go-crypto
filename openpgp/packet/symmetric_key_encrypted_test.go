@@ -221,6 +221,50 @@ func TestSerializeSymmetricKeyEncryptedV6RandomizeSlow(t *testing.T) {
 	}
 }
 
+func TestSymmetricKeyEncryptedUnknownAEADMode(t *testing.T) {
+	const unknownMode = 0xff
+
+	var buf bytes.Buffer
+	passphrase := []byte("password")
+	config := &Config{
+		DefaultCipher: CipherAES128,
+		AEADConfig:    &AEADConfig{DefaultMode: AEADModeEAX},
+		S2KConfig:     &s2k.Config{S2KMode: s2k.IteratedSaltedS2K, PassphraseIsHighEntropy: true},
+	}
+
+	if _, err := SerializeSymmetricKeyEncrypted(&buf, passphrase, config); err != nil {
+		t.Fatalf("failed to serialize: %s", err)
+	}
+
+	// Replace the AEAD mode octet of the serialized packet with an unknown mode
+	serialized := buf.Bytes()
+	if serialized[5] != byte(AEADModeEAX) {
+		t.Fatalf("AEAD mode octet is %d (expected %d)", serialized[5], AEADModeEAX)
+	}
+	serialized[5] = unknownMode
+
+	p, err := Read(bytes.NewReader(serialized))
+	if err != nil {
+		t.Fatalf("failed to parse: %s", err)
+	}
+
+	ske, ok := p.(*SymmetricKeyEncrypted)
+	if !ok {
+		t.Fatalf("parsed a different packet type: %#v", p)
+	}
+	if ske.Mode != unknownMode {
+		t.Fatalf("SKE AEAD mode is %d (expected %d)", ske.Mode, unknownMode)
+	}
+
+	_, _, err = ske.Decrypt(passphrase)
+	if err == nil {
+		t.Fatal("decrypted an SKE with an unknown AEAD mode")
+	}
+	if _, ok := err.(errors.UnsupportedError); !ok {
+		t.Fatalf("decryption failed with %T (expected errors.UnsupportedError)", err)
+	}
+}
+
 func TestSerializeSymmetricKeyEncryptedCiphersV4(t *testing.T) {
 	tests := map[string]CipherFunction{
 		"AES128": CipherAES128,

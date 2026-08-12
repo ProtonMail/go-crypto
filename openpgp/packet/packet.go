@@ -626,7 +626,7 @@ func (mode AEADMode) IsSupported() bool {
 }
 
 // new returns a fresh instance of the given mode.
-func (mode AEADMode) new(block cipher.Block) cipher.AEAD {
+func (mode AEADMode) new(block cipher.Block) (cipher.AEAD, error) {
 	return algorithm.AEADMode(mode).New(block)
 }
 

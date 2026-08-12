@@ -446,7 +446,10 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, config *Config) (io.WriteCl
 		return nil, err
 	}
 	blockCipher := CipherFunction(config.Cipher()).new(key)
-	alg := aeadConf.Mode().new(blockCipher)
+	alg, err := aeadConf.Mode().new(blockCipher)
+	if err != nil {
+		return nil, err
+	}
 
 	chunkSize := decodeAEADChunkSize(aeadConf.ChunkSizeByte())
 	tagLen := alg.Overhead()
