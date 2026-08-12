@@ -347,6 +347,7 @@ func (sc *SignatureCandidate) validate() bool {
 		sc.SigType == correspondingSig.SigType &&
 		sc.HashAlgorithm == correspondingSig.Hash &&
 		sc.PubKeyAlgo == correspondingSig.PubKeyAlgo &&
+		correspondingSig.IssuerKeyId != nil &&
 		sc.IssuerKeyId == *correspondingSig.IssuerKeyId
 }
 
@@ -393,6 +394,9 @@ FindLiteralData:
 			md.SignatureCandidates = append([]*SignatureCandidate{sigCandidate}, md.SignatureCandidates...)
 		case *packet.Signature:
 			// Old style signature i.e., sig | literal
+			if p.IssuerKeyId == nil {
+				return nil, errors.StructuralError("signature doesn't have an issuer")
+			}
 			sigCandidate := newSignatureCandidateFromSignature(p)
 			md.IsSigned = true
 			if keyring != nil {
