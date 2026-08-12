@@ -20,7 +20,8 @@ type Config struct {
 	// nil, SHA256 is used.
 	Hash crypto.Hash
 	// Argon2 parameters for S2K (String to Key).
-	// Only relevant if S2KMode is set to s2k.Argon2S2K.
+	// Only relevant if S2KMode is set to s2k.Argon2S2K, or
+	// (in the case of decryption) if Argon2 was used for encryption.
 	// If nil, default parameters are used.
 	// For more details on the choice of parameters, see https://tools.ietf.org/html/rfc9106#section-4.
 	Argon2Config *Argon2Config
@@ -53,6 +54,12 @@ type Argon2Config struct {
 	// Memory specifies the desired Argon2 memory usage in kibibytes.
 	// For example memory=64*1024 sets the memory cost to ~64 MB.
 	Memory uint32
+	// MaxMemory specifies the maximum Argon2 memory usage in kibibytes that is
+	// accepted when deriving a key. Since the memory usage is chosen by whoever
+	// wrote the packet, deriving a key from parameters that ask for more memory
+	// than this fails instead of allocating it.
+	// By default, the maximum memory usage is 2 GiB.
+	MaxMemory uint32
 }
 
 func (c *Config) Mode() Mode {
@@ -126,4 +133,11 @@ func (c *Argon2Config) EncodedMemory() uint8 {
 	}
 
 	return encodeMemory(memory, c.Parallelism())
+}
+
+func (c *Argon2Config) MaxMemoryUsage() uint32 {
+	if c == nil || c.MaxMemory == 0 {
+		return 2097152 // 2 GiB of RAM
+	}
+	return c.MaxMemory
 }

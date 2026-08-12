@@ -64,7 +64,7 @@ type Config struct {
 	// CompressionConfig configures the compression settings.
 	CompressionConfig *CompressionConfig
 	// S2K (String to Key) config, used for key derivation in the context of secret key encryption
-	// and password-encrypted data.
+	// and password-encrypted data, as well as for the corresponding decryption.
 	// If nil, the default configuration is used
 	S2KConfig *s2k.Config
 	// Iteration count for Iterated S2K (String to Key).

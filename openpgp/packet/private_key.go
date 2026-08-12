@@ -44,7 +44,6 @@ type PrivateKey struct {
 	Encrypted     bool // if true then the private key is unavailable until Decrypt has been called.
 	encryptedData []byte
 	cipher        CipherFunction
-	s2k           func(out, in []byte)
 	aead          AEADMode // only relevant if S2KAEAD is enabled
 	// An *{rsa|dsa|elgamal|ecdh|ecdsa|ed25519|ed448}.PrivateKey or
 	// crypto.Signer/crypto.Decrypter (Decryptor RSA only).
@@ -231,7 +230,7 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 
 	switch pk.s2kType {
 	case S2KNON:
-		pk.s2k = nil
+		pk.s2kParams = nil
 		pk.Encrypted = false
 	case S2KSHA1, S2KCHECKSUM, S2KAEAD:
 		if (v5 || v6) && pk.s2kType == S2KCHECKSUM {
@@ -280,10 +279,6 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 		}
 		if pk.s2kParams.Mode() == s2k.SimpleS2K && pk.Version == 6 {
 			return errors.StructuralError("using Simple S2K with version 6 keys is not allowed")
-		}
-		pk.s2k, err = pk.s2kParams.Function()
-		if err != nil {
-			return
 		}
 		pk.Encrypted = true
 	default:
@@ -639,13 +634,13 @@ func (pk *PrivateKey) decrypt(decryptionKey []byte) error {
 
 	// Mark key as unencrypted
 	pk.s2kType = S2KNON
-	pk.s2k = nil
+	pk.s2kParams = nil
 	pk.Encrypted = false
 	pk.encryptedData = nil
 	return nil
 }
 
-func (pk *PrivateKey) decryptWithCache(passphrase []byte, keyCache *s2k.Cache) error {
+func (pk *PrivateKey) decryptWithCache(passphrase []byte, keyCache *s2k.Cache, config *Config) error {
 	if pk.Dummy() {
 		return errors.ErrDummyPrivateKey("dummy key found")
 	}
@@ -653,7 +648,7 @@ func (pk *PrivateKey) decryptWithCache(passphrase []byte, keyCache *s2k.Cache) e
 		return nil
 	}
 
-	key, err := keyCache.GetOrComputeDerivedKey(passphrase, pk.s2kParams, pk.cipher.KeySize())
+	key, err := keyCache.GetOrComputeDerivedKeyWithConfig(passphrase, pk.s2kParams, pk.cipher.KeySize(), config.S2K())
 	if err != nil {
 		return err
 	}
@@ -665,6 +660,15 @@ func (pk *PrivateKey) decryptWithCache(passphrase []byte, keyCache *s2k.Cache) e
 
 // Decrypt decrypts an encrypted private key using a passphrase.
 func (pk *PrivateKey) Decrypt(passphrase []byte) error {
+	return pk.DecryptWithConfig(passphrase, nil)
+}
+
+// DecryptWithConfig decrypts an encrypted private key using a passphrase and
+// the config. It fails if the s2k parameters of the key exceed the limits set
+// in the config, i.e. if they ask for more memory than
+// `config.S2KConfig.Argon2Config.MaxMemory`.
+// If config is nil, sensible defaults will be used.
+func (pk *PrivateKey) DecryptWithConfig(passphrase []byte, config *Config) error {
 	if pk.Dummy() {
 		return errors.ErrDummyPrivateKey("dummy key found")
 	}
@@ -672,22 +676,36 @@ func (pk *PrivateKey) Decrypt(passphrase []byte) error {
 		return nil
 	}
 
+	s2kFunc, err := pk.s2kParams.FunctionWithConfig(config.S2K())
+	if err != nil {
+		return err
+	}
 	key := make([]byte, pk.cipher.KeySize())
-	pk.s2k(key, passphrase)
+	s2kFunc(key, passphrase)
 	if pk.s2kType == S2KAEAD {
 		key = pk.applyHKDF(key)
 	}
 	return pk.decrypt(key)
 }
 
-// DecryptPrivateKeys decrypts all encrypted keys with the given config and passphrase.
+// DecryptPrivateKeys decrypts all encrypted keys with the given passphrase.
 // Avoids recomputation of similar s2k key derivations.
 func DecryptPrivateKeys(keys []*PrivateKey, passphrase []byte) error {
+	return DecryptPrivateKeysWithConfig(keys, passphrase, nil)
+}
+
+// DecryptPrivateKeysWithConfig decrypts all encrypted keys with the given
+// passphrase and config. It fails if the s2k parameters of a key exceed the
+// limits set in the config, i.e. if they ask for more memory than
+// s2k.Argon2Config.MaxMemory.
+// Avoids recomputation of similar s2k key derivations.
+// If config is nil, sensible defaults will be used.
+func DecryptPrivateKeysWithConfig(keys []*PrivateKey, passphrase []byte, config *Config) error {
 	// Create a cache to avoid recomputation of key derviations for the same passphrase.
 	s2kCache := &s2k.Cache{}
 	for _, key := range keys {
 		if key != nil && !key.Dummy() && key.Encrypted {
-			err := key.decryptWithCache(passphrase, s2kCache)
+			err := key.decryptWithCache(passphrase, s2kCache, config)
 			if err != nil {
 				return err
 			}
@@ -725,10 +743,6 @@ func (pk *PrivateKey) encrypt(key []byte, params *s2k.Params, s2kType S2KType, c
 
 	pk.cipher = cipherFunction
 	pk.s2kParams = params
-	pk.s2k, err = pk.s2kParams.Function()
-	if err != nil {
-		return err
-	}
 
 	privateKeyBytes := priv.Bytes()
 	pk.s2kType = s2kType
