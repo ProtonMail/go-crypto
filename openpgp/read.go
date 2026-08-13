@@ -412,7 +412,7 @@ func (scr *signatureCheckReader) Read(buf []byte) (int, error) {
 				}
 
 				// If signature KeyID matches
-				if scr.md.SignedBy != nil && *sig.IssuerKeyId == scr.md.SignedByKeyId {
+				if scr.md.SignedBy != nil && sig.IssuerKeyId != nil && *sig.IssuerKeyId == scr.md.SignedByKeyId {
 					key := scr.md.SignedBy
 					signatureError := key.PublicKey.VerifySignature(scr.h, sig)
 					if signatureError == nil {
