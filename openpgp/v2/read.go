@@ -311,7 +311,11 @@ func newSignatureCandidate(ops *packet.OnePassSignature) (sigCandidate *Signatur
 	return
 }
 
-func newSignatureCandidateFromSignature(sig *packet.Signature) (sigCandidate *SignatureCandidate) {
+func newSignatureCandidateFromSignature(sig *packet.Signature) (sigCandidate *SignatureCandidate, err error) {
+	if sig.IssuerKeyId == nil {
+		return nil, errors.StructuralError("signature doesn't have an issuer")
+	}
+
 	sigCandidate = &SignatureCandidate{
 		SigType:           sig.SigType,
 		HashAlgorithm:     sig.Hash,
@@ -394,10 +398,10 @@ FindLiteralData:
 			md.SignatureCandidates = append([]*SignatureCandidate{sigCandidate}, md.SignatureCandidates...)
 		case *packet.Signature:
 			// Old style signature i.e., sig | literal
-			if p.IssuerKeyId == nil {
-				return nil, errors.StructuralError("signature doesn't have an issuer")
+			sigCandidate, err := newSignatureCandidateFromSignature(p)
+			if err != nil {
+				return nil, err
 			}
-			sigCandidate := newSignatureCandidateFromSignature(p)
 			md.IsSigned = true
 			if keyring != nil {
 				keys := keyring.EntitiesById(sigCandidate.IssuerKeyId)
@@ -718,10 +722,10 @@ func verifyDetachedSignatureReader(keyring KeyRing, signed, signature io.Reader,
 		if !ok {
 			continue
 		}
-		if sig.IssuerKeyId == nil {
-			return nil, errors.StructuralError("signature doesn't have an issuer")
+		candidate, err := newSignatureCandidateFromSignature(sig)
+		if err != nil {
+			return nil, err
 		}
-		candidate := newSignatureCandidateFromSignature(sig)
 		md.SignatureCandidates = append(md.SignatureCandidates, candidate)
 
 		keys := keyring.EntitiesById(candidate.IssuerKeyId)
