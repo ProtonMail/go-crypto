@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"crypto"
 	"crypto/dsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
@@ -15,12 +16,14 @@ import (
 	"encoding/hex"
 	"fmt"
 	"hash"
+	"io"
 	"math/big"
 	mathrand "math/rand"
 	"testing"
 	"time"
 
 	"github.com/ProtonMail/go-crypto/openpgp/ecdsa"
+	pgped25519 "github.com/ProtonMail/go-crypto/openpgp/ed25519"
 	"github.com/ProtonMail/go-crypto/openpgp/eddsa"
 	"github.com/ProtonMail/go-crypto/openpgp/elgamal"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
@@ -447,6 +450,86 @@ func TestEdDSASignerPrivateKeyRandomizeFast(t *testing.T) {
 	if err := priv.VerifySignature(h, sig); err != nil {
 		t.Fatal(err)
 	}
+}
+
+type externalEd25519Signer struct {
+	priv ed25519.PrivateKey
+	err  error
+}
+
+func (s *externalEd25519Signer) Public() crypto.PublicKey {
+	return s.priv.Public()
+}
+
+func (s *externalEd25519Signer) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	if opts.HashFunc() != crypto.Hash(0) {
+		return nil, fmt.Errorf("ed25519 signs the message itself, got hash %v", opts.HashFunc())
+	}
+	return s.priv.Sign(rand, digest, opts)
+}
+
+func signAndVerifyWithExternalSigner(t *testing.T, priv *PrivateKey, sig *Signature) {
+	t.Helper()
+	msg := make([]byte, maxMessageLength)
+	rand.Read(msg)
+
+	h, err := populateHash(sig.Hash, msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sig.Sign(h, priv, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	if h, err = populateHash(sig.Hash, msg); err != nil {
+		t.Fatal(err)
+	}
+	if err := priv.VerifySignature(h, sig); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestExternalEdDSASignerPrivateKeyRandomizeFast(t *testing.T) {
+	pub, stdPriv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	eddsaPub := eddsa.NewPublicKey(ecc.NewEd25519())
+	eddsaPub.X = pub
+
+	priv := &PrivateKey{
+		PublicKey:  *NewEdDSAPublicKey(time.Now(), eddsaPub),
+		PrivateKey: &externalEd25519Signer{priv: stdPriv},
+	}
+	sig := &Signature{
+		Version:    4,
+		PubKeyAlgo: PubKeyAlgoEdDSA,
+		Hash:       crypto.SHA256,
+	}
+	signAndVerifyWithExternalSigner(t, priv, sig)
+}
+
+func TestExternalEd25519SignerPrivateKeyRandomizeFast(t *testing.T) {
+	pub, stdPriv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pgpPub := pgped25519.NewPublicKey()
+	pgpPub.Point = pub
+
+	priv := &PrivateKey{
+		PublicKey:  *NewEd25519PublicKey(time.Now(), pgpPub),
+		PrivateKey: &externalEd25519Signer{priv: stdPriv},
+	}
+	sig := &Signature{
+		Version:    4,
+		PubKeyAlgo: PubKeyAlgoEd25519,
+		Hash:       crypto.SHA256,
+	}
+	signAndVerifyWithExternalSigner(t, priv, sig)
 }
 
 // Tests correctness when encrypting an EdDSA private key with a password.
