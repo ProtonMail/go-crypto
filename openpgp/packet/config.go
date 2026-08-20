@@ -195,6 +195,10 @@ type Config struct {
 	// read from a compressed packet. This serves as an upper limit to prevent
 	// excessively large decompressed messages.
 	MaxDecompressedMessageSize *int64
+
+	// NoEncryptionSubkey configures key generation.  true results in an
+	// OpenPGP key that has no encryption-capable subkey
+	NoEncryptionSubkey bool
 }
 
 func (c *Config) Random() io.Reader {
@@ -451,6 +455,13 @@ func (c *Config) DecompressedMessageSizeLimit() *int64 {
 		return nil
 	}
 	return c.MaxDecompressedMessageSize
+}
+
+func (c *Config) NoEncryptionSubkey() bool {
+	if c == nil {
+		return false
+	}
+	return c.NoEncryptionSubkey
 }
 
 // BoolPointer is a helper function to set a boolean pointer in the Config.
