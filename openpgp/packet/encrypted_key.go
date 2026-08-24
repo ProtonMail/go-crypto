@@ -196,7 +196,13 @@ func (e *EncryptedKey) Decrypt(priv *PrivateKey, config *Config) error {
 			// For v5 the, the fingerprint must be restricted to 20 bytes
 			fp = fp[:20]
 		}
-		b, err = ecdh.Decrypt(priv.PrivateKey.(*ecdh.PrivateKey), vsG, m, oid, fp)
+		// Supports both *ecdh.PrivateKey and ecdh.Decapsulator (for hardware tokens)
+		if decapsulator, ok := priv.PrivateKey.(ecdh.Decapsulator); ok {
+			ecdhPub := priv.PublicKey.PublicKey.(*ecdh.PublicKey)
+			b, err = ecdh.DecryptWithDecapsulator(decapsulator, ecdhPub, vsG, m, oid, fp)
+		} else {
+			b, err = ecdh.Decrypt(priv.PrivateKey.(*ecdh.PrivateKey), vsG, m, oid, fp)
+		}
 	case PubKeyAlgoX25519:
 		b, err = x25519.Decrypt(priv.PrivateKey.(*x25519.PrivateKey), e.ephemeralPublicEcc, e.encryptedSession)
 	case PubKeyAlgoX448:

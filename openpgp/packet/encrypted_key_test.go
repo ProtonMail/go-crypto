@@ -14,8 +14,12 @@ import (
 	"time"
 
 	"crypto"
+	"crypto/rand"
 	"crypto/rsa"
 
+	"github.com/ProtonMail/go-crypto/openpgp/ecdh"
+	"github.com/ProtonMail/go-crypto/openpgp/internal/algorithm"
+	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
 	"github.com/ProtonMail/go-crypto/openpgp/x25519"
 	"github.com/ProtonMail/go-crypto/openpgp/x448"
 )
@@ -313,6 +317,74 @@ func TestEncryptingEncryptedKeyXAlgorithms(t *testing.T) {
 		if keyHex != expectedKeyHex {
 			t.Errorf("bad key, got %s want %s", keyHex, expectedKeyHex)
 		}
+	}
+}
+
+// ecdhDecapsulator wraps a real ECDH private key, simulating a hardware
+// token that performs key agreement without exposing the private scalar.
+type ecdhDecapsulator struct {
+	priv        *ecdh.PrivateKey
+	decapsCount int
+}
+
+func (d *ecdhDecapsulator) Decaps(ephemeral []byte) ([]byte, error) {
+	d.decapsCount++
+	return d.priv.GetCurve().Decaps(ephemeral, d.priv.D)
+}
+
+func TestECDHDecapsulator(t *testing.T) {
+	key := []byte{1, 2, 3, 4}
+	kdf := ecdh.KDF{
+		Hash:   algorithm.SHA256,
+		Cipher: algorithm.AES128,
+	}
+	ecdhKey, err := ecdh.GenerateKey(rand.Reader, ecc.NewCurve25519(), kdf)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wrappedKey := NewECDHPrivateKey(time.Now(), ecdhKey)
+	wrappedKeyPub := &wrappedKey.PublicKey
+
+	buf := new(bytes.Buffer)
+	err = SerializeEncryptedKeyAEAD(buf, wrappedKeyPub, CipherAES128, false, key, nil)
+	if err != nil {
+		t.Fatalf("error writing encrypted key packet: %s", err)
+	}
+
+	p, err := Read(buf)
+	if err != nil {
+		t.Fatalf("error from Read: %s", err)
+	}
+	ek, ok := p.(*EncryptedKey)
+	if !ok {
+		t.Fatalf("didn't parse an EncryptedKey, got %#v", p)
+	}
+
+	// Create a PrivateKey with a Decapsulator instead of *ecdh.PrivateKey
+	decapsulator := &ecdhDecapsulator{priv: ecdhKey}
+	customKeyPriv := &PrivateKey{
+		PublicKey:  *wrappedKeyPub,
+		PrivateKey: decapsulator,
+	}
+
+	err = ek.Decrypt(customKeyPriv, nil)
+	if err != nil {
+		t.Fatalf("error from Decrypt with Decapsulator: %s", err)
+	}
+
+	if ek.CipherFunc != CipherAES128 {
+		t.Errorf("unexpected CipherFunc: got %d, want %d", ek.CipherFunc, CipherAES128)
+	}
+
+	keyHex := fmt.Sprintf("%x", ek.Key)
+	expectedKeyHex := fmt.Sprintf("%x", key)
+	if keyHex != expectedKeyHex {
+		t.Errorf("bad key, got %s want %s", keyHex, expectedKeyHex)
+	}
+
+	if decapsulator.decapsCount != 1 {
+		t.Errorf("expected Decaps to be called once, got %d", decapsulator.decapsCount)
 	}
 }
 

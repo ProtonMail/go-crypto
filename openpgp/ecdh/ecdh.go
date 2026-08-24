@@ -118,15 +118,58 @@ func Encrypt(random io.Reader, pub *PublicKey, msg, curveOID, fingerprint []byte
 
 }
 
+// Decapsulator allows ECDH decapsulation to be performed by an external
+// implementation, such as a hardware token (YubiKey, OpenPGP smartcard).
+// The library calls Decaps during session key decryption; implementations
+// perform the ECDH key agreement and return the raw shared secret.
+// The library handles KDF and AES key unwrap internally.
+type Decapsulator interface {
+	// Decaps performs ECDH key agreement using the given ephemeral
+	// public key point and returns the raw shared secret.
+	Decaps(ephemeral []byte) (sharedSecret []byte, err error)
+}
+
 func Decrypt(priv *PrivateKey, vsG, c, curveOID, fingerprint []byte) (msg []byte, err error) {
-	var m []byte
 	zb, err := priv.PublicKey.curve.Decaps(priv.curve.UnmarshalBytePoint(vsG), priv.D)
+	if err != nil {
+		return nil, err
+	}
+
+	return decryptWithSharedSecret(&priv.PublicKey, zb, c, curveOID, fingerprint)
+}
+
+// DecryptWithDecapsulator decrypts an ECDH-encrypted session key using an
+// external Decapsulator to perform the key agreement step. This supports
+// hardware tokens (YubiKey, OpenPGP smartcard) that perform ECDH internally
+// and return only the raw shared secret, without exposing the private key.
+//
+// The Decapsulator is called with the unmarshalled ephemeral public key
+// point from the PKESK packet. The KDF (RFC 6637 §8) and AES key unwrap
+// (RFC 3394) steps are handled internally by this function.
+func DecryptWithDecapsulator(decapsulator Decapsulator, pub *PublicKey, vsG, c, curveOID, fingerprint []byte) (msg []byte, err error) {
+	ephemeral := pub.curve.UnmarshalBytePoint(vsG)
+	if len(ephemeral) == 0 {
+		return nil, errors.New("ecdh: invalid ephemeral public key point")
+	}
+	zb, err := decapsulator.Decaps(ephemeral)
+	if err != nil {
+		return nil, err
+	}
+
+	return decryptWithSharedSecret(pub, zb, c, curveOID, fingerprint)
+}
+
+// decryptWithSharedSecret completes ECDH decryption given a pre-computed
+// shared secret, performing KDF and AES key unwrap.
+func decryptWithSharedSecret(pub *PublicKey, zb, c, curveOID, fingerprint []byte) ([]byte, error) {
+	var m []byte
+	var err error
 
 	// Try buildKey three times to workaround an old bug, see comments in buildKey.
 	for i := 0; i < 3; i++ {
 		var z []byte
 		// RFC6637 §8: "Compute Z = KDF( S, Z_len, Param );"
-		z, err = buildKey(&priv.PublicKey, zb, curveOID, fingerprint, i == 1, i == 2)
+		z, err = buildKey(pub, zb, curveOID, fingerprint, i == 1, i == 2)
 		if err != nil {
 			return nil, err
 		}

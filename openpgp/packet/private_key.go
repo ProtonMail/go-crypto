@@ -47,7 +47,8 @@ type PrivateKey struct {
 	s2k           func(out, in []byte)
 	aead          AEADMode // only relevant if S2KAEAD is enabled
 	// An *{rsa|dsa|elgamal|ecdh|ecdsa|ed25519|ed448}.PrivateKey or
-	// crypto.Signer/crypto.Decrypter (Decryptor RSA only).
+	// crypto.Signer/crypto.Decrypter (RSA only) or
+	// ecdh.Decapsulator (ECDH hardware token decryption).
 	PrivateKey interface{}
 	iv         []byte
 
