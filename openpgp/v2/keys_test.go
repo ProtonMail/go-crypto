@@ -2222,3 +2222,16 @@ func TestGenerateRSAKeyPLessThanQ(t *testing.T) {
 		})
 	}
 }
+
+// A key ring whose signature carries an exportable-certification subpacket
+// with a type octet and no body must be rejected with an error, not a panic.
+func TestReadKeyRingEmptyExportableCertSubpacket(t *testing.T) {
+	data := []byte("\xc67\x040000\x16\t+\x06\x01\x04\x01\xdaG\x0f\x01\x01\a@00000000000000000000000000000000\xcd\x1c0000000000000000000000000000\xc20\x040\x16\b\x00\x06\x01\x040000")
+	_, err := ReadKeyRing(bytes.NewReader(data))
+	if err == nil {
+		t.Fatal("malformed key ring accepted")
+	}
+	if _, ok := err.(errors.StructuralError); !ok {
+		t.Fatalf("got %T (%v), want errors.StructuralError", err, err)
+	}
+}
