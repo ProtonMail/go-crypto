@@ -310,6 +310,9 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 			return
 		}
 		if v5 && pk.s2kType == S2KAEAD {
+			if pk.aead.IvLength() > len(pk.iv) {
+				return errors.StructuralError("invalid aead IV length for v5 private key")
+			}
 			pk.iv = pk.iv[:pk.aead.IvLength()]
 		}
 	}
