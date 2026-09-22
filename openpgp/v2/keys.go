@@ -27,6 +27,7 @@ var PrivateKeyType = "PGP PRIVATE KEY BLOCK"
 type Entity struct {
 	PrimaryKey       *packet.PublicKey
 	PrivateKey       *packet.PrivateKey
+	PSK              *packet.PersistentSymmetricKey
 	Identities       map[string]*Identity // indexed by Identity.Name
 	Revocations      []*packet.VerifiableSignature
 	DirectSignatures []*packet.VerifiableSignature // Direct-key self signature of the PrimaryKey (contains primary key properties in v6)}
@@ -40,6 +41,7 @@ type Key struct {
 	PrimarySelfSignature *packet.Signature // might be nil, if not verified
 	PublicKey            *packet.PublicKey
 	PrivateKey           *packet.PrivateKey
+	PSK                  *packet.PersistentSymmetricKey
 	SelfSignature        *packet.Signature // might be nil, if not verified
 }
 
@@ -106,6 +108,11 @@ func (e *Entity) EncryptionKey(now time.Time, config *packet.Config) (Key, bool)
 // given Entity.
 // Provides an error if the function fails to find an encryption key.
 func (e *Entity) EncryptionKeyWithError(now time.Time, config *packet.Config) (Key, error) {
+	// If e contains a persistent symmetric key, return that
+	if e.PSK != nil {
+		return Key{e, nil, e.PrimaryKey, e.PrivateKey, e.PSK, nil}, nil
+	}
+
 	// The primary key has to be valid at time now
 	primarySelfSignature, err := e.VerifyPrimaryKey(now, config)
 	if err != nil { // primary key is not valid
@@ -202,6 +209,13 @@ func (e *Entity) EncryptionKeyWithError(now time.Time, config *packet.Config) (K
 // If id is 0 all decryption keys are returned.
 // This is useful to retrieve keys for session key decryption.
 func (e *Entity) DecryptionKeys(id uint64, date time.Time, config *packet.Config) (keys []Key) {
+	// If e contains a persistent symmetric key, return that
+	if e.PSK != nil &&
+		(id == 0 || e.PSK.KeyId == id) {
+		keys = append(keys, Key{e, nil, e.PrimaryKey, e.PrivateKey, e.PSK, nil})
+		return
+	}
+
 	primarySelfSignature, err := e.PrimarySelfSignature(date, config)
 	if err != nil { // primary key is not valid
 		return
@@ -211,11 +225,12 @@ func (e *Entity) DecryptionKeys(id uint64, date time.Time, config *packet.Config
 		if err == nil &&
 			(config.AllowDecryptionWithSigningKeys() || isValidEncryptionKey(subkeySelfSig, subkey.PublicKey.PubKeyAlgo, config)) &&
 			(id == 0 || subkey.PublicKey.KeyId == id) {
-			keys = append(keys, Key{subkey.Primary, primarySelfSignature, subkey.PublicKey, subkey.PrivateKey, subkeySelfSig})
+			keys = append(keys, Key{subkey.Primary, primarySelfSignature, subkey.PublicKey, subkey.PrivateKey, nil, subkeySelfSig})
 		}
 	}
-	if config.AllowDecryptionWithSigningKeys() || isValidEncryptionKey(primarySelfSignature, e.PrimaryKey.PubKeyAlgo, config) {
-		keys = append(keys, Key{e, primarySelfSignature, e.PrimaryKey, e.PrivateKey, primarySelfSignature})
+	if (config.AllowDecryptionWithSigningKeys() || isValidEncryptionKey(primarySelfSignature, e.PrimaryKey.PubKeyAlgo, config)) &&
+		(id == 0 || e.PrimaryKey.KeyId == id) {
+		keys = append(keys, Key{e, primarySelfSignature, e.PrimaryKey, e.PrivateKey, nil, primarySelfSignature})
 	}
 	return
 }
@@ -247,6 +262,11 @@ func (e *Entity) SigningKeyById(now time.Time, id uint64, config *packet.Config)
 }
 
 func (e *Entity) signingKeyByIdUsage(now time.Time, id uint64, flags int, config *packet.Config) (Key, error) {
+	// If e contains a persistent symmetric key, return that
+	if e.PSK != nil {
+		return Key{e, nil, e.PrimaryKey, e.PrivateKey, e.PSK, nil}, nil
+	}
+
 	primarySelfSignature, err := e.VerifyPrimaryKey(now, config)
 	if err != nil {
 		return Key{}, err
@@ -337,6 +357,10 @@ func (e *Entity) Revoked(now time.Time) bool {
 // derived from the provided passphrase. Public keys and dummy keys are ignored,
 // and don't cause an error to be returned.
 func (e *Entity) EncryptPrivateKeys(passphrase []byte, config *packet.Config) error {
+	if e.PSK != nil {
+		return e.PSK.EncryptWithConfig(passphrase, config)
+	}
+
 	var keysToEncrypt []*packet.PrivateKey
 	// Add entity private key to encrypt.
 	if e.PrivateKey != nil && !e.PrivateKey.Dummy() && !e.PrivateKey.Encrypted {
@@ -356,6 +380,10 @@ func (e *Entity) EncryptPrivateKeys(passphrase []byte, config *packet.Config) er
 // Avoids recomputation of similar s2k key derivations. Public keys and dummy keys are ignored,
 // and don't cause an error to be returned.
 func (e *Entity) DecryptPrivateKeys(passphrase []byte) error {
+	if e.PSK != nil {
+		return e.PSK.Decrypt(passphrase)
+	}
+
 	var keysToDecrypt []*packet.PrivateKey
 	// Add entity private key to decrypt.
 	if e.PrivateKey != nil && !e.PrivateKey.Dummy() && e.PrivateKey.Encrypted {
@@ -380,12 +408,12 @@ type EntityList []*Entity
 func (el EntityList) KeysById(id uint64) (keys []Key) {
 	for _, e := range el {
 		if id == 0 || e.PrimaryKey.KeyId == id {
-			keys = append(keys, Key{e, nil, e.PrimaryKey, e.PrivateKey, nil})
+			keys = append(keys, Key{e, nil, e.PrimaryKey, e.PrivateKey, e.PSK, nil})
 		}
 
 		for _, subKey := range e.Subkeys {
 			if id == 0 || subKey.PublicKey.KeyId == id {
-				keys = append(keys, Key{subKey.Primary, nil, subKey.PublicKey, subKey.PrivateKey, nil})
+				keys = append(keys, Key{subKey.Primary, nil, subKey.PublicKey, subKey.PrivateKey, nil, nil})
 			}
 		}
 	}
@@ -439,11 +467,11 @@ func ReadKeyRing(r io.Reader) (el EntityList, err error) {
 			// TODO: warn about skipped unsupported/unreadable keys
 			if _, ok := err.(errors.UnsupportedError); ok {
 				lastUnsupportedError = err
-				err = readToNextPublicKey(packets)
+				err = readToNextPrimaryKey(packets)
 			} else if _, ok := err.(errors.StructuralError); ok {
 				// Skip unreadable, badly-formatted keys
 				lastUnsupportedError = err
-				err = readToNextPublicKey(packets)
+				err = readToNextPrimaryKey(packets)
 			}
 			if err == io.EOF {
 				err = nil
@@ -464,9 +492,9 @@ func ReadKeyRing(r io.Reader) (el EntityList, err error) {
 	return
 }
 
-// readToNextPublicKey reads packets until the start of the entity and leaves
+// readToNextPrimaryKey reads packets until the start of the next entity and leaves
 // the first packet of the new entity in the Reader.
-func readToNextPublicKey(packets *packet.Reader) (err error) {
+func readToNextPrimaryKey(packets *packet.Reader) (err error) {
 	var p packet.Packet
 	for {
 		p, err = packets.Next()
@@ -480,6 +508,10 @@ func readToNextPublicKey(packets *packet.Reader) (err error) {
 		}
 
 		if pk, ok := p.(*packet.PublicKey); ok && !pk.IsSubkey {
+			packets.Unread(p)
+			return
+		}
+		if _, ok := p.(*packet.PersistentSymmetricKey); ok {
 			packets.Unread(p)
 			return
 		}
@@ -498,6 +530,12 @@ func ReadEntity(packets *packet.Reader) (*Entity, error) {
 	}
 
 	var ok bool
+	if e.PSK, ok = p.(*packet.PersistentSymmetricKey); ok {
+		e.PrimaryKey = &e.PSK.PublicKey
+		e.PrivateKey = &e.PSK.PrivateKey
+		// Persistent Symmetric Keys don't have any subcomponents.
+		return e, nil
+	}
 	if e.PrimaryKey, ok = p.(*packet.PublicKey); !ok {
 		if e.PrivateKey, ok = p.(*packet.PrivateKey); !ok {
 			packets.Unread(p)
@@ -577,6 +615,9 @@ EachPacket:
 			if err != nil {
 				return nil, err
 			}
+		case *packet.PersistentSymmetricKey:
+			packets.Unread(p)
+			break EachPacket
 		default:
 			// we ignore unknown packets
 		}
@@ -613,9 +654,14 @@ func (e *Entity) SerializePrivateWithoutSigning(w io.Writer, config *packet.Conf
 }
 
 func (e *Entity) serializePrivate(w io.Writer, config *packet.Config, reSign bool) (err error) {
+	if e.PSK != nil {
+		return e.PSK.Serialize(w)
+	}
+
 	if e.PrivateKey == nil {
 		return goerrors.New("openpgp: private key is missing")
 	}
+
 	err = e.PrivateKey.Serialize(w)
 	if err != nil {
 		return
@@ -656,6 +702,10 @@ func (e *Entity) serializePrivate(w io.Writer, config *packet.Config, reSign boo
 // Serialize writes the public part of the given Entity to w, including
 // signatures from other entities. No private key material will be output.
 func (e *Entity) Serialize(w io.Writer) error {
+	if e.PSK != nil {
+		return goerrors.New("openpgp: can't serialize public key of persistent symmetric key")
+	}
+
 	if err := e.PrimaryKey.Serialize(w); err != nil {
 		return err
 	}
@@ -687,6 +737,10 @@ func (e *Entity) Serialize(w io.Writer) error {
 // specified reason code and text (RFC4880 section-5.2.3.23).
 // If config is nil, sensible defaults will be used.
 func (e *Entity) Revoke(reason packet.ReasonForRevocation, reasonText string, config *packet.Config) error {
+	if e.PSK != nil {
+		return errors.InvalidArgumentError("can't revoke persistent symmetric key")
+	}
+
 	revSig := createSignaturePacket(e.PrimaryKey, packet.SigTypeKeyRevocation, config)
 	revSig.RevocationReason = &reason
 	revSig.RevocationReasonText = reasonText
@@ -707,6 +761,10 @@ func (e *Entity) Revoke(reason packet.ReasonForRevocation, reasonText string, co
 // necessary.
 // If config is nil, sensible defaults will be used.
 func (e *Entity) SignIdentity(identity string, signer *Entity, config *packet.Config) error {
+	if e.PSK != nil {
+		return errors.InvalidArgumentError("can't sign persistent symmetric key")
+	}
+
 	ident, ok := e.Identities[identity]
 	if !ok {
 		return errors.InvalidArgumentError("given identity string not found in Entity")
@@ -716,6 +774,10 @@ func (e *Entity) SignIdentity(identity string, signer *Entity, config *packet.Co
 
 // LatestValidDirectSignature returns the latest valid direct key-signature of the entity.
 func (e *Entity) LatestValidDirectSignature(date time.Time, config *packet.Config) (selectedSig *packet.Signature, err error) {
+	if e.PSK != nil {
+		return nil, nil
+	}
+
 	for sigIdx := len(e.DirectSignatures) - 1; sigIdx >= 0; sigIdx-- {
 		sig := e.DirectSignatures[sigIdx]
 		if (date.IsZero() || date.Unix() >= sig.Packet.CreationTime.Unix()) &&
@@ -745,6 +807,10 @@ func (e *Entity) LatestValidDirectSignature(date time.Time, config *packet.Confi
 // This self-signature is to be used to check the key expiration,
 // algorithm preferences, and so on.
 func (e *Entity) PrimarySelfSignature(date time.Time, config *packet.Config) (primarySig *packet.Signature, err error) {
+	if e.PSK != nil {
+		return nil, nil
+	}
+
 	if e.PrimaryKey.Version == 6 {
 		return e.LatestValidDirectSignature(date, config)
 	}
@@ -761,6 +827,10 @@ func (e *Entity) PrimarySelfSignature(date time.Time, config *packet.Config) (pr
 // - that the primary key is not expired given its self-signature.
 // If date is zero (i.e., date.IsZero() == true) the time checks are not performed.
 func (e *Entity) VerifyPrimaryKey(date time.Time, config *packet.Config) (*packet.Signature, error) {
+	if e.PSK != nil {
+		return nil, nil
+	}
+
 	primarySelfSignature, err := e.PrimarySelfSignature(date, config)
 	if err != nil {
 		return nil, goerrors.New("no valid self signature found")
@@ -787,6 +857,9 @@ func (e *Entity) VerifyPrimaryKey(date time.Time, config *packet.Config) (*packe
 }
 
 func (k *Key) IsPrimary() bool {
+	if k.PSK != nil {
+		return true
+	}
 	if k.PrimarySelfSignature == nil || k.SelfSignature == nil {
 		return k.PublicKey == k.Entity.PrimaryKey
 	}

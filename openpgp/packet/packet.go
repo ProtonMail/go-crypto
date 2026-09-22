@@ -319,7 +319,8 @@ const (
 	packetTypeUserAttribute                            packetType = 17
 	packetTypeSymmetricallyEncryptedIntegrityProtected packetType = 18
 	packetTypeAEADEncrypted                            packetType = 20
-	packetPadding                                      packetType = 21
+	packetTypePadding                                  packetType = 21
+	packetTypePersistentSymmetricKey                   packetType = 40
 )
 
 // EncryptedDataPacket holds encrypted data. It is currently implemented by
@@ -370,8 +371,10 @@ func Read(r io.Reader) (p Packet, err error) {
 		p = se
 	case packetTypeAEADEncrypted:
 		p = new(AEADEncrypted)
-	case packetPadding:
+	case packetTypePadding:
 		p = Padding(len)
+	case packetTypePersistentSymmetricKey:
+		p = new(PersistentSymmetricKey)
 	case packetTypeMarker:
 		p = new(Marker)
 	case packetTypeTrust:
@@ -434,7 +437,7 @@ func ReadWithCheck(r io.Reader, sequence *SequenceVerifier) (p Packet, msgErr er
 	case packetTypeAEADEncrypted:
 		msgErr = sequence.Next(EncSymbol)
 		p = new(AEADEncrypted)
-	case packetPadding:
+	case packetTypePadding:
 		p = Padding(len)
 	case packetTypeMarker:
 		p = new(Marker)
@@ -492,6 +495,7 @@ const (
 type PublicKeyAlgorithm uint8
 
 const (
+	PubKeyAlgoAEAD    PublicKeyAlgorithm = 0
 	PubKeyAlgoRSA     PublicKeyAlgorithm = 1
 	PubKeyAlgoElGamal PublicKeyAlgorithm = 16
 	PubKeyAlgoDSA     PublicKeyAlgorithm = 17
@@ -526,7 +530,8 @@ const (
 // key of the given type.
 func (pka PublicKeyAlgorithm) CanEncrypt() bool {
 	switch pka {
-	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoElGamal, PubKeyAlgoECDH, PubKeyAlgoX25519, PubKeyAlgoX448,
+	case PubKeyAlgoAEAD, PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoElGamal,
+		PubKeyAlgoECDH, PubKeyAlgoX25519, PubKeyAlgoX448,
 		PubKeyAlgoMlkem768X25519, PubKeyAlgoMlkem1024X448:
 		return true
 	}
@@ -537,7 +542,8 @@ func (pka PublicKeyAlgorithm) CanEncrypt() bool {
 // sign a message.
 func (pka PublicKeyAlgorithm) CanSign() bool {
 	switch pka {
-	case PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA, PubKeyAlgoECDSA, PubKeyAlgoEdDSA,
+	case PubKeyAlgoAEAD, PubKeyAlgoRSA, PubKeyAlgoRSASignOnly, PubKeyAlgoDSA,
+		PubKeyAlgoECDSA, PubKeyAlgoEdDSA,
 		PubKeyAlgoEd25519, PubKeyAlgoEd448,
 		PubKeyAlgoMldsa65Ed25519, PubKeyAlgoMldsa87Ed448,
 		PubKeyAlgoSlhdsaShake128s, PubKeyAlgoSlhdsaShake128f, PubKeyAlgoSlhdsaShake256s:
