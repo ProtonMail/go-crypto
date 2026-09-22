@@ -322,3 +322,23 @@ func TestValidateArgon2Params(t *testing.T) {
 		}
 	}
 }
+
+func TestArgon2MaxMemory(t *testing.T) {
+	// Argon2 parameters asking for 2**31 kibibytes (i.e. 2 TiB) of memory.
+	buf := append([]byte{byte(Argon2S2K)}, make([]byte, Argon2SaltSize)...)
+	buf = append(buf, 3 /* passes */, 4 /* parallelism */, 31 /* memoryExp */)
+
+	params, err := ParseIntoParams(bytes.NewReader(buf))
+	if err != nil {
+		t.Fatalf("failed to parse the argon2 parameters: %s", err)
+	}
+
+	if _, err := params.Function(); err == nil {
+		t.Error("expected an error for parameters above the default maximum memory")
+	}
+
+	config := &Config{Argon2Config: &Argon2Config{MaxMemory: 1 << 31}}
+	if _, err := params.FunctionWithConfig(config); err != nil {
+		t.Errorf("expected no error for a configuration allowing the memory: %s", err)
+	}
+}

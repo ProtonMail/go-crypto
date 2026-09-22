@@ -26,7 +26,7 @@ type SymmetricKeyEncrypted struct {
 	Version      int
 	CipherFunc   CipherFunction
 	Mode         AEADMode
-	s2k          func(out, in []byte)
+	s2kParams    *s2k.Params
 	iv           []byte
 	encryptedKey []byte // Contains also the authentication tag for AEAD
 }
@@ -81,11 +81,11 @@ func (ske *SymmetricKeyEncrypted) parse(r io.Reader) error {
 	}
 
 	var err error
-	if ske.s2k, err = s2k.Parse(r); err != nil {
-		if _, ok := err.(errors.ErrDummyPrivateKey); ok {
-			return errors.UnsupportedError("missing key GNU extension in session key")
-		}
+	if ske.s2kParams, err = s2k.ParseIntoParams(r); err != nil {
 		return err
+	}
+	if ske.s2kParams.Dummy() {
+		return errors.UnsupportedError("missing key GNU extension in session key")
 	}
 
 	if ske.Version >= 5 {
@@ -120,8 +120,21 @@ func (ske *SymmetricKeyEncrypted) parse(r io.Reader) error {
 // the cipher to use when decrypting a subsequent Symmetrically Encrypted Data
 // packet.
 func (ske *SymmetricKeyEncrypted) Decrypt(passphrase []byte) ([]byte, CipherFunction, error) {
+	return ske.DecryptWithConfig(passphrase, nil)
+}
+
+// DecryptWithConfig attempts to decrypt an encrypted session key and returns the
+// key and the cipher to use when decrypting a subsequent Symmetrically Encrypted
+// Data packet. It fails if the s2k parameters of the packet exceed the limits set
+// in the config, i.e. if it asks for more memory than s2k.Argon2Config.MaxMemory.
+// If config is nil, sensible defaults will be used.
+func (ske *SymmetricKeyEncrypted) DecryptWithConfig(passphrase []byte, config *Config) ([]byte, CipherFunction, error) {
+	s2kFunc, err := ske.s2kParams.FunctionWithConfig(config.S2K())
+	if err != nil {
+		return nil, CipherFunction(0), err
+	}
 	key := make([]byte, ske.CipherFunc.KeySize())
-	ske.s2k(key, passphrase)
+	s2kFunc(key, passphrase)
 	if len(ske.encryptedKey) == 0 {
 		return key, ske.CipherFunc, nil
 	}
@@ -133,7 +146,7 @@ func (ske *SymmetricKeyEncrypted) Decrypt(passphrase []byte) ([]byte, CipherFunc
 		plaintextKey, err := ske.aeadDecrypt(ske.Version, key)
 		return plaintextKey, CipherFunction(0), err
 	}
-	err := errors.UnsupportedError("unknown SymmetricKeyEncrypted version")
+	err = errors.UnsupportedError("unknown SymmetricKeyEncrypted version")
 	return nil, CipherFunction(0), err
 }
 

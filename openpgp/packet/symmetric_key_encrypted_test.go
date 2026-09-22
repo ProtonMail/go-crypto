@@ -329,3 +329,28 @@ func TestSerializeSymmetricKeyEncryptedCiphersV4(t *testing.T) {
 		})
 	}
 }
+
+func TestSymmetricKeyEncryptedArgon2MaxMemory(t *testing.T) {
+	// A v4 SKESK packet whose argon2 parameters ask for 2**31 kibibytes (i.e. 2 TiB) of memory.
+	body := append([]byte{4 /* version */, byte(CipherAES256), byte(s2k.Argon2S2K)}, make([]byte, s2k.Argon2SaltSize)...)
+	body = append(body, 3 /* passes */, 4 /* parallelism */, 31 /* memoryExp */)
+
+	var buf bytes.Buffer
+	if err := serializeHeader(&buf, packetTypeSymmetricKeyEncrypted, len(body)); err != nil {
+		t.Fatalf("failed to serialize the packet header: %s", err)
+	}
+	buf.Write(body)
+
+	p, err := Read(&buf)
+	if err != nil {
+		t.Fatalf("failed to parse the packet: %s", err)
+	}
+	ske, ok := p.(*SymmetricKeyEncrypted)
+	if !ok {
+		t.Fatalf("parsed a different packet type: %#v", p)
+	}
+
+	if _, _, err := ske.Decrypt([]byte("password")); err == nil {
+		t.Error("expected an error for parameters above the default maximum memory")
+	}
+}

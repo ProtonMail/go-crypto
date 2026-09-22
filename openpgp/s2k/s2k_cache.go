@@ -9,12 +9,23 @@ type Cache map[Params][]byte
 // for the given s2k parameters from the cache.
 // If there is no hit, it derives the key with the s2k function from the passphrase,
 // updates the cache, and returns the key.
+// The default configuration is used to bound the resources the derivation
+// is allowed to use.
 func (c *Cache) GetOrComputeDerivedKey(passphrase []byte, params *Params, expectedKeySize int) ([]byte, error) {
+	return c.GetOrComputeDerivedKeyWithConfig(passphrase, params, expectedKeySize, nil)
+}
+
+// GetOrComputeDerivedKeyWithConfig tries to retrieve the key
+// for the given s2k parameters from the cache.
+// If there is no hit, it derives the key with the s2k function from the passphrase,
+// updates the cache, and returns the key.
+// The configuration config may be nil, in which case sensible defaults will be used.
+func (c *Cache) GetOrComputeDerivedKeyWithConfig(passphrase []byte, params *Params, expectedKeySize int, config *Config) ([]byte, error) {
 	key, found := (*c)[*params]
 	if !found || len(key) != expectedKeySize {
 		var err error
 		derivedKey := make([]byte, expectedKeySize)
-		s2k, err := params.Function()
+		s2k, err := params.FunctionWithConfig(config)
 		if err != nil {
 			return nil, err
 		}
