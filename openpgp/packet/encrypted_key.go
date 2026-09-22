@@ -215,6 +215,9 @@ func (e *EncryptedKey) Decrypt(priv *PrivateKey, config *Config) error {
 	case PubKeyAlgoRSA, PubKeyAlgoRSAEncryptOnly, PubKeyAlgoElGamal, PubKeyAlgoECDH:
 		keyOffset := 0
 		if e.Version < 6 {
+			if len(b) == 0 {
+				return errors.StructuralError("truncated session key")
+			}
 			e.CipherFunc = CipherFunction(b[0])
 			keyOffset = 1
 			if !e.CipherFunc.IsSupported() {
@@ -589,6 +592,9 @@ func checksumKeyMaterial(key []byte) uint16 {
 }
 
 func decodeChecksumKey(msg []byte) (key []byte, err error) {
+	if len(msg) < 2 {
+		return nil, errors.StructuralError("truncated session key")
+	}
 	key = msg[:len(msg)-2]
 	expectedChecksum := uint16(msg[len(msg)-2])<<8 | uint16(msg[len(msg)-1])
 	checksum := checksumKeyMaterial(key)
