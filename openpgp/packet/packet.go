@@ -161,6 +161,15 @@ func (l *spanReader) Read(p []byte) (n int, err error) {
 	return
 }
 
+// readerRemaining returns the number of bytes that can still be read from a
+// length-delimited packet reader, or -1 if the amount is not known in advance.
+func readerRemaining(r io.Reader) int64 {
+	if sr, ok := r.(*spanReader); ok {
+		return sr.n
+	}
+	return -1
+}
+
 // readHeader parses a packet header and returns an io.Reader which will return
 // the contents of the packet. See RFC 4880, section 4.2.
 func readHeader(r io.Reader) (tag packetType, length int64, contents io.Reader, err error) {

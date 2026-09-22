@@ -239,6 +239,9 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 	} else {
 		hashedSubpacketsLength = int(buf[3])<<8 | int(buf[4])
 	}
+	if remaining := readerRemaining(r); remaining >= 0 && int64(hashedSubpacketsLength) > remaining {
+		return errors.StructuralError("hashed subpacket data length is larger than the packet")
+	}
 	hashedSubpackets := make([]byte, hashedSubpacketsLength)
 	_, err = readFull(r, hashedSubpackets)
 	if err != nil {
@@ -268,6 +271,9 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 		unhashedSubpacketsLength = uint32(buf[0])<<24 | uint32(buf[1])<<16 | uint32(buf[2])<<8 | uint32(buf[3])
 	} else {
 		unhashedSubpacketsLength = uint32(buf[0])<<8 | uint32(buf[1])
+	}
+	if remaining := readerRemaining(r); remaining >= 0 && int64(unhashedSubpacketsLength) > remaining {
+		return errors.StructuralError("unhashed subpacket data length is larger than the packet")
 	}
 	unhashedSubpackets := make([]byte, unhashedSubpacketsLength)
 	_, err = readFull(r, unhashedSubpackets)
