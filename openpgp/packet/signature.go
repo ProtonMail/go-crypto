@@ -501,6 +501,10 @@ func parseSignatureSubpacket(sig *Signature, subpacket []byte, isHashed bool) (r
 		sig.SigLifetimeSecs = new(uint32)
 		*sig.SigLifetimeSecs = binary.BigEndian.Uint32(subpacket)
 	case exportableCertSubpacket:
+		if len(subpacket) < 1 {
+			err = errors.StructuralError("exportable certification subpacket with a bad length")
+			return
+		}
 		if subpacket[0] == 0 {
 			err = errors.UnsupportedError("signature with non-exportable certification")
 			return
