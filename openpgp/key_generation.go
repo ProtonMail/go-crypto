@@ -425,15 +425,19 @@ func generateRSAKey(random io.Reader, bits int) (*rsa.PrivateKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	// RFC 9580 section 5.5.5.1 requires p < q for RSA keys.
-	// The Go standard library does not guarantee this, so we swap if needed
-	// and recompute the precomputed values.
+	enforceRSAPrimeOrder(key)
+	return key, nil
+}
+
+// enforceRSAPrimeOrder ensures p < q, as required by RFC 9580 section 5.5.5.1
+// for RSA keys. The Go standard library does not guarantee this, so we swap if
+// needed and recompute the precomputed values.
+func enforceRSAPrimeOrder(key *rsa.PrivateKey) {
 	if len(key.Primes) == 2 && key.Primes[0].Cmp(key.Primes[1]) > 0 {
 		key.Primes[0], key.Primes[1] = key.Primes[1], key.Primes[0]
 		key.Precomputed = rsa.PrecomputedValues{}
 		key.Precompute()
 	}
-	return key, nil
 }
 
 // generateRSAKeyWithPrimes generates a multi-prime RSA keypair of the
