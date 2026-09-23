@@ -228,19 +228,18 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 		return errors.UnsupportedError("hash function " + strconv.Itoa(int(buf[2])))
 	}
 
-	var hashedSubpacketsLength int
+	var hashedSubpacketsLength uint32
 	if sig.Version == 6 {
 		// For a v6 signature, a four-octet length is used.
 		hashedSubpacketsLength =
-			int(buf[3])<<24 |
-				int(buf[4])<<16 |
-				int(buf[5])<<8 |
-				int(buf[6])
+			uint32(buf[3])<<24 |
+				uint32(buf[4])<<16 |
+				uint32(buf[5])<<8 |
+				uint32(buf[6])
 	} else {
-		hashedSubpacketsLength = int(buf[3])<<8 | int(buf[4])
+		hashedSubpacketsLength = uint32(buf[3])<<8 | uint32(buf[4])
 	}
-	hashedSubpackets := make([]byte, hashedSubpacketsLength)
-	_, err = readFull(r, hashedSubpackets)
+	hashedSubpackets, err := readN(r, hashedSubpacketsLength)
 	if err != nil {
 		return
 	}
@@ -269,8 +268,7 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 	} else {
 		unhashedSubpacketsLength = uint32(buf[0])<<8 | uint32(buf[1])
 	}
-	unhashedSubpackets := make([]byte, unhashedSubpacketsLength)
-	_, err = readFull(r, unhashedSubpackets)
+	unhashedSubpackets, err := readN(r, unhashedSubpacketsLength)
 	if err != nil {
 		return
 	}
