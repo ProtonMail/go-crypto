@@ -138,3 +138,16 @@ func testMarshalUnmarshal(t *testing.T, priv *PrivateKey) {
 		t.Fatal("failed to marshal/unmarshal correctly")
 	}
 }
+
+func TestShortKDFHashRejected(t *testing.T) {
+	curve := ecc.NewCurve25519()
+	kdf := KDF{Hash: algorithm.SHA224, Cipher: algorithm.AES256}
+	priv, err := GenerateKey(rand.Reader, curve, kdf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg := make([]byte, 24)
+	if _, _, err := Encrypt(rand.Reader, &priv.PublicKey, msg, []byte{}, make([]byte, 20)); err == nil {
+		t.Error("expected error when the KDF hash is shorter than the KDF cipher key")
+	}
+}

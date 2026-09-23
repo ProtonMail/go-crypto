@@ -211,3 +211,16 @@ func fromHex(hex string) *big.Int {
 	}
 	return n
 }
+
+func TestECDHPublicKeyShortKDFHash(t *testing.T) {
+	oid := []byte{0x0a, 0x2b, 0x06, 0x01, 0x04, 0x01, 0x97, 0x55, 0x01, 0x05, 0x01} // Curve25519Legacy
+	body := []byte{4, 0, 0, 0, 0, byte(PubKeyAlgoECDH)}
+	body = append(body, oid...)
+	body = append(body, 0x01, 0x07, 0x40, 9) // MPI: 0x40-prefixed point
+	body = append(body, make([]byte, 31)...)
+	body = append(body, 0x03, 0x01, 0x0b, 0x09) // KDF: SHA224, AES256
+
+	if err := new(PublicKey).parse(bytes.NewReader(body)); err == nil {
+		t.Fatal("expected error for ECDH key whose KDF hash is shorter than the KDF cipher key")
+	}
+}

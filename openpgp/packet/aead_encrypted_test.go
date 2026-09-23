@@ -55,8 +55,8 @@ func TestAeadRFCParse(t *testing.T) {
 // authentication tags: One for the empty chunk, and the final auth. tag. This
 // test also checks if it cannot decrypt a corrupt stream of empty plaintext.
 func TestAeadEmptyStream(t *testing.T) {
-	key := randomKey(16)
 	config := randomConfig()
+	key := randomKey(config.Cipher().KeySize())
 	raw, _, err := randomStream(key, 0, config)
 	if err != nil {
 		t.Error(err)
@@ -65,7 +65,7 @@ func TestAeadEmptyStream(t *testing.T) {
 	corruptBytes := make([]byte, len(raw.Bytes()))
 	copy(corruptBytes, raw.Bytes())
 	for bytes.Equal(corruptBytes, raw.Bytes()) {
-		corruptBytes[mathrand.Intn(len(corruptBytes)-5)+5] = byte(mathrand.Intn(256))
+		corruptBytes[mathrand.Intn(len(corruptBytes)-6)+6] = byte(mathrand.Intn(256))
 	}
 	corrupt := bytes.NewBuffer(corruptBytes)
 
@@ -150,8 +150,8 @@ func TestAeadNilConfigStream(t *testing.T) {
 
 // Encrypts and decrypts a random stream, checking correctness and integrity
 func TestAeadStreamRandomizeSlow(t *testing.T) {
-	key := randomKey(16)
 	config := randomConfig()
+	key := randomKey(config.Cipher().KeySize())
 	randomLength := mathrand.Intn(maxPlaintextLength) + 1
 	raw, plain, err := randomStream(key, randomLength, config)
 	if err != nil {
@@ -190,8 +190,8 @@ func TestAeadStreamRandomizeSlow(t *testing.T) {
 
 // Encrypts a random stream, corrupt some bytes, and check if it fails
 func TestAeadCorruptStreamRandomizeSlow(t *testing.T) {
-	key := randomKey(16)
 	config := randomConfig()
+	key := randomKey(config.Cipher().KeySize())
 	randomLength := mathrand.Intn(maxPlaintextLength) + 1
 	raw, plain, err := randomStream(key, randomLength, config)
 	if err != nil {
@@ -233,8 +233,8 @@ func TestAeadCorruptStreamRandomizeSlow(t *testing.T) {
 
 // Encrypts a random stream, truncate the end, and check if it fails
 func TestAeadTruncatedStreamRandomizeSlow(t *testing.T) {
-	key := randomKey(16)
 	config := randomConfig()
+	key := randomKey(config.Cipher().KeySize())
 	randomLength := mathrand.Intn(maxPlaintextLength)
 	if randomLength < 16 {
 		return
@@ -278,8 +278,8 @@ func TestAeadTruncatedStreamRandomizeSlow(t *testing.T) {
 
 // Encrypts a random stream, truncate the end, and check if it fails
 func TestAeadUnclosedStreamRandomizeSlow(t *testing.T) {
-	key := randomKey(16)
 	config := randomConfig()
+	key := randomKey(config.Cipher().KeySize())
 	ptLen := mathrand.Intn(maxPlaintextLength)
 	// Sample random plaintext of given length
 	plain := make([]byte, ptLen)
@@ -466,4 +466,12 @@ func SerializeAEADEncrypted(w io.Writer, key []byte, config *Config) (io.WriteCl
 		writer:     writer,
 		chunkBytes: chunkBytes,
 	}, nil
+}
+
+// aeadEncryptedPacket builds a minimal AEAD Encrypted Data packet with an
+// all-zero OCB nonce and ciphertext.
+func aeadEncryptedPacket(cipher CipherFunction, chunkSizeByte byte) []byte {
+	body := []byte{aeadEncryptedVersion, byte(cipher), byte(AEADModeOCB), chunkSizeByte}
+	body = append(body, make([]byte, AEADModeOCB.IvLength()+64)...)
+	return append([]byte{0xd4, byte(len(body))}, body...)
 }

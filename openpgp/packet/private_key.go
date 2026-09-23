@@ -275,6 +275,9 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 		if pk.s2kParams.Dummy() {
 			return
 		}
+		if !pk.cipher.IsSupported() {
+			return errors.UnsupportedError("unsupported cipher function in private key")
+		}
 		if pk.s2kParams.Mode() == s2k.Argon2S2K && pk.s2kType != S2KAEAD {
 			return errors.StructuralError("using Argon2 S2K without AEAD is not allowed")
 		}
