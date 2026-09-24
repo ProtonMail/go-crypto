@@ -303,6 +303,15 @@ func TestSerializeRSAPrivateKeyPrimeOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	parsed := &PrivateKey{PublicKey: *NewRSAPublicKey(time.Now(), &rsaPriv.PublicKey)}
+	if err := parsed.parseRSAPrivateKey(buf.Bytes()); err != nil {
+		t.Fatal(err)
+	}
+	parsedRSA := parsed.PrivateKey.(*rsa.PrivateKey)
+	if parsedRSA.Primes[0].Cmp(rsaPriv.Primes[0]) != 0 || parsedRSA.Primes[1].Cmp(rsaPriv.Primes[1]) != 0 {
+		t.Fatal("prime order not preserved across serialize/parse")
+	}
+
 	// RFC 9580 section 5.5.5.1: d, p, q (p < q), u = p^-1 mod q.
 	mpis := make([]*big.Int, 4)
 	for i := range mpis {
