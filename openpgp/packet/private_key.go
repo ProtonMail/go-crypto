@@ -974,8 +974,10 @@ func (pk *PrivateKey) parseRSAPrivateKey(data []byte) (err error) {
 
 	rsaPriv.D = new(big.Int).SetBytes(d.Bytes())
 	rsaPriv.Primes = make([]*big.Int, 2)
-	rsaPriv.Primes[0] = new(big.Int).SetBytes(p.Bytes())
-	rsaPriv.Primes[1] = new(big.Int).SetBytes(q.Bytes())
+	// Mirror serializeRSAPrivateKey: Primes[1] is p and Primes[0] is q, so that
+	// Go's Qinv matches u = p^-1 mod q.
+	rsaPriv.Primes[0] = new(big.Int).SetBytes(q.Bytes())
+	rsaPriv.Primes[1] = new(big.Int).SetBytes(p.Bytes())
 	if err := rsaPriv.Validate(); err != nil {
 		return errors.KeyInvalidError(err.Error())
 	}

@@ -24,6 +24,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/eddsa"
 	"github.com/ProtonMail/go-crypto/openpgp/elgamal"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
+	"github.com/ProtonMail/go-crypto/openpgp/internal/encoding"
 	"github.com/ProtonMail/go-crypto/openpgp/s2k"
 )
 
@@ -282,6 +283,50 @@ func TestExternalRSAPrivateKey(t *testing.T) {
 		if err := priv.VerifySignature(h, sig); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+func TestSerializeRSAPrivateKeyPrimeOrder(t *testing.T) {
+	rsaPriv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Primes[1] is serialized as p and Primes[0] as q.
+	if rsaPriv.Primes[0].Cmp(rsaPriv.Primes[1]) < 0 {
+		rsaPriv.Primes[0], rsaPriv.Primes[1] = rsaPriv.Primes[1], rsaPriv.Primes[0]
+		rsaPriv.Precomputed = rsa.PrecomputedValues{}
+		rsaPriv.Precompute()
+	}
+
+	var buf bytes.Buffer
+	if err := serializeRSAPrivateKey(&buf, rsaPriv); err != nil {
+		t.Fatal(err)
+	}
+
+	parsed := &PrivateKey{PublicKey: *NewRSAPublicKey(time.Now(), &rsaPriv.PublicKey)}
+	if err := parsed.parseRSAPrivateKey(buf.Bytes()); err != nil {
+		t.Fatal(err)
+	}
+	parsedRSA := parsed.PrivateKey.(*rsa.PrivateKey)
+	if parsedRSA.Primes[0].Cmp(rsaPriv.Primes[0]) != 0 || parsedRSA.Primes[1].Cmp(rsaPriv.Primes[1]) != 0 {
+		t.Fatal("prime order not preserved across serialize/parse")
+	}
+
+	// RFC 9580 section 5.5.5.1: d, p, q (p < q), u = p^-1 mod q.
+	mpis := make([]*big.Int, 4)
+	for i := range mpis {
+		mpi := new(encoding.MPI)
+		if _, err := mpi.ReadFrom(&buf); err != nil {
+			t.Fatal(err)
+		}
+		mpis[i] = new(big.Int).SetBytes(mpi.Bytes())
+	}
+	p, q, u := mpis[1], mpis[2], mpis[3]
+	if p.Cmp(q) >= 0 {
+		t.Fatal("expected p < q")
+	}
+	if new(big.Int).Mod(new(big.Int).Mul(p, u), q).Cmp(big.NewInt(1)) != 0 {
+		t.Fatal("expected u = p^-1 mod q")
 	}
 }
 

@@ -430,10 +430,12 @@ func generateRSAKey(random io.Reader, bits int) (*rsa.PrivateKey, error) {
 }
 
 // enforceRSAPrimeOrder ensures p < q, as required by RFC 9580 section 5.5.5.1
-// for RSA keys. The Go standard library does not guarantee this, so we swap if
-// needed and recompute the precomputed values.
+// for RSA keys. The OpenPGP serialization writes Primes[1] as p and Primes[0]
+// as q (so that Go's Qinv is u = p^-1 mod q), hence we need
+// Primes[1] < Primes[0]. The Go standard library does not guarantee this, so we
+// swap if needed and recompute the precomputed values.
 func enforceRSAPrimeOrder(key *rsa.PrivateKey) {
-	if len(key.Primes) == 2 && key.Primes[0].Cmp(key.Primes[1]) > 0 {
+	if len(key.Primes) == 2 && key.Primes[0].Cmp(key.Primes[1]) < 0 {
 		key.Primes[0], key.Primes[1] = key.Primes[1], key.Primes[0]
 		key.Precomputed = rsa.PrecomputedValues{}
 		key.Precompute()
@@ -524,7 +526,8 @@ NextSetOfPrimes:
 	}
 
 	// RFC 9580 section 5.5.5.1 requires p < q for RSA keys.
-	if len(priv.Primes) == 2 && priv.Primes[0].Cmp(priv.Primes[1]) > 0 {
+	// Primes[1] is serialized as p and Primes[0] as q.
+	if len(priv.Primes) == 2 && priv.Primes[0].Cmp(priv.Primes[1]) < 0 {
 		priv.Primes[0], priv.Primes[1] = priv.Primes[1], priv.Primes[0]
 	}
 

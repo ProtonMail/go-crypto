@@ -1873,7 +1873,8 @@ func TestGenerateRSAKeyPLessThanQ(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if key.Primes[0].Cmp(key.Primes[1]) >= 0 {
+		// Primes[1] is serialized as p and Primes[0] as q.
+		if key.Primes[1].Cmp(key.Primes[0]) >= 0 {
 			t.Fatal("expected p < q")
 		}
 		if err := key.Validate(); err != nil {
@@ -1887,7 +1888,7 @@ func TestGenerateRSAKeyPLessThanQ(t *testing.T) {
 			t.Fatal(err)
 		}
 		// Force p > q so that the swap is always exercised.
-		if key.Primes[0].Cmp(key.Primes[1]) < 0 {
+		if key.Primes[0].Cmp(key.Primes[1]) > 0 {
 			key.Primes[0], key.Primes[1] = key.Primes[1], key.Primes[0]
 			key.Precomputed = rsa.PrecomputedValues{}
 			key.Precompute()
