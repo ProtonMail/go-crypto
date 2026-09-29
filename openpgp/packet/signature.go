@@ -308,7 +308,7 @@ func (sig *Signature) parse(r io.Reader) (err error) {
 
 	switch sig.PubKeyAlgo {
 	case PubKeyAlgoAEAD:
-		aeadModeAndSalt := make([]byte, 1 + 32)
+		aeadModeAndSalt := make([]byte, 1+32)
 		_, err = readFull(r, aeadModeAndSalt)
 		if err != nil {
 			return
@@ -1018,14 +1018,16 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 	}
 	switch priv.PubKeyAlgo {
 	case PubKeyAlgoAEAD:
-		pk := priv.PublicKey.PublicKey.(*PersistentSymmetricKeyPublicFields)
-		sk := priv.PrivateKey.(*PersistentSymmetricKeyPrivateFields)
+		pk, sk, err := priv.persistentSymmetricKeyFields()
+		if err != nil {
+			return err
+		}
 		packetID := 0xC0 | packetTypeSignature
 		version := sig.Version
 		aeadMode := config.AEAD().Mode()
 		info := []byte{byte(packetID), byte(version), byte(pk.SymmetricAlgorithm), byte(aeadMode)}
 		salt := make([]byte, 32)
-		_, err := io.ReadFull(config.Random(), salt)
+		_, err = io.ReadFull(config.Random(), salt)
 		if err != nil {
 			return err
 		}

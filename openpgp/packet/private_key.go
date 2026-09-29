@@ -211,7 +211,7 @@ func (pk *PrivateKey) parse(r io.Reader) (err error) {
 		return
 	}
 	if pk.PubKeyAlgo == PubKeyAlgoAEAD {
-		return goerrors.New("openpgp: AEAD may only be used with persistent symmetric key packets")
+		return errors.StructuralError("AEAD may only be used with persistent symmetric key packets")
 	}
 	return
 }

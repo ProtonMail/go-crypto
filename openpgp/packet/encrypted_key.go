@@ -7,6 +7,7 @@ package packet
 import (
 	"bytes"
 	"crypto"
+	"crypto/cipher"
 	"crypto/rsa"
 	"encoding/binary"
 	"encoding/hex"
@@ -35,13 +36,13 @@ type EncryptedKey struct {
 	CipherFunc     CipherFunction // only valid after a successful Decrypt for a v3 packet
 	Key            []byte         // only valid after a successful Decrypt
 
-	encryptedMPI1         encoding.Field    // used for RSA, Elgamal and ECDH
-	encryptedMPI2         encoding.Field    // used for Elgamal and ECDH
-	ephemeralPublicEcc    []byte            // used for X25519, X448 and ML-KEM
-	ephemeralPublicMlKem  []byte            // used for ML-KEM
-	encryptedSession      []byte            // used for X25519, X448, ML-KEM and AEAD
-	aeadSalt              []byte            // used for AEAD
-	aeadMode              AEADMode          // used for AEAD
+	encryptedMPI1        encoding.Field // used for RSA, Elgamal and ECDH
+	encryptedMPI2        encoding.Field // used for Elgamal and ECDH
+	ephemeralPublicEcc   []byte         // used for X25519, X448 and ML-KEM
+	ephemeralPublicMlKem []byte         // used for ML-KEM
+	encryptedSession     []byte         // used for X25519, X448, ML-KEM and AEAD
+	aeadSalt             []byte         // used for AEAD
+	aeadMode             AEADMode       // used for AEAD
 }
 
 func (e *EncryptedKey) parse(r io.Reader) (err error) {
@@ -201,8 +202,12 @@ func (e *EncryptedKey) Decrypt(priv *PrivateKey, config *Config) error {
 	// padding oracle attacks.
 	switch priv.PubKeyAlgo {
 	case PubKeyAlgoAEAD:
-		pk := priv.PublicKey.PublicKey.(*PersistentSymmetricKeyPublicFields)
-		sk := priv.PrivateKey.(*PersistentSymmetricKeyPrivateFields)
+		var pk *PersistentSymmetricKeyPublicFields
+		var sk *PersistentSymmetricKeyPrivateFields
+		pk, sk, err = priv.persistentSymmetricKeyFields()
+		if err != nil {
+			return err
+		}
 		packetID := 0xC0 | packetTypeEncryptedKey
 		version := e.Version
 		info := []byte{byte(packetID), byte(version), byte(pk.SymmetricAlgorithm), byte(e.aeadMode)}
@@ -219,7 +224,8 @@ func (e *EncryptedKey) Decrypt(priv *PrivateKey, config *Config) error {
 		if err != nil {
 			return err
 		}
-		modeInstance, err := e.aeadMode.new(pk.SymmetricAlgorithm.new(encKey))
+		var modeInstance cipher.AEAD
+		modeInstance, err = e.aeadMode.new(pk.SymmetricAlgorithm.new(encKey))
 		if err != nil {
 			return err
 		}
@@ -260,6 +266,9 @@ func (e *EncryptedKey) Decrypt(priv *PrivateKey, config *Config) error {
 	case PubKeyAlgoAEAD:
 		keyOffset := 0
 		if e.Version < 6 {
+			if len(b) == 0 {
+				return errors.StructuralError("truncated session key")
+			}
 			e.CipherFunc = CipherFunction(b[0])
 			keyOffset = 1
 			if !e.CipherFunc.IsSupported() {
@@ -578,13 +587,15 @@ func SerializeEncryptedKeyPSK(w io.Writer, psk *PersistentSymmetricKey, cipherFu
 	}
 	copy(keyBlock[keyOffset:], key)
 
-	pk := psk.PublicKey.PublicKey.(*PersistentSymmetricKeyPublicFields)
-	sk := psk.PrivateKey.PrivateKey.(*PersistentSymmetricKeyPrivateFields)
+	pk, sk, err := psk.PrivateKey.persistentSymmetricKeyFields()
+	if err != nil {
+		return err
+	}
 	packetID := 0xC0 | packetTypeEncryptedKey
 	aeadMode := config.AEAD().Mode()
 	info := []byte{byte(packetID), byte(version), byte(pk.SymmetricAlgorithm), byte(aeadMode)}
 	salt := make([]byte, 32)
-	_, err := io.ReadFull(config.Random(), salt)
+	_, err = io.ReadFull(config.Random(), salt)
 	if err != nil {
 		return err
 	}

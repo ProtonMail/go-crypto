@@ -46,7 +46,7 @@ func NewPersistentSymmetricKey(creationTime time.Time, symmetricAlgorithm Cipher
 				PubKeyAlgo:   PubKeyAlgoAEAD,
 				PublicKey:    &PersistentSymmetricKeyPublicFields{
 					SymmetricAlgorithm: symmetricAlgorithm,
-					FingerprintSeed: fingerprintSeed,
+					FingerprintSeed:    fingerprintSeed,
 				},
 			},
 			PrivateKey: &PersistentSymmetricKeyPrivateFields{
@@ -106,6 +106,11 @@ func (psk *PersistentSymmetricKey) Serialize(w io.Writer) (err error) {
 
 // EncryptWithConfig encrypts an unencrypted persistent symmetric key using the passphrase and the config.
 func (psk *PersistentSymmetricKey) EncryptWithConfig(passphrase []byte, config *Config) error {
+	if psk.Encrypted {
+		// Leave the key untouched, as encrypt would, but before overwriting
+		// the cipher and AEAD mode it was encrypted with.
+		return nil
+	}
 	params, err := s2k.Generate(config.Random(), config.S2K())
 	if err != nil {
 		return err
@@ -130,11 +135,29 @@ func (psk *PersistentSymmetricKey) Encrypt(passphrase []byte) error {
 	// Default config of persistent symmetric key encryption
 	config := &Config{
 		S2KConfig: &s2k.Config{
-			S2KMode:  s2k.Argon2S2K,
+			S2KMode: s2k.Argon2S2K,
 		},
 		DefaultCipher: CipherAES256,
 	}
 	return psk.EncryptWithConfig(passphrase, config)
+}
+
+// persistentSymmetricKeyFields returns the public and private fields of a
+// persistent symmetric key, or an error if the key is not a decrypted
+// persistent symmetric key.
+func (pk *PrivateKey) persistentSymmetricKeyFields() (*PersistentSymmetricKeyPublicFields, *PersistentSymmetricKeyPrivateFields, error) {
+	if pk.Encrypted {
+		return nil, nil, errors.InvalidArgumentError("persistent symmetric key must be decrypted")
+	}
+	pub, ok := pk.PublicKey.PublicKey.(*PersistentSymmetricKeyPublicFields)
+	if !ok {
+		return nil, nil, errors.InvalidArgumentError("not a persistent symmetric key")
+	}
+	priv, ok := pk.PrivateKey.(*PersistentSymmetricKeyPrivateFields)
+	if !ok {
+		return nil, nil, errors.InvalidArgumentError("persistent symmetric key is missing key material")
+	}
+	return pub, priv, nil
 }
 
 // VerifySignature returns nil iff sig is a valid signature, made by this
@@ -150,8 +173,14 @@ func (psk *PersistentSymmetricKey) VerifySignature(signed hash.Hash, sig *Signat
 		return errors.SignatureError("persistent symmetric keys can only verify AEAD signatures")
 	}
 
-	pk := psk.PublicKey.PublicKey.(*PersistentSymmetricKeyPublicFields)
-	sk := psk.PrivateKey.PrivateKey.(*PersistentSymmetricKeyPrivateFields)
+	if sig.AEADMode == nil {
+		return errors.SignatureError("missing AEAD mode in signature")
+	}
+
+	pk, sk, err := psk.PrivateKey.persistentSymmetricKeyFields()
+	if err != nil {
+		return err
+	}
 	packetID := 0xC0 | packetTypeSignature
 	version := sig.Version
 	aeadMode := *sig.AEADMode
