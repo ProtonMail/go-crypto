@@ -106,6 +106,17 @@ func TestDSAHashTruncatation(t *testing.T) {
 	}
 }
 
+func TestReadPersistentSymmetricKey(t *testing.T) {
+	kring, err := ReadKeyRing(readerFromHex(persistentSymmetricKey))
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	if len(kring) != 1 || uint32(kring[0].PrimaryKey.KeyId) != 0x6FBAF486 {
+		t.Errorf("bad parse: %#v", kring)
+	}
+}
+
 func TestGetKeyById(t *testing.T) {
 	kring, _ := ReadKeyRing(readerFromHex(testKeys1And2Hex))
 
