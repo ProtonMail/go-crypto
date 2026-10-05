@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"crypto/sha512"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
 	"io"
 	"io/ioutil"
@@ -15,6 +16,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ProtonMail/go-crypto/openpgp/armor"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
@@ -952,3 +954,125 @@ func TestReadV5Messages(t *testing.T) {
 		t.Error("expected no signature error, got:", md.SignatureError)
 	}
 }
+
+func formatTestPacket(tag byte, body []byte) []byte {
+	out := []byte{0xc0 | tag, byte(len(body))}
+	return append(out, body...)
+}
+
+func packetOnePassSig(keyId uint64) []byte {
+	body := new(bytes.Buffer)
+	body.WriteByte(3)
+	body.WriteByte(0x00)
+	body.WriteByte(8)
+	body.WriteByte(1)
+	binary.Write(body, binary.BigEndian, keyId)
+	body.WriteByte(1)
+
+	return formatTestPacket(4, body.Bytes())
+}
+
+func packetLiteral(data []byte) []byte {
+	body := new(bytes.Buffer)
+	body.WriteByte('b')
+	body.WriteByte(0)
+	binary.Write(body, binary.BigEndian, uint32(time.Now().Unix()))
+	body.Write(data)
+
+	return formatTestPacket(11, body.Bytes())
+}
+
+func packetSignatureNoIssuer() []byte {
+	hashed := new(bytes.Buffer)
+	hashed.WriteByte(5)
+	hashed.WriteByte(2)
+	binary.Write(hashed, binary.BigEndian, uint32(time.Now().Unix()))
+
+	body := new(bytes.Buffer)
+	body.WriteByte(4)
+	body.WriteByte(0x00)
+	body.WriteByte(1)
+	body.WriteByte(8)
+	binary.Write(body, binary.BigEndian, uint16(hashed.Len()))
+	body.Write(hashed.Bytes())
+	binary.Write(body, binary.BigEndian, uint16(0))
+	body.Write([]byte{0xab, 0xcd})
+	body.Write([]byte{0x00, 0x08, 0xff})
+
+	return formatTestPacket(2, body.Bytes())
+}
+
+func TestReadMessageNilIssuerNoPanic(t *testing.T) {
+	config := &packet.Config{}
+
+	entity, err := NewEntity("test", "", "", config)
+	if err != nil {
+		t.Fatalf("unexpected failure during NewEntity: %v", err)
+	}
+
+	message := new(bytes.Buffer)
+	message.Write(packetOnePassSig(entity.PrimaryKey.KeyId))
+	message.Write(packetLiteral([]byte("hello")))
+	message.Write(packetSignatureNoIssuer())
+
+	md, err := ReadMessage(message, EntityList{entity}, nil, config)
+	if err != nil {
+		t.Fatalf("unexpected failure during ReadMessage: %v", err)
+	}
+
+	_, err = io.Copy(io.Discard, md.UnverifiedBody)
+	if err != nil {
+		t.Fatalf("unexpected read error: %v", err)
+	}
+	if md.SignatureError == nil {
+		t.Errorf("expected signature error for missing issuer signature, got nil")
+	}
+}
+
+func TestReadMessageUnknownIssuer(t *testing.T) {
+	config := &packet.Config{}
+
+	entity, err := NewEntity("test", "", "", config)
+	if err != nil {
+		t.Fatalf("unexpected failure during NewEntity: %v", err)
+	}
+
+	message := new(bytes.Buffer)
+	message.Write(packetOnePassSig(entity.PrimaryKey.KeyId))
+	message.Write(packetLiteral([]byte("hello")))
+	message.Write(packetSignatureNoIssuer())
+
+	md, err := ReadMessage(message, nil, nil, config)
+	if err != nil {
+		t.Fatalf("unexpected failure during ReadMessage: %v", err)
+	}
+
+	_, err = io.Copy(io.Discard, md.UnverifiedBody)
+	if err != nil {
+		t.Fatalf("unexpected read error: %v", err)
+	}
+	if md.SignatureError != errors.ErrUnknownIssuer {
+		t.Errorf("expected ErrUnknownIssuer, got %v", md.SignatureError)
+	}
+}
+
+func TestCheckMessageSignatureDetailsNilGuards(t *testing.T) {
+	config := &packet.Config{}
+	key := &Key{}
+	sig := &packet.Signature{}
+	err := checkMessageSignatureDetails(key, sig, config)
+	if err != errors.ErrUnknownIssuer {
+		t.Errorf("expected ErrUnknownIssuer for uninitialized key, got %v", err)
+	}
+
+	err = checkMessageSignatureDetails(nil, sig, config)
+	if err != errors.ErrUnknownIssuer {
+		t.Errorf("expected ErrUnknownIssuer for nil key, got %v", err)
+	}
+
+	err = checkMessageSignatureDetails(key, nil, config)
+	if err != errors.ErrUnknownIssuer {
+		t.Errorf("expected ErrUnknownIssuer for nil signature, got %v", err)
+	}
+}
+

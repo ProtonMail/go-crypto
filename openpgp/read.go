@@ -406,7 +406,7 @@ func (scr *signatureCheckReader) Read(buf []byte) (int, error) {
 		p, readError = scr.packets.Next()
 		for readError == nil {
 			var ok bool
-			if sig, ok = p.(*packet.Signature); ok {
+			if sig, ok = p.(*packet.Signature); ok && sig != nil {
 				if sig.Version == 5 && (sig.SigType == 0x00 || sig.SigType == 0x01) {
 					sig.Metadata = scr.md.LiteralData
 				}
@@ -414,12 +414,17 @@ func (scr *signatureCheckReader) Read(buf []byte) (int, error) {
 				// If signature KeyID matches
 				if scr.md.SignedBy != nil && sig.IssuerKeyId != nil && *sig.IssuerKeyId == scr.md.SignedByKeyId {
 					key := scr.md.SignedBy
-					signatureError := key.PublicKey.VerifySignature(scr.h, sig)
-					if signatureError == nil {
-						signatureError = checkMessageSignatureDetails(key, sig, scr.config)
+					if key.PublicKey == nil || key.Entity == nil {
+						scr.md.Signature = sig
+						scr.md.SignatureError = errors.ErrUnknownIssuer
+					} else {
+						signatureError := key.PublicKey.VerifySignature(scr.h, sig)
+						if signatureError == nil {
+							signatureError = checkMessageSignatureDetails(key, sig, scr.config)
+						}
+						scr.md.Signature = sig
+						scr.md.SignatureError = signatureError
 					}
-					scr.md.Signature = sig
-					scr.md.SignatureError = signatureError
 				} else {
 					scr.md.UnverifiedSignatures = append(scr.md.UnverifiedSignatures, sig)
 				}
@@ -428,8 +433,10 @@ func (scr *signatureCheckReader) Read(buf []byte) (int, error) {
 			p, readError = scr.packets.Next()
 		}
 
-		if scr.md.SignedBy != nil && scr.md.Signature == nil {
-			if scr.md.UnverifiedSignatures == nil {
+		if scr.md.Signature == nil {
+			if scr.md.SignedBy == nil {
+				scr.md.SignatureError = errors.ErrUnknownIssuer
+			} else if scr.md.UnverifiedSignatures == nil {
 				scr.md.SignatureError = errors.StructuralError("LiteralData not followed by signature")
 			} else {
 				scr.md.SignatureError = errors.StructuralError("No matching signature found")
@@ -588,14 +595,26 @@ func CheckArmoredDetachedSignature(keyring KeyRing, signed, signature io.Reader,
 // ignore ErrSignatureExpired or ErrKeyExpired errors, but should never
 // ignore any other errors.
 func checkMessageSignatureDetails(key *Key, signature *packet.Signature, config *packet.Config) error {
+	if key == nil || key.Entity == nil || key.Entity.PrimaryKey == nil || signature == nil {
+		return errors.ErrUnknownIssuer
+	}
 	now := config.Now()
 	primarySelfSignature, primaryIdentity := key.Entity.PrimarySelfSignature()
-	signedBySubKey := key.PublicKey != key.Entity.PrimaryKey
-	sigsToCheck := []*packet.Signature{signature, primarySelfSignature}
-	if signedBySubKey {
-		sigsToCheck = append(sigsToCheck, key.SelfSignature, key.SelfSignature.EmbeddedSignature)
+	signedBySubKey := key.PublicKey != nil && key.PublicKey != key.Entity.PrimaryKey
+	sigsToCheck := []*packet.Signature{signature}
+	if primarySelfSignature != nil {
+		sigsToCheck = append(sigsToCheck, primarySelfSignature)
+	}
+	if signedBySubKey && key.SelfSignature != nil {
+		sigsToCheck = append(sigsToCheck, key.SelfSignature)
+		if key.SelfSignature.EmbeddedSignature != nil {
+			sigsToCheck = append(sigsToCheck, key.SelfSignature.EmbeddedSignature)
+		}
 	}
 	for _, sig := range sigsToCheck {
+		if sig == nil {
+			continue
+		}
 		for _, notation := range sig.Notations {
 			if notation.IsCritical && !config.KnownNotation(notation.Name) {
 				return errors.SignatureError("unknown critical notation: " + notation.Name)
@@ -611,12 +630,12 @@ func checkMessageSignatureDetails(key *Key, signature *packet.Signature, config 
 		return errors.ErrKeyExpired
 	}
 	if signedBySubKey {
-		if key.PublicKey.KeyExpired(key.SelfSignature, now) { // subkey is expired
+		if key.PublicKey != nil && key.SelfSignature != nil && key.PublicKey.KeyExpired(key.SelfSignature, now) { // subkey is expired
 			return errors.ErrKeyExpired
 		}
 	}
 	for _, sig := range sigsToCheck {
-		if sig.SigExpired(now) { // any of the relevant signatures are expired
+		if sig != nil && sig.SigExpired(now) { // any of the relevant signatures are expired
 			return errors.ErrSignatureExpired
 		}
 	}
