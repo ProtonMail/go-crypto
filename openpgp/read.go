@@ -216,7 +216,7 @@ FindKey:
 		// Try the symmetric passphrase first
 		if len(symKeys) != 0 && passphrase != nil {
 			for _, s := range symKeys {
-				key, cipherFunc, err := s.Decrypt(passphrase)
+				key, cipherFunc, err := s.DecryptWithConfig(passphrase, config)
 				// In v4, on wrong passphrase, session key decryption is very likely to result in an invalid cipherFunc:
 				// only for < 5% of cases we will proceed to decrypt the data
 				if err == nil {

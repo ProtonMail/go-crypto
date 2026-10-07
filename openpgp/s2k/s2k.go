@@ -322,7 +322,19 @@ func (params *Params) salt() []byte {
 	}
 }
 
+// Function returns the s2k function described by the parameters.
+// The default configuration is used to bound the resources the
+// derivation is allowed to use.
 func (params *Params) Function() (f func(out, in []byte), err error) {
+	return params.FunctionWithConfig(nil)
+}
+
+// FunctionWithConfig returns the s2k function described by the parameters.
+// It returns an error if the parameters ask for more resources than the
+// configuration allows, i.e. if an Argon2 packet requests more memory than
+// Argon2Config.MaxMemory. The configuration c may be nil, in which case
+// sensible defaults will be used.
+func (params *Params) FunctionWithConfig(c *Config) (f func(out, in []byte), err error) {
 	if params.Dummy() {
 		return nil, errors.ErrDummyPrivateKey("dummy key found")
 	}
@@ -358,6 +370,9 @@ func (params *Params) Function() (f func(out, in []byte), err error) {
 
 		return f, nil
 	case Argon2S2K:
+		if decodeMemory(params.memoryExp) > c.Argon2().MaxMemoryUsage() {
+			return nil, errors.UnsupportedError("argon2 memory exceeds the configured maximum")
+		}
 		f := func(out, in []byte) {
 			Argon2(out, in, params.salt(), params.passes, params.parallelism, params.memoryExp)
 		}
@@ -408,7 +423,7 @@ func Serialize(w io.Writer, key []byte, rand io.Reader, passphrase []byte, c *Co
 		return err
 	}
 
-	f, err := params.Function()
+	f, err := params.FunctionWithConfig(c)
 	if err != nil {
 		return err
 	}
