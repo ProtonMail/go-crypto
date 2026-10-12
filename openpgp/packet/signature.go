@@ -929,12 +929,13 @@ func (sig *Signature) PrepareSign(config *Config) (hash.Hash, error) {
 
 // SetSalt sets the signature salt for v6 signatures.
 // Assumes salt is generated correctly and checks if length matches.
-// If the signature is not v6, the method ignores the salt.
+// A version other than 6 ignores the salt. Version 0 means the version
+// has not been chosen yet, so the salt is kept for a later v6 signature.
 // Use PrepareSign whenever possible instead of generating and
 // hashing the salt externally.
 // See RFC 9580 Section 5.2.4.
 func (sig *Signature) SetSalt(salt []byte) error {
-	if sig.Version == 6 {
+	if sig.Version == 0 || sig.Version == 6 {
 		expectedSaltLength, err := SaltLengthForHash(sig.Hash)
 		if err != nil {
 			return err
@@ -1093,6 +1094,14 @@ func unwrapECDSASig(b []byte) (r, s *big.Int, err error) {
 	return ecsdaSig.R, ecsdaSig.S, nil
 }
 
+// signingKeyVersion copies the signing key version onto sig before the
+// signature hash is prepared. Sign sets these fields as well, but the
+// high-level methods call PrepareSign first, and a v6 hash includes the salt.
+func (sig *Signature) signingKeyVersion(priv *PrivateKey) {
+	sig.Version = priv.PublicKey.Version
+	sig.IssuerKeyVersion = uint8(priv.PublicKey.Version)
+}
+
 // SignUserId computes a signature from priv, asserting that pub is a valid
 // key for the identity id.  On success, the signature is stored in sig. Call
 // Serialize to write it out.
@@ -1101,6 +1110,7 @@ func (sig *Signature) SignUserId(id string, pub *PublicKey, priv *PrivateKey, co
 	if priv.Dummy() {
 		return errors.ErrDummyPrivateKey("dummy key found")
 	}
+	sig.signingKeyVersion(priv)
 	prepareHash, err := sig.PrepareSign(config)
 	if err != nil {
 		return err
@@ -1119,6 +1129,7 @@ func (sig *Signature) SignDirectKeyBinding(pub *PublicKey, priv *PrivateKey, con
 	if priv.Dummy() {
 		return errors.ErrDummyPrivateKey("dummy key found")
 	}
+	sig.signingKeyVersion(priv)
 	prepareHash, err := sig.PrepareSign(config)
 	if err != nil {
 		return err
@@ -1134,6 +1145,7 @@ func (sig *Signature) SignDirectKeyBinding(pub *PublicKey, priv *PrivateKey, con
 // If config is nil, sensible defaults will be used.
 func (sig *Signature) CrossSignKey(pub *PublicKey, hashKey *PublicKey, signingKey *PrivateKey,
 	config *Config) error {
+	sig.signingKeyVersion(signingKey)
 	prepareHash, err := sig.PrepareSign(config)
 	if err != nil {
 		return err
@@ -1152,6 +1164,7 @@ func (sig *Signature) SignKey(pub *PublicKey, priv *PrivateKey, config *Config) 
 	if priv.Dummy() {
 		return errors.ErrDummyPrivateKey("dummy key found")
 	}
+	sig.signingKeyVersion(priv)
 	prepareHash, err := sig.PrepareSign(config)
 	if err != nil {
 		return err
@@ -1167,6 +1180,7 @@ func (sig *Signature) SignKey(pub *PublicKey, priv *PrivateKey, config *Config) 
 // stored in sig. Call Serialize to write it out.
 // If config is nil, sensible defaults will be used.
 func (sig *Signature) RevokeKey(pub *PublicKey, priv *PrivateKey, config *Config) error {
+	sig.signingKeyVersion(priv)
 	prepareHash, err := sig.PrepareSign(config)
 	if err != nil {
 		return err

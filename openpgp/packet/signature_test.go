@@ -10,8 +10,10 @@ import (
 	"encoding/hex"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ProtonMail/go-crypto/openpgp/armor"
+	"github.com/ProtonMail/go-crypto/openpgp/ed25519"
 )
 
 func TestSignatureReadAndReserialize(t *testing.T) {
@@ -123,6 +125,46 @@ func TestPositiveCertSignatureReserialize(t *testing.T) {
 	expected, _ := hex.DecodeString(positiveCertSignatureDataHex)
 	if !bytes.Equal(expected, out.Bytes()) {
 		t.Errorf("output doesn't match input (got vs expected):\n%s\n%s", hex.Dump(out.Bytes()), hex.Dump(expected))
+	}
+}
+
+func TestV6DirectKeyBindingKeepsSaltWhenVersionUnset(t *testing.T) {
+	privRaw, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	priv := NewEd25519PrivateKey(time.Unix(0, 0), privRaw)
+	if err := priv.PublicKey.UpgradeToV6(); err != nil {
+		t.Fatalf("upgrade: %v", err)
+	}
+
+	salt := []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
+	sig := &Signature{
+		SigType:    SigTypeDirectSignature,
+		PubKeyAlgo: PubKeyAlgoEd25519,
+		Hash:       crypto.SHA256,
+	}
+	if err := sig.SetSalt(salt); err != nil {
+		t.Fatalf("set salt: %v", err)
+	}
+	if err := sig.SignDirectKeyBinding(&priv.PublicKey, priv, nil); err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+	if !bytes.Equal(sig.Salt(), salt) {
+		t.Fatalf("salt = %x, want %x", sig.Salt(), salt)
+	}
+	if err := priv.PublicKey.VerifyDirectKeySignature(sig); err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+}
+
+func TestSetSaltIgnoresExplicitNonV6(t *testing.T) {
+	sig := &Signature{Version: 4, Hash: crypto.SHA256}
+	if err := sig.SetSalt(bytes.Repeat([]byte{1}, 16)); err != nil {
+		t.Fatalf("set salt: %v", err)
+	}
+	if sig.Salt() != nil {
+		t.Fatalf("v4 signature kept salt %x", sig.Salt())
 	}
 }
 
