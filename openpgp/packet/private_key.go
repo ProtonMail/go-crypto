@@ -9,6 +9,7 @@ import (
 	"crypto"
 	"crypto/cipher"
 	"crypto/dsa"
+	goed25519 "crypto/ed25519"
 	"crypto/rsa"
 	"crypto/sha1"
 	"crypto/sha256"
@@ -27,6 +28,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp/eddsa"
 	"github.com/ProtonMail/go-crypto/openpgp/elgamal"
 	"github.com/ProtonMail/go-crypto/openpgp/errors"
+	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/encoding"
 	"github.com/ProtonMail/go-crypto/openpgp/mldsa_eddsa"
 	"github.com/ProtonMail/go-crypto/openpgp/mlkem_ecdh"
@@ -144,7 +146,8 @@ func NewEd448PrivateKey(creationTime time.Time, priv *ed448.PrivateKey) *Private
 }
 
 // NewSignerPrivateKey creates a PrivateKey from a crypto.Signer that
-// implements RSA, ECDSA or EdDSA.
+// implements RSA, ECDSA or EdDSA. An opaque crypto.Signer whose public key
+// is an ed25519.PublicKey from crypto/ed25519 results in an EdDSALegacy key.
 func NewSignerPrivateKey(creationTime time.Time, signer interface{}) *PrivateKey {
 	pk := new(PrivateKey)
 	// In general, the public Keys should be used as pointers. We still
@@ -174,6 +177,19 @@ func NewSignerPrivateKey(creationTime time.Time, signer interface{}) *PrivateKey
 		pk.PublicKey = *NewMldsaEddsaPublicKey(creationTime, &pubkey.PublicKey)
 	case *slhdsa.PrivateKey:
 		pk.PublicKey = *NewSlhdsaPublicKey(creationTime, &pubkey.PublicKey)
+	case crypto.Signer:
+		// An opaque signer, e.g. a key held in a hardware token or a
+		// remote key management service.
+		pub, ok := pubkey.Public().(goed25519.PublicKey)
+		if !ok || len(pub) != goed25519.PublicKeySize {
+			panic("openpgp: unknown signer type in NewSignerPrivateKey")
+		}
+		// Use EdDSALegacy, the Ed25519 algorithm for v4 keys that is
+		// widely supported. For an Ed25519 (RFC 9580) key, set
+		// PublicKey to NewEd25519PublicKey instead.
+		eddsaPub := eddsa.NewPublicKey(ecc.NewEd25519())
+		eddsaPub.X = bytes.Clone(pub)
+		pk.PublicKey = *NewEdDSAPublicKey(creationTime, eddsaPub)
 	default:
 		panic("openpgp: unknown signer type in NewSignerPrivateKey")
 	}
