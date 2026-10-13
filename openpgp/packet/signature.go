@@ -1035,15 +1035,27 @@ func (sig *Signature) Sign(h hash.Hash, priv *PrivateKey, config *Config) (err e
 			sig.ECDSASigS = new(encoding.MPI).SetBig(s)
 		}
 	case PubKeyAlgoEdDSA:
-		sk := priv.PrivateKey.(*eddsa.PrivateKey)
-		r, s, err := eddsa.Sign(sk, digest)
+		var r, s []byte
+		if sk, ok := priv.PrivateKey.(*eddsa.PrivateKey); ok {
+			r, s, err = eddsa.Sign(sk, digest)
+		} else {
+			var b []byte
+			b, err = signEd25519WithSigner(priv.PrivateKey, config.Random(), digest)
+			if err == nil {
+				r, s = b[:ed25519.SignatureSize/2], b[ed25519.SignatureSize/2:]
+			}
+		}
 		if err == nil {
 			sig.EdDSASigR = encoding.NewMPI(r)
 			sig.EdDSASigS = encoding.NewMPI(s)
 		}
 	case PubKeyAlgoEd25519:
-		sk := priv.PrivateKey.(*ed25519.PrivateKey)
-		signature, err := ed25519.Sign(sk, digest)
+		var signature []byte
+		if sk, ok := priv.PrivateKey.(*ed25519.PrivateKey); ok {
+			signature, err = ed25519.Sign(sk, digest)
+		} else {
+			signature, err = signEd25519WithSigner(priv.PrivateKey, config.Random(), digest)
+		}
 		if err == nil {
 			sig.EdSig = signature
 		}
@@ -1091,6 +1103,25 @@ func unwrapECDSASig(b []byte) (r, s *big.Int, err error) {
 		return
 	}
 	return ecsdaSig.R, ecsdaSig.S, nil
+}
+
+// signEd25519WithSigner signs digest with a crypto.Signer holding an Ed25519
+// key, such as a key stored in a hardware token or a remote key management
+// service. OpenPGP EdDSA signs the hash digest as the message, which is what a
+// crypto.Signer computes for Ed25519 when no pre-hash is requested.
+func signEd25519WithSigner(priv interface{}, rand io.Reader, digest []byte) ([]byte, error) {
+	signer, ok := priv.(crypto.Signer)
+	if !ok {
+		return nil, errors.InvalidArgumentError("private key does not implement crypto.Signer")
+	}
+	signature, err := signer.Sign(rand, digest, crypto.Hash(0))
+	if err != nil {
+		return nil, err
+	}
+	if len(signature) != ed25519.SignatureSize {
+		return nil, errors.InvalidArgumentError("crypto.Signer returned an invalid Ed25519 signature length")
+	}
+	return signature, nil
 }
 
 // SignUserId computes a signature from priv, asserting that pub is a valid

@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"crypto"
 	"crypto/dsa"
+	goed25519 "crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
@@ -15,12 +16,14 @@ import (
 	"encoding/hex"
 	"fmt"
 	"hash"
+	"io"
 	"math/big"
 	mathrand "math/rand"
 	"testing"
 	"time"
 
 	"github.com/ProtonMail/go-crypto/openpgp/ecdsa"
+	"github.com/ProtonMail/go-crypto/openpgp/ed25519"
 	"github.com/ProtonMail/go-crypto/openpgp/eddsa"
 	"github.com/ProtonMail/go-crypto/openpgp/elgamal"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
@@ -491,6 +494,140 @@ func TestEdDSASignerPrivateKeyRandomizeFast(t *testing.T) {
 	}
 	if err := priv.VerifySignature(h, sig); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// opaqueSigner hides the concrete type of a key, like a crypto.Signer
+// backed by a hardware token or a remote key management service.
+type opaqueSigner struct {
+	signer crypto.Signer
+}
+
+func (s opaqueSigner) Public() crypto.PublicKey {
+	return s.signer.Public()
+}
+
+func (s opaqueSigner) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+	return s.signer.Sign(rand, digest, opts)
+}
+
+func TestEd25519CryptoSigner(t *testing.T) {
+	stdPub, stdPriv, err := goed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	signer := opaqueSigner{stdPriv}
+	creationTime := time.Unix(1700000000, 0)
+
+	eddsaPriv := eddsa.NewPrivateKey(*eddsa.NewPublicKey(ecc.NewEd25519()))
+	eddsaPriv.X = []byte(stdPub)
+	eddsaPriv.D = stdPriv.Seed()
+
+	ed25519Priv := ed25519.NewPrivateKey(ed25519.PublicKey{Point: []byte(stdPub)})
+	ed25519Priv.Key = []byte(stdPriv)
+
+	newEd25519SignerKey := func(v6 bool) *PrivateKey {
+		priv := &PrivateKey{
+			PublicKey:  *NewEd25519PublicKey(creationTime, &ed25519.PublicKey{Point: []byte(stdPub)}),
+			PrivateKey: signer,
+		}
+		if v6 {
+			if err := priv.UpgradeToV6(); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return priv
+	}
+	newEd25519ConcreteKey := func(v6 bool) *PrivateKey {
+		priv := NewEd25519PrivateKey(creationTime, ed25519Priv)
+		if v6 {
+			if err := priv.UpgradeToV6(); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return priv
+	}
+
+	tests := []struct {
+		name     string
+		signer   *PrivateKey
+		concrete *PrivateKey
+	}{
+		{
+			name:     "EdDSALegacy v4",
+			signer:   NewSignerPrivateKey(creationTime, signer),
+			concrete: NewEdDSAPrivateKey(creationTime, eddsaPriv),
+		},
+		{
+			name:     "Ed25519 v4",
+			signer:   newEd25519SignerKey(false),
+			concrete: newEd25519ConcreteKey(false),
+		},
+		{
+			name:     "Ed25519 v6",
+			signer:   newEd25519SignerKey(true),
+			concrete: newEd25519ConcreteKey(true),
+		},
+	}
+
+	msg := make([]byte, maxMessageLength)
+	rand.Read(msg)
+	randomness := make([]byte, 64)
+	rand.Read(randomness)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if test.signer.PubKeyAlgo != test.concrete.PubKeyAlgo {
+				t.Fatalf("algorithm mismatch: got %d, want %d", test.signer.PubKeyAlgo, test.concrete.PubKeyAlgo)
+			}
+			if !bytes.Equal(test.signer.Fingerprint, test.concrete.Fingerprint) {
+				t.Fatal("fingerprint mismatch between crypto.Signer key and concrete key")
+			}
+
+			// Sign the same message with both keys, using the same
+			// randomness for salts so that the hashed data is identical.
+			sign := func(priv *PrivateKey) *Signature {
+				config := &Config{Rand: bytes.NewReader(randomness)}
+				sig := &Signature{
+					Version:      priv.Version,
+					SigType:      SigTypeBinary,
+					PubKeyAlgo:   priv.PubKeyAlgo,
+					Hash:         crypto.SHA256,
+					CreationTime: creationTime,
+					IssuerKeyId:  &priv.KeyId,
+				}
+				h, err := sig.PrepareSign(config)
+				if err != nil {
+					t.Fatal(err)
+				}
+				h.Write(msg)
+				if err := sig.Sign(h, priv, config); err != nil {
+					t.Fatal(err)
+				}
+				return sig
+			}
+			sig := sign(test.signer)
+
+			h, err := sig.PrepareVerify()
+			if err != nil {
+				t.Fatal(err)
+			}
+			h.Write(msg)
+			if err := test.signer.VerifySignature(h, sig); err != nil {
+				t.Fatal(err)
+			}
+
+			var got, want bytes.Buffer
+			if err := sig.Serialize(&got); err != nil {
+				t.Fatal(err)
+			}
+			if err := sign(test.concrete).Serialize(&want); err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(got.Bytes(), want.Bytes()) {
+				t.Fatalf("crypto.Signer signature differs from concrete key signature:\ngot:  %x\nwant: %x", got.Bytes(), want.Bytes())
+			}
+		})
 	}
 }
 
