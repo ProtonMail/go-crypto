@@ -3,6 +3,9 @@
 package ecdsa
 
 import (
+	"bytes"
+	goecdsa "crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"io"
 	"math/big"
@@ -91,5 +94,52 @@ func testMarshalUnmarshal(t *testing.T, priv *PrivateKey) {
 
 	if priv.X.Cmp(parsed.X) != 0 || priv.Y.Cmp(parsed.Y) != 0 || priv.D.Cmp(parsed.D) != 0 {
 		t.Fatal("failed to marshal/unmarshal correctly")
+	}
+}
+
+func TestNewPublicKeyFromStd(t *testing.T) {
+	for _, curve := range []elliptic.Curve{elliptic.P256(), elliptic.P384(), elliptic.P521()} {
+		t.Run(curve.Params().Name, func(t *testing.T) {
+			stdPriv, err := goecdsa.GenerateKey(curve, rand.Reader)
+			if err != nil {
+				t.Fatal(err)
+			}
+			pub, err := NewPublicKeyFromStd(&stdPriv.PublicKey)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := elliptic.Marshal(curve, stdPriv.X, stdPriv.Y)
+			if got := pub.MarshalPoint(); !bytes.Equal(got, want) {
+				t.Fatalf("got point %x, want %x", got, want)
+			}
+
+			hash := make([]byte, 32)
+			if _, err := io.ReadFull(rand.Reader, hash); err != nil {
+				t.Fatal(err)
+			}
+			r, s, err := goecdsa.Sign(rand.Reader, stdPriv, hash)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !Verify(pub, hash, r, s) {
+				t.Fatal("signature made with the crypto/ecdsa key did not verify")
+			}
+		})
+	}
+}
+
+func TestNewPublicKeyFromStdInvalid(t *testing.T) {
+	stdPriv, err := goecdsa.GenerateKey(elliptic.P224(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewPublicKeyFromStd(&stdPriv.PublicKey); err == nil {
+		t.Error("expected an error for the unsupported P-224 curve")
+	}
+	if _, err := NewPublicKeyFromStd(nil); err == nil {
+		t.Error("expected an error for a nil key")
+	}
+	if _, err := NewPublicKeyFromStd(&goecdsa.PublicKey{}); err == nil {
+		t.Error("expected an error for an empty key")
 	}
 }

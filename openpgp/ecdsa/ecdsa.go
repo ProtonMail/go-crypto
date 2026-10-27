@@ -3,6 +3,7 @@
 package ecdsa
 
 import (
+	goecdsa "crypto/ecdsa"
 	"errors"
 	"github.com/ProtonMail/go-crypto/openpgp/internal/ecc"
 	"io"
@@ -23,6 +24,28 @@ func NewPublicKey(curve ecc.ECDSACurve) *PublicKey {
 	return &PublicKey{
 		curve: curve,
 	}
+}
+
+// NewPublicKeyFromStd converts a crypto/ecdsa public key into the
+// representation used by this package. It returns an error if the curve
+// is not one supported by OpenPGP.
+func NewPublicKeyFromStd(pub *goecdsa.PublicKey) (*PublicKey, error) {
+	if pub == nil || pub.Curve == nil || pub.X == nil || pub.Y == nil {
+		return nil, errors.New("ecdsa: invalid public key")
+	}
+	curveInfo := ecc.FindByCurve(ecc.NewGenericCurve(pub.Curve))
+	if curveInfo == nil {
+		return nil, errors.New("ecdsa: unsupported curve " + pub.Curve.Params().Name)
+	}
+	curve, ok := curveInfo.Curve.(ecc.ECDSACurve)
+	if !ok {
+		return nil, errors.New("ecdsa: curve " + pub.Curve.Params().Name + " cannot be used with ECDSA")
+	}
+	return &PublicKey{
+		X:     new(big.Int).Set(pub.X),
+		Y:     new(big.Int).Set(pub.Y),
+		curve: curve,
+	}, nil
 }
 
 func NewPrivateKey(key PublicKey) *PrivateKey {

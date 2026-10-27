@@ -9,6 +9,7 @@ import (
 	"crypto"
 	"crypto/cipher"
 	"crypto/dsa"
+	goecdsa "crypto/ecdsa"
 	"crypto/rsa"
 	"crypto/sha1"
 	"crypto/sha256"
@@ -143,8 +144,10 @@ func NewEd448PrivateKey(creationTime time.Time, priv *ed448.PrivateKey) *Private
 	return pk
 }
 
-// NewSignerPrivateKey creates a PrivateKey from a crypto.Signer that
-// implements RSA, ECDSA or EdDSA.
+// NewSignerPrivateKey creates a PrivateKey from a private key of this
+// library's key types, or from a crypto.Signer whose public key is a
+// *rsa.PublicKey or a *crypto/ecdsa.PublicKey. The latter allows signing
+// with keys that never leave an HSM or KMS.
 func NewSignerPrivateKey(creationTime time.Time, signer interface{}) *PrivateKey {
 	pk := new(PrivateKey)
 	// In general, the public Keys should be used as pointers. We still
@@ -174,11 +177,31 @@ func NewSignerPrivateKey(creationTime time.Time, signer interface{}) *PrivateKey
 		pk.PublicKey = *NewMldsaEddsaPublicKey(creationTime, &pubkey.PublicKey)
 	case *slhdsa.PrivateKey:
 		pk.PublicKey = *NewSlhdsaPublicKey(creationTime, &pubkey.PublicKey)
+	case crypto.Signer:
+		// Opaque signers, such as keys held in an HSM or a cloud KMS, only
+		// expose their public key. Signing through a crypto.Signer is
+		// supported for RSA and ECDSA, matching golang.org/x/crypto/openpgp.
+		pk.PublicKey = *newPublicKeyFromSigner(creationTime, pubkey)
 	default:
 		panic("openpgp: unknown signer type in NewSignerPrivateKey")
 	}
 	pk.PrivateKey = signer
 	return pk
+}
+
+func newPublicKeyFromSigner(creationTime time.Time, signer crypto.Signer) *PublicKey {
+	switch pub := signer.Public().(type) {
+	case *rsa.PublicKey:
+		return NewRSAPublicKey(creationTime, pub)
+	case *goecdsa.PublicKey:
+		ecdsaPub, err := ecdsa.NewPublicKeyFromStd(pub)
+		if err != nil {
+			panic("openpgp: " + err.Error())
+		}
+		return NewECDSAPublicKey(creationTime, ecdsaPub)
+	default:
+		panic("openpgp: unsupported crypto.Signer public key type in NewSignerPrivateKey")
+	}
 }
 
 // NewDecrypterPrivateKey creates a PrivateKey from a *{rsa|elgamal|ecdh|x25519|x448|mlkem_ecdh}.PrivateKey.
