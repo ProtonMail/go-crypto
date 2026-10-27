@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"crypto"
 	"crypto/dsa"
+	goecdsa "crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
@@ -15,6 +16,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"hash"
+	"io"
 	"math/big"
 	mathrand "math/rand"
 	"testing"
@@ -650,4 +652,108 @@ func TestECDSASignerRandomizedNotation(t *testing.T) {
 	if sig.Notations[0].Name != SaltNotationName {
 		t.Fatalf("failed to find randomized notation")
 	}
+}
+
+// opaqueSigner hides the concrete key type, like a signer backed by an
+// HSM or a cloud KMS would.
+type opaqueSigner struct {
+	signer crypto.Signer
+}
+
+func (s opaqueSigner) Public() crypto.PublicKey {
+	return s.signer.Public()
+}
+
+func (s opaqueSigner) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+	return s.signer.Sign(rand, digest, opts)
+}
+
+func TestCryptoSignerPrivateKey(t *testing.T) {
+	rsaPriv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name   string
+		signer crypto.Signer
+		algo   PublicKeyAlgorithm
+	}{
+		{name: "RSA", signer: rsaPriv, algo: PubKeyAlgoRSA},
+		{name: "P256", signer: generateStdECDSAKey(t, elliptic.P256()), algo: PubKeyAlgoECDSA},
+		{name: "P384", signer: generateStdECDSAKey(t, elliptic.P384()), algo: PubKeyAlgoECDSA},
+		{name: "P521", signer: generateStdECDSAKey(t, elliptic.P521()), algo: PubKeyAlgoECDSA},
+	}
+	for _, test := range tests {
+		t.Run(test.name+"/std", func(t *testing.T) {
+			testCryptoSignerPrivateKey(t, test.signer, test.algo)
+		})
+		t.Run(test.name+"/opaque", func(t *testing.T) {
+			testCryptoSignerPrivateKey(t, opaqueSigner{test.signer}, test.algo)
+		})
+	}
+}
+
+func testCryptoSignerPrivateKey(t *testing.T, signer crypto.Signer, algo PublicKeyAlgorithm) {
+	priv := NewSignerPrivateKey(time.Now(), signer)
+	if priv.PubKeyAlgo != algo {
+		t.Fatalf("got public key algorithm %d, want %d", priv.PubKeyAlgo, algo)
+	}
+
+	sig := &Signature{
+		Version:    4,
+		PubKeyAlgo: algo,
+		Hash:       crypto.SHA256,
+	}
+	msg := make([]byte, mathrand.Intn(maxMessageLength))
+	rand.Read(msg)
+	h, err := populateHash(sig.Hash, msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sig.Sign(h, priv, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify against the serialized and re-parsed public key to make sure
+	// the key packet derived from the signer is encoded correctly.
+	var buf bytes.Buffer
+	if err := priv.PublicKey.Serialize(&buf); err != nil {
+		t.Fatal(err)
+	}
+	p, err := Read(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pub, ok := p.(*PublicKey)
+	if !ok {
+		t.Fatalf("got packet %T, want *PublicKey", p)
+	}
+	if !bytes.Equal(pub.Fingerprint, priv.Fingerprint) {
+		t.Fatalf("fingerprint changed after round trip: got %x, want %x", pub.Fingerprint, priv.Fingerprint)
+	}
+	if h, err = populateHash(sig.Hash, msg); err != nil {
+		t.Fatal(err)
+	}
+	if err := pub.VerifySignature(h, sig); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCryptoSignerPrivateKeyUnsupportedCurve(t *testing.T) {
+	signer := opaqueSigner{generateStdECDSAKey(t, elliptic.P224())}
+	defer func() {
+		if recover() == nil {
+			t.Fatal("NewSignerPrivateKey should panic for an unsupported curve")
+		}
+	}()
+	NewSignerPrivateKey(time.Now(), signer)
+}
+
+func generateStdECDSAKey(t *testing.T, curve elliptic.Curve) *goecdsa.PrivateKey {
+	t.Helper()
+	priv, err := goecdsa.GenerateKey(curve, rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return priv
 }
